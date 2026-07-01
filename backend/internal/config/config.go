@@ -9,19 +9,25 @@ import (
 )
 
 const (
-	DefaultListenAddr = ":8080"
-	DefaultLogLevel   = "info"
+	DefaultListenAddr   = ":8080"
+	DefaultLogLevel     = "info"
+	DefaultVMName       = "calf"
+	DefaultDockerSocket = ""
 )
 
 type Config struct {
-	ListenAddr string `yaml:"listen_addr"`
-	LogLevel   string `yaml:"log_level"`
+	ListenAddr   string `yaml:"listen_addr"`
+	LogLevel     string `yaml:"log_level"`
+	VMName       string `yaml:"vm_name"`
+	DockerSocket string `yaml:"docker_socket"`
 }
 
 func Default() Config {
 	return Config{
-		ListenAddr: DefaultListenAddr,
-		LogLevel:   DefaultLogLevel,
+		ListenAddr:   DefaultListenAddr,
+		LogLevel:     DefaultLogLevel,
+		VMName:       DefaultVMName,
+		DockerSocket: DefaultDockerSocket,
 	}
 }
 
@@ -91,6 +97,10 @@ func withDefaults(cfg Config) Config {
 
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = DefaultLogLevel
+	}
+
+	if cfg.VMName == "" {
+		cfg.VMName = DefaultVMName
 	}
 
 	return cfg

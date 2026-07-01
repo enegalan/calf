@@ -10,6 +10,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -20,7 +21,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 		LogLevel:   "info",
 	}
 
-	return httptest.NewServer(api.New(cfg, slog.Default()).Handler())
+	return httptest.NewServer(api.New(cfg, slog.Default(), runtime.NewMock()).Handler())
 }
 
 func TestHealthReturnsOk(t *testing.T) {
@@ -66,10 +67,58 @@ func TestStatusReturnsMetadata(t *testing.T) {
 		t.Fatalf("Decode() error: %v", err)
 	}
 
-	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level"} {
+	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime"} {
 		if _, ok := payload[key]; !ok {
 			t.Fatalf("expected %q in response", key)
 		}
+	}
+}
+
+func TestContainersReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/containers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var containers []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&containers); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+}
+
+func TestImagesReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/images")
+	if err != nil {
+		t.Fatalf("GET /v1/images error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var images []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&images); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
 	}
 }
 

@@ -1,0 +1,47 @@
+minimumLimaVersion: 1.0.0
+
+vmType: vz
+rosetta:
+  enabled: true
+  binfmt: true
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: x86_64
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: aarch64
+
+cpus: 4
+memory: 4GiB
+disk: 20GiB
+
+mounts:
+  - location: "%[1]s/.config/calf/mounts"
+    writable: true
+    mountPoint: /mnt/calf
+
+ssh:
+  loadDotSSHPubKeys: true
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      apt-get update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io curl ca-certificates
+      systemctl enable --now containerd
+      systemctl enable --now docker
+      ARCH="$(uname -m)"
+      case "$ARCH" in
+        aarch64|arm64) NERD_ARCH=arm64 ;;
+        x86_64|amd64) NERD_ARCH=amd64 ;;
+        *) exit 1 ;;
+      esac
+      NERD_VERSION=1.7.6
+      curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NERD_VERSION}/nerdctl-${NERD_VERSION}-linux-${NERD_ARCH}.tar.gz" | tar Cxz /usr/local/bin
+      nerdctl run --rm hello-world || true
+
+portForwards:
+  - guestSocket: "/var/run/docker.sock"
+    hostSocket: "%[2]s/.config/calf/docker.sock"

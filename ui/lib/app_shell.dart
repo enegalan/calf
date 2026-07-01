@@ -2,12 +2,13 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/screens/resources_screen.dart';
 
 class AppShell extends StatefulWidget {
-  AppShell({super.key, StatusClient? apiClient})
+  AppShell({super.key, CalfClient? apiClient})
       : apiClient = apiClient ?? ApiClient();
 
-  final StatusClient apiClient;
+  final CalfClient apiClient;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -19,6 +20,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final labels = ['Status', 'Containers', 'Images', 'Settings'];
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -36,26 +38,26 @@ class _AppShellState extends State<AppShell> {
             children: [
               Text('Calf', style: theme.textTheme.h3),
               const SizedBox(height: 24),
-              _NavItem(
-                label: 'Status',
-                selected: _selectedIndex == 0,
-                onTap: () => setState(() => _selectedIndex = 0),
-              ),
-              const SizedBox(height: 8),
-              _NavItem(
-                label: 'Settings',
-                selected: _selectedIndex == 1,
-                onTap: () => setState(() => _selectedIndex = 1),
-              ),
+              for (var index = 0; index < labels.length; index++) ...[
+                if (index > 0) const SizedBox(height: 8),
+                _NavItem(
+                  label: labels[index],
+                  selected: _selectedIndex == index,
+                  onTap: () => setState(() => _selectedIndex = index),
+                ),
+              ],
             ],
           ),
         ),
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: _selectedIndex == 0
-                ? StatusScreen(apiClient: widget.apiClient)
-                : SettingsScreen(apiClient: widget.apiClient),
+            child: switch (_selectedIndex) {
+              0 => StatusScreen(apiClient: widget.apiClient),
+              1 => ContainersScreen(apiClient: widget.apiClient),
+              2 => ImagesScreen(apiClient: widget.apiClient),
+              _ => SettingsScreen(apiClient: widget.apiClient),
+            },
           ),
         ),
       ],
@@ -95,7 +97,7 @@ mixin DaemonStatusLoader<T extends StatefulWidget> on State<T> {
   String? statusError;
   bool statusLoading = true;
 
-  StatusClient get statusClient;
+  CalfClient get statusClient;
 
   @override
   void initState() {
@@ -133,7 +135,7 @@ mixin DaemonStatusLoader<T extends StatefulWidget> on State<T> {
 class StatusScreen extends StatefulWidget {
   const StatusScreen({super.key, required this.apiClient});
 
-  final StatusClient apiClient;
+  final CalfClient apiClient;
 
   @override
   State<StatusScreen> createState() => _StatusScreenState();
@@ -141,7 +143,7 @@ class StatusScreen extends StatefulWidget {
 
 class _StatusScreenState extends State<StatusScreen> with DaemonStatusLoader {
   @override
-  StatusClient get statusClient => widget.apiClient;
+  CalfClient get statusClient => widget.apiClient;
 
   @override
   Widget build(BuildContext context) {
@@ -188,6 +190,9 @@ class _StatusDetails extends StatelessWidget {
       MapEntry('Uptime', '${status.uptimeSeconds}s'),
       MapEntry('Listen address', status.listenAddr),
       MapEntry('Log level', status.logLevel),
+      MapEntry('Runtime mode', status.runtime.mode),
+      MapEntry('Runtime state', status.runtime.state),
+      MapEntry('Docker socket', status.runtime.dockerSocket),
     ];
 
     return Column(
@@ -207,7 +212,7 @@ class _StatusDetails extends StatelessWidget {
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.apiClient});
 
-  final StatusClient apiClient;
+  final CalfClient apiClient;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -215,7 +220,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> with DaemonStatusLoader {
   @override
-  StatusClient get statusClient => widget.apiClient;
+  CalfClient get statusClient => widget.apiClient;
 
   @override
   Widget build(BuildContext context) {
@@ -250,6 +255,10 @@ class _SettingsScreenState extends State<SettingsScreen> with DaemonStatusLoader
           Text('Log level', style: theme.textTheme.muted),
           const SizedBox(height: 4),
           Text(status!.logLevel, style: theme.textTheme.large),
+          const SizedBox(height: 16),
+          Text('Docker socket', style: theme.textTheme.muted),
+          const SizedBox(height: 4),
+          Text(status!.runtime.dockerSocket, style: theme.textTheme.large),
         ],
       ],
     );

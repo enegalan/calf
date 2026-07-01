@@ -11,7 +11,7 @@ void main() {
 class MainApp extends StatelessWidget {
   const MainApp({super.key, this.apiClient});
 
-  final StatusClient? apiClient;
+  final CalfClient? apiClient;
 
   @override
   Widget build(BuildContext context) {
