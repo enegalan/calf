@@ -1,26 +1,28 @@
-package config
+package config_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/enegalan/calf/backend/internal/config"
 )
 
 func TestLoadCreatesDefaultConfig(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.ListenAddr != DefaultListenAddr {
-		t.Fatalf("expected listen_addr %q, got %q", DefaultListenAddr, cfg.ListenAddr)
+	if cfg.ListenAddr != config.DefaultListenAddr {
+		t.Fatalf("expected listen_addr %q, got %q", config.DefaultListenAddr, cfg.ListenAddr)
 	}
 
-	if cfg.LogLevel != DefaultLogLevel {
-		t.Fatalf("expected log_level %q, got %q", DefaultLogLevel, cfg.LogLevel)
+	if cfg.LogLevel != config.DefaultLogLevel {
+		t.Fatalf("expected log_level %q, got %q", config.DefaultLogLevel, cfg.LogLevel)
 	}
 
 	path := filepath.Join(dir, ".config", "calf", "config.yaml")
@@ -44,7 +46,7 @@ func TestLoadReadsExistingConfig(t *testing.T) {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	cfg, err := Load()
+	cfg, err := config.Load()
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}

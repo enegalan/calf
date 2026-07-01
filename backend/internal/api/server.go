@@ -22,15 +22,18 @@ func New(cfg config.Config, logger *slog.Logger) *Server {
 	}
 }
 
-func (s *Server) Run() error {
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", s.handleHealth)
 	mux.HandleFunc("/v1/status", s.handleStatus)
 
-	handler := withMiddleware(s.logger, mux)
+	return withMiddleware(s.logger, mux)
+}
+
+func (s *Server) Run() error {
 	server := &http.Server{
 		Addr:              s.cfg.ListenAddr,
-		Handler:           handler,
+		Handler:           s.Handler(),
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
