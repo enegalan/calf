@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"log/slog"
+	"os"
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
@@ -10,11 +11,15 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
 	}
-	server := api.New(cfg)
+
+	logger := config.NewLogger(cfg.LogLevel)
+	server := api.New(cfg, logger)
 
 	if err := server.Run(); err != nil {
-		log.Fatal(err)
+		logger.Error("server stopped", "error", err)
+		os.Exit(1)
 	}
 }

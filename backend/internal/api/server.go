@@ -1,8 +1,7 @@
 package api
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -11,12 +10,14 @@ import (
 
 type Server struct {
 	cfg       config.Config
+	logger    *slog.Logger
 	startTime time.Time
 }
 
-func New(cfg config.Config) *Server {
+func New(cfg config.Config, logger *slog.Logger) *Server {
 	return &Server{
 		cfg:       cfg,
+		logger:    logger,
 		startTime: time.Now(),
 	}
 }
@@ -26,9 +27,9 @@ func (s *Server) Run() error {
 	mux.HandleFunc("/v1/health", s.handleHealth)
 	mux.HandleFunc("/v1/status", s.handleStatus)
 
-	handler := corsMiddleware(mux)
+	handler := withMiddleware(s.logger, mux)
 
-	log.Printf("listening on %s", s.cfg.ListenAddr)
+	s.logger.Info("listening", "addr", s.cfg.ListenAddr)
 	return http.ListenAndServe(s.cfg.ListenAddr, handler)
 }
 
@@ -45,8 +46,4 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (s *Server) Addr() string {
-	return fmt.Sprintf("http://localhost%s", s.cfg.ListenAddr)
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestHandleHealth(t *testing.T) {
-	server := New(testConfig())
+	server := New(testConfig(), slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
 	rec := httptest.NewRecorder()
@@ -25,7 +26,7 @@ func TestHandleHealth(t *testing.T) {
 }
 
 func TestHandleStatus(t *testing.T) {
-	server := New(testConfig())
+	server := New(testConfig(), slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/status", nil)
 	rec := httptest.NewRecorder()
