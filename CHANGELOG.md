@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-07-01
+
+### Added
+
+- Daemon layout under `backend/cmd/calf` with `internal/api` and `internal/config`
+- Versioned REST API: `GET /v1/health`, `GET /v1/status`
+- Persistent configuration at `~/.config/calf/config.yaml`
+- Structured logging (`slog`), request logging, and panic recovery middleware
+- Flutter UI with sidebar navigation, daemon status, and read-only settings screens
+- `Makefile` for local builds (`make backend`, `make ui`, `make build`)
+- GitHub Actions CI on macOS for backend and Flutter UI
+
+### Changed
+
+- Backend entry point moved from `go run .` to `go run ./cmd/calf`
+- UI now consumes `/v1/status` instead of `/hello`
+
+### Removed
+
+- `/hello` placeholder endpoint
+
 ## [0.1.0] - 2026-07-01
 
 ### Added
