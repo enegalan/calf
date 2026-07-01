@@ -4,7 +4,7 @@
 
 ```bash
 cd backend
-go run .
+go run ./cmd/calf
 ```
 
 **2. Start the UI** (in another terminal):

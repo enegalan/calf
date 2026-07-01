@@ -1,10 +1,28 @@
-package main
+package api
 
 import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/enegalan/calf/backend/internal/config"
 )
+
+type Server struct {
+	cfg config.Config
+}
+
+func New(cfg config.Config) *Server {
+	return &Server{cfg: cfg}
+}
+
+func (s *Server) Run() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/hello", helloHandler)
+
+	log.Printf("listening on %s", s.cfg.ListenAddr)
+	return http.ListenAndServe(s.cfg.ListenAddr, mux)
+}
 
 func helloHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -22,13 +40,4 @@ func helloHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprint(w, "Hello, World!")
-}
-
-func main() {
-	http.HandleFunc("/hello", helloHandler)
-
-	log.Println("listening on :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)
-	}
 }
