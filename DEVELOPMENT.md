@@ -25,3 +25,23 @@ On first run the daemon creates `~/.config/calf/config.yaml` with defaults:
 listen_addr: ":8080"
 log_level: info
 ```
+
+## Build
+
+Build the daemon and macOS UI from the repository root:
+
+```bash
+make build
+```
+
+Artifacts:
+
+- `bin/calf` — daemon binary
+- `ui/build/macos/Build/Products/Release/ui.app` — macOS app bundle
+
+Build individually:
+
+```bash
+make backend
+make ui
+```
