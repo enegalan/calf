@@ -4,7 +4,7 @@
 
 ```bash
 cd backend
-go run .
+go run ./cmd/calf
 ```
 
 **2. Start the UI** (in another terminal):
@@ -15,4 +15,33 @@ flutter pub get
 flutter run
 ```
 
-Pick a device when prompted (`chrome`, `macos`, etc.). The UI calls the API on startup and shows the response.
+Pick a device when prompted (`chrome`, `macos`, etc.). The UI calls the API on startup and shows daemon status.
+
+## Configuration
+
+On first run the daemon creates `~/.config/calf/config.yaml` with defaults:
+
+```yaml
+listen_addr: ":8080"
+log_level: info
+```
+
+## Build
+
+Build the daemon and macOS UI from the repository root:
+
+```bash
+make build
+```
+
+Artifacts:
+
+- `bin/calf` — daemon binary
+- `ui/build/macos/Build/Products/Release/ui.app` — macOS app bundle
+
+Build individually:
+
+```bash
+make backend
+make ui
+```
