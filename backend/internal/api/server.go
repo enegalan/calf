@@ -28,9 +28,17 @@ func (s *Server) Run() error {
 	mux.HandleFunc("/v1/status", s.handleStatus)
 
 	handler := withMiddleware(s.logger, mux)
+	server := &http.Server{
+		Addr:              s.cfg.ListenAddr,
+		Handler:           handler,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
 
 	s.logger.Info("listening", "addr", s.cfg.ListenAddr)
-	return http.ListenAndServe(s.cfg.ListenAddr, handler)
+	return server.ListenAndServe()
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

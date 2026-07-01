@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
 const defaultBaseUrl = 'http://localhost:8080';
+const defaultRequestTimeout = Duration(seconds: 5);
 
 class DaemonStatus {
   const DaemonStatus({
@@ -18,36 +20,91 @@ class DaemonStatus {
   final String logLevel;
 
   factory DaemonStatus.fromJson(Map<String, dynamic> json) {
+    final version = json['version'];
+    if (version is! String) {
+      throw FormatException('expected string "version", got $version');
+    }
+
+    final uptimeSeconds = json['uptime_seconds'];
+    if (uptimeSeconds is! int) {
+      throw FormatException('expected int "uptime_seconds", got $uptimeSeconds');
+    }
+
+    final listenAddr = json['listen_addr'];
+    if (listenAddr is! String) {
+      throw FormatException('expected string "listen_addr", got $listenAddr');
+    }
+
+    final logLevel = json['log_level'];
+    if (logLevel is! String) {
+      throw FormatException('expected string "log_level", got $logLevel');
+    }
+
     return DaemonStatus(
-      version: json['version'] as String,
-      uptimeSeconds: json['uptime_seconds'] as int,
-      listenAddr: json['listen_addr'] as String,
-      logLevel: json['log_level'] as String,
+      version: version,
+      uptimeSeconds: uptimeSeconds,
+      listenAddr: listenAddr,
+      logLevel: logLevel,
     );
   }
 }
 
-class ApiClient {
-  const ApiClient({this.baseUrl = defaultBaseUrl});
+abstract class StatusClient {
+  Future<DaemonStatus> fetchStatus();
+}
+
+class ApiClient implements StatusClient {
+  ApiClient({
+    this.baseUrl = defaultBaseUrl,
+    http.Client? httpClient,
+    this.timeout = defaultRequestTimeout,
+  }) : httpClient = httpClient ?? http.Client();
 
   final String baseUrl;
+  final http.Client httpClient;
+  final Duration timeout;
 
+  @override
   Future<DaemonStatus> fetchStatus() async {
-    final response = await http.get(Uri.parse('$baseUrl/v1/status'));
+    try {
+      final response = await httpClient
+          .get(Uri.parse('$baseUrl/v1/status'))
+          .timeout(timeout);
 
-    if (response.statusCode != 200) {
-      throw ApiException('Error: ${response.statusCode}');
+      if (response.statusCode != 200) {
+        throw ApiException(
+          'Error: ${response.statusCode}',
+          statusCode: response.statusCode,
+        );
+      }
+
+      final json = jsonDecode(response.body);
+      if (json is! Map<String, dynamic>) {
+        throw ApiException(
+          'Invalid status response: expected JSON object',
+          statusCode: response.statusCode,
+        );
+      }
+
+      try {
+        return DaemonStatus.fromJson(json);
+      } on FormatException catch (error) {
+        throw ApiException(
+          'Invalid status response: ${error.message}',
+          statusCode: response.statusCode,
+        );
+      }
+    } on TimeoutException {
+      throw ApiException('Request timed out');
     }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return DaemonStatus.fromJson(json);
   }
 }
 
 class ApiException implements Exception {
-  ApiException(this.message);
+  ApiException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;

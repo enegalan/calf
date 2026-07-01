@@ -4,7 +4,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  AppShell({super.key, StatusClient? apiClient})
+      : apiClient = apiClient ?? ApiClient();
+
+  final StatusClient apiClient;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -12,7 +15,6 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
-  final _apiClient = const ApiClient();
 
   @override
   Widget build(BuildContext context) {
@@ -52,8 +54,8 @@ class _AppShellState extends State<AppShell> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: _selectedIndex == 0
-                ? StatusScreen(apiClient: _apiClient)
-                : SettingsScreen(apiClient: _apiClient),
+                ? StatusScreen(apiClient: widget.apiClient)
+                : SettingsScreen(apiClient: widget.apiClient),
           ),
         ),
       ],
@@ -88,51 +90,58 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class StatusScreen extends StatefulWidget {
-  const StatusScreen({super.key, required this.apiClient});
+mixin DaemonStatusLoader<T extends StatefulWidget> on State<T> {
+  DaemonStatus? status;
+  String? statusError;
+  bool statusLoading = true;
 
-  final ApiClient apiClient;
-
-  @override
-  State<StatusScreen> createState() => _StatusScreenState();
-}
-
-class _StatusScreenState extends State<StatusScreen> {
-  DaemonStatus? _status;
-  String? _error;
-  bool _loading = true;
+  StatusClient get statusClient;
 
   @override
   void initState() {
     super.initState();
-    _loadStatus();
+    loadDaemonStatus();
   }
 
-  Future<void> _loadStatus() async {
+  Future<void> loadDaemonStatus() async {
     setState(() {
-      _loading = true;
-      _error = null;
+      statusLoading = true;
+      statusError = null;
     });
 
     try {
-      final status = await widget.apiClient.fetchStatus();
+      final result = await statusClient.fetchStatus();
       if (!mounted) {
         return;
       }
       setState(() {
-        _status = status;
-        _loading = false;
+        status = result;
+        statusLoading = false;
       });
     } catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
-        _error = error.toString();
-        _loading = false;
+        statusError = error.toString();
+        statusLoading = false;
       });
     }
   }
+}
+
+class StatusScreen extends StatefulWidget {
+  const StatusScreen({super.key, required this.apiClient});
+
+  final StatusClient apiClient;
+
+  @override
+  State<StatusScreen> createState() => _StatusScreenState();
+}
+
+class _StatusScreenState extends State<StatusScreen> with DaemonStatusLoader {
+  @override
+  StatusClient get statusClient => widget.apiClient;
 
   @override
   Widget build(BuildContext context) {
@@ -146,18 +155,21 @@ class _StatusScreenState extends State<StatusScreen> {
             Text('Daemon status', style: theme.textTheme.h3),
             const Spacer(),
             ShadButton.outline(
-              onPressed: _loading ? null : _loadStatus,
+              onPressed: statusLoading ? null : loadDaemonStatus,
               child: const Text('Refresh'),
             ),
           ],
         ),
         const SizedBox(height: 24),
-        if (_loading)
+        if (statusLoading)
           Text('Loading...', style: theme.textTheme.large)
-        else if (_error != null)
-          Text(_error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive))
-        else if (_status != null)
-          _StatusDetails(status: _status!),
+        else if (statusError != null)
+          Text(
+            statusError!,
+            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+          )
+        else if (status != null)
+          _StatusDetails(status: status!),
       ],
     );
   }
@@ -195,48 +207,15 @@ class _StatusDetails extends StatelessWidget {
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.apiClient});
 
-  final ApiClient apiClient;
+  final StatusClient apiClient;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  DaemonStatus? _status;
-  String? _error;
-  bool _loading = true;
-
+class _SettingsScreenState extends State<SettingsScreen> with DaemonStatusLoader {
   @override
-  void initState() {
-    super.initState();
-    _loadStatus();
-  }
-
-  Future<void> _loadStatus() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _status = status;
-        _loading = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = error.toString();
-        _loading = false;
-      });
-    }
-  }
+  StatusClient get statusClient => widget.apiClient;
 
   @override
   Widget build(BuildContext context) {
@@ -252,22 +231,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: theme.textTheme.muted,
         ),
         const SizedBox(height: 24),
-        if (_loading)
+        if (statusLoading)
           Text('Loading...', style: theme.textTheme.large)
-        else if (_error != null)
-          Text(_error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive))
-        else if (_status != null) ...[
+        else if (statusError != null)
+          Text(
+            statusError!,
+            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+          )
+        else if (status != null) ...[
           Text('Config file', style: theme.textTheme.muted),
           const SizedBox(height: 4),
           Text('~/.config/calf/config.yaml', style: theme.textTheme.large),
           const SizedBox(height: 16),
           Text('Listen address', style: theme.textTheme.muted),
           const SizedBox(height: 4),
-          Text(_status!.listenAddr, style: theme.textTheme.large),
+          Text(status!.listenAddr, style: theme.textTheme.large),
           const SizedBox(height: 16),
           Text('Log level', style: theme.textTheme.muted),
           const SizedBox(height: 4),
-          Text(_status!.logLevel, style: theme.textTheme.large),
+          Text(status!.logLevel, style: theme.textTheme.large),
         ],
       ],
     );

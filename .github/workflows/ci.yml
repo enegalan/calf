@@ -8,11 +8,16 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/go.mod
@@ -31,6 +36,8 @@ jobs:
         working-directory: ui
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
