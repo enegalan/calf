@@ -78,7 +78,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Loading...'), findsNothing);
-    expect(find.text('0.2.0'), findsOneWidget);
+    expect(find.text('0.3.0'), findsOneWidget);
     expect(find.text('42s'), findsOneWidget);
   });
 
