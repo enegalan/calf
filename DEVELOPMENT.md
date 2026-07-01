@@ -15,4 +15,13 @@ flutter pub get
 flutter run
 ```
 
-Pick a device when prompted (`chrome`, `macos`, etc.). The UI calls the API on startup and shows the response.
+Pick a device when prompted (`chrome`, `macos`, etc.). The UI calls the API on startup and shows daemon status.
+
+## Configuration
+
+On first run the daemon creates `~/.config/calf/config.yaml` with defaults:
+
+```yaml
+listen_addr: ":8080"
+log_level: info
+```

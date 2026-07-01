@@ -41,5 +41,8 @@ func TestHandleStatus(t *testing.T) {
 }
 
 func testConfig() config.Config {
-	return config.Config{ListenAddr: ":8080"}
+	return config.Config{
+		ListenAddr: ":8080",
+		LogLevel:   "info",
+	}
 }

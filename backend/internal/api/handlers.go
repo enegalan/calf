@@ -14,6 +14,7 @@ type statusResponse struct {
 	Version       string `json:"version"`
 	UptimeSeconds int64  `json:"uptime_seconds"`
 	ListenAddr    string `json:"listen_addr"`
+	LogLevel      string `json:"log_level"`
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +46,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		Version:       Version,
 		UptimeSeconds: int64(time.Since(s.startTime).Seconds()),
 		ListenAddr:    s.cfg.ListenAddr,
+		LogLevel:      s.cfg.LogLevel,
 	})
 }
 
