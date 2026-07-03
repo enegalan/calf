@@ -32,6 +32,10 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	writer := newWSWriter(conn)
+	lines, unsubscribe := s.logBroadcaster.subscribe(s.runtime, id)
+	defer unsubscribe()
+
 	go func() {
 		for {
 			if _, _, readErr := conn.ReadMessage(); readErr != nil {
@@ -41,12 +45,17 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 		}
 	}()
 
-	err = s.runtime.StreamLogs(ctx, id, func(line string) {
-		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(line)); writeErr != nil {
-			cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case line, ok := <-lines:
+			if !ok {
+				return
+			}
+			if writeErr := writer.writeMessage(websocket.TextMessage, []byte(line)); writeErr != nil {
+				return
+			}
 		}
-	})
-	if err != nil && ctx.Err() == nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("error: "+err.Error()))
 	}
 }

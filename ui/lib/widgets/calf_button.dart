@@ -133,6 +133,7 @@ class CalfButton extends StatelessWidget {
           tapTargetSize: tapTarget,
           foregroundColor: theme.colorScheme.foreground,
           disabledForegroundColor: theme.colorScheme.mutedForeground,
+          backgroundColor: backgroundColor,
           side: BorderSide(color: theme.colorScheme.border),
         );
       case _CalfButtonVariant.ghost:

@@ -95,6 +95,57 @@ func TestParseContainerLinesInfersComposeFromSharedPrefix(t *testing.T) {
 	}
 }
 
+func TestParseContainerLinesInfersComposeFromTypingAppPrefix(t *testing.T) {
+	output := []byte(`{"ID":"b1","Names":"typing-app-backend","Image":"docker.io/library/keycode-backend:latest","Status":"Up","Ports":"","Labels":{}}
+{"ID":"b2","Names":"typing-app-frontend","Image":"docker.io/library/keycode-frontend:latest","Status":"Up","Ports":"","Labels":{}}
+{"ID":"b3","Names":"typing-app-mongodb","Image":"docker.io/library/mongo:7.0","Status":"Up","Ports":"","Labels":{}}
+`)
+
+	containers, err := runtime.ParseContainerLines(output)
+	if err != nil {
+		t.Fatalf("ParseContainerLines() error: %v", err)
+	}
+
+	byName := map[string]runtime.Container{}
+	for _, container := range containers {
+		byName[container.Name] = container
+	}
+
+	for _, name := range []string{"typing-app-backend", "typing-app-frontend", "typing-app-mongodb"} {
+		container := byName[name]
+		if container.ComposeProject != "typing-app" {
+			t.Fatalf("%s: expected compose project typing-app, got %q", name, container.ComposeProject)
+		}
+	}
+
+	if byName["typing-app-backend"].ComposeService != "backend" {
+		t.Fatalf("expected compose service backend, got %q", byName["typing-app-backend"].ComposeService)
+	}
+}
+
+func TestParseVolumeLines(t *testing.T) {
+	output := []byte(`{"Driver":"local","Labels":"","Mountpoint":"/var/lib/nerdctl/volumes/default/toth_postgres_data/_data","Name":"toth_postgres_data","Scope":"local","Size":""}
+{"Driver":"local","Labels":"","Mountpoint":"/var/lib/nerdctl/volumes/default/4ec7d441/_data","Name":"4ec7d441bc484b4b1bbcb1c9b55c7eee59313dfbfd2536a84ba58273c9d8132e","Scope":"local","Size":""}
+`)
+
+	volumes, err := runtime.ParseVolumeLines(output)
+	if err != nil {
+		t.Fatalf("ParseVolumeLines() error: %v", err)
+	}
+
+	if len(volumes) != 2 {
+		t.Fatalf("expected 2 volumes, got %d", len(volumes))
+	}
+
+	if volumes[0].Name != "toth_postgres_data" {
+		t.Fatalf("expected volume name toth_postgres_data, got %q", volumes[0].Name)
+	}
+
+	if volumes[0].Driver != "local" {
+		t.Fatalf("expected driver local, got %q", volumes[0].Driver)
+	}
+}
+
 func TestParseImageLines(t *testing.T) {
 	output := []byte(`{"ID":"img1","Repository":"nginx","Tag":"latest","Size":"10MB","CreatedAt":"today"}
 `)

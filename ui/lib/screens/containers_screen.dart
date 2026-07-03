@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io' show Platform, Process;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -27,6 +29,8 @@ class _ContainersScreenState extends State<ContainersScreen> {
   bool _loading = true;
   String? _selectedId;
   ContainerItem? _detailContainer;
+  String? _detailProject;
+  List<ContainerItem>? _detailGroupContainers;
   Timer? _timer;
   int _pollIntervalMs = 3000;
   final _searchController = TextEditingController();
@@ -94,6 +98,11 @@ class _ContainersScreenState extends State<ContainersScreen> {
             }
           }
         }
+        if (_detailProject != null) {
+          _detailGroupContainers = containers
+              .where((container) => container.composeProject == _detailProject)
+              .toList();
+        }
       });
     } catch (error) {
       if (!mounted) {
@@ -141,10 +150,26 @@ class _ContainersScreenState extends State<ContainersScreen> {
     });
   }
 
+  void _openComposeGroup(String project, List<ContainerItem> containers) {
+    setState(() {
+      _detailProject = project;
+      _detailGroupContainers = List<ContainerItem>.from(containers);
+      _detailContainer = null;
+      _selectedId = null;
+    });
+  }
+
   void _closeContainerDetail() {
     setState(() {
       _detailContainer = null;
       _selectedId = null;
+    });
+  }
+
+  void _closeComposeGroup() {
+    setState(() {
+      _detailProject = null;
+      _detailGroupContainers = null;
     });
   }
 
@@ -227,6 +252,18 @@ class _ContainersScreenState extends State<ContainersScreen> {
       );
     }
 
+    if (_detailProject != null && _detailGroupContainers != null) {
+      return ComposeGroupDetailView(
+        key: ValueKey(_detailProject),
+        project: _detailProject!,
+        containers: _detailGroupContainers!,
+        apiClient: widget.apiClient,
+        onBack: _closeComposeGroup,
+        onChanged: _loadContainers,
+        onOpenContainer: _openContainer,
+      );
+    }
+
     final theme = ShadTheme.of(context);
     final filtered = _filteredContainers();
     final layout = _buildLayout(filtered);
@@ -278,7 +315,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
                 _searchQuery.isNotEmpty
                     ? 'No containers match "$_searchQuery".'
                     : _runtime?.state == 'stopped'
-                        ? 'No containers. Runtime is stopped — run make dev-backend first.'
+                        ? 'No containers. Runtime is stopped.'
                         : _runningOnly
                             ? 'No running containers.'
                             : 'No containers.',
@@ -298,6 +335,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
                     expanded: _isGroupExpanded(group.key),
                     selectedId: _selectedId,
                     onToggle: () => _toggleGroup(group.key),
+                    onOpenGroup: () => _openComposeGroup(group.key, group.value),
                     onStart: (id) => _runAction(() => widget.apiClient.startContainer(id)),
                     onStop: (id) => _runAction(() => widget.apiClient.stopContainer(id)),
                     onRemove: (id) => _runAction(() => widget.apiClient.removeContainer(id)),
@@ -343,6 +381,7 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.expanded,
     required this.selectedId,
     required this.onToggle,
+    required this.onOpenGroup,
     required this.onStart,
     required this.onStop,
     required this.onRemove,
@@ -358,6 +397,7 @@ class _ComposeGroupTile extends StatelessWidget {
   final bool expanded;
   final String? selectedId;
   final VoidCallback onToggle;
+  final VoidCallback onOpenGroup;
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
@@ -377,6 +417,7 @@ class _ComposeGroupTile extends StatelessWidget {
           theme: theme,
           selected: false,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: onOpenGroup,
           child: Row(
             children: [
               CalfButton.ghost(
@@ -507,11 +548,23 @@ class _ComposeStackIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _StatusDotIcon(
-      icon: LucideIcons.layers,
-      iconColor: theme.colorScheme.primary,
-      statusColor: _groupStatusColor(containers, theme),
-      theme: theme,
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(LucideIcons.layers, size: 22, color: theme.colorScheme.primary),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: _GroupStatusDot(
+              state: _groupRunState(containers),
+              theme: theme,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -530,7 +583,7 @@ class _ContainerStatusIcon extends StatelessWidget {
     return _StatusDotIcon(
       icon: LucideIcons.box,
       iconColor: theme.colorScheme.mutedForeground,
-      statusColor: _containerStatusColor(container, theme),
+      fillColor: _containerStatusColor(container, theme),
       theme: theme,
     );
   }
@@ -540,17 +593,24 @@ class _StatusDotIcon extends StatelessWidget {
   const _StatusDotIcon({
     required this.icon,
     required this.iconColor,
-    required this.statusColor,
+    required this.fillColor,
     required this.theme,
   });
 
   final IconData icon;
   final Color iconColor;
-  final Color statusColor;
+  final Color? fillColor;
   final ShadThemeData theme;
+
+  static const _dotSize = 9.0;
+  static const _borderWidth = 1.5;
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = fillColor != null
+        ? theme.colorScheme.background
+        : theme.colorScheme.mutedForeground;
+
     return SizedBox(
       width: 28,
       height: 28,
@@ -562,12 +622,12 @@ class _StatusDotIcon extends StatelessWidget {
             right: 0,
             bottom: 0,
             child: Container(
-              width: 9,
-              height: 9,
+              width: _dotSize,
+              height: _dotSize,
               decoration: BoxDecoration(
-                color: statusColor,
+                color: fillColor,
                 shape: BoxShape.circle,
-                border: Border.all(color: theme.colorScheme.background, width: 1.5),
+                border: Border.all(color: borderColor, width: _borderWidth),
               ),
             ),
           ),
@@ -577,24 +637,127 @@ class _StatusDotIcon extends StatelessWidget {
   }
 }
 
-Color _containerStatusColor(ContainerItem container, ShadThemeData theme) {
+Color? _containerStatusColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
     return const Color(0xFF2DBE60);
   }
   if (container.state == 'created') {
     return const Color(0xFFF0A500);
   }
-  return theme.colorScheme.mutedForeground;
+  return null;
 }
 
-Color _groupStatusColor(List<ContainerItem> containers, ShadThemeData theme) {
-  if (containers.any((container) => container.isRunning)) {
-    return const Color(0xFF2DBE60);
+enum _GroupRunState { allRunning, partial, stopped }
+
+bool _isTransitionalContainer(ContainerItem container) {
+  final state = container.state.toLowerCase();
+  if (state == 'created' || state == 'restarting') {
+    return true;
   }
-  if (containers.any((container) => container.state == 'created')) {
-    return const Color(0xFFF0A500);
+  return container.status.toLowerCase().contains('restarting');
+}
+
+bool _isStoppedContainer(ContainerItem container) {
+  return !container.isRunning && !_isTransitionalContainer(container);
+}
+
+_GroupRunState _groupRunState(List<ContainerItem> containers) {
+  final runningCount = containers.where((container) => container.isRunning).length;
+  if (runningCount == containers.length) {
+    return _GroupRunState.allRunning;
   }
-  return theme.colorScheme.mutedForeground;
+
+  final hasStopped = containers.any(_isStoppedContainer);
+  final hasTransitional = containers.any(_isTransitionalContainer);
+
+  if (runningCount > 0 || (hasStopped && hasTransitional)) {
+    return _GroupRunState.partial;
+  }
+
+  return _GroupRunState.stopped;
+}
+
+class _GroupStatusDot extends StatelessWidget {
+  const _GroupStatusDot({
+    required this.state,
+    required this.theme,
+  });
+
+  final _GroupRunState state;
+  final ShadThemeData theme;
+
+  static const _dotSize = 9.0;
+  static const _borderWidth = 1.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = theme.colorScheme.background;
+    final borderColor = theme.colorScheme.mutedForeground;
+
+    return SizedBox(
+      width: _dotSize,
+      height: _dotSize,
+      child: switch (state) {
+        _GroupRunState.allRunning => Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF2DBE60),
+            shape: BoxShape.circle,
+            border: Border.all(color: background, width: _borderWidth),
+          ),
+        ),
+        _GroupRunState.stopped => Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: _borderWidth),
+          ),
+        ),
+        _GroupRunState.partial => CustomPaint(
+          painter: _HalfFilledCirclePainter(
+            fillColor: theme.colorScheme.primary,
+            borderColor: borderColor,
+            borderWidth: _borderWidth,
+          ),
+        ),
+      },
+    );
+  }
+}
+
+class _HalfFilledCirclePainter extends CustomPainter {
+  const _HalfFilledCirclePainter({
+    required this.fillColor,
+    required this.borderColor,
+    required this.borderWidth,
+  });
+
+  final Color fillColor;
+  final Color borderColor;
+  final double borderWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - borderWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final fillPaint = Paint()
+      ..color = fillColor
+      ..style = PaintingStyle.fill;
+    canvas.drawArc(rect, math.pi / 2, math.pi, true, fillPaint);
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+    canvas.drawCircle(center, radius, borderPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HalfFilledCirclePainter oldDelegate) {
+    return fillColor != oldDelegate.fillColor ||
+        borderColor != oldDelegate.borderColor ||
+        borderWidth != oldDelegate.borderWidth;
+  }
 }
 
 class _ActionIcon extends StatelessWidget {

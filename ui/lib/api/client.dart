@@ -4,9 +4,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-const defaultBaseUrl = 'http://localhost:8080';
+const defaultBaseUrl = 'http://127.0.0.1:8765';
 const defaultRequestTimeout = Duration(seconds: 5);
 const imageActionTimeout = Duration(minutes: 10);
+const volumeActionTimeout = Duration(seconds: 30);
 
 class PortConflict {
   const PortConflict({
@@ -356,15 +357,87 @@ class VolumeItem {
   const VolumeItem({
     required this.name,
     required this.driver,
+    required this.inUse,
+    this.size = '',
+    this.created = '',
   });
 
   final String name;
   final String driver;
+  final bool inUse;
+  final String size;
+  final String created;
 
   factory VolumeItem.fromJson(Map<String, dynamic> json) {
     return VolumeItem(
       name: json['name'] as String? ?? '',
       driver: json['driver'] as String? ?? '',
+      inUse: json['in_use'] as bool? ?? false,
+      size: json['size'] as String? ?? '',
+      created: json['created'] as String? ?? '',
+    );
+  }
+
+  String get subtitle {
+    final parts = <String>[];
+    if (size.isNotEmpty) {
+      parts.add(size);
+    }
+    if (created.isNotEmpty) {
+      parts.add('Created $created');
+    }
+    return parts.join(' · ');
+  }
+}
+
+class VolumeDetail {
+  const VolumeDetail({
+    required this.name,
+    required this.driver,
+    required this.created,
+    required this.inUse,
+    this.mountpoint = '',
+  });
+
+  final String name;
+  final String driver;
+  final String created;
+  final bool inUse;
+  final String mountpoint;
+
+  factory VolumeDetail.fromJson(Map<String, dynamic> json) {
+    return VolumeDetail(
+      name: json['name'] as String? ?? '',
+      driver: json['driver'] as String? ?? '',
+      created: json['created'] as String? ?? '',
+      inUse: json['in_use'] as bool? ?? false,
+      mountpoint: json['mountpoint'] as String? ?? '',
+    );
+  }
+}
+
+class VolumeContainerUsage {
+  const VolumeContainerUsage({
+    required this.id,
+    required this.name,
+    required this.image,
+    required this.port,
+    required this.target,
+  });
+
+  final String id;
+  final String name;
+  final String image;
+  final String port;
+  final String target;
+
+  factory VolumeContainerUsage.fromJson(Map<String, dynamic> json) {
+    return VolumeContainerUsage(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      image: json['image'] as String? ?? '',
+      port: json['port'] as String? ?? '',
+      target: json['target'] as String? ?? '',
     );
   }
 }
@@ -471,6 +544,9 @@ abstract class CalfClient implements StatusClient {
   Future<List<ImageItem>> fetchImages();
   Future<List<ImageLayer>> fetchImageLayers(String reference);
   Future<List<VolumeItem>> fetchVolumes();
+  Future<VolumeDetail> fetchVolumeDetail(String name);
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'});
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
   Future<List<BuildItem>> fetchBuilds();
   Future<void> startContainer(String id);
   Future<void> stopContainer(String id);
@@ -486,6 +562,7 @@ abstract class CalfClient implements StatusClient {
   Future<String> runImage(String reference);
   Future<void> removeImage(String reference);
   Future<void> createVolume(String name);
+  Future<void> cloneVolume(String source, String name);
   Future<void> removeVolume(String name);
   Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''});
   Stream<String> streamContainerLogs(String id);
@@ -546,8 +623,34 @@ class ApiClient implements CalfClient {
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(timeout);
+    final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(volumeActionTimeout);
     return _decodeList(response, VolumeItem.fromJson);
+  }
+
+  @override
+  Future<VolumeDetail> fetchVolumeDetail(String name) async {
+    final json = await _getJson(
+      '/v1/volumes/${Uri.encodeComponent(name)}',
+      timeout: volumeActionTimeout,
+    );
+    return VolumeDetail.fromJson(json);
+  }
+
+  @override
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async {
+    final uri = Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files').replace(
+      queryParameters: {'path': path},
+    );
+    final response = await httpClient.get(uri).timeout(volumeActionTimeout);
+    return _decodeList(response, ContainerFileEntry.fromJson);
+  }
+
+  @override
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async {
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/containers'))
+        .timeout(volumeActionTimeout);
+    return _decodeList(response, VolumeContainerUsage.fromJson);
   }
 
   @override
@@ -820,6 +923,21 @@ class ApiClient implements CalfClient {
   }
 
   @override
+  Future<void> cloneVolume(String source, String name) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(source)}/clone'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'name': name}),
+        )
+        .timeout(volumeActionTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+    }
+  }
+
+  @override
   Future<void> removeVolume(String name) async {
     await _delete('/v1/volumes/$name');
   }
@@ -852,8 +970,27 @@ class ApiClient implements CalfClient {
 
   @override
   Stream<String> streamContainerLogs(String id) {
-    final channel = WebSocketChannel.connect(containerLogsWebSocketUri(id));
-    return channel.stream.map((event) => event.toString());
+    WebSocketChannel? channel;
+    StreamSubscription<dynamic>? subscription;
+    late final StreamController<String> controller;
+
+    controller = StreamController<String>(
+      onListen: () {
+        channel = WebSocketChannel.connect(containerLogsWebSocketUri(id));
+        subscription = channel!.stream.listen(
+          (event) => controller.add(event.toString()),
+          onError: controller.addError,
+          onDone: controller.close,
+          cancelOnError: false,
+        );
+      },
+      onCancel: () {
+        subscription?.cancel();
+        channel?.sink.close();
+      },
+    );
+
+    return controller.stream;
   }
 
   @override
@@ -873,19 +1010,15 @@ class ApiClient implements CalfClient {
     );
   }
 
-  Future<Map<String, dynamic>> _getJson(String path) async {
+  Future<Map<String, dynamic>> _getJson(String path, {Duration? timeout}) async {
+    final requestTimeout = timeout ?? this.timeout;
     try {
-      final response = await httpClient.get(Uri.parse('$baseUrl$path')).timeout(timeout);
+      final response = await httpClient.get(Uri.parse('$baseUrl$path')).timeout(requestTimeout);
       if (response.statusCode != 200) {
         throw ApiException(_errorMessage(response), statusCode: response.statusCode);
       }
 
-      final json = jsonDecode(response.body);
-      if (json is! Map<String, dynamic>) {
-        throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
-      }
-
-      return json;
+      return _decodeObject(response);
     } on TimeoutException {
       throw ApiException('Request timed out');
     }
@@ -910,12 +1043,33 @@ class ApiClient implements CalfClient {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
     }
 
-    final json = jsonDecode(response.body);
+    final json = _decodeJson(response);
     if (json is! List<dynamic>) {
       throw ApiException('Invalid response: expected JSON array', statusCode: response.statusCode);
     }
 
     return json.map((item) => mapper(item as Map<String, dynamic>)).toList();
+  }
+
+  Map<String, dynamic> _decodeObject(http.Response response) {
+    final json = _decodeJson(response);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+    }
+
+    return json;
+  }
+
+  dynamic _decodeJson(http.Response response) {
+    final body = response.body.trimLeft();
+    if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
+      throw ApiException(
+        'Calf API returned HTML instead of JSON. Check that the backend is running on $baseUrl and that no container is using the same port.',
+        statusCode: response.statusCode,
+      );
+    }
+
+    return jsonDecode(response.body);
   }
 
   String _errorMessage(http.Response response) {

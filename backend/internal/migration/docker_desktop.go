@@ -42,13 +42,19 @@ type parsedSettings struct {
 type containerInspect struct {
 	Name       string `json:"Name"`
 	Config     struct {
-		Image      string   `json:"Image"`
-		Env        []string `json:"Env"`
-		Cmd        []string `json:"Cmd"`
-		WorkingDir string   `json:"WorkingDir"`
+		Image      string            `json:"Image"`
+		Env        []string          `json:"Env"`
+		Cmd        []string          `json:"Cmd"`
+		Entrypoint []string          `json:"Entrypoint"`
+		WorkingDir string            `json:"WorkingDir"`
+		Hostname   string            `json:"Hostname"`
+		User       string            `json:"User"`
+		Labels     map[string]string `json:"Labels"`
 	} `json:"Config"`
 	HostConfig struct {
+		NetworkMode  string   `json:"NetworkMode"`
 		Binds        []string `json:"Binds"`
+		ExtraHosts   []string `json:"ExtraHosts"`
 		PortBindings map[string][]struct {
 			HostIP   string `json:"HostIp"`
 			HostPort string `json:"HostPort"`
@@ -57,6 +63,14 @@ type containerInspect struct {
 			Name string `json:"Name"`
 		} `json:"RestartPolicy"`
 	} `json:"HostConfig"`
+	Mounts []struct {
+		Type        string `json:"Type"`
+		Name        string `json:"Name"`
+		Source      string `json:"Source"`
+		Destination string `json:"Destination"`
+		Mode        string `json:"Mode"`
+		RW          bool   `json:"RW"`
+	} `json:"Mounts"`
 	State struct {
 		Status string `json:"Status"`
 	} `json:"State"`
@@ -419,19 +433,69 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 	status.Summary.ContainersTotal = len(ids)
 	emit(*status)
 
-	for index, id := range ids {
-		status.Progress = 75 + (index*20)/max(len(ids), 1)
-		status.Message = fmt.Sprintf("Migrating container %s", id)
-		emit(*status)
+	inspects := make([]containerInspect, 0, len(ids))
+	running := make(map[string]bool, len(ids))
 
+	for _, id := range ids {
 		inspect, wasRunning, err := inspectContainer(ctx, ddSocket, id)
 		if err != nil {
 			continue
 		}
 
-		if wasRunning {
-			_, _ = runDocker(ctx, ddSocket, "stop", id)
+		name := strings.TrimPrefix(inspect.Name, "/")
+		running[name] = wasRunning
+		inspects = append(inspects, inspect)
+	}
+
+	for _, inspect := range inspects {
+		if !running[strings.TrimPrefix(inspect.Name, "/")] {
+			continue
 		}
+
+		_, _ = runDocker(ctx, ddSocket, "stop", strings.TrimPrefix(inspect.Name, "/"))
+	}
+
+	composeGroups, standalone := groupContainersByComposeProject(inspects, running)
+	migrated := make(map[string]struct{}, len(inspects))
+	mountsRoot, err := composeMountsRoot()
+	if err != nil {
+		return err
+	}
+
+	for _, group := range composeGroups {
+		status.Message = fmt.Sprintf("Migrating compose project %s", group.Name)
+		emit(*status)
+
+		if err := migrateComposeProject(ctx, opts, group, mountsRoot); err != nil {
+			if opts.Logger != nil {
+				opts.Logger.Warn("compose project import failed", "project", group.Name, "error", err)
+			}
+			continue
+		}
+
+		for _, inspect := range group.Containers {
+			migrated[strings.TrimPrefix(inspect.Name, "/")] = struct{}{}
+			status.Summary.ContainersOK++
+		}
+		emit(*status)
+	}
+
+	remaining := append([]containerInspect{}, standalone...)
+	for _, group := range composeGroups {
+		for _, inspect := range group.Containers {
+			name := strings.TrimPrefix(inspect.Name, "/")
+			if _, ok := migrated[name]; ok {
+				continue
+			}
+			remaining = append(remaining, inspect)
+		}
+	}
+
+	for index, inspect := range remaining {
+		name := strings.TrimPrefix(inspect.Name, "/")
+		status.Progress = 75 + (index*20)/max(len(remaining), 1)
+		status.Message = fmt.Sprintf("Migrating container %s", name)
+		emit(*status)
 
 		if err := createContainerOnCalf(ctx, opts, inspect); err != nil {
 			if opts.Logger != nil {
@@ -440,8 +504,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 			continue
 		}
 
-		if wasRunning {
-			name := strings.TrimPrefix(inspect.Name, "/")
+		if running[name] {
 			if opts.RunNerdctl != nil {
 				_ = opts.RunNerdctl(ctx, "start", name)
 			} else {
@@ -451,6 +514,57 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 
 		status.Summary.ContainersOK++
 		emit(*status)
+	}
+
+	return nil
+}
+
+func composeMountsRoot() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	root := filepath.Join(home, ".config", "calf", "mounts")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return "", err
+	}
+
+	return root, nil
+}
+
+func migrateComposeProject(ctx context.Context, opts Options, group composeProjectGroup, mountsRoot string) error {
+	vmDir, vmComposePath, err := stageComposeProject(group, mountsRoot)
+	if err != nil {
+		return err
+	}
+
+	args := []string{
+		"compose",
+		"-p", group.Name,
+		"-f", vmComposePath,
+		"--project-directory", vmDir,
+		"up", "-d",
+	}
+
+	if opts.RunNerdctl != nil {
+		if err := opts.RunNerdctl(ctx, args...); err != nil {
+			return err
+		}
+	} else {
+		if err := runDockerError(ctx, opts.CalfSocket, args...); err != nil {
+			return err
+		}
+	}
+
+	for name, shouldStart := range group.WasRunning {
+		if !shouldStart {
+			if opts.RunNerdctl != nil {
+				_ = opts.RunNerdctl(ctx, "stop", name)
+			} else {
+				_, _ = runDocker(ctx, opts.CalfSocket, "stop", name)
+			}
+		}
 	}
 
 	return nil
@@ -628,11 +742,15 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 		args = append(args, "--name", name)
 	}
 
+	for _, label := range migrationLabels(inspect) {
+		args = append(args, "--label", label[0]+"="+label[1])
+	}
+
 	for _, env := range inspect.Config.Env {
 		args = append(args, "-e", env)
 	}
 
-	for _, bind := range inspect.HostConfig.Binds {
+	for _, bind := range containerBindMounts(inspect) {
 		args = append(args, "-v", bind)
 	}
 
@@ -640,8 +758,31 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 		args = append(args, "-w", inspect.Config.WorkingDir)
 	}
 
+	if inspect.Config.Hostname != "" {
+		args = append(args, "--hostname", inspect.Config.Hostname)
+	}
+
+	if inspect.Config.User != "" {
+		args = append(args, "--user", inspect.Config.User)
+	}
+
+	for _, host := range inspect.HostConfig.ExtraHosts {
+		args = append(args, "--add-host", host)
+	}
+
 	if policy := inspect.HostConfig.RestartPolicy.Name; policy != "" && policy != "no" {
 		args = append(args, "--restart", policy)
+	}
+
+	switch inspect.HostConfig.NetworkMode {
+	case "host":
+		args = append(args, "--network", "host")
+	case "", "default", "bridge":
+		// default bridge network
+	default:
+		if !strings.HasPrefix(inspect.HostConfig.NetworkMode, "container:") {
+			args = append(args, "--network", inspect.HostConfig.NetworkMode)
+		}
 	}
 
 	for port, bindings := range inspect.HostConfig.PortBindings {
@@ -654,6 +795,10 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 		}
 	}
 
+	if len(inspect.Config.Entrypoint) > 0 {
+		args = append(args, "--entrypoint", inspect.Config.Entrypoint[0])
+	}
+
 	args = append(args, inspect.Config.Image)
 	args = append(args, inspect.Config.Cmd...)
 
@@ -662,6 +807,44 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 	}
 
 	return runDockerError(ctx, opts.CalfSocket, args...)
+}
+
+func containerBindMounts(inspect containerInspect) []string {
+	if len(inspect.HostConfig.Binds) > 0 {
+		return inspect.HostConfig.Binds
+	}
+
+	binds := make([]string, 0, len(inspect.Mounts))
+	for _, mount := range inspect.Mounts {
+		switch mount.Type {
+		case "bind":
+			if mount.Source == "" || mount.Destination == "" {
+				continue
+			}
+
+			spec := mount.Source + ":" + mount.Destination
+			if mount.Mode != "" {
+				spec += ":" + mount.Mode
+			} else if !mount.RW {
+				spec += ":ro"
+			}
+
+			binds = append(binds, spec)
+		case "volume":
+			if mount.Destination == "" {
+				continue
+			}
+
+			volumeName := mount.Name
+			if volumeName == "" {
+				continue
+			}
+
+			binds = append(binds, volumeName+":"+mount.Destination)
+		}
+	}
+
+	return binds
 }
 
 func parseBuildHistory(output []byte) []buildHistoryRow {

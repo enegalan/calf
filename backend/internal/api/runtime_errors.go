@@ -9,7 +9,7 @@ import (
 
 func writeRuntimeError(w http.ResponseWriter, err error) bool {
 	if errors.Is(err, runtime.ErrRuntimeNotRunning) {
-		writeError(w, http.StatusServiceUnavailable, "runtime is not running; run make dev-backend")
+		writeError(w, http.StatusServiceUnavailable, "runtime is not running")
 		return true
 	}
 

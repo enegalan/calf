@@ -4,12 +4,15 @@ import 'package:flutter/material.dart' show
     PopupMenuItem,
     RelativeRect,
     RoundedRectangleBorder,
+    Tooltip,
     showMenu;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/hover_list_row.dart';
 
 class ImagesScreen extends StatefulWidget {
   const ImagesScreen({super.key, required this.apiClient});
@@ -202,7 +205,7 @@ class _ImagesScreenState extends State<ImagesScreen> {
             _searchQuery.isNotEmpty
                 ? 'No images match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
-                    ? 'No images. Runtime is stopped — run make dev-backend first.'
+                    ? 'No images. Runtime is stopped.'
                     : 'No local images.',
             style: theme.textTheme.muted,
           )
@@ -213,31 +216,26 @@ class _ImagesScreenState extends State<ImagesScreen> {
               itemBuilder: (context, index) {
                 final image = filtered[index];
 
-                return GestureDetector(
+                return HoverListRow(
+                  theme: theme,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                   onTap: () => _openImage(image),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(image.reference, style: theme.textTheme.large),
-                              Text(image.size, style: theme.textTheme.muted),
-                            ],
-                          ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(image.reference, style: theme.textTheme.large),
+                            Text(image.size, style: theme.textTheme.muted),
+                          ],
                         ),
-                        CalfButton.outline(
-                          onPressed: () => _removeImage(image),
-                          child: const Text('Remove'),
-                        ),
-                      ],
-                    ),
+                      ),
+                      CalfButton.outline(
+                        onPressed: () => _removeImage(image),
+                        child: const Text('Remove'),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -546,17 +544,16 @@ class _VolumesScreenState extends State<VolumesScreen> {
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  bool _refreshInFlight = false;
   final _nameController = TextEditingController();
-  Timer? _timer;
-  int _pollIntervalMs = 3000;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _selectedVolume;
 
   @override
   void initState() {
     super.initState();
     _loadVolumes();
-    _loadConfig();
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -564,27 +561,41 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
     _nameController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadConfig() async {
-    try {
-      final config = await widget.apiClient.fetchConfig();
-      if (mounted) {
-        _pollIntervalMs = config.pollIntervalMs;
-        _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadVolumes(silent: true));
-      }
-    } catch (_) {
-      if (mounted) {
-        _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadVolumes(silent: true));
+  bool _volumesChanged(List<VolumeItem> current, List<VolumeItem> next) {
+    if (current.length != next.length) {
+      return true;
+    }
+
+    for (var index = 0; index < current.length; index++) {
+      final before = current[index];
+      final after = next[index];
+      if (before.name != after.name ||
+          before.driver != after.driver ||
+          before.inUse != after.inUse ||
+          before.size != after.size ||
+          before.created != after.created) {
+        return true;
       }
     }
+
+    return false;
+  }
+
+  List<VolumeItem> _sortedVolumes(List<VolumeItem> volumes) {
+    return List<VolumeItem>.from(volumes)..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<void> _loadVolumes({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -594,15 +605,18 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
     try {
       final status = await widget.apiClient.fetchStatus();
-      final volumes = await widget.apiClient.fetchVolumes();
+      final volumes = _sortedVolumes(await widget.apiClient.fetchVolumes());
       if (!mounted) {
         return;
       }
-      setState(() {
-        _runtime = status.runtime;
-        _volumes = volumes;
-        _loading = false;
-      });
+
+      if (!silent || _volumesChanged(_volumes, volumes) || _runtime?.state != status.runtime.state) {
+        setState(() {
+          _runtime = status.runtime;
+          _volumes = volumes;
+          _loading = false;
+        });
+      }
     } catch (error) {
       if (!mounted) {
         return;
@@ -613,6 +627,8 @@ class _VolumesScreenState extends State<VolumesScreen> {
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -629,8 +645,80 @@ class _VolumesScreenState extends State<VolumesScreen> {
     }
   }
 
+  void _openVolume(VolumeItem volume) {
+    setState(() => _selectedVolume = volume.name);
+  }
+
+  void _closeVolume() {
+    setState(() => _selectedVolume = null);
+  }
+
+  Future<void> _cloneVolume(VolumeItem volume) async {
+    final nameController = TextEditingController(text: '${volume.name}-copy');
+    final theme = ShadTheme.of(context);
+
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (dialogContext) => ShadDialog(
+        title: const Text('Clone volume'),
+        description: Text('Create a copy of "${volume.name}".'),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clone'),
+          ),
+        ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Volume name', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+            const SizedBox(height: 8),
+            ShadInput(
+              controller: nameController,
+              placeholder: const Text('Volume name'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final destination = nameController.text.trim();
+    nameController.dispose();
+
+    if (confirmed != true || destination.isEmpty || !mounted) {
+      return;
+    }
+
+    try {
+      await widget.apiClient.cloneVolume(volume.name, destination);
+      if (!mounted) {
+        return;
+      }
+      await _loadVolumes();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_selectedVolume != null) {
+      return VolumeDetailView(
+        volumeName: _selectedVolume!,
+        apiClient: widget.apiClient,
+        onBack: _closeVolume,
+        onRemoved: _loadVolumes,
+      );
+    }
+
     final theme = ShadTheme.of(context);
     final filtered = _searchQuery.isEmpty
         ? _volumes
@@ -657,7 +745,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
             _searchQuery.isNotEmpty
                 ? 'No volumes match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
-                    ? 'No volumes. Runtime is stopped — run make dev-backend first.'
+                    ? 'No volumes. Runtime is stopped.'
                     : 'No volumes.',
             style: theme.textTheme.muted,
           )
@@ -668,19 +756,33 @@ class _VolumesScreenState extends State<VolumesScreen> {
               itemBuilder: (context, index) {
                 final volume = filtered[index];
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                return HoverListRow(
+                  theme: theme,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  onTap: () => _openVolume(volume),
                   child: Row(
                     children: [
+                      _VolumeStatusDot(inUse: volume.inUse, theme: theme),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(volume.name, style: theme.textTheme.large),
-                            Text(volume.driver, style: theme.textTheme.muted),
+                            if (volume.subtitle.isNotEmpty)
+                              Text(volume.subtitle, style: theme.textTheme.muted),
                           ],
                         ),
                       ),
+                      Tooltip(
+                        message: 'Clone',
+                        child: CalfButton.outline(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          onPressed: () => _cloneVolume(volume),
+                          child: Icon(LucideIcons.copy, size: 16, color: theme.colorScheme.foreground),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       CalfButton.outline(
                         onPressed: () async {
                           await widget.apiClient.removeVolume(volume.name);
@@ -695,6 +797,43 @@ class _VolumesScreenState extends State<VolumesScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _VolumeStatusDot extends StatelessWidget {
+  const _VolumeStatusDot({
+    required this.inUse,
+    required this.theme,
+  });
+
+  final bool inUse;
+  final ShadThemeData theme;
+
+  static const _dotSize = 9.0;
+  static const _borderWidth = 1.5;
+
+  @override
+  Widget build(BuildContext context) {
+    if (inUse) {
+      return Container(
+        width: _dotSize,
+        height: _dotSize,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2DBE60),
+          shape: BoxShape.circle,
+          border: Border.all(color: theme.colorScheme.background, width: _borderWidth),
+        ),
+      );
+    }
+
+    return Container(
+      width: _dotSize,
+      height: _dotSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: theme.colorScheme.mutedForeground, width: _borderWidth),
+      ),
     );
   }
 }
@@ -822,8 +961,9 @@ class _BuildsScreenState extends State<BuildsScreen> {
               itemBuilder: (context, index) {
                 final build = filtered[index];
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                return HoverListRow(
+                  theme: theme,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

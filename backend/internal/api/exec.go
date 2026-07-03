@@ -40,6 +40,7 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	writer := newWSWriter(conn)
 	stdinReader, stdinWriter := io.Pipe()
 	resizeCh := make(chan runtime.ExecResize, 4)
 
@@ -71,12 +72,12 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 	}()
 
 	attachErr := s.runtime.AttachExec(ctx, id, stdinReader, func(chunk []byte) {
-		if writeErr := conn.WriteMessage(websocket.BinaryMessage, chunk); writeErr != nil {
+		if writeErr := writer.writeMessage(websocket.BinaryMessage, chunk); writeErr != nil {
 			cancel()
 		}
 	}, resizeCh)
 	if attachErr != nil && ctx.Err() == nil {
-		_ = conn.WriteMessage(websocket.TextMessage, []byte("error: "+attachErr.Error()))
+		_ = writer.writeMessage(websocket.TextMessage, []byte("error: "+attachErr.Error()))
 	}
 }
 

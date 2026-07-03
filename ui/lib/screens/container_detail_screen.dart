@@ -12,7 +12,8 @@ import 'package:xterm/xterm.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
-import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/files_panel.dart';
+import 'package:ui/widgets/logs_panel.dart';
 
 enum _ContainerDetailTab { logs, inspect, mounts, exec, files, stats }
 
@@ -40,7 +41,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   bool _busy = false;
   String? _error;
 
-  final List<String> _logs = [];
+  final List<LogLine> _logLines = [];
   String? _logsError;
   StreamSubscription<String>? _logsSubscription;
   final _logsScrollController = ScrollController();
@@ -143,7 +144,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _statsTimer?.cancel();
     _logsSubscription?.cancel();
     setState(() {
-      _logs.clear();
+      _logLines.clear();
       _logsError = null;
     });
 
@@ -154,7 +155,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         }
         setState(() {
           _logsError = null;
-          _logs.add(line);
+          _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_logsScrollController.hasClients) {
@@ -332,7 +333,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(LucideIcons.box, size: 28, color: theme.colorScheme.primary),
+            Icon(LucideIcons.box, size: 28, color: _containerIconColor(_container, theme)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -423,7 +424,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   Widget _buildTabContent(ShadThemeData theme) {
     switch (_tab) {
       case _ContainerDetailTab.logs:
-        return _LogsTab(theme: theme, logs: _logs, error: _logsError, controller: _logsScrollController);
+        return LogsPanel(
+          lines: _logLines,
+          error: _logsError,
+          scrollController: _logsScrollController,
+          onClear: () => setState(_logLines.clear),
+        );
       case _ContainerDetailTab.inspect:
         return _InspectTab(
           theme: theme,
@@ -444,10 +450,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           isRunning: _container.isRunning,
         );
       case _ContainerDetailTab.files:
-        return _FilesTab(
+        return FilesPanel(
           theme: theme,
-          containerId: _container.id,
-          apiClient: widget.apiClient,
+          loadDirectory: (path) => widget.apiClient.fetchContainerFiles(_container.id, path: path),
         );
       case _ContainerDetailTab.stats:
         return _StatsTab(
@@ -553,43 +558,6 @@ class _Panel extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(12),
       child: child,
-    );
-  }
-}
-
-class _LogsTab extends StatelessWidget {
-  const _LogsTab({
-    required this.theme,
-    required this.logs,
-    required this.error,
-    required this.controller,
-  });
-
-  final ShadThemeData theme;
-  final List<String> logs;
-  final String? error;
-  final ScrollController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final message = error != null
-        ? 'Failed to stream logs: $error'
-        : logs.isEmpty
-            ? 'Waiting for logs...'
-            : logs.join('\n');
-
-    return _Panel(
-      theme: theme,
-      child: SingleChildScrollView(
-        controller: controller,
-        child: SelectableText(
-          message,
-          style: theme.textTheme.small.copyWith(
-            fontFamily: 'Menlo',
-            color: error != null ? theme.colorScheme.destructive : null,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -949,316 +917,14 @@ class _ExecTabState extends State<_ExecTab> {
 
     final terminalTheme = _terminalThemeFor(widget.theme);
 
-    return _Panel(
-      theme: widget.theme,
-      child: TerminalView(
-        _terminal,
-        autofocus: true,
-        theme: terminalTheme,
-        backgroundOpacity: 0,
-        keyboardAppearance: widget.theme.brightness,
-      ),
+    return ExecPanel(
+      terminal: _terminal,
+      terminalTheme: terminalTheme,
+      keyboardAppearance: widget.theme.brightness,
     );
   }
 }
 
-class _FilesTab extends StatefulWidget {
-  const _FilesTab({
-    required this.theme,
-    required this.containerId,
-    required this.apiClient,
-  });
-
-  final ShadThemeData theme;
-  final String containerId;
-  final CalfClient apiClient;
-
-  @override
-  State<_FilesTab> createState() => _FilesTabState();
-}
-
-class _FilesTabState extends State<_FilesTab> {
-  final Map<String, List<ContainerFileEntry>> _cache = {};
-  final Set<String> _expanded = {};
-  final Set<String> _loading = {};
-  final Map<String, String> _errors = {};
-  bool _rootLoading = true;
-  String? _rootError;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadDirectory('/');
-  }
-
-  Future<void> _loadDirectory(String path) async {
-    final isRoot = path == '/';
-    setState(() {
-      if (isRoot) {
-        _rootLoading = true;
-        _rootError = null;
-      } else {
-        _loading.add(path);
-        _errors.remove(path);
-      }
-    });
-
-    try {
-      final files = await widget.apiClient.fetchContainerFiles(widget.containerId, path: path);
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _cache[path] = _sortedEntries(files);
-        if (isRoot) {
-          _rootLoading = false;
-        } else {
-          _loading.remove(path);
-        }
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        if (isRoot) {
-          _rootError = error.toString();
-          _rootLoading = false;
-        } else {
-          _loading.remove(path);
-          _errors[path] = error.toString();
-        }
-      });
-    }
-  }
-
-  void _toggleDirectory(String path) {
-    setState(() {
-      if (_expanded.contains(path)) {
-        _expanded.remove(path);
-        return;
-      }
-      _expanded.add(path);
-    });
-
-    if (!_cache.containsKey(path)) {
-      _loadDirectory(path);
-    }
-  }
-
-  List<ContainerFileEntry> _sortedEntries(List<ContainerFileEntry> entries) {
-    final sorted = List<ContainerFileEntry>.from(entries);
-    sorted.sort((a, b) {
-      if (a.isDir != b.isDir) {
-        return a.isDir ? -1 : 1;
-      }
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-    return sorted;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-
-    return _Panel(
-      theme: theme,
-      child: _rootLoading
-          ? Text('Loading files...', style: theme.textTheme.muted)
-          : _rootError != null
-              ? Text(_rootError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _FilesHeader(theme: theme),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView(
-                        children: _buildDirectoryRows('/', 0),
-                      ),
-                    ),
-                  ],
-                ),
-    );
-  }
-
-  List<Widget> _buildDirectoryRows(String path, int depth) {
-    final entries = _cache[path] ?? [];
-    final rows = <Widget>[];
-
-    for (final entry in entries) {
-      final expanded = entry.isDir && _expanded.contains(entry.path);
-      rows.add(
-        _FileRow(
-          theme: widget.theme,
-          entry: entry,
-          depth: depth,
-          expanded: expanded,
-          onToggle: entry.isDir ? () => _toggleDirectory(entry.path) : null,
-        ),
-      );
-
-      if (!entry.isDir || !expanded) {
-        continue;
-      }
-
-      if (_loading.contains(entry.path)) {
-        rows.add(_FilesStatusRow(theme: widget.theme, depth: depth + 1, message: 'Loading...'));
-        continue;
-      }
-
-      if (_errors.containsKey(entry.path)) {
-        rows.add(
-          _FilesStatusRow(
-            theme: widget.theme,
-            depth: depth + 1,
-            message: _errors[entry.path]!,
-            isError: true,
-          ),
-        );
-        continue;
-      }
-
-      rows.addAll(_buildDirectoryRows(entry.path, depth + 1));
-    }
-
-    return rows;
-  }
-}
-
-class _FilesHeader extends StatelessWidget {
-  const _FilesHeader({required this.theme});
-
-  final ShadThemeData theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final labelStyle = theme.textTheme.small.copyWith(
-      color: theme.colorScheme.mutedForeground,
-      fontWeight: FontWeight.w600,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Row(
-        children: [
-          const SizedBox(width: 20),
-          const SizedBox(width: 24),
-          Expanded(flex: 3, child: Text('Name', style: labelStyle)),
-          Expanded(flex: 2, child: Text('Note', style: labelStyle)),
-          Expanded(child: Text('Size', style: labelStyle)),
-          Expanded(child: Text('Last modified', style: labelStyle)),
-          Expanded(child: Text('Mode', style: labelStyle)),
-        ],
-      ),
-    );
-  }
-}
-
-class _FileRow extends StatelessWidget {
-  const _FileRow({
-    required this.theme,
-    required this.entry,
-    required this.depth,
-    required this.expanded,
-    required this.onToggle,
-  });
-
-  final ShadThemeData theme;
-  final ContainerFileEntry entry;
-  final int depth;
-  final bool expanded;
-  final VoidCallback? onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return HoverListRow(
-      theme: theme,
-      padding: EdgeInsets.fromLTRB(8 + depth * 18.0, 8, 8, 8),
-      onTap: onToggle,
-      child: Row(
-        children: [
-          SizedBox(
-            width: 20,
-            child: entry.isDir
-                ? Icon(
-                    expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
-                    size: 16,
-                    color: theme.colorScheme.mutedForeground,
-                  )
-                : null,
-          ),
-          Icon(
-            entry.isDir ? LucideIcons.folder : LucideIcons.file,
-            size: 16,
-            color: theme.colorScheme.mutedForeground,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 3,
-            child: Text(entry.name, style: theme.textTheme.small, overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(entry.note, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            child: Text(
-              entry.isDir ? '' : _formatFileSize(entry.size),
-              style: theme.textTheme.muted,
-            ),
-          ),
-          Expanded(
-            child: Text(entry.modified, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
-          ),
-          Expanded(
-            child: Text(entry.mode, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilesStatusRow extends StatelessWidget {
-  const _FilesStatusRow({
-    required this.theme,
-    required this.depth,
-    required this.message,
-    this.isError = false,
-  });
-
-  final ShadThemeData theme;
-  final int depth;
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(8 + depth * 18.0 + 44, 4, 8, 4),
-      child: Text(
-        message,
-        style: theme.textTheme.small.copyWith(
-          color: isError ? theme.colorScheme.destructive : theme.colorScheme.mutedForeground,
-        ),
-      ),
-    );
-  }
-}
-
-String _formatFileSize(int bytes) {
-  if (bytes < 1024) {
-    return '$bytes B';
-  }
-  if (bytes < 1024 * 1024) {
-    return '${(bytes / 1024).toStringAsFixed(bytes < 10 * 1024 ? 1 : 0)} kB';
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-}
 
 class _StatsTab extends StatelessWidget {
   const _StatsTab({
@@ -1579,4 +1245,18 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
     searchHitBackgroundCurrent: base.searchHitBackgroundCurrent,
     searchHitForeground: base.searchHitForeground,
   );
+}
+
+Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
+  if (container.isRunning) {
+    return const Color(0xFF2DBE60);
+  }
+  final state = container.state.toLowerCase();
+  if (state == 'created' || state == 'restarting') {
+    return const Color(0xFFF0A500);
+  }
+  if (container.status.toLowerCase().contains('restarting')) {
+    return const Color(0xFFF0A500);
+  }
+  return theme.colorScheme.mutedForeground;
 }

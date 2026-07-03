@@ -64,8 +64,27 @@ type ImageLayer struct {
 }
 
 type Volume struct {
+	Name    string `json:"name"`
+	Driver  string `json:"driver"`
+	InUse   bool   `json:"in_use"`
+	Size    string `json:"size"`
+	Created string `json:"created"`
+}
+
+type VolumeDetail struct {
+	Name       string `json:"name"`
+	Driver     string `json:"driver"`
+	Created    string `json:"created"`
+	InUse      bool   `json:"in_use"`
+	Mountpoint string `json:"mountpoint,omitempty"`
+}
+
+type VolumeContainerUsage struct {
+	ID     string `json:"id"`
 	Name   string `json:"name"`
-	Driver string `json:"driver"`
+	Image  string `json:"image"`
+	Port   string `json:"port"`
+	Target string `json:"target"`
 }
 
 type Build struct {
@@ -85,6 +104,9 @@ type Runtime interface {
 	ListImages(ctx context.Context) ([]Image, error)
 	ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error)
 	ListVolumes(ctx context.Context) ([]Volume, error)
+	InspectVolume(ctx context.Context, name string) (VolumeDetail, error)
+	ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error)
+	VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error)
 	StartContainer(ctx context.Context, id string) error
 	StopContainer(ctx context.Context, id string) error
 	RemoveContainer(ctx context.Context, id string) error
@@ -93,9 +115,11 @@ type Runtime interface {
 	PushImage(ctx context.Context, ref string) error
 	RunImage(ctx context.Context, ref string) (string, error)
 	CreateVolume(ctx context.Context, name string) error
+	CloneVolume(ctx context.Context, source, dest string) error
 	RemoveVolume(ctx context.Context, name string) error
 	RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error
 	StreamLogs(ctx context.Context, id string, output func(string)) error
+	StreamLogsFollow(ctx context.Context, id string, output func(string)) error
 	InspectContainer(ctx context.Context, id string) (json.RawMessage, error)
 	ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error)
 	ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error)
@@ -108,10 +132,10 @@ type Runtime interface {
 	RegistryLogout(ctx context.Context, server string) error
 }
 
-func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int) Runtime {
+func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int) Runtime {
 	if goruntime.GOOS == "linux" {
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB)
 	}
 
-	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB)
+	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort)
 }

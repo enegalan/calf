@@ -16,6 +16,7 @@ type localhostProxies struct {
 	mu        sync.Mutex
 	listeners map[int]net.Listener
 	conflicts map[int]PortConflict
+	reserved  map[int]struct{}
 }
 
 func newLocalhostProxies() *localhostProxies {
@@ -26,6 +27,37 @@ func newLocalhostProxies() *localhostProxies {
 	return &localhostProxies{
 		listeners: make(map[int]net.Listener),
 		conflicts: make(map[int]PortConflict),
+		reserved:  make(map[int]struct{}),
+	}
+}
+
+func ParseListenPort(addr string) int {
+	_, portValue, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+
+	port, err := strconv.Atoi(portValue)
+	if err != nil || port <= 0 {
+		return 0
+	}
+
+	return port
+}
+
+func (p *localhostProxies) setReservedPorts(ports ...int) {
+	if p == nil {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.reserved = make(map[int]struct{}, len(ports))
+	for _, port := range ports {
+		if port > 0 {
+			p.reserved[port] = struct{}{}
+		}
 	}
 }
 
@@ -84,6 +116,15 @@ func (p *localhostProxies) sync(ports map[int]struct{}) {
 	}
 
 	for port := range ports {
+		if _, reserved := p.reserved[port]; reserved {
+			if listener, ok := p.listeners[port]; ok {
+				_ = listener.Close()
+				delete(p.listeners, port)
+			}
+			delete(p.conflicts, port)
+			continue
+		}
+
 		if _, ok := p.listeners[port]; ok {
 			delete(p.conflicts, port)
 			continue

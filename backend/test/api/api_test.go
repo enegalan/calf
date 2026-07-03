@@ -12,13 +12,14 @@ import (
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/gorilla/websocket"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	cfg := config.Config{
-		ListenAddr: ":8080",
+		ListenAddr: ":8765",
 		LogLevel:   "info",
 	}
 
@@ -367,6 +368,80 @@ func TestVolumesReturnsList(t *testing.T) {
 	}
 }
 
+func TestVolumeDetailReturnsMetadata(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	for _, key := range []string{"name", "driver", "created", "in_use"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("expected %q in response", key)
+		}
+	}
+}
+
+func TestVolumeFilesReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data/files")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data/files error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var files []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&files); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(files) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(files))
+	}
+}
+
+func TestVolumeContainersReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data/containers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var containers []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&containers); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+}
+
 func TestBuildsReturnsEmptyList(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
@@ -441,5 +516,37 @@ func TestHealthMethodNotAllowedReturnsJSONError(t *testing.T) {
 
 	if payload["error"] != "method not allowed" {
 		t.Fatalf("unexpected error message: %q", payload["error"])
+	}
+}
+
+func TestContainerLogsWebSocketStreamsLines(t *testing.T) {
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+
+	mock := runtime.NewMock()
+	mock.LogLines = []string{"alpha", "beta", "gamma"}
+	server := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/v1/containers/mock-id/logs"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial() error: %v", err)
+	}
+	defer conn.Close()
+
+	lines := make([]string, 0, 3)
+	for range 3 {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("ReadMessage() error: %v", err)
+		}
+		lines = append(lines, string(message))
+	}
+
+	if strings.Join(lines, ",") != "alpha,beta,gamma" {
+		t.Fatalf("unexpected lines: %v", lines)
 	}
 }

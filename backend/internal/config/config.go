@@ -69,8 +69,7 @@ func Load() (Config, error) {
 	}
 
 	cfg = withDefaults(cfg)
-
-	return cfg, nil
+	return migrateLegacyDefaults(cfg), nil
 }
 
 func Save(cfg Config) error {
@@ -126,6 +125,14 @@ func withDefaults(cfg Config) Config {
 
 	if cfg.DiskGB <= 0 {
 		cfg.DiskGB = defaults.DiskGB
+	}
+
+	return cfg
+}
+
+func migrateLegacyDefaults(cfg Config) Config {
+	if cfg.ListenAddr == ":8080" {
+		cfg.ListenAddr = ":8765"
 	}
 
 	return cfg

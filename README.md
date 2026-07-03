@@ -6,7 +6,7 @@ A fast, lightweight alternative to Docker Desktop for running and managing conta
 
 ```bash
 make help          # list commands
-make dev-backend   # terminal 1: API on :8080
+make dev-backend   # terminal 1: API on :8765
 make dev-ui        # terminal 2: macOS app
 ```
 

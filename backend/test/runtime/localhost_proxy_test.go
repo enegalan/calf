@@ -25,3 +25,17 @@ func TestParsePublishedTCPPorts(t *testing.T) {
 		t.Fatalf("did not expect UDP port 3478, got %v", ports)
 	}
 }
+
+func TestParseListenPort(t *testing.T) {
+	if got := runtime.ParseListenPort(":8765"); got != 8765 {
+		t.Fatalf("expected 8765, got %d", got)
+	}
+
+	if got := runtime.ParseListenPort("127.0.0.1:8765"); got != 8765 {
+		t.Fatalf("expected 8765, got %d", got)
+	}
+
+	if got := runtime.ParseListenPort("invalid"); got != 0 {
+		t.Fatalf("expected 0 for invalid addr, got %d", got)
+	}
+}

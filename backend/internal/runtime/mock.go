@@ -150,7 +150,14 @@ func (m *Mock) ListVolumes(_ context.Context) ([]Volume, error) {
 		return []Volume{}, nil
 	}
 
-	return append([]Volume(nil), m.Volumes...), nil
+	volumes := append([]Volume(nil), m.Volumes...)
+	for index := range volumes {
+		volumes[index].InUse = len(m.Containers) > 0
+		volumes[index].Size = "88 B"
+		volumes[index].Created = "9 months ago"
+	}
+
+	return volumes, nil
 }
 
 func (m *Mock) CreateVolume(_ context.Context, name string) error {
@@ -159,6 +166,35 @@ func (m *Mock) CreateVolume(_ context.Context, name string) error {
 	}
 
 	m.Volumes = append(m.Volumes, Volume{Name: name, Driver: "local"})
+	return nil
+}
+
+func (m *Mock) CloneVolume(_ context.Context, source, dest string) error {
+	if m.ContainerErr != nil {
+		return m.ContainerErr
+	}
+
+	found := false
+	driver := "local"
+	for _, volume := range m.Volumes {
+		if volume.Name == source {
+			found = true
+			driver = volume.Driver
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("volume %s not found", source)
+	}
+
+	for _, volume := range m.Volumes {
+		if volume.Name == dest {
+			return fmt.Errorf("volume %s already exists", dest)
+		}
+	}
+
+	m.Volumes = append(m.Volumes, Volume{Name: dest, Driver: driver})
 	return nil
 }
 
@@ -176,6 +212,106 @@ func (m *Mock) RemoveVolume(_ context.Context, name string) error {
 
 	m.Volumes = filtered
 	return nil
+}
+
+func (m *Mock) InspectVolume(_ context.Context, name string) (VolumeDetail, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != StateRunning {
+		return VolumeDetail{}, ErrRuntimeNotRunning
+	}
+
+	for _, volume := range m.Volumes {
+		if volume.Name != name {
+			continue
+		}
+
+		return VolumeDetail{
+			Name:       volume.Name,
+			Driver:     volume.Driver,
+			Created:    "9 months ago",
+			InUse:      len(m.Containers) > 0,
+			Mountpoint: "/var/lib/mock/volumes/" + volume.Name + "/_data",
+		}, nil
+	}
+
+	return VolumeDetail{}, fmt.Errorf("volume %s not found", name)
+}
+
+func (m *Mock) ListVolumeFiles(_ context.Context, name, path string) ([]ContainerFileEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != StateRunning {
+		return nil, ErrRuntimeNotRunning
+	}
+
+	found := false
+	for _, volume := range m.Volumes {
+		if volume.Name == name {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("volume %s not found", name)
+	}
+
+	if path == "" {
+		path = "/"
+	}
+
+	switch path {
+	case "/":
+		return []ContainerFileEntry{
+			{Name: "app", Path: "/app", IsDir: true, Size: 0, Mode: "drwxr-xr-x", Modified: "5 months ago"},
+			{Name: "dump.rdb", Path: "/dump.rdb", IsDir: false, Size: 88, Mode: "-rw-------", Modified: "7 months ago"},
+		}, nil
+	case "/app":
+		return []ContainerFileEntry{
+			{Name: "data.txt", Path: "/app/data.txt", IsDir: false, Size: 12, Mode: "-rw-r--r--", Modified: "2 days ago"},
+		}, nil
+	default:
+		return []ContainerFileEntry{}, nil
+	}
+}
+
+func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContainerUsage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != StateRunning {
+		return nil, ErrRuntimeNotRunning
+	}
+
+	found := false
+	for _, volume := range m.Volumes {
+		if volume.Name == name {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return nil, fmt.Errorf("volume %s not found", name)
+	}
+
+	if len(m.Containers) == 0 {
+		return []VolumeContainerUsage{}, nil
+	}
+
+	container := m.Containers[0]
+	return []VolumeContainerUsage{
+		{
+			ID:     container.ID,
+			Name:   container.Name,
+			Image:  container.Image,
+			Port:   extractHostPort(container.Ports),
+			Target: "/data",
+		},
+	}, nil
 }
 
 func (m *Mock) RunBuild(_ context.Context, _, _, _ string) error {
@@ -286,6 +422,10 @@ func (m *Mock) StreamLogs(_ context.Context, _ string, output func(string)) erro
 		output(line)
 	}
 
+	return nil
+}
+
+func (m *Mock) StreamLogsFollow(_ context.Context, _ string, _ func(string)) error {
 	return nil
 }
 

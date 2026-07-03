@@ -10,12 +10,28 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 )
 
 const NerdctlBin = "/usr/local/bin/nerdctl"
 
+const defaultExecTerm = "xterm-256color"
+
+const logTailLines = "500"
+
 func NerdctlVMArgs(args ...string) []string {
 	return append([]string{"sudo", NerdctlBin}, args...)
+}
+
+func interactiveExecArgs(id string) []string {
+	return []string{
+		"exec",
+		"-it",
+		"-e", "TERM=" + defaultExecTerm,
+		id,
+		"/bin/sh",
+	}
 }
 
 type nerdctlLine struct {
@@ -229,6 +245,12 @@ func formatLayerCommand(createdBy string) string {
 	return strings.ReplaceAll(createdBy, "#(nop)  ", "")
 }
 
+type volumeLine struct {
+	Name   string `json:"Name"`
+	Driver string `json:"Driver"`
+	Size   string `json:"Size"`
+}
+
 func ParseVolumeLines(output []byte) ([]Volume, error) {
 	volumes := make([]Volume, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -239,7 +261,7 @@ func ParseVolumeLines(output []byte) ([]Volume, error) {
 			continue
 		}
 
-		var row nerdctlLine
+		var row volumeLine
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			continue
 		}
@@ -247,6 +269,7 @@ func ParseVolumeLines(output []byte) ([]Volume, error) {
 		volumes = append(volumes, Volume{
 			Name:   row.Name,
 			Driver: row.Driver,
+			Size:   strings.TrimSpace(row.Size),
 		})
 	}
 
@@ -297,11 +320,88 @@ func inferComposeProjects(containers []Container) {
 		for candidate := range names {
 			if candidate != name && strings.HasPrefix(candidate, name+"-") {
 				containers[index].ComposeProject = name
-				containers[index].ComposeService = name
+				containers[index].ComposeService = composeServiceName(name, name)
+				break
+			}
+		}
+
+		if containers[index].ComposeProject != "" {
+			continue
+		}
+
+		project = sharedNamePrefix(name, names)
+		if project != "" {
+			containers[index].ComposeProject = project
+			containers[index].ComposeService = composeServiceName(name, project)
+			continue
+		}
+	}
+
+	inferComposeProjectsFromImages(containers)
+}
+
+func sharedNamePrefix(name string, names map[string]struct{}) string {
+	parts := strings.Split(name, "-")
+	if len(parts) < 2 {
+		return ""
+	}
+
+	var project string
+	for i := len(parts) - 1; i >= 1; i-- {
+		prefix := strings.Join(parts[:i], "-")
+		for candidate := range names {
+			if candidate == name {
+				continue
+			}
+
+			if strings.HasPrefix(candidate, prefix+"-") {
+				if len(prefix) > len(project) {
+					project = prefix
+				}
 				break
 			}
 		}
 	}
+
+	return project
+}
+
+func inferComposeProjectsFromImages(containers []Container) {
+	projectCounts := make(map[string]int)
+	for _, container := range containers {
+		if container.ComposeProject != "" {
+			continue
+		}
+
+		project, _ := imageComposeFields(container.Image)
+		if project != "" {
+			projectCounts[project]++
+		}
+	}
+
+	for index := range containers {
+		if containers[index].ComposeProject != "" {
+			continue
+		}
+
+		project, service := imageComposeFields(containers[index].Image)
+		if project == "" || projectCounts[project] < 2 {
+			continue
+		}
+
+		containers[index].ComposeProject = project
+		containers[index].ComposeService = service
+	}
+}
+
+func imageComposeFields(image string) (string, string) {
+	repository := imageRepositoryName(image)
+	lastDash := strings.LastIndex(repository, "-")
+	if lastDash <= 0 {
+		return "", ""
+	}
+
+	return repository[:lastDash], repository[lastDash+1:]
 }
 
 func longestComposePrefix(name string, names map[string]struct{}) string {
@@ -351,8 +451,7 @@ func containerState(status, state string) string {
 	}
 }
 
-func streamLogs(ctx context.Context, run commandRunner, id string, output func(string)) error {
-	command := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("nerdctl logs -f %q", id))
+func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(string)) error {
 	stdout, err := command.StdoutPipe()
 	if err != nil {
 		return err
@@ -367,15 +466,76 @@ func streamLogs(ctx context.Context, run commandRunner, id string, output func(s
 		return err
 	}
 
-	go pipeLines(stdout, output)
-	go pipeLines(stderr, output)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		pipeLines(stdout, output)
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(io.Discard, stderr)
+	}()
 
-	return command.Wait()
+	waitErr := command.Wait()
+	wg.Wait()
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	return waitErr
+}
+
+func logsFollowSince() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+func emitLogLines(output func(string), data []byte) {
+	if len(data) == 0 {
+		return
+	}
+
+	text := strings.TrimSuffix(string(data), "\n")
+	if text == "" {
+		return
+	}
+
+	for _, line := range strings.Split(text, "\n") {
+		if isNoiseLogLine(line) {
+			continue
+		}
+		output(line)
+	}
+}
+
+func streamLogs(ctx context.Context, run commandRunner, id string, output func(string)) error {
+	command := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("nerdctl logs -f --tail %s %q", logTailLines, id))
+	return streamCommandLogs(ctx, command, output)
 }
 
 func pipeLines(reader io.Reader, output func(string)) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		output(scanner.Text())
+		line := scanner.Text()
+		if isNoiseLogLine(line) {
+			continue
+		}
+		output(line)
+	}
+}
+
+func isNoiseLogLine(line string) bool {
+	switch {
+	case strings.Contains(line, "tail: inotify cannot be used"):
+		return true
+	case strings.Contains(line, "mux_client_request_session"):
+		return true
+	case strings.Contains(line, "ControlSocket") && strings.Contains(line, "ssh.sock"):
+		return true
+	case strings.Contains(line, "disabling multiplexing"):
+		return true
+	default:
+		return false
 	}
 }

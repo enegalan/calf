@@ -89,7 +89,12 @@ func (n *Native) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, er
 
 func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
 	return emptyVolumesIfStopped(ctx, n.Status, func(ctx context.Context) ([]Volume, error) {
-		return listVolumes(ctx, n.runLocal)
+		volumes, err := listVolumes(ctx, n.runLocal)
+		if err != nil {
+			return nil, err
+		}
+
+		return enrichVolumesInUse(ctx, n.runLocal, volumes)
 	})
 }
 
@@ -107,6 +112,14 @@ func (n *Native) CreateVolume(ctx context.Context, name string) error {
 	return err
 }
 
+func (n *Native) CloneVolume(ctx context.Context, source, dest string) error {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return err
+	}
+
+	return cloneVolume(ctx, n.runLocal, source, dest)
+}
+
 func (n *Native) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -114,6 +127,34 @@ func (n *Native) RemoveVolume(ctx context.Context, name string) error {
 
 	_, err := n.runLocal(ctx, "nerdctl", "volume", "rm", name)
 	return err
+}
+
+func (n *Native) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return VolumeDetail{}, err
+	}
+
+	return inspectVolume(ctx, n.runLocal, name)
+}
+
+func (n *Native) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return nil, err
+	}
+
+	if !isValidContainerPath(path) {
+		return nil, fmt.Errorf("invalid path")
+	}
+
+	return listVolumeFiles(ctx, n.runLocal, name, path)
+}
+
+func (n *Native) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return nil, err
+	}
+
+	return volumeContainerUsages(ctx, n.runLocal, name)
 }
 
 func (n *Native) RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error {
@@ -190,25 +231,26 @@ func (n *Native) StreamLogs(ctx context.Context, id string, output func(string))
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, "nerdctl", "logs", "-f", id)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
+
+	history, err := n.runLocal(ctx, "nerdctl", "logs", "--tail", logTailLines, id)
+	if err == nil {
+		emitLogLines(output, history)
+	}
+
+	return n.streamLogsFollow(ctx, id, logsFollowSince(), output)
+}
+
+func (n *Native) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
+	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
 	}
 
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		return err
-	}
+	return n.streamLogsFollow(ctx, id, logsFollowSince(), output)
+}
 
-	if err := command.Start(); err != nil {
-		return err
-	}
-
-	go pipeLines(stdout, output)
-	go pipeLines(stderr, output)
-
-	return command.Wait()
+func (n *Native) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
+	command := exec.CommandContext(ctx, "nerdctl", "logs", "-f", "--since", since, id)
+	return streamCommandLogs(ctx, command, output)
 }
 
 func (n *Native) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
@@ -253,7 +295,7 @@ func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onO
 		return err
 	}
 
-	command := exec.CommandContext(ctx, "nerdctl", "exec", "-it", id, "/bin/sh")
+	command := exec.CommandContext(ctx, "nerdctl", interactiveExecArgs(id)...)
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }
 

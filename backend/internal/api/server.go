@@ -27,6 +27,7 @@ type Server struct {
 	migrateStatus  migration.Status
 	migrateRunning bool
 	registrySessions *sync.Map
+	logBroadcaster   *logBroadcaster
 }
 
 var logsUpgrader = websocket.Upgrader{
@@ -37,11 +38,12 @@ var logsUpgrader = websocket.Upgrader{
 
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 	return &Server{
-		cfg:           cfg,
-		logger:        logger,
-		runtime:       rt,
-		startTime:     time.Now(),
-		migrateStatus: migration.IdleStatus(),
+		cfg:              cfg,
+		logger:           logger,
+		runtime:          rt,
+		startTime:        time.Now(),
+		migrateStatus:    migration.IdleStatus(),
+		logBroadcaster:   newLogBroadcaster(),
 	}
 }
 

@@ -1,4 +1,4 @@
-listen_addr: ":8080"
+listen_addr: ":8765"
 log_level: info
 vm_name: calf
 docker_socket: ""

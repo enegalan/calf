@@ -96,6 +96,38 @@ func FormatCommandError(output string) string {
 	return formatCommandError(output)
 }
 
+func IsTransientCommandError(err error) bool {
+	return isTransientCommandError(err)
+}
+
+func isTransientCommandError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	transientMarkers := []string{
+		"text file busy",
+		"transport is closing",
+		"connection reset",
+		"connection refused",
+		"no such file or directory",
+		"executable file not found",
+		"cannot connect to the docker daemon",
+		"deadline exceeded",
+		"i/o timeout",
+		"broken pipe",
+	}
+
+	for _, marker := range transientMarkers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func WrapPushError(ref string, err error) error {
 	return wrapPushError(ref, err)
 }

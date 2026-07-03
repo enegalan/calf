@@ -1,7 +1,7 @@
 ## Quick start
 
 ```bash
-make dev-backend   # terminal 1: daemon + runtime on :8080
+make dev-backend   # terminal 1: daemon + runtime on :8765
 make dev-ui        # terminal 2: macOS app
 ```
 
@@ -16,7 +16,7 @@ export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
 On first run the daemon creates `~/.config/calf/config.yaml` with defaults:
 
 ```yaml
-listen_addr: ":8080"
+listen_addr: ":8765"
 log_level: info
 vm_name: calf
 docker_socket: ""

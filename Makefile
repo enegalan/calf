@@ -3,7 +3,7 @@
 help:
 	@echo "Calf — common commands"
 	@echo ""
-	@echo "  make dev-backend   API daemon on :8080 (terminal 1)"
+	@echo "  make dev-backend   API daemon on :8765 (terminal 1)"
 	@echo "  make dev-ui        Flutter app on macOS (terminal 2)"
 	@echo ""
 	@echo "  make ui            build macOS app"

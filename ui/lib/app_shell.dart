@@ -26,6 +26,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
+  bool _showSettings = false;
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
@@ -110,7 +111,12 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final labels = ['Containers', 'Images', 'Volumes', 'Builds', 'Settings'];
+    const navItems = [
+      (label: 'Containers', icon: LucideIcons.box),
+      (label: 'Images', icon: LucideIcons.layers),
+      (label: 'Volumes', icon: LucideIcons.hardDrive),
+      (label: 'Builds', icon: LucideIcons.wrench),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -119,7 +125,7 @@ class _AppShellState extends State<AppShell> {
           registryStatus: _registryStatus,
           registryLoading: _registryLoading,
           signInPending: _registryBrowserLoginPending,
-          onOpenSettings: () => setState(() => _selectedIndex = 4),
+          onOpenSettings: () => setState(() => _showSettings = true),
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
@@ -139,12 +145,16 @@ class _AppShellState extends State<AppShell> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var index = 0; index < labels.length; index++) ...[
+                    for (var index = 0; index < navItems.length; index++) ...[
                       if (index > 0) const SizedBox(height: 8),
                       _NavItem(
-                        label: labels[index],
-                        selected: _selectedIndex == index,
-                        onTap: () => setState(() => _selectedIndex = index),
+                        label: navItems[index].label,
+                        icon: navItems[index].icon,
+                        selected: !_showSettings && _selectedIndex == index,
+                        onTap: () => setState(() {
+                          _selectedIndex = index;
+                          _showSettings = false;
+                        }),
                       ),
                     ],
                   ],
@@ -153,17 +163,18 @@ class _AppShellState extends State<AppShell> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
-                  child: switch (_selectedIndex) {
-                    0 => ContainersScreen(apiClient: widget.apiClient),
-                    1 => ImagesScreen(apiClient: widget.apiClient),
-                    2 => VolumesScreen(apiClient: widget.apiClient),
-                    3 => BuildsScreen(apiClient: widget.apiClient),
-                    _ => SettingsScreen(
-                        apiClient: widget.apiClient,
-                        themeMode: widget.themeMode,
-                        onThemeModeChanged: widget.onThemeModeChanged,
-                      ),
-                  },
+                  child: _showSettings
+                      ? SettingsScreen(
+                          apiClient: widget.apiClient,
+                          themeMode: widget.themeMode,
+                          onThemeModeChanged: widget.onThemeModeChanged,
+                        )
+                      : switch (_selectedIndex) {
+                          0 => ContainersScreen(apiClient: widget.apiClient),
+                          1 => ImagesScreen(apiClient: widget.apiClient),
+                          2 => VolumesScreen(apiClient: widget.apiClient),
+                          _ => BuildsScreen(apiClient: widget.apiClient),
+                        },
                 ),
               ),
             ],
@@ -177,17 +188,20 @@ class _AppShellState extends State<AppShell> {
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.label,
+    required this.icon,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
+  final IconData icon;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    final color = selected ? theme.colorScheme.accentForeground : theme.colorScheme.foreground;
 
     return CalfButton.ghost(
       width: double.infinity,
@@ -195,7 +209,13 @@ class _NavItem extends StatelessWidget {
       backgroundColor: selected ? theme.colorScheme.accent : null,
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Text(label),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 10),
+            Text(label, style: theme.textTheme.small.copyWith(color: color)),
+          ],
+        ),
       ),
     );
   }

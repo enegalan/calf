@@ -40,7 +40,32 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async => const [
-        VolumeItem(name: 'calf-data', driver: 'local'),
+        VolumeItem(name: 'calf-data', driver: 'local', inUse: true, size: '88 B', created: '9 months ago'),
+      ];
+
+  @override
+  Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
+        name: name,
+        driver: 'local',
+        created: '9 months ago',
+        inUse: true,
+      );
+
+  @override
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async => const [
+        ContainerFileEntry(name: 'app', path: '/app', isDir: true, size: 0, mode: 'drwxr-xr-x', modified: '5 months ago'),
+        ContainerFileEntry(name: 'dump.rdb', path: '/dump.rdb', isDir: false, size: 88, mode: '-rw-------', modified: '7 months ago'),
+      ];
+
+  @override
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async => const [
+        VolumeContainerUsage(
+          id: 'abc123',
+          name: 'hello',
+          image: 'hello-world',
+          port: '',
+          target: '/data',
+        ),
       ];
 
   @override
@@ -96,6 +121,9 @@ class FakeCalfClient implements CalfClient {
   Future<void> createVolume(String name) async {}
 
   @override
+  Future<void> cloneVolume(String source, String name) async {}
+
+  @override
   Future<void> removeVolume(String name) async {}
 
   @override
@@ -115,10 +143,10 @@ class FakeCalfClient implements CalfClient {
   }
 
   @override
-  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://localhost:8080/v1/containers/$id/logs');
+  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
 
   @override
-  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://localhost:8080/v1/containers/$id/exec');
+  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
 
   @override
   Future<Config> fetchConfig() async => const Config(
@@ -213,7 +241,7 @@ void main() {
       DaemonStatus(
         version: '0.3.0',
         uptimeSeconds: 42,
-        listenAddr: ':8080',
+        listenAddr: ':8765',
         logLevel: 'info',
         runtime: const RuntimeStatus(
           mode: 'vm',
@@ -239,7 +267,7 @@ void main() {
       DaemonStatus(
         version: '0.3.0',
         uptimeSeconds: 42,
-        listenAddr: ':8080',
+        listenAddr: ':8765',
         logLevel: 'info',
         runtime: const RuntimeStatus(
           mode: 'vm',
@@ -282,7 +310,7 @@ class _ErrorCalfClient implements CalfClient {
     return const DaemonStatus(
       version: '0.3.0',
       uptimeSeconds: 0,
-      listenAddr: ':8080',
+      listenAddr: ':8765',
       logLevel: 'info',
       runtime: RuntimeStatus(
         mode: 'vm',
@@ -306,6 +334,20 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async => [];
+
+  @override
+  Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
+        name: name,
+        driver: 'local',
+        created: '',
+        inUse: false,
+      );
+
+  @override
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async => const [];
+
+  @override
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async => const [];
 
   @override
   Future<List<BuildItem>> fetchBuilds() async => [];
@@ -360,6 +402,9 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> createVolume(String name) async {}
 
   @override
+  Future<void> cloneVolume(String source, String name) async {}
+
+  @override
   Future<void> removeVolume(String name) async {}
 
   @override
@@ -377,10 +422,10 @@ class _ErrorCalfClient implements CalfClient {
   Stream<String> streamContainerLogs(String id) async* {}
 
   @override
-  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://localhost:8080/v1/containers/$id/logs');
+  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
 
   @override
-  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://localhost:8080/v1/containers/$id/exec');
+  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
 
   @override
   Future<Config> fetchConfig() async {

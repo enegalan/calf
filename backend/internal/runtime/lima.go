@@ -30,7 +30,7 @@ type Lima struct {
 	localhostProxy *localhostProxies
 }
 
-func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int) *Lima {
+func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int) *Lima {
 	if vmName == "" {
 		vmName = "calf"
 	}
@@ -39,7 +39,7 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 		dockerSocket = defaultDockerSocket()
 	}
 
-	return &Lima{
+	lima := &Lima{
 		vmName:         vmName,
 		dockerSocket:   dockerSocket,
 		cpus:           cpus,
@@ -48,6 +48,9 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 		diskGB:         diskGB,
 		localhostProxy: newLocalhostProxies(),
 	}
+	lima.localhostProxy.setReservedPorts(apiListenPort)
+
+	return lima
 }
 
 func (l *Lima) DockerSocket() string {
@@ -101,6 +104,7 @@ func (l *Lima) Stop(ctx context.Context) error {
 	}
 
 	l.localhostProxy.stopAll()
+	l.started.Store(false)
 
 	_, err = runCommand(ctx, "limactl", "stop", l.vmName)
 	return err
@@ -150,6 +154,10 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 
 func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
 	return emptyContainersIfStopped(ctx, l.Status, func(ctx context.Context) ([]Container, error) {
+		if !l.started.Load() {
+			return []Container{}, nil
+		}
+
 		containers, err := listContainers(ctx, l.runInVM)
 		if err == nil {
 			l.localhostProxy.sync(publishedTCPPorts(containers))
@@ -175,7 +183,12 @@ func (l *Lima) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, erro
 
 func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
 	return emptyVolumesIfStopped(ctx, l.Status, func(ctx context.Context) ([]Volume, error) {
-		return listVolumes(ctx, l.runInVM)
+		volumes, err := listVolumes(ctx, l.runInVM)
+		if err != nil {
+			return nil, err
+		}
+
+		return enrichVolumesInUse(ctx, l.runInVM, volumes)
 	})
 }
 
@@ -193,6 +206,14 @@ func (l *Lima) CreateVolume(ctx context.Context, name string) error {
 	return err
 }
 
+func (l *Lima) CloneVolume(ctx context.Context, source, dest string) error {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return err
+	}
+
+	return cloneVolume(ctx, l.runInVM, source, dest)
+}
+
 func (l *Lima) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -200,6 +221,30 @@ func (l *Lima) RemoveVolume(ctx context.Context, name string) error {
 
 	_, err := l.runInVM(ctx, "nerdctl", "volume", "rm", name)
 	return err
+}
+
+func (l *Lima) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return VolumeDetail{}, err
+	}
+
+	return inspectVolume(ctx, l.runInVM, name)
+}
+
+func (l *Lima) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return nil, err
+	}
+
+	return listVolumeFiles(ctx, l.runInVM, name, path)
+}
+
+func (l *Lima) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return nil, err
+	}
+
+	return volumeContainerUsages(ctx, l.runInVM, name)
 }
 
 func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error {
@@ -276,25 +321,27 @@ func (l *Lima) StreamLogs(ctx context.Context, id string, output func(string)) e
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("logs", "-f", id)...)...)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
+
+	history, err := l.runInVM(ctx, "nerdctl", "logs", "--tail", logTailLines, id)
+	if err == nil {
+		emitLogLines(output, history)
+	}
+
+	return l.streamLogsFollow(ctx, id, logsFollowSince(), output)
+}
+
+func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
+	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
 	}
 
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		return err
-	}
+	return l.streamLogsFollow(ctx, id, logsFollowSince(), output)
+}
 
-	if err := command.Start(); err != nil {
-		return err
-	}
-
-	go pipeLines(stdout, output)
-	go pipeLines(stderr, output)
-
-	return command.Wait()
+func (l *Lima) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
+	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("logs", "-f", "--since", since, id)...)...)
+	command.Env = limaShellEnv()
+	return streamCommandLogs(ctx, command, output)
 }
 
 func (l *Lima) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
@@ -339,7 +386,7 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 		return err
 	}
 
-	shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("exec", "-it", id, "/bin/sh")...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs(interactiveExecArgs(id)...)...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }
@@ -407,10 +454,14 @@ func vmCommand(command string, args ...string) []string {
 	return append([]string{command}, args...)
 }
 
+func limaShellEnv() []string {
+	return append(os.Environ(), "SSH=ssh -o ControlMaster=no -o ControlPath=none")
+}
+
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	for time.Now().Before(deadline) {
-		_, err := runCommand(ctx, "limactl", "shell", l.vmName, "--", "test", "-x", NerdctlBin)
+		_, err := runCommandOnce(ctx, "", "limactl", "shell", l.vmName, "--", "sudo", NerdctlBin, "info")
 		if err == nil {
 			return nil
 		}
