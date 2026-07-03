@@ -40,8 +40,8 @@ type parsedSettings struct {
 }
 
 type containerInspect struct {
-	Name       string `json:"Name"`
-	Config     struct {
+	Name   string `json:"Name"`
+	Config struct {
 		Image      string            `json:"Image"`
 		Env        []string          `json:"Env"`
 		Cmd        []string          `json:"Cmd"`
