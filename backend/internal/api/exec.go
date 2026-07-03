@@ -40,7 +40,7 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	writer := newWSWriter(conn)
+	writer := newWSWriter(conn, logsWriteWait)
 	stdinReader, stdinWriter := io.Pipe()
 	resizeCh := make(chan runtime.ExecResize, 4)
 

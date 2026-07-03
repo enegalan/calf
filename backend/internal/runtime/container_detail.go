@@ -14,6 +14,7 @@ import (
 
 type ContainerMount struct {
 	Type        string `json:"type"`
+	Name        string `json:"name,omitempty"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
 	Mode        string `json:"mode,omitempty"`
@@ -66,6 +67,7 @@ func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	var payload struct {
 		Mounts []struct {
 			Type        string `json:"Type"`
+			Name        string `json:"Name"`
 			Source      string `json:"Source"`
 			Destination string `json:"Destination"`
 			Mode        string `json:"Mode"`
@@ -84,6 +86,7 @@ func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	for _, mount := range payload.Mounts {
 		mounts = append(mounts, ContainerMount{
 			Type:        mount.Type,
+			Name:        mount.Name,
 			Source:      mount.Source,
 			Destination: mount.Destination,
 			Mode:        mount.Mode,

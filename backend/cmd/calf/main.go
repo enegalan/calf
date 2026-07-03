@@ -65,6 +65,12 @@ func run() int {
 	case err := <-errCh:
 		if err != nil {
 			logger.Error("server stopped", "error", err)
+			rtCancel()
+			stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if stopErr := rt.Stop(stopCtx); stopErr != nil {
+				logger.Error("runtime stop failed", "error", stopErr)
+			}
 			return 1
 		}
 	case <-ctx.Done():
@@ -111,6 +117,11 @@ func ensurePort(addr string) error {
 	pid := findPidOnPort(port)
 	if pid == 0 {
 		return fmt.Errorf("port %s is in use; run: pkill -f calf", addr)
+	}
+
+	calfPID, pidErr := readPidFile()
+	if pidErr != nil || calfPID != pid {
+		return fmt.Errorf("port %s is in use by pid %d", addr, pid)
 	}
 
 	proc, _ := os.FindProcess(pid)

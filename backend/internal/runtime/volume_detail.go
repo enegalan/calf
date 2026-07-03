@@ -68,15 +68,11 @@ func volumeSizesAtPaths(ctx context.Context, run commandRunner, paths []string) 
 		return sizes
 	}
 
-	quoted := make([]string, len(paths))
-	for index, path := range paths {
-		quoted[index] = fmt.Sprintf("%q", path)
-	}
-
-	script := "du -sh " + strings.Join(quoted, " ")
-	output, err := run(ctx, "sh", "-c", script)
+	args := append([]string{"-sh"}, paths...)
+	output, err := run(ctx, "du", args...)
 	if err != nil {
-		output, err = run(ctx, "sudo", "sh", "-c", script)
+		sudoArgs := append([]string{"-n", "du", "-sh"}, paths...)
+		output, err = run(ctx, "sudo", sudoArgs...)
 		if err != nil {
 			return sizes
 		}
@@ -163,7 +159,7 @@ func ListFilesAtPath(ctx context.Context, run commandRunner, hostPath, logicalPa
 
 	output, err := run(ctx, "ls", "-la", hostPath)
 	if err != nil {
-		output, err = run(ctx, "sudo", "ls", "-la", hostPath)
+		output, err = run(ctx, "sudo", "-n", "ls", "-la", hostPath)
 		if err != nil {
 			return nil, fmt.Errorf("list files at %s: %w", hostPath, err)
 		}
@@ -202,9 +198,8 @@ func cloneVolume(ctx context.Context, run commandRunner, source, dest string) er
 		return fmt.Errorf("clone volume %s", source)
 	}
 
-	script := fmt.Sprintf("cp -a %q/. %q/", sourceRow.Mountpoint, destRow.Mountpoint)
-	if _, err := run(ctx, "sh", "-c", script); err != nil {
-		if _, err := run(ctx, "sudo", "sh", "-c", script); err != nil {
+	if _, err := run(ctx, "cp", "-a", sourceRow.Mountpoint+"/.", destRow.Mountpoint+"/"); err != nil {
+		if _, err := run(ctx, "sudo", "-n", "cp", "-a", sourceRow.Mountpoint+"/.", destRow.Mountpoint+"/"); err != nil {
 			_, _ = run(ctx, "nerdctl", "volume", "rm", dest)
 			return fmt.Errorf("clone volume %s: %w", source, err)
 		}
@@ -232,7 +227,7 @@ func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName st
 		}
 
 		for _, mount := range mounts {
-			if mount.Type != "volume" || mount.Source != volumeName {
+			if mount.Type != "volume" || volumeMountName(mount) != volumeName {
 				continue
 			}
 
@@ -283,15 +278,28 @@ func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct
 		}
 
 		for _, mount := range mounts {
-			if mount.Type != "volume" || mount.Source == "" {
+			if mount.Type != "volume" {
 				continue
 			}
 
-			inUse[mount.Source] = struct{}{}
+			name := volumeMountName(mount)
+			if name == "" {
+				continue
+			}
+
+			inUse[name] = struct{}{}
 		}
 	}
 
 	return inUse, nil
+}
+
+func volumeMountName(mount ContainerMount) string {
+	if mount.Name != "" {
+		return mount.Name
+	}
+
+	return mount.Source
 }
 
 func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume) ([]Volume, error) {

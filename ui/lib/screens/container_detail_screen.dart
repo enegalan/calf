@@ -17,6 +17,8 @@ import 'package:ui/widgets/logs_panel.dart';
 
 enum _ContainerDetailTab { logs, inspect, mounts, exec, files, stats }
 
+const _maxLogLines = 2000;
+
 class ContainerDetailView extends StatefulWidget {
   const ContainerDetailView({
     super.key,
@@ -123,7 +125,16 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _loadTabData();
   }
 
+  void _stopTabBackgroundWork() {
+    _logsSubscription?.cancel();
+    _logsSubscription = null;
+    _statsTimer?.cancel();
+    _statsTimer = null;
+  }
+
   void _loadTabData() {
+    _stopTabBackgroundWork();
+
     switch (_tab) {
       case _ContainerDetailTab.logs:
         _startLogs();
@@ -141,8 +152,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   void _startLogs() {
-    _statsTimer?.cancel();
-    _logsSubscription?.cancel();
     setState(() {
       _logLines.clear();
       _logsError = null;
@@ -156,6 +165,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         setState(() {
           _logsError = null;
           _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
+          if (_logLines.length > _maxLogLines) {
+            _logLines.removeRange(0, _logLines.length - _maxLogLines);
+          }
         });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (_logsScrollController.hasClients) {
@@ -173,7 +185,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   Future<void> _loadInspect() async {
-    _statsTimer?.cancel();
     setState(() {
       _inspectLoading = true;
       _inspectError = null;

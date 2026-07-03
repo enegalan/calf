@@ -935,7 +935,7 @@ class _BuildsScreenState extends State<BuildsScreen> {
             _searchQuery.isNotEmpty
                 ? 'No builds match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
-                    ? 'No builds yet.'
+                    ? 'No builds yet. Runtime is stopped.'
                     : 'No builds yet.',
             style: theme.textTheme.muted,
           )

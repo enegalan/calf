@@ -170,6 +170,9 @@ func (m *Mock) CreateVolume(_ context.Context, name string) error {
 }
 
 func (m *Mock) CloneVolume(_ context.Context, source, dest string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.ContainerErr != nil {
 		return m.ContainerErr
 	}

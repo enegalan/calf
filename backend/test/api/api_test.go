@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
@@ -536,6 +537,8 @@ func TestContainerLogsWebSocketStreamsLines(t *testing.T) {
 		t.Fatalf("Dial() error: %v", err)
 	}
 	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 	lines := make([]string, 0, 3)
 	for range 3 {

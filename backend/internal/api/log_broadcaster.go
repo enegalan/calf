@@ -25,8 +25,16 @@ type sharedLogStream struct {
 	containerID string
 	subscribers map[chan string]struct{}
 	cancel      context.CancelFunc
+	stopping    bool
 	mu          sync.Mutex
 	history     []string
+}
+
+func (s *sharedLogStream) isStopping() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.stopping
 }
 
 func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-chan string, func()) {
@@ -34,6 +42,10 @@ func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-ch
 
 	b.mu.Lock()
 	stream, ok := b.streams[containerID]
+	if ok && stream.isStopping() {
+		delete(b.streams, containerID)
+		ok = false
+	}
 	if !ok {
 		stream = &sharedLogStream{
 			containerID: containerID,
@@ -46,7 +58,7 @@ func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-ch
 	stream.mu.Lock()
 	stream.subscribers[ch] = struct{}{}
 	history := append([]string(nil), stream.history...)
-	shouldStart := stream.cancel == nil
+	shouldStart := stream.cancel == nil && !stream.stopping
 	if shouldStart {
 		runCtx, cancel := context.WithCancel(context.Background())
 		stream.cancel = cancel
@@ -56,7 +68,7 @@ func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-ch
 
 	go func(lines []string) {
 		for _, line := range lines {
-			ch <- line
+			trySendLogLine(ch, line)
 		}
 	}(history)
 
@@ -80,6 +92,7 @@ func (b *logBroadcaster) release(containerID string, ch chan string) {
 	stream.mu.Lock()
 	delete(stream.subscribers, ch)
 	if len(stream.subscribers) == 0 {
+		stream.stopping = true
 		cancel = stream.cancel
 	}
 	stream.mu.Unlock()
@@ -128,6 +141,7 @@ func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stre
 func (b *logBroadcaster) cleanupStream(containerID string, stream *sharedLogStream) {
 	stream.mu.Lock()
 	stream.cancel = nil
+	stream.stopping = false
 	stream.mu.Unlock()
 
 	b.mu.Lock()
@@ -158,6 +172,13 @@ func (s *sharedLogStream) publish(line string) {
 	s.mu.Unlock()
 
 	for _, ch := range subscribers {
-		ch <- line
+		trySendLogLine(ch, line)
+	}
+}
+
+func trySendLogLine(ch chan string, line string) {
+	select {
+	case ch <- line:
+	default:
 	}
 }

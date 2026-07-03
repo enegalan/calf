@@ -447,16 +447,32 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 		inspects = append(inspects, inspect)
 	}
 
+	stoppedOnSource := make([]string, 0, len(inspects))
+
 	for _, inspect := range inspects {
-		if !running[strings.TrimPrefix(inspect.Name, "/")] {
+		name := strings.TrimPrefix(inspect.Name, "/")
+		if !running[name] {
 			continue
 		}
 
-		_, _ = runDocker(ctx, ddSocket, "stop", strings.TrimPrefix(inspect.Name, "/"))
+		if _, err := runDocker(ctx, ddSocket, "stop", name); err == nil {
+			stoppedOnSource = append(stoppedOnSource, name)
+		}
 	}
 
-	composeGroups, standalone := groupContainersByComposeProject(inspects, running)
 	migrated := make(map[string]struct{}, len(inspects))
+
+	defer func() {
+		for _, name := range stoppedOnSource {
+			if _, ok := migrated[name]; ok {
+				continue
+			}
+
+			_, _ = runDocker(ctx, ddSocket, "start", name)
+		}
+	}()
+
+	composeGroups, standalone := groupContainersByComposeProject(inspects, running)
 	mountsRoot, err := composeMountsRoot()
 	if err != nil {
 		return err
@@ -505,10 +521,17 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 		}
 
 		if running[name] {
+			var startErr error
 			if opts.RunNerdctl != nil {
-				_ = opts.RunNerdctl(ctx, "start", name)
+				startErr = opts.RunNerdctl(ctx, "start", name)
 			} else {
-				_, _ = runDocker(ctx, opts.CalfSocket, "start", name)
+				_, startErr = runDocker(ctx, opts.CalfSocket, "start", name)
+			}
+			if startErr != nil {
+				if opts.Logger != nil {
+					opts.Logger.Warn("container start failed", "container", name, "error", startErr)
+				}
+				continue
 			}
 		}
 
@@ -840,7 +863,14 @@ func containerBindMounts(inspect containerInspect) []string {
 				continue
 			}
 
-			binds = append(binds, volumeName+":"+mount.Destination)
+			spec := volumeName + ":" + mount.Destination
+			if mount.Mode != "" {
+				spec += ":" + mount.Mode
+			} else if !mount.RW {
+				spec += ":ro"
+			}
+
+			binds = append(binds, spec)
 		}
 	}
 

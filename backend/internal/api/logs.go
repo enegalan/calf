@@ -3,8 +3,15 @@ package api
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
+)
+
+const (
+	logsPongWait   = 60 * time.Second
+	logsPingPeriod = (logsPongWait * 9) / 10
+	logsWriteWait  = 10 * time.Second
 )
 
 func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request, id string) {
@@ -32,15 +39,38 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	writer := newWSWriter(conn)
+	writer := newWSWriter(conn, logsWriteWait)
 	lines, unsubscribe := s.logBroadcaster.subscribe(s.runtime, id)
 	defer unsubscribe()
+
+	conn.SetReadDeadline(time.Now().Add(logsPongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(logsPongWait))
+		return nil
+	})
 
 	go func() {
 		for {
 			if _, _, readErr := conn.ReadMessage(); readErr != nil {
 				cancel()
 				return
+			}
+		}
+	}()
+
+	pingTicker := time.NewTicker(logsPingPeriod)
+	defer pingTicker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-pingTicker.C:
+				if writeErr := writer.writeMessage(websocket.PingMessage, nil); writeErr != nil {
+					cancel()
+					return
+				}
 			}
 		}
 	}()

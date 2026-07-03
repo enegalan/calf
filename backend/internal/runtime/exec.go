@@ -12,11 +12,11 @@ const defaultCommandRetries = 4
 const defaultCommandRetryDelay = 200 * time.Millisecond
 
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", name, args...)
+	return runCommandOnce(ctx, "", name, args...)
 }
 
 func runCommandWithStdin(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
-	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, name, args...)
+	return runCommandOnce(ctx, stdin, name, args...)
 }
 
 func runCommandWithRetry(ctx context.Context, retries int, delay time.Duration, stdin, name string, args ...string) ([]byte, error) {

@@ -77,7 +77,7 @@ func (l *Lima) Start(ctx context.Context) error {
 		}
 	}
 
-	if _, err := runCommand(ctx, "limactl", "start", l.vmName); err != nil {
+	if _, err := runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
 		return err
 	}
 
@@ -409,12 +409,12 @@ func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 
 func (l *Lima) runInVM(ctx context.Context, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommand(ctx, "limactl", shellArgs...)
+	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", "limactl", shellArgs...)
 }
 
 func (l *Lima) runInVMWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommandWithStdin(ctx, stdin, "limactl", shellArgs...)
+	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, "limactl", shellArgs...)
 }
 
 func (l *Lima) RegistryStatus(ctx context.Context) (RegistryStatus, error) {

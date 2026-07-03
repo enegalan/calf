@@ -317,7 +317,7 @@ func (n *Native) RestartContainer(ctx context.Context, id string) error {
 
 func (n *Native) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
-		return runCommand(ctx, command, args...)
+		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", command, args...)
 	}
 
 	return runCommand(ctx, command, args...)
@@ -325,7 +325,7 @@ func (n *Native) runLocal(ctx context.Context, command string, args ...string) (
 
 func (n *Native) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
-		return runCommandWithStdin(ctx, stdin, command, args...)
+		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, command, args...)
 	}
 
 	return runCommandWithStdin(ctx, stdin, command, args...)

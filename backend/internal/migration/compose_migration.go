@@ -159,10 +159,6 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", err
 	}
 
-	if err := patchComposeServiceEnv(composePath, group.Containers); err != nil {
-		return "", "", err
-	}
-
 	vmDir := VMPath(destDir)
 	vmComposePath := VMPath(composePath)
 	return vmDir, vmComposePath, nil

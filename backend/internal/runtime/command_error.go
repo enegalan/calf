@@ -111,8 +111,6 @@ func isTransientCommandError(err error) bool {
 		"transport is closing",
 		"connection reset",
 		"connection refused",
-		"no such file or directory",
-		"executable file not found",
 		"cannot connect to the docker daemon",
 		"deadline exceeded",
 		"i/o timeout",
@@ -122,6 +120,30 @@ func isTransientCommandError(err error) bool {
 	for _, marker := range transientMarkers {
 		if strings.Contains(message, marker) {
 			return true
+		}
+	}
+
+	startupPathMarkers := []string{
+		"no such file or directory",
+		"executable file not found",
+	}
+	startupContexts := []string{
+		"nerdctl",
+		"limactl",
+		"containerd",
+		"docker.sock",
+		"/run/containerd",
+	}
+
+	for _, marker := range startupPathMarkers {
+		if !strings.Contains(message, marker) {
+			continue
+		}
+
+		for _, contextMarker := range startupContexts {
+			if strings.Contains(message, contextMarker) {
+				return true
+			}
 		}
 	}
 

@@ -161,7 +161,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
   }
 
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<bool> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -171,22 +171,24 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
       await action();
       await widget.onChanged();
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() => _busy = false);
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _busy = false;
         _error = error.toString();
       });
+      return false;
     }
   }
 
-  Future<void> _runGroupAction(Future<void> Function(String id) action) async {
-    await _runAction(() async {
+  Future<bool> _runGroupAction(Future<void> Function(String id) action) async {
+    return _runAction(() async {
       for (final container in _containers) {
         await action(container.id);
       }
@@ -251,8 +253,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               enabled: !_busy,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: () async {
-                await _runGroupAction(widget.apiClient.removeContainer);
-                if (mounted) {
+                final ok = await _runGroupAction(widget.apiClient.removeContainer);
+                if (mounted && ok) {
                   widget.onBack();
                 }
               },
