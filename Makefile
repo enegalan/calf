@@ -1,13 +1,29 @@
-.PHONY: backend ui build clean
+.PHONY: help ui build clean dev dev-backend dev-ui
 
-backend:
-	cd backend && go build -o ../bin/calf ./cmd/calf
+help:
+	@echo "Calf — common commands"
+	@echo ""
+	@echo "  make dev-backend   API daemon on :8080 (terminal 1)"
+	@echo "  make dev-ui        Flutter app on macOS (terminal 2)"
+	@echo ""
+	@echo "  make ui            build macOS app"
+	@echo "  make build         build macOS app"
+	@echo "  make clean         remove build artifacts"
+	@echo ""
+	@echo "Full guide: DEVELOPMENT.md"
 
 ui:
 	cd ui && flutter build macos
 
-build: backend ui
+build: ui
 
 clean:
-	rm -rf bin
 	cd ui && flutter clean
+
+dev-backend:
+	cd backend && CGO_ENABLED=0 go run ./cmd/calf
+
+dev-ui:
+	cd ui && flutter run -d macos
+
+dev: help

@@ -1,14 +1,24 @@
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/screens/containers_screen.dart';
 import 'package:ui/screens/resources_screen.dart';
+import 'package:ui/widgets/app_top_bar.dart';
+import 'package:ui/widgets/calf_button.dart';
 
 class AppShell extends StatefulWidget {
-  AppShell({super.key, CalfClient? apiClient})
-      : apiClient = apiClient ?? ApiClient();
+  AppShell({
+    super.key,
+    CalfClient? apiClient,
+    this.themeMode = ThemeMode.system,
+    this.onThemeModeChanged,
+  }) : apiClient = apiClient ?? ApiClient();
 
   final CalfClient apiClient;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -16,48 +26,147 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
+  RegistryLoginStatus? _registryStatus;
+  bool _registryLoading = true;
+  bool _registryBrowserLoginPending = false;
+  String _appVersion = '0.3.0';
+
+  @override
+  void initState() {
+    super.initState();
+    loadRegistryStatus();
+    loadAppVersion();
+  }
+
+  Future<void> loadAppVersion() async {
+    try {
+      final status = await widget.apiClient.fetchStatus();
+      if (!mounted) return;
+      setState(() => _appVersion = status.version);
+    } catch (_) {}
+  }
+
+  Future<void> loadRegistryStatus() async {
+    setState(() => _registryLoading = true);
+
+    try {
+      final status = await widget.apiClient.fetchRegistryStatus();
+      if (!mounted) return;
+      setState(() {
+        _registryStatus = status;
+        _registryLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _registryLoading = false);
+    }
+  }
+
+  Future<void> startRegistryBrowserLogin() async {
+    setState(() => _registryBrowserLoginPending = true);
+
+    try {
+      final start = await widget.apiClient.startRegistryBrowserLogin();
+      if (!mounted) return;
+
+      await showRegistryLoginDialog(
+        context: context,
+        apiClient: widget.apiClient,
+        start: start,
+        onComplete: (username) async {
+          if (!mounted) return;
+          setState(() {
+            _registryBrowserLoginPending = false;
+            _registryStatus = RegistryLoginStatus(
+              loggedIn: true,
+              server: 'docker.io',
+              username: username,
+            );
+          });
+          await loadRegistryStatus();
+        },
+        onFailed: (_) {
+          if (!mounted) return;
+          setState(() => _registryBrowserLoginPending = false);
+        },
+      );
+
+      if (!mounted) return;
+      setState(() => _registryBrowserLoginPending = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _registryBrowserLoginPending = false);
+    }
+  }
+
+  Future<void> logoutRegistry() async {
+    try {
+      await widget.apiClient.logoutRegistry();
+      if (!mounted) return;
+      await loadRegistryStatus();
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final labels = ['Status', 'Containers', 'Images', 'Settings'];
+    final labels = ['Containers', 'Images', 'Volumes', 'Builds', 'Settings'];
 
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: 220,
-          decoration: BoxDecoration(
-            border: Border(
-              right: BorderSide(color: theme.colorScheme.border),
-            ),
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Calf', style: theme.textTheme.h3),
-              const SizedBox(height: 24),
-              for (var index = 0; index < labels.length; index++) ...[
-                if (index > 0) const SizedBox(height: 8),
-                _NavItem(
-                  label: labels[index],
-                  selected: _selectedIndex == index,
-                  onTap: () => setState(() => _selectedIndex = index),
-                ),
-              ],
-            ],
-          ),
+        AppTopBar(
+          registryStatus: _registryStatus,
+          registryLoading: _registryLoading,
+          signInPending: _registryBrowserLoginPending,
+          onOpenSettings: () => setState(() => _selectedIndex = 4),
+          onSignIn: startRegistryBrowserLogin,
+          onSignOut: logoutRegistry,
+          onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: switch (_selectedIndex) {
-              0 => StatusScreen(apiClient: widget.apiClient),
-              1 => ContainersScreen(apiClient: widget.apiClient),
-              2 => ImagesScreen(apiClient: widget.apiClient),
-              _ => SettingsScreen(apiClient: widget.apiClient),
-            },
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 220,
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: theme.colorScheme.border),
+                  ),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var index = 0; index < labels.length; index++) ...[
+                      if (index > 0) const SizedBox(height: 8),
+                      _NavItem(
+                        label: labels[index],
+                        selected: _selectedIndex == index,
+                        onTap: () => setState(() => _selectedIndex = index),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: switch (_selectedIndex) {
+                    0 => ContainersScreen(apiClient: widget.apiClient),
+                    1 => ImagesScreen(apiClient: widget.apiClient),
+                    2 => VolumesScreen(apiClient: widget.apiClient),
+                    3 => BuildsScreen(apiClient: widget.apiClient),
+                    _ => SettingsScreen(
+                        apiClient: widget.apiClient,
+                        themeMode: widget.themeMode,
+                        onThemeModeChanged: widget.onThemeModeChanged,
+                      ),
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -80,7 +189,7 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
-    return ShadButton.ghost(
+    return CalfButton.ghost(
       width: double.infinity,
       onPressed: onTap,
       backgroundColor: selected ? theme.colorScheme.accent : null,
@@ -92,174 +201,345 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-mixin DaemonStatusLoader<T extends StatefulWidget> on State<T> {
-  DaemonStatus? status;
-  String? statusError;
-  bool statusLoading = true;
-
-  CalfClient get statusClient;
-
-  @override
-  void initState() {
-    super.initState();
-    loadDaemonStatus();
-  }
-
-  Future<void> loadDaemonStatus() async {
-    setState(() {
-      statusLoading = true;
-      statusError = null;
-    });
-
-    try {
-      final result = await statusClient.fetchStatus();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        status = result;
-        statusLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        statusError = error.toString();
-        statusLoading = false;
-      });
-    }
-  }
-}
-
-class StatusScreen extends StatefulWidget {
-  const StatusScreen({super.key, required this.apiClient});
-
-  final CalfClient apiClient;
-
-  @override
-  State<StatusScreen> createState() => _StatusScreenState();
-}
-
-class _StatusScreenState extends State<StatusScreen> with DaemonStatusLoader {
-  @override
-  CalfClient get statusClient => widget.apiClient;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text('Daemon status', style: theme.textTheme.h3),
-            const Spacer(),
-            ShadButton.outline(
-              onPressed: statusLoading ? null : loadDaemonStatus,
-              child: const Text('Refresh'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        if (statusLoading)
-          Text('Loading...', style: theme.textTheme.large)
-        else if (statusError != null)
-          Text(
-            statusError!,
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
-          )
-        else if (status != null)
-          _StatusDetails(status: status!),
-      ],
-    );
-  }
-}
-
-class _StatusDetails extends StatelessWidget {
-  const _StatusDetails({required this.status});
-
-  final DaemonStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
-    final items = <MapEntry<String, String>>[
-      MapEntry('Version', status.version),
-      MapEntry('Uptime', '${status.uptimeSeconds}s'),
-      MapEntry('Listen address', status.listenAddr),
-      MapEntry('Log level', status.logLevel),
-      MapEntry('Runtime mode', status.runtime.mode),
-      MapEntry('Runtime state', status.runtime.state),
-      MapEntry('Docker socket', status.runtime.dockerSocket),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final item in items) ...[
-          Text(item.key, style: theme.textTheme.muted),
-          const SizedBox(height: 4),
-          Text(item.value, style: theme.textTheme.large),
-          const SizedBox(height: 16),
-        ],
-      ],
-    );
-  }
-}
-
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.apiClient});
+  const SettingsScreen({
+    super.key,
+    required this.apiClient,
+    required this.themeMode,
+    this.onThemeModeChanged,
+  });
 
   final CalfClient apiClient;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode>? onThemeModeChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> with DaemonStatusLoader {
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _startAtLogin = false;
+  Config? _config;
+  bool _configLoading = true;
+  String? _configError;
+  bool _saving = false;
+  double _draftCpus = 4;
+  double _draftMemory = 4;
+  double _draftSwap = 1;
+  bool _migrating = false;
+  MigrationStatus? _migrationStatus;
+
+  bool get _dirty => _config != null &&
+      (_draftCpus.toInt() != _config!.cpus ||
+          _draftMemory.toInt() != _config!.memoryGB ||
+          _draftSwap.toInt() != _config!.memorySwapGB);
+
   @override
-  CalfClient get statusClient => widget.apiClient;
+  void initState() {
+    super.initState();
+    loadConfig();
+  }
+
+  Future<void> loadConfig() async {
+    setState(() {
+      _configLoading = true;
+      _configError = null;
+    });
+
+    try {
+      final config = await widget.apiClient.fetchConfig();
+      if (!mounted) return;
+      setState(() {
+        _config = config;
+        _draftCpus = config.cpus.toDouble();
+        _draftMemory = config.memoryGB.toDouble();
+        _draftSwap = config.memorySwapGB.toDouble();
+        _configLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _configError = error.toString();
+        _configLoading = false;
+      });
+    }
+  }
+
+  Future<void> applyConfig() async {
+    final current = _config;
+    if (current == null) return;
+
+    setState(() => _saving = true);
+
+    try {
+      final updated = await widget.apiClient.updateConfig(
+        Config(
+          pollIntervalMs: current.pollIntervalMs,
+          cpus: _draftCpus.toInt(),
+          memoryGB: _draftMemory.toInt(),
+          memorySwapGB: _draftSwap.toInt(),
+          hostCPUs: current.hostCPUs,
+          hostMemoryGB: current.hostMemoryGB,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _config = updated;
+        _draftCpus = updated.cpus.toDouble();
+        _draftMemory = updated.memoryGB.toDouble();
+        _draftSwap = updated.memorySwapGB.toDouble();
+        _saving = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> startDockerDesktopMigration() async {
+    setState(() {
+      _migrating = true;
+      _migrationStatus = null;
+    });
+
+    try {
+      final status = await widget.apiClient.startDockerDesktopMigration();
+      if (!mounted) return;
+      setState(() => _migrationStatus = status);
+      await _pollMigrationStatus();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _migrating = false;
+        _migrationStatus = MigrationStatus(
+          phase: 'failed',
+          step: 'error',
+          progress: 0,
+          message: error.toString(),
+          error: error.toString(),
+          summary: const MigrationSummary(
+            configApplied: false,
+            imagesTotal: 0,
+            imagesOK: 0,
+            volumesTotal: 0,
+            volumesOK: 0,
+            containersTotal: 0,
+            containersOK: 0,
+            buildsTotal: 0,
+            buildsOK: 0,
+          ),
+        );
+      });
+    }
+  }
+
+  Future<void> _pollMigrationStatus() async {
+    while (mounted) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+
+      try {
+        final status = await widget.apiClient.fetchDockerDesktopMigration();
+        if (!mounted) return;
+
+        setState(() => _migrationStatus = status);
+
+        if (!status.isRunning) {
+          setState(() => _migrating = false);
+          if (status.phase == 'completed') {
+            await loadConfig();
+          }
+          return;
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() => _migrating = false);
+        return;
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
 
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Settings', style: theme.textTheme.h3),
+          const SizedBox(height: 24),
+          _sectionHeader('General', theme),
+          const SizedBox(height: 12),
+          _settingRow(
+            'Start Calf when you sign in to your computer',
+            ShadSwitch(
+              value: _startAtLogin,
+              onChanged: (value) => setState(() => _startAtLogin = value),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text('Theme', style: theme.textTheme.large),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _themeCheckbox(ThemeMode.light, 'Light'),
+              const SizedBox(width: 20),
+              _themeCheckbox(ThemeMode.dark, 'Dark'),
+              const SizedBox(width: 20),
+              _themeCheckbox(ThemeMode.system, 'System'),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _sectionHeader('Migration', theme),
+          const SizedBox(height: 12),
+          Text(
+            'Import settings, images, volumes, containers and build history from Docker Desktop.',
+            style: theme.textTheme.muted,
+          ),
+          const SizedBox(height: 12),
+          CalfButton(
+            onPressed: _migrating ? null : startDockerDesktopMigration,
+            enabled: !_migrating,
+            child: Text(_migrating ? 'Migrating...' : 'Migrate from Docker Desktop'),
+          ),
+          if (_migrationStatus != null) ...[
+            const SizedBox(height: 16),
+            ShadProgress(value: _migrationStatus!.progress / 100),
+            const SizedBox(height: 8),
+            Text(_migrationStatus!.message, style: theme.textTheme.large),
+            if (_migrationStatus!.error != null && _migrationStatus!.error!.isNotEmpty)
+              Text(
+                _migrationStatus!.error!,
+                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              ),
+            if (_migrationStatus!.phase == 'completed') ...[
+              const SizedBox(height: 8),
+              Text(
+                'Images: ${_migrationStatus!.summary.imagesOK}/${_migrationStatus!.summary.imagesTotal} · '
+                'Volumes: ${_migrationStatus!.summary.volumesOK}/${_migrationStatus!.summary.volumesTotal} · '
+                'Containers: ${_migrationStatus!.summary.containersOK}/${_migrationStatus!.summary.containersTotal} · '
+                'Builds: ${_migrationStatus!.summary.buildsOK}/${_migrationStatus!.summary.buildsTotal}',
+                style: theme.textTheme.muted,
+              ),
+            ],
+          ],
+          const SizedBox(height: 24),
+          _sectionHeader('System', theme),
+          const SizedBox(height: 12),
+          if (_configLoading)
+            Text('Loading config...', style: theme.textTheme.muted)
+          else if (_configError != null)
+            Text(
+              _configError!,
+              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+            )
+          else if (_config != null) ...[
+            _sliderRow(
+              'Memory limit',
+              _draftMemory,
+              1,
+              _config!.hostMemoryGB.toDouble(),
+              (value) => setState(() => _draftMemory = value),
+              trailing: Text('${_draftMemory.toInt()} GB'),
+            ),
+            const SizedBox(height: 16),
+            _sliderRow(
+              'Memory swap',
+              _draftSwap,
+              0,
+              _config!.hostMemoryGB.toDouble(),
+              (value) => setState(() => _draftSwap = value),
+              trailing: Text('${_draftSwap.toInt()} GB'),
+            ),
+            const SizedBox(height: 16),
+            _sliderRow(
+              'CPU limit',
+              _draftCpus,
+              1,
+              _config!.hostCPUs.toDouble(),
+              (value) => setState(() => _draftCpus = value),
+              trailing: Text('${_draftCpus.toInt()} cores'),
+            ),
+            const SizedBox(height: 24),
+            CalfButton(
+              onPressed: _dirty && !_saving ? applyConfig : null,
+              enabled: _dirty,
+              child: Text(_saving ? 'Saving...' : 'Apply'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _themeCheckbox(ThemeMode option, String label) {
+    return ShadCheckbox(
+      value: widget.themeMode == option,
+      onChanged: widget.onThemeModeChanged == null
+          ? null
+          : (checked) {
+              if (checked) {
+                widget.onThemeModeChanged!(option);
+              }
+            },
+      label: Text(label),
+    );
+  }
+
+  Widget _sectionHeader(String label, ShadThemeData theme) {
+    return Text(label, style: theme.textTheme.h4.copyWith(color: theme.colorScheme.mutedForeground));
+  }
+
+  Widget _settingRow(String label, Widget control) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Expanded(child: Text(label, style: ShadTheme.of(context).textTheme.large)),
+        control,
+      ],
+    );
+  }
+
+  Widget _sliderRow(
+    String label,
+    double value,
+    double min,
+    double max,
+    ValueChanged<double> onChanged, {
+    Widget? trailing,
+  }) {
+    final theme = ShadTheme.of(context);
+    final primary = theme.colorScheme.primary;
+    final divisions = (max - min).round();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Settings', style: theme.textTheme.h3),
+        Text(label, style: theme.textTheme.large),
         const SizedBox(height: 8),
-        Text(
-          'Read-only view of the active daemon configuration.',
-          style: theme.textTheme.muted,
+        Row(
+          children: [
+            Expanded(
+              child: ShadSlider(
+                key: ValueKey('$label-$value'),
+                initialValue: value,
+                min: min,
+                max: max,
+                divisions: divisions > 0 ? divisions : null,
+                enabled: !_saving,
+                onChanged: onChanged,
+                activeTrackColor: primary,
+                thumbColor: primary,
+                thumbBorderColor: primary,
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              trailing,
+            ],
+          ],
         ),
-        const SizedBox(height: 24),
-        if (statusLoading)
-          Text('Loading...', style: theme.textTheme.large)
-        else if (statusError != null)
-          Text(
-            statusError!,
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
-          )
-        else if (status != null) ...[
-          Text('Config file', style: theme.textTheme.muted),
-          const SizedBox(height: 4),
-          Text('~/.config/calf/config.yaml', style: theme.textTheme.large),
-          const SizedBox(height: 16),
-          Text('Listen address', style: theme.textTheme.muted),
-          const SizedBox(height: 4),
-          Text(status!.listenAddr, style: theme.textTheme.large),
-          const SizedBox(height: 16),
-          Text('Log level', style: theme.textTheme.muted),
-          const SizedBox(height: 4),
-          Text(status!.logLevel, style: theme.textTheme.large),
-          const SizedBox(height: 16),
-          Text('Docker socket', style: theme.textTheme.muted),
-          const SizedBox(height: 4),
-          Text(status!.runtime.dockerSocket, style: theme.textTheme.large),
-        ],
       ],
     );
   }

@@ -18,12 +18,7 @@ func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request, id 
 		return
 	}
 
-	if r.Header.Get("Upgrade") == "websocket" {
-		s.handleContainerLogsWebSocket(w, r, id)
-		return
-	}
-
-	writeError(w, http.StatusBadRequest, "websocket upgrade required")
+	s.handleContainerLogsWebSocket(w, r, id)
 }
 
 func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Request, id string) {

@@ -8,22 +8,35 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 )
+
+const NerdctlBin = "/usr/local/bin/nerdctl"
+
+func NerdctlVMArgs(args ...string) []string {
+	return append([]string{"sudo", NerdctlBin}, args...)
+}
 
 type nerdctlLine struct {
 	ID         string `json:"ID"`
 	Names      string `json:"Names"`
+	Name       string `json:"Name"`
+	Driver     string `json:"Driver"`
 	Image      string `json:"Image"`
 	State      string `json:"State"`
 	Status     string `json:"Status"`
 	CreatedAt  string `json:"CreatedAt"`
+	Ports      string `json:"Ports"`
+	Labels     map[string]string `json:"Labels"`
 	Repository string `json:"Repository"`
 	Tag        string `json:"Tag"`
 	Size       string `json:"Size"`
 }
 
 type commandRunner func(ctx context.Context, command string, args ...string) ([]byte, error)
+
+type stdinCommandRunner func(ctx context.Context, stdin, command string, args ...string) ([]byte, error)
 
 func listContainers(ctx context.Context, run commandRunner) ([]Container, error) {
 	output, err := run(ctx, "nerdctl", "ps", "-a", "--format", "{{json .}}")
@@ -43,6 +56,44 @@ func listImages(ctx context.Context, run commandRunner) ([]Image, error) {
 	return ParseImageLines(output)
 }
 
+func listVolumes(ctx context.Context, run commandRunner) ([]Volume, error) {
+	output, err := run(ctx, "nerdctl", "volume", "ls", "--format", "{{json .}}")
+	if err != nil {
+		return nil, err
+	}
+
+	return ParseVolumeLines(output)
+}
+
+func runBuild(ctx context.Context, run commandRunner, contextPath, tag, dockerfile string) error {
+	args := []string{"build", "-t", tag}
+	if dockerfile != "" {
+		args = append(args, "-f", dockerfile)
+	}
+
+	args = append(args, contextPath)
+	_, err := run(ctx, "nerdctl", args...)
+	return err
+}
+
+func runImage(ctx context.Context, run commandRunner, ref string) (string, error) {
+	output, err := run(ctx, "nerdctl", "run", "-d", ref)
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(string(output)), nil
+}
+
+func pushImage(ctx context.Context, run commandRunner, ref string) error {
+	_, err := run(ctx, "nerdctl", "push", ref)
+	if err != nil {
+		return wrapPushError(ref, err)
+	}
+
+	return nil
+}
+
 func ParseContainerLines(output []byte) ([]Container, error) {
 	containers := make([]Container, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -55,22 +106,29 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 
 		var row nerdctlLine
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
-			return nil, fmt.Errorf("parse container line: %w", err)
+			continue
 		}
 
+		project, service := composeFields(row.Names, row.Labels)
+
 		containers = append(containers, Container{
-			ID:      row.ID,
-			Name:    row.Names,
-			Image:   row.Image,
-			State:   row.State,
-			Status:  row.Status,
-			Created: row.CreatedAt,
+			ID:             row.ID,
+			Name:           row.Names,
+			Image:          row.Image,
+			State:          containerState(row.Status, row.State),
+			Status:         row.Status,
+			Ports:          row.Ports,
+			Created:        row.CreatedAt,
+			ComposeProject: project,
+			ComposeService: service,
 		})
 	}
 
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
+
+	inferComposeProjects(containers)
 
 	return containers, nil
 }
@@ -87,7 +145,7 @@ func ParseImageLines(output []byte) ([]Image, error) {
 
 		var row nerdctlLine
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
-			return nil, fmt.Errorf("parse image line: %w", err)
+			continue
 		}
 
 		images = append(images, Image{
@@ -104,6 +162,193 @@ func ParseImageLines(output []byte) ([]Image, error) {
 	}
 
 	return images, nil
+}
+
+type historyLine struct {
+	CreatedSince string `json:"CreatedSince"`
+	CreatedBy    string `json:"CreatedBy"`
+	Size         string `json:"Size"`
+}
+
+func imageHistory(ctx context.Context, run commandRunner, ref string) ([]ImageLayer, error) {
+	output, err := run(ctx, "nerdctl", "history", "--no-trunc", "--format", "{{json .}}", ref)
+	if err != nil {
+		return nil, err
+	}
+
+	return ParseImageHistoryLines(output)
+}
+
+func ParseImageHistoryLines(output []byte) ([]ImageLayer, error) {
+	entries := make([]historyLine, 0)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var row historyLine
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			continue
+		}
+
+		entries = append(entries, row)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	for left, right := 0, len(entries)-1; left < right; left, right = left+1, right-1 {
+		entries[left], entries[right] = entries[right], entries[left]
+	}
+
+	layers := make([]ImageLayer, 0, len(entries))
+	for index, entry := range entries {
+		layers = append(layers, ImageLayer{
+			Index:     index,
+			CreatedBy: formatLayerCommand(entry.CreatedBy),
+			Size:      entry.Size,
+			Created:   entry.CreatedSince,
+		})
+	}
+
+	return layers, nil
+}
+
+func formatLayerCommand(createdBy string) string {
+	createdBy = strings.TrimSpace(createdBy)
+	createdBy = strings.TrimPrefix(createdBy, "/bin/sh -c ")
+
+	if len(createdBy) >= 2 && createdBy[0] == '(' && createdBy[len(createdBy)-1] == ')' {
+		createdBy = strings.TrimSpace(createdBy[1 : len(createdBy)-1])
+	}
+
+	return strings.ReplaceAll(createdBy, "#(nop)  ", "")
+}
+
+func ParseVolumeLines(output []byte) ([]Volume, error) {
+	volumes := make([]Volume, 0)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var row nerdctlLine
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			continue
+		}
+
+		volumes = append(volumes, Volume{
+			Name:   row.Name,
+			Driver: row.Driver,
+		})
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return volumes, nil
+}
+
+var composeNamePattern = regexp.MustCompile(`^(.+)-([^-]+)-(\d+)$`)
+
+func composeFields(name string, labels map[string]string) (string, string) {
+	if labels != nil {
+		project := labels["com.docker.compose.project"]
+		if project != "" {
+			return project, labels["com.docker.compose.service"]
+		}
+	}
+
+	matches := composeNamePattern.FindStringSubmatch(name)
+	if len(matches) == 4 {
+		return matches[1], matches[2]
+	}
+
+	return "", ""
+}
+
+func inferComposeProjects(containers []Container) {
+	names := make(map[string]struct{}, len(containers))
+	for _, container := range containers {
+		names[container.Name] = struct{}{}
+	}
+
+	for index := range containers {
+		if containers[index].ComposeProject != "" {
+			continue
+		}
+
+		name := containers[index].Name
+		project := longestComposePrefix(name, names)
+		if project != "" {
+			containers[index].ComposeProject = project
+			containers[index].ComposeService = composeServiceName(name, project)
+			continue
+		}
+
+		for candidate := range names {
+			if candidate != name && strings.HasPrefix(candidate, name+"-") {
+				containers[index].ComposeProject = name
+				containers[index].ComposeService = name
+				break
+			}
+		}
+	}
+}
+
+func longestComposePrefix(name string, names map[string]struct{}) string {
+	var project string
+
+	for candidate := range names {
+		if candidate == name {
+			continue
+		}
+
+		if strings.HasPrefix(name, candidate+"-") {
+			if project == "" || len(candidate) > len(project) {
+				project = candidate
+			}
+		}
+	}
+
+	return project
+}
+
+func composeServiceName(name, project string) string {
+	service := strings.TrimPrefix(name, project+"-")
+	if service == "" {
+		return name
+	}
+
+	return service
+}
+
+func containerState(status, state string) string {
+	if state != "" {
+		return strings.ToLower(state)
+	}
+
+	status = strings.TrimSpace(status)
+	switch {
+	case strings.HasPrefix(status, "Up"):
+		return "running"
+	case strings.Contains(status, "Exited"):
+		return "exited"
+	case status == "Created":
+		return "created"
+	case strings.Contains(status, "Paused"):
+		return "paused"
+	default:
+		return "stopped"
+	}
 }
 
 func streamLogs(ctx context.Context, run commandRunner, id string, output func(string)) error {

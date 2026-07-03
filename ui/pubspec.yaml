@@ -12,6 +12,8 @@ dependencies:
   http: ^1.6.0
   shadcn_ui: ^0.55.0
   web_socket_channel: ^3.0.3
+  xterm: ^4.0.0
+  fl_chart: ^0.70.2
 
 dev_dependencies:
   flutter_test:

@@ -1,28 +1,14 @@
 ## Quick start
 
-**1. Start Calf** (runtime + API):
+```bash
+make dev-backend   # terminal 1: daemon + runtime on :8080
+make dev-ui        # terminal 2: macOS app
+```
+
+For containers via the Docker CLI, set:
 
 ```bash
-make backend
-./bin/calf start
 export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
-```
-
-**2. Start the UI** (in another terminal):
-
-```bash
-cd ui
-flutter pub get
-flutter run
-```
-
-Pick a device when prompted (`chrome`, `macos`, etc.). The UI calls the API on startup and shows daemon status.
-
-For development without the full runtime:
-
-```bash
-cd backend
-go run ./cmd/calf serve
 ```
 
 ## Configuration
@@ -38,32 +24,13 @@ docker_socket: ""
 
 ## Build
 
-Build the daemon and macOS UI from the repository root:
+Build the macOS UI from the repository root:
 
 ```bash
 make build
 ```
 
-Artifacts:
-
-- `bin/calf` — CLI and daemon binary
-- `ui/build/macos/Build/Products/Release/ui.app` — macOS app bundle
-
-Build individually:
-
-```bash
-make backend
-make ui
-```
-
-## CLI
-
-```bash
-calf start    # start Lima VM/runtime and daemon
-calf stop     # stop daemon and runtime
-calf status   # show runtime and daemon state
-calf serve    # run API daemon only
-```
+Artifact: `ui/build/macos/Build/Products/Release/ui.app`
 
 ## Migrating from Docker Desktop
 
@@ -80,20 +47,19 @@ docker save my-image:latest -o my-image.tar
 4. Start Calf:
 
 ```bash
-calf start
+make dev-backend
+```
+
+5. Point your tools at Calf:
+
+```bash
 export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
 ```
 
-5. Import images:
+6. Import images:
 
 ```bash
 docker load -i my-image.tar
-```
-
-6. Point your tools at Calf:
-
-```bash
-export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
 ```
 
 7. Verify:
@@ -101,7 +67,3 @@ export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
 ```bash
 docker run hello-world
 ```
-
-## Examples
-
-See [`examples/hello-world/`](examples/hello-world/).

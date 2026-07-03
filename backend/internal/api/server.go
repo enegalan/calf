@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/migration"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/gorilla/websocket"
 )
@@ -18,6 +20,13 @@ type Server struct {
 	runtime    runtime.Runtime
 	startTime  time.Time
 	httpServer *http.Server
+	buildsMu       sync.RWMutex
+	builds         []runtime.Build
+	buildSeq       int
+	migrateMu      sync.RWMutex
+	migrateStatus  migration.Status
+	migrateRunning bool
+	registrySessions *sync.Map
 }
 
 var logsUpgrader = websocket.Upgrader{
@@ -28,10 +37,11 @@ var logsUpgrader = websocket.Upgrader{
 
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 	return &Server{
-		cfg:       cfg,
-		logger:    logger,
-		runtime:   rt,
-		startTime: time.Now(),
+		cfg:           cfg,
+		logger:        logger,
+		runtime:       rt,
+		startTime:     time.Now(),
+		migrateStatus: migration.IdleStatus(),
 	}
 }
 
@@ -42,7 +52,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/containers", s.handleContainers)
 	mux.HandleFunc("/v1/containers/", s.handleContainerAction)
 	mux.HandleFunc("/v1/images", s.handleImages)
-	mux.HandleFunc("/v1/images/", s.handleImageAction)
+	mux.HandleFunc("/v1/images/", s.handleImageSubpath)
+	mux.HandleFunc("/v1/volumes", s.handleVolumes)
+	mux.HandleFunc("/v1/volumes/", s.handleVolumeAction)
+	mux.HandleFunc("/v1/builds", s.handleBuilds)
+	mux.HandleFunc("/v1/registry", s.handleRegistry)
+	mux.HandleFunc("/v1/registry/login", s.handleRegistryLogin)
+	mux.HandleFunc("/v1/registry/login/", s.handleRegistryLogin)
+	mux.HandleFunc("/v1/config", s.handleConfig)
+	mux.HandleFunc("/v1/migrate/docker-desktop", s.handleDockerDesktopMigration)
 
 	return withMiddleware(s.logger, mux)
 }
