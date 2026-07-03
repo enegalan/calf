@@ -35,8 +35,8 @@ class RuntimeStatus {
     required this.state,
     required this.dockerSocket,
     this.vmName,
-    List<PortConflict>? portConflicts,
-  }) : _portConflicts = portConflicts;
+    this._portConflicts,
+  });
 
   final String mode;
   final String state;

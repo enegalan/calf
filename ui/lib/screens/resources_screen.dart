@@ -489,7 +489,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
 
     return SliverList.separated(
       itemCount: layers.length,
-      separatorBuilder: (_, __) => Container(
+      separatorBuilder: (_, _) => Container(
         height: 1,
         color: theme.colorScheme.border,
       ),
@@ -545,7 +545,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
-  final _nameController = TextEditingController();
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedVolume;
@@ -561,7 +560,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -629,19 +627,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
       }
     } finally {
       _refreshInFlight = false;
-    }
-  }
-
-  Future<void> _createVolume() async {
-    try {
-      await widget.apiClient.createVolume(_nameController.text.trim());
-      _nameController.clear();
-      await _loadVolumes();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _error = error.toString());
     }
   }
 

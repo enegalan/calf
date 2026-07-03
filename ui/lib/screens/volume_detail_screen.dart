@@ -367,7 +367,7 @@ class _ContainersInUseTab extends StatelessWidget {
         Expanded(
           child: ListView.separated(
             itemCount: containers.length,
-            separatorBuilder: (_, __) => Container(height: 1, color: theme.colorScheme.border),
+            separatorBuilder: (_, _) => Container(height: 1, color: theme.colorScheme.border),
             itemBuilder: (context, index) {
               final container = containers[index];
 

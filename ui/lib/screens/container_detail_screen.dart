@@ -639,7 +639,7 @@ class _InspectFormattedView extends StatelessWidget {
 
     return ListView.separated(
       itemCount: sections.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 20),
+      separatorBuilder: (_, _) => const SizedBox(height: 20),
       itemBuilder: (context, index) {
         final section = sections[index];
         return Column(
