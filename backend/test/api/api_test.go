@@ -413,8 +413,8 @@ func TestVolumeFilesReturnsList(t *testing.T) {
 		t.Fatalf("Decode() error: %v", err)
 	}
 
-	if len(files) != 1 {
-		t.Fatalf("expected 1 file, got %d", len(files))
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
 	}
 }
 
