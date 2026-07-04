@@ -548,6 +548,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
   bool _refreshInFlight = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _runningOnly = false;
   String? _selectedVolume;
 
   @override
@@ -639,6 +640,22 @@ class _VolumesScreenState extends State<VolumesScreen> {
     setState(() => _selectedVolume = null);
   }
 
+  List<VolumeItem> _filteredVolumes() {
+    var items = _volumes;
+
+    if (_runningOnly) {
+      items = items.where((volume) => volume.inUse).toList();
+    }
+
+    if (_searchQuery.isEmpty) {
+      return items;
+    }
+
+    return items.where((volume) =>
+        volume.name.toLowerCase().contains(_searchQuery) ||
+        volume.driver.toLowerCase().contains(_searchQuery)).toList();
+  }
+
   Future<void> _cloneVolume(VolumeItem volume) async {
     final nameController = TextEditingController(text: '${volume.name}-copy');
     final theme = ShadTheme.of(context);
@@ -706,11 +723,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
     }
 
     final theme = ShadTheme.of(context);
-    final filtered = _searchQuery.isEmpty
-        ? _volumes
-        : _volumes.where((v) =>
-            v.name.toLowerCase().contains(_searchQuery) ||
-            v.driver.toLowerCase().contains(_searchQuery)).toList();
+    final filtered = _filteredVolumes();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -721,7 +734,18 @@ class _VolumesScreenState extends State<VolumesScreen> {
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Text('Show only running', style: theme.textTheme.small),
+            const SizedBox(width: 8),
+            ShadSwitch(
+              value: _runningOnly,
+              onChanged: (value) => setState(() => _runningOnly = value),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
         else if (_error != null)
@@ -732,7 +756,9 @@ class _VolumesScreenState extends State<VolumesScreen> {
                 ? 'No volumes match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
                     ? 'No volumes. Runtime is stopped.'
-                    : 'No volumes.',
+                    : _runningOnly
+                        ? 'No volumes in use.'
+                        : 'No volumes.',
             style: theme.textTheme.muted,
           )
         else

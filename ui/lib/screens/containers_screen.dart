@@ -307,10 +307,15 @@ class _ContainersScreenState extends State<ContainersScreen> {
           leading: Icon(LucideIcons.search, size: 16, color: theme.colorScheme.mutedForeground),
         ),
         const SizedBox(height: 12),
-        ShadCheckbox(
-          value: _runningOnly,
-          onChanged: (value) => setState(() => _runningOnly = value),
-          label: const Text('Running only'),
+        Row(
+          children: [
+            Text('Show only running', style: theme.textTheme.small),
+            const SizedBox(width: 8),
+            ShadSwitch(
+              value: _runningOnly,
+              onChanged: (value) => setState(() => _runningOnly = value),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         if (_runtime?.portConflicts.isNotEmpty == true)
