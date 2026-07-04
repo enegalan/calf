@@ -496,8 +496,9 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
       itemBuilder: (context, index) {
         final layer = layers[index];
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
