@@ -83,41 +83,17 @@ class LogsPanel extends StatefulWidget {
   State<LogsPanel> createState() => _LogsPanelState();
 }
 
-class _LogsPanelState extends State<LogsPanel> {
+class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
   final _searchController = TextEditingController();
   bool _searchOpen = false;
   bool _regexEnabled = false;
-  bool _showTimestamp = LogViewerPreferences.defaults.showTimestamp;
-  bool _wrapLines = LogViewerPreferences.defaults.wrapLines;
   bool _settingsOpen = false;
   int _currentMatchIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
-  }
-
-  Future<void> _loadPreferences() async {
-    final preferences = await LogViewerPreferences.load();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _showTimestamp = preferences.showTimestamp;
-      _wrapLines = preferences.wrapLines;
-    });
-  }
-
-  void _setShowTimestamp(bool value) {
-    setState(() => _showTimestamp = value);
-    LogViewerPreferences.save(showTimestamp: value, wrapLines: _wrapLines);
-  }
-
-  void _setWrapLines(bool value) {
-    setState(() => _wrapLines = value);
-    LogViewerPreferences.save(showTimestamp: _showTimestamp, wrapLines: value);
+    initLogViewerPreferences();
   }
 
   @override
@@ -150,7 +126,7 @@ class _LogsPanelState extends State<LogsPanel> {
     }
 
     return widget.lines
-        .map((line) => formatLogPlainLine(line, showTimestamp: _showTimestamp))
+        .map((line) => formatLogPlainLine(line, showTimestamp: showTimestamp))
         .join('\n');
   }
 
@@ -243,10 +219,10 @@ class _LogsPanelState extends State<LogsPanel> {
       onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
-      showTimestamp: _showTimestamp,
-      wrapLines: _wrapLines,
-      onShowTimestampChanged: _setShowTimestamp,
-      onWrapLinesChanged: _setWrapLines,
+      showTimestamp: showTimestamp,
+      wrapLines: wrapLines,
+      onShowTimestampChanged: setLogViewerShowTimestamp,
+      onWrapLinesChanged: setLogViewerWrapLines,
       scrollController: widget.scrollController,
       scrollableContent: widget.error != null
           ? SelectableText(
@@ -261,11 +237,13 @@ class _LogsPanelState extends State<LogsPanel> {
               : _LogTextView(
                   theme: theme,
                   logLines: widget.lines,
-                  showTimestamp: _showTimestamp,
-                  wrapLines: _wrapLines,
+                  showTimestamp: showTimestamp,
+                  wrapLines: wrapLines,
                   matches: matches,
                   currentMatchIndex: _currentMatchIndex,
+                  scrollController: widget.scrollController,
                 ),
+      primaryListView: widget.error == null && widget.lines.isNotEmpty && wrapLines,
     );
   }
 }
@@ -288,41 +266,17 @@ class MixedLogsPanel extends StatefulWidget {
   State<MixedLogsPanel> createState() => _MixedLogsPanelState();
 }
 
-class _MixedLogsPanelState extends State<MixedLogsPanel> {
+class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferencesMixin {
   final _searchController = TextEditingController();
   bool _searchOpen = false;
   bool _regexEnabled = false;
-  bool _showTimestamp = LogViewerPreferences.defaults.showTimestamp;
-  bool _wrapLines = LogViewerPreferences.defaults.wrapLines;
   bool _settingsOpen = false;
   int _currentMatchIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
-  }
-
-  Future<void> _loadPreferences() async {
-    final preferences = await LogViewerPreferences.load();
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      _showTimestamp = preferences.showTimestamp;
-      _wrapLines = preferences.wrapLines;
-    });
-  }
-
-  void _setShowTimestamp(bool value) {
-    setState(() => _showTimestamp = value);
-    LogViewerPreferences.save(showTimestamp: value, wrapLines: _wrapLines);
-  }
-
-  void _setWrapLines(bool value) {
-    setState(() => _wrapLines = value);
-    LogViewerPreferences.save(showTimestamp: _showTimestamp, wrapLines: value);
+    initLogViewerPreferences();
   }
 
   @override
@@ -353,7 +307,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> {
     final parts = <String>[];
     for (final block in widget.blocks) {
       for (final line in block.lines) {
-        parts.add(formatLogPlainLine(line, showTimestamp: _showTimestamp));
+        parts.add(formatLogPlainLine(line, showTimestamp: showTimestamp));
       }
     }
 
@@ -464,10 +418,10 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> {
       onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
-      showTimestamp: _showTimestamp,
-      wrapLines: _wrapLines,
-      onShowTimestampChanged: _setShowTimestamp,
-      onWrapLinesChanged: _setWrapLines,
+      showTimestamp: showTimestamp,
+      wrapLines: wrapLines,
+      onShowTimestampChanged: setLogViewerShowTimestamp,
+      onWrapLinesChanged: setLogViewerWrapLines,
       scrollController: widget.scrollController,
       scrollableContent: emptyMessage != null
           ? Align(
@@ -501,31 +455,33 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> {
                             ),
                           ),
                           Expanded(
-                            child: IntrinsicHeight(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Container(
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  left: 8,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: Container(
                                     width: 3,
-                                    margin: const EdgeInsets.symmetric(horizontal: 8),
                                     decoration: BoxDecoration(
                                       color: block.color,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
-                                  Expanded(
-                                    child: _LogTextView(
-                                      theme: theme,
-                                      logLines: block.lines,
-                                      showTimestamp: _showTimestamp,
-                                      wrapLines: _wrapLines,
-                                      matches: matches,
-                                      currentMatchIndex: _currentMatchIndex,
-                                      lineOffset: lineOffset,
-                                    ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 19),
+                                  child: _LogTextView(
+                                    theme: theme,
+                                    logLines: block.lines,
+                                    showTimestamp: showTimestamp,
+                                    wrapLines: wrapLines,
+                                    matches: matches,
+                                    currentMatchIndex: _currentMatchIndex,
+                                    lineOffset: lineOffset,
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -958,6 +914,7 @@ class _LogTextView extends StatelessWidget {
     required this.matches,
     required this.currentMatchIndex,
     this.lineOffset = 0,
+    this.scrollController,
   });
 
   final ShadThemeData theme;
@@ -967,38 +924,64 @@ class _LogTextView extends StatelessWidget {
   final List<_LogMatch> matches;
   final int currentMatchIndex;
   final int lineOffset;
+  final ScrollController? scrollController;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildLineRow(int index) {
     final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
     final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
 
-    final column = Column(
-      crossAxisAlignment: wrapLines ? CrossAxisAlignment.stretch : CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var index = 0; index < logLines.length; index++)
-          _LogLineRow(
-            theme: theme,
-            timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
-            text: logLines[index].text,
-            lineIndex: lineOffset + index,
-            baseStyle: baseStyle,
-            timestampStyle: timestampStyle,
-            wrapLines: wrapLines,
-            matches: matches,
-            currentMatchIndex: currentMatchIndex,
-          ),
-      ],
+    return _LogLineRow(
+      theme: theme,
+      timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+      text: logLines[index].text,
+      lineIndex: lineOffset + index,
+      baseStyle: baseStyle,
+      timestampStyle: timestampStyle,
+      wrapLines: wrapLines,
+      matches: matches,
+      currentMatchIndex: currentMatchIndex,
     );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     if (wrapLines) {
-      return column;
+      return SelectionArea(
+        child: ListView.builder(
+          controller: scrollController,
+          shrinkWrap: scrollController == null,
+          physics: scrollController == null ? const NeverScrollableScrollPhysics() : null,
+          itemCount: logLines.length,
+          itemBuilder: (context, index) => _buildLineRow(index),
+        ),
+      );
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: column,
+    final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
+    final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
+
+    return SelectionArea(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < logLines.length; index++)
+              _LogLineRow(
+                theme: theme,
+                timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+                text: logLines[index].text,
+                lineIndex: lineOffset + index,
+                baseStyle: baseStyle,
+                timestampStyle: timestampStyle,
+                wrapLines: wrapLines,
+                matches: matches,
+                currentMatchIndex: currentMatchIndex,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1045,15 +1028,11 @@ class _LogLineRowState extends State<_LogLineRow> {
       ),
     );
 
-    final content = widget.wrapLines
-        ? SelectableText.rich(span)
-        : SelectionArea(
-            child: Text.rich(
-              span,
-              softWrap: false,
-              maxLines: 1,
-            ),
-          );
+    final content = Text.rich(
+      span,
+      softWrap: widget.wrapLines,
+      maxLines: widget.wrapLines ? null : 1,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1086,8 +1065,14 @@ class _LogLineRowState extends State<_LogLineRow> {
     required int lineIndex,
     required TextStyle baseStyle,
   }) {
-    final lineMatches = widget.matches.where((match) => match.lineIndex == lineIndex).toList()
-      ..sort((a, b) => a.start.compareTo(b.start));
+    final lineMatches = <MapEntry<int, _LogMatch>>[];
+    for (var globalIndex = 0; globalIndex < widget.matches.length; globalIndex++) {
+      final match = widget.matches[globalIndex];
+      if (match.lineIndex == lineIndex) {
+        lineMatches.add(MapEntry(globalIndex, match));
+      }
+    }
+    lineMatches.sort((a, b) => a.value.start.compareTo(b.value.start));
 
     if (lineMatches.isEmpty) {
       return [TextSpan(text: line)];
@@ -1096,13 +1081,13 @@ class _LogLineRowState extends State<_LogLineRow> {
     final spans = <InlineSpan>[];
     var cursor = 0;
 
-    for (final match in lineMatches) {
+    for (final entry in lineMatches) {
+      final match = entry.value;
       if (match.start > cursor) {
         spans.add(TextSpan(text: line.substring(cursor, match.start)));
       }
 
-      final globalIndex = widget.matches.indexOf(match);
-      final isCurrent = globalIndex == widget.currentMatchIndex;
+      final isCurrent = entry.key == widget.currentMatchIndex;
       spans.add(
         TextSpan(
           text: line.substring(match.start, match.end),
