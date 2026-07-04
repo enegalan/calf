@@ -106,26 +106,20 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logoAsset = theme.brightness == Brightness.dark
+        ? 'assets/brand/calf_logo_white.png'
+        : 'assets/brand/calf_logo_black.png';
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            'C',
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.primaryForeground,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+        Image.asset(
+          logoAsset,
+          width: 36,
+          height: 36,
+          fit: BoxFit.contain,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 5),
         Text('calf', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
       ],
     );

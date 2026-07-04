@@ -121,6 +121,17 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
+# Install Linux desktop integration files.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/com.enegalan.ui.desktop"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications"
+  COMPONENT Runtime)
+
+foreach(icon_size 16 32 48 128 256 512)
+  install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/icons/hicolor/${icon_size}x${icon_size}/apps/com.enegalan.ui.png"
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/${icon_size}x${icon_size}/apps"
+    COMPONENT Runtime)
+endforeach()
+
 # Install the AOT library on non-Debug builds only.
 if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
