@@ -1,3 +1,8 @@
+---
+description: Calf project conventions, stack, layout, and hard rules
+alwaysApply: true
+---
+
 # Cursor Rules — calf
 
 ## Project
@@ -16,39 +21,45 @@ Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud 
 ## Project layout
 
 ```
-backend/cmd/calf/main.go                    entrypoint: config/logger/runtime/server wiring, signal handling
-backend/internal/api/server.go               route registration for all /v1/... endpoints
-backend/internal/api/middleware.go            logging, panic recovery, CORS
-backend/internal/api/log_broadcaster.go       fan-out of one log stream to N WebSocket subscribers
+backend/cmd/calf/main.go                         entrypoint: config/logger/runtime/server wiring, signal handling
+backend/internal/api/server.go                   route registration for all /v1/... endpoints
+backend/internal/api/handlers.go                 health/status/config endpoints
+backend/internal/api/middleware.go               logging, panic recovery, CORS
+backend/internal/api/json.go                     small JSON decode helper
+backend/internal/api/ws_writer.go                mutex-guarded WebSocket writer
+backend/internal/api/log_broadcaster.go          fan-out of one log stream to N WebSocket subscribers
+backend/internal/api/runtime_ready.go            blocks until runtime is running (registry login)
+backend/internal/api/runtime_errors.go           maps ErrRuntimeNotRunning -> 503
 backend/internal/api/containers.go|images.go|volumes.go|builds.go|exec.go|logs.go   resource CRUD + subresources
-backend/internal/api/migrate.go               Docker Desktop migration orchestration
+backend/internal/api/migrate.go                  Docker Desktop migration orchestration
 backend/internal/api/registry.go|registry_login.go   registry + Docker Hub OAuth login
-backend/internal/config/config.go             Config struct, YAML load/save, defaults
-backend/internal/config/logger.go             slog.TextHandler setup
-backend/internal/runtime/runtime.go            Runtime interface (~30 methods) + shared types
-backend/internal/runtime/native.go|lima.go|mock.go   the three Runtime implementations
-backend/internal/runtime/nerdctl.go            shared nerdctl output parsing, compose inference
-backend/internal/runtime/exec.go|exec_attach.go   command retry wrapper + PTY exec attach
+backend/internal/config/config.go                Config struct, YAML load/save, defaults
+backend/internal/config/logger.go                slog.TextHandler setup
+backend/internal/runtime/runtime.go              Runtime interface (~30 methods) + shared types
+backend/internal/runtime/native.go|lima.go|mock.go the three Runtime implementations
+backend/internal/runtime/lima.yaml               embedded Lima VM template (go:embed)
+backend/internal/runtime/nerdctl.go              shared nerdctl output parsing, compose inference
+backend/internal/runtime/exec.go|exec_attach.go  command retry wrapper + PTY exec attach
 backend/internal/runtime/container_detail.go|volume_detail.go|inspect_decode.go   inspect/parsing helpers
-backend/internal/runtime/localhost_proxy.go    macOS-only TCP proxy + port-conflict detection
+backend/internal/runtime/localhost_proxy.go      macOS-only TCP proxy + port-conflict detection
 backend/internal/runtime/registry.go|errors.go|command_error.go   auth parsing, error sentinels, shell cleanup
-backend/internal/migration/docker_desktop.go   migration orchestrator (preflight->images->volumes->containers->builds)
-backend/internal/migration/compose_migration.go   compose project staging + YAML patching
-backend/internal/migration/disk.go|status.go   disk-space check, Phase/Status types
-backend/internal/oauth/dockerhub/device.go     Docker Hub OAuth device-flow client
-backend/internal/browser/open.go               cross-platform "open URL" helper
-backend/test/<pkg>/                            external test packages (NOT *_test.go beside source)
-backend/version/version.go                      single Version constant
-ui/lib/main.dart                                app entrypoint, Material/ShadThemeData bridge
-ui/lib/app_shell.dart                           sidebar nav, top bar, SettingsScreen
-ui/lib/api/client.dart                          HTTP/WebSocket client (CalfClient/ApiClient)
-ui/lib/platform/open_url.dart                   platform-specific URL opener
+backend/internal/migration/docker_desktop.go     migration orchestrator (preflight->images->volumes->containers->builds)
+backend/internal/migration/compose_migration.go  compose project staging + YAML patching
+backend/internal/migration/disk.go|status.go     disk-space check, Phase/Status types
+backend/internal/oauth/dockerhub/device.go       Docker Hub OAuth device-flow client
+backend/internal/browser/open.go                 cross-platform "open URL" helper
+backend/test/<pkg>/                              external test packages (NOT *_test.go beside source)
+backend/version/version.go                       single Version constant
+ui/lib/main.dart                                 app entrypoint, Material/ShadThemeData bridge
+ui/lib/app_shell.dart                            sidebar nav, top bar, SettingsScreen
+ui/lib/api/client.dart                           HTTP/WebSocket client (CalfClient/ApiClient)
+ui/lib/platform/open_url.dart                    platform-specific URL opener
 ui/lib/storage/calf_ui_storage.dart|container_groups.dart|logs_viewer_preferences.dart   JSON-file local persistence
-ui/lib/screens/*.dart                           one file per top-level screen (containers, container detail, resources, volume detail, compose group)
-ui/lib/widgets/*.dart                           reusable components (button, files panel, logs panel, top bar, hover row)
+ui/lib/screens/*.dart                            one file per top-level screen
+ui/lib/widgets/*.dart                            reusable components (button, files panel, logs panel, top bar, hover row)
 ```
 
-Full per-file breakdown of what each backend/UI file does lives in `CLAUDE.md` — read it before making non-trivial changes.
+Full per-file breakdown lives in `CLAUDE.md` — read it before making non-trivial changes.
 
 ## Hard rules
 
@@ -66,7 +77,7 @@ Full per-file breakdown of what each backend/UI file does lives in `CLAUDE.md` �
 8. **Tests follow existing conventions.** Backend tests go in `backend/test/<pkg>/` as external test packages (`package xxx_test`), built against `runtime.NewMock()` — not `*_test.go` next to the source. UI tests go in `ui/test/`.
 9. **Commit messages:** conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`), optionally scoped (`feat(runtime): ...`, `fix(ui): ...`).
 10. **Concurrency and resource lifecycle (Go).** Thread `context.Context` with explicit timeout/cancellation from every HTTP handler into the runtime layer — never use bare `context.Background()` for a blocking call inside a handler. Every long-lived goroutine (log broadcasting, migration, polling) must observe cancellation/a stop signal and be stopped on server shutdown — no fire-and-forget goroutines. Release resources with `defer` right next to acquisition (`defer f.Close()`, `defer mu.Unlock()`, `defer cancel()`).
-11. **Versioning and living docs.** Bump `backend/version/version.go` and `ui/pubspec.yaml` together for every release. Add a `CHANGELOG.md` entry for every user-visible change. Whenever a file is added/removed/renamed under `backend/` or `ui/lib/`, update the Project Structure tree and file reference in `CLAUDE.md`/`.cursorrules` in the same change — do not let these docs go stale.
+11. **Versioning and living docs.** Bump `backend/version/version.go` and `ui/pubspec.yaml` together for every release. Add a `CHANGELOG.md` entry for every user-visible change. Whenever a file is added/removed/renamed under `backend/` or `ui/lib/`, update the Project Structure tree and file reference in `CLAUDE.md`/`.cursor/rules/calf.mdc` in the same change — do not let these docs go stale.
 
 ## Before making changes
 

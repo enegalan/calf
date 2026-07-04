@@ -268,4 +268,4 @@ CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):
 - **Versioning and living documentation:**
   - `backend/version/version.go` and the version in `ui/pubspec.yaml` must be bumped together — they must always refer to the same release.
   - Any user-visible change (new feature, fix, breaking change) must get an entry in `CHANGELOG.md`, following the existing Keep a Changelog + SemVer format.
-  - `CLAUDE.md` and `.cursorrules` are living documents: whenever a file is added, removed, or renamed under `backend/` or `ui/lib/`, update the Project Structure tree and the relevant file-reference section in the same change. Do not let these docs drift out of sync with the actual codebase.
+  - `CLAUDE.md` and `.cursor/rules/calf.mdc` are living documents: whenever a file is added, removed, or renamed under `backend/` or `ui/lib/`, update the Project Structure tree and the relevant file-reference section in the same change. Do not let these docs drift out of sync with the actual codebase.
