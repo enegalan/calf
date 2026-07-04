@@ -118,6 +118,7 @@ class _BrandMark extends StatelessWidget {
           width: 36,
           height: 36,
           fit: BoxFit.contain,
+          excludeFromSemantics: true,
         ),
         const SizedBox(width: 5),
         Text('calf', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),

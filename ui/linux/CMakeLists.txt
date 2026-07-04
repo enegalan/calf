@@ -122,7 +122,12 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
 # Install Linux desktop integration files.
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/com.enegalan.ui.desktop"
+set(EXECUTABLE "${CMAKE_INSTALL_PREFIX}/${BINARY_NAME}")
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/com.enegalan.ui.desktop"
+  "${CMAKE_CURRENT_BINARY_DIR}/com.enegalan.ui.desktop"
+  @ONLY)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/com.enegalan.ui.desktop"
   DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications"
   COMPONENT Runtime)
 
