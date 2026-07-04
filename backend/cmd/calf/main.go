@@ -56,6 +56,9 @@ func run() int {
 		}
 	}()
 
+	go server.StartBuildSync(rtCtx)
+	go server.StartDockerContextManager(rtCtx)
+
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- server.Run()

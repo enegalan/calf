@@ -3,6 +3,7 @@ log_level: info
 vm_name: calf
 docker_socket: ""
 poll_interval_ms: 3000
+docker_context_managed: true
 cpus: 4
 memory_gb: 4
 memory_swap_gb: 1

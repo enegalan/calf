@@ -247,12 +247,12 @@ func (l *Lima) VolumeContainers(ctx context.Context, name string) ([]VolumeConta
 	return volumeContainerUsages(ctx, l.runInVM, name)
 }
 
-func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error {
+func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
-		return err
+		return BuildResult{}, err
 	}
 
-	return runBuild(ctx, l.runInVM, contextPath, tag, dockerfile)
+	return runBuild(ctx, l.runInVM, contextPath, tag, dockerfile, platform)
 }
 
 func (l *Lima) StartContainer(ctx context.Context, id string) error {

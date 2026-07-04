@@ -254,6 +254,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _draftSwap = 1;
   bool _migrating = false;
   MigrationStatus? _migrationStatus;
+  bool _dockerContextManaged = true;
+  bool _dockerContextSaving = false;
 
   bool get _dirty => _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
@@ -280,6 +282,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftCpus = config.cpus.toDouble();
         _draftMemory = config.memoryGB.toDouble();
         _draftSwap = config.memorySwapGB.toDouble();
+        _dockerContextManaged = config.dockerContextManaged;
         _configLoading = false;
       });
     } catch (error) {
@@ -385,6 +388,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> setDockerContextManaged(bool value) async {
+    final current = _config;
+    if (current == null) return;
+
+    setState(() {
+      _dockerContextManaged = value;
+      _dockerContextSaving = true;
+    });
+
+    try {
+      final updated = await widget.apiClient.updateConfig(
+        current.copyWith(dockerContextManaged: value),
+      );
+      if (!mounted) return;
+      setState(() {
+        _config = updated;
+        _dockerContextManaged = updated.dockerContextManaged;
+        _dockerContextSaving = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _dockerContextManaged = current.dockerContextManaged;
+        _dockerContextSaving = false;
+        _configError = error.toString();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -404,6 +436,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (value) => setState(() => _startAtLogin = value),
             ),
           ),
+          const SizedBox(height: 12),
+          _settingRow(
+            'Use Calf for Docker CLI',
+            ShadSwitch(
+              value: _dockerContextManaged,
+              onChanged: _dockerContextSaving ? null : setDockerContextManaged,
+            ),
+          ),
+          if (_config != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _config!.dockerContextActive
+                  ? 'Active context: calf'
+                  : _config!.dockerContextName.isEmpty
+                      ? 'Docker CLI context not set to calf'
+                      : 'Active context: ${_config!.dockerContextName}',
+              style: theme.textTheme.muted,
+            ),
+          ],
           const SizedBox(height: 16),
           Text('Theme', style: theme.textTheme.large),
           const SizedBox(height: 8),

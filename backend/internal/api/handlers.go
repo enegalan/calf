@@ -47,18 +47,23 @@ type statusResponse struct {
 }
 
 type configResponse struct {
-	PollIntervalMs int `json:"poll_interval_ms"`
-	CPUs           int `json:"cpus"`
-	MemoryGB       int `json:"memory_gb"`
-	MemorySwapGB   int `json:"memory_swap_gb"`
-	HostCPUs       int `json:"host_cpus"`
-	HostMemoryGB   int `json:"host_memory_gb"`
+	PollIntervalMs       int    `json:"poll_interval_ms"`
+	CPUs                 int    `json:"cpus"`
+	MemoryGB             int    `json:"memory_gb"`
+	MemorySwapGB         int    `json:"memory_swap_gb"`
+	HostCPUs             int    `json:"host_cpus"`
+	HostMemoryGB         int    `json:"host_memory_gb"`
+	DockerContextManaged bool   `json:"docker_context_managed"`
+	DockerContextActive  bool   `json:"docker_context_active"`
+	DockerContextName    string `json:"docker_context_name"`
+	DockerCLIAvailable   bool   `json:"docker_cli_available"`
 }
 
 type configUpdateRequest struct {
-	CPUs         *int `json:"cpus,omitempty"`
-	MemoryGB     *int `json:"memory_gb,omitempty"`
-	MemorySwapGB *int `json:"memory_swap_gb,omitempty"`
+	CPUs                 *int  `json:"cpus,omitempty"`
+	MemoryGB             *int  `json:"memory_gb,omitempty"`
+	MemorySwapGB         *int  `json:"memory_swap_gb,omitempty"`
+	DockerContextManaged *bool `json:"docker_context_managed,omitempty"`
 }
 
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -69,14 +74,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, configResponse{
-			PollIntervalMs: s.cfg.PollIntervalMs,
-			CPUs:           s.cfg.CPUs,
-			MemoryGB:       s.cfg.MemoryGB,
-			MemorySwapGB:   s.cfg.MemorySwapGB,
-			HostCPUs:       hostCPUs(),
-			HostMemoryGB:   hostMemoryGB(),
-		})
+		writeJSON(w, http.StatusOK, s.configResponse())
 
 	case http.MethodPut:
 		var req configUpdateRequest
@@ -94,20 +92,22 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		if req.MemorySwapGB != nil {
 			s.cfg.MemorySwapGB = *req.MemorySwapGB
 		}
+		if req.DockerContextManaged != nil {
+			s.cfg.DockerContextManaged = *req.DockerContextManaged
+		}
 
 		if err := config.Save(s.cfg); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to save config: "+err.Error())
 			return
 		}
 
-		writeJSON(w, http.StatusOK, configResponse{
-			PollIntervalMs: s.cfg.PollIntervalMs,
-			CPUs:           s.cfg.CPUs,
-			MemoryGB:       s.cfg.MemoryGB,
-			MemorySwapGB:   s.cfg.MemorySwapGB,
-			HostCPUs:       hostCPUs(),
-			HostMemoryGB:   hostMemoryGB(),
-		})
+		if s.cfg.DockerContextManaged {
+			if err := s.activateDockerContext(r.Context()); err != nil {
+				s.logger.Warn("failed to activate docker context", "error", err)
+			}
+		}
+
+		writeJSON(w, http.StatusOK, s.configResponse())
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -152,4 +152,21 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		LogLevel:      s.cfg.LogLevel,
 		Runtime:       runtimeStatus,
 	})
+}
+
+func (s *Server) configResponse() configResponse {
+	cliStatus, _ := s.dockerCLIStatus()
+
+	return configResponse{
+		PollIntervalMs:       s.cfg.PollIntervalMs,
+		CPUs:                 s.cfg.CPUs,
+		MemoryGB:             s.cfg.MemoryGB,
+		MemorySwapGB:         s.cfg.MemorySwapGB,
+		HostCPUs:             hostCPUs(),
+		HostMemoryGB:         hostMemoryGB(),
+		DockerContextManaged: s.cfg.DockerContextManaged,
+		DockerContextActive:  cliStatus.CalfActive,
+		DockerContextName:    cliStatus.CurrentContext,
+		DockerCLIAvailable:   cliStatus.Available,
+	}
 }

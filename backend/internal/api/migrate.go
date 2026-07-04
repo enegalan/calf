@@ -81,18 +81,18 @@ func (s *Server) runDockerDesktopMigration() {
 			s.cfg.MemorySwapGB = cfg.MemorySwapGB
 			return config.Save(s.cfg)
 		},
-		AddBuild: func(build runtime.Build) {
-			s.buildsMu.Lock()
-			s.buildSeq++
-			build.ID = fmt.Sprintf("migrated-%d", s.buildSeq)
-			s.builds = append([]runtime.Build{build}, s.builds...)
-			s.buildsMu.Unlock()
-		},
+		AddBuild: s.addMigratedBuild,
 	})
 
 	s.migrateMu.Lock()
 	s.migrateStatus = status
 	s.migrateMu.Unlock()
+
+	if status.Phase == migration.PhaseCompleted && s.cfg.DockerContextManaged {
+		if err := s.activateDockerContext(context.Background()); err != nil {
+			s.logger.Warn("failed to activate docker context after migration", "error", err)
+		}
+	}
 }
 
 func (s *Server) runNerdctl(ctx context.Context, args ...string) error {

@@ -317,8 +317,24 @@ func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContain
 	}, nil
 }
 
-func (m *Mock) RunBuild(_ context.Context, _, _, _ string) error {
-	return m.ImageErr
+func (m *Mock) RunBuild(_ context.Context, _, tag, dockerfile, platform string) (BuildResult, error) {
+	if m.ImageErr != nil {
+		return BuildResult{}, m.ImageErr
+	}
+
+	output := `#1 [internal] load build definition from Dockerfile
+#1 DONE 0.0s
+#2 [1/2] FROM alpine:latest
+#2 CACHED
+#3 [2/2] RUN echo hello
+#3 DONE 0.1s
+`
+	result := ParseBuildOutput(output)
+	result = enrichBuildResult(context.Background(), func(ctx context.Context, command string, args ...string) ([]byte, error) {
+		return []byte("{}"), nil
+	}, ".", dockerfile, tag, platform, result)
+
+	return result, nil
 }
 
 func (m *Mock) StartContainer(_ context.Context, id string) error {
