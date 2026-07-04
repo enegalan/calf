@@ -202,7 +202,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                       style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text('Docker Hub', style: theme.textTheme.muted),
                   ],
                 ),
               ),
