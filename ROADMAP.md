@@ -143,7 +143,6 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 - [ ] macOS installer (.dmg / .pkg) with signing and notarization
 - [ ] Daemon as a user service (launchd / systemd)
-- [ ] Menu bar icon: status, start/stop, open UI
 - [ ] In-app updates or Homebrew cask
 - [ ] Windows installer (WSL2 + integration)
 - [ ] Linux installer (.deb / .rpm / AppImage)
