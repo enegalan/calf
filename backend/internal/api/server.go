@@ -16,6 +16,7 @@ import (
 
 type Server struct {
 	cfg        config.Config
+	cfgMu      sync.RWMutex
 	logger     *slog.Logger
 	runtime    runtime.Runtime
 	startTime  time.Time

@@ -76,6 +76,9 @@ func (s *Server) runDockerDesktopMigration() {
 			s.migrateMu.Unlock()
 		},
 		SaveConfig: func(cfg config.Config) error {
+			s.cfgMu.Lock()
+			defer s.cfgMu.Unlock()
+
 			s.cfg.CPUs = cfg.CPUs
 			s.cfg.MemoryGB = cfg.MemoryGB
 			s.cfg.MemorySwapGB = cfg.MemorySwapGB
@@ -88,8 +91,14 @@ func (s *Server) runDockerDesktopMigration() {
 	s.migrateStatus = status
 	s.migrateMu.Unlock()
 
-	if status.Phase == migration.PhaseCompleted && s.cfg.DockerContextManaged {
-		if err := s.activateDockerContext(context.Background()); err != nil {
+	s.cfgMu.RLock()
+	managed := s.cfg.DockerContextManaged
+	s.cfgMu.RUnlock()
+
+	if status.Phase == migration.PhaseCompleted && managed {
+		activateCtx, cancel := context.WithTimeout(ctx, dockerContextTimeout)
+		defer cancel()
+		if err := s.activateDockerContext(activateCtx); err != nil {
 			s.logger.Warn("failed to activate docker context after migration", "error", err)
 		}
 	}

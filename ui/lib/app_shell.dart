@@ -302,13 +302,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       final updated = await widget.apiClient.updateConfig(
-        Config(
-          pollIntervalMs: current.pollIntervalMs,
+        current.copyWith(
           cpus: _draftCpus.toInt(),
           memoryGB: _draftMemory.toInt(),
           memorySwapGB: _draftSwap.toInt(),
-          hostCPUs: current.hostCPUs,
-          hostMemoryGB: current.hostMemoryGB,
         ),
       );
       if (!mounted) return;

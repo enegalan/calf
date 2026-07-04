@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	goruntime "runtime"
 	"net/http"
@@ -83,6 +84,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		s.cfgMu.Lock()
 		if req.CPUs != nil {
 			s.cfg.CPUs = *req.CPUs
 		}
@@ -97,12 +99,18 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := config.Save(s.cfg); err != nil {
+			s.cfgMu.Unlock()
 			writeError(w, http.StatusInternalServerError, "failed to save config: "+err.Error())
 			return
 		}
 
-		if s.cfg.DockerContextManaged {
-			if err := s.activateDockerContext(r.Context()); err != nil {
+		activateManaged := s.cfg.DockerContextManaged
+		s.cfgMu.Unlock()
+
+		if activateManaged {
+			activateCtx, cancel := context.WithTimeout(r.Context(), dockerContextTimeout)
+			defer cancel()
+			if err := s.activateDockerContext(activateCtx); err != nil {
 				s.logger.Warn("failed to activate docker context", "error", err)
 			}
 		}
@@ -157,14 +165,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) configResponse() configResponse {
 	cliStatus, _ := s.dockerCLIStatus()
 
+	s.cfgMu.RLock()
+	cfg := s.cfg
+	s.cfgMu.RUnlock()
+
 	return configResponse{
-		PollIntervalMs:       s.cfg.PollIntervalMs,
-		CPUs:                 s.cfg.CPUs,
-		MemoryGB:             s.cfg.MemoryGB,
-		MemorySwapGB:         s.cfg.MemorySwapGB,
+		PollIntervalMs:       cfg.PollIntervalMs,
+		CPUs:                 cfg.CPUs,
+		MemoryGB:             cfg.MemoryGB,
+		MemorySwapGB:         cfg.MemorySwapGB,
 		HostCPUs:             hostCPUs(),
 		HostMemoryGB:         hostMemoryGB(),
-		DockerContextManaged: s.cfg.DockerContextManaged,
+		DockerContextManaged: cfg.DockerContextManaged,
 		DockerContextActive:  cliStatus.CalfActive,
 		DockerContextName:    cliStatus.CurrentContext,
 		DockerCLIAvailable:   cliStatus.Available,

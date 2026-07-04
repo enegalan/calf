@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/buildhistory"
@@ -11,12 +12,15 @@ import (
 )
 
 const buildSyncInterval = 30 * time.Second
+const buildSyncEnrichTimeout = 2 * time.Minute
 
 func (s *Server) StartBuildSync(ctx context.Context) {
 	interval := buildSyncInterval
+	s.cfgMu.RLock()
 	if s.cfg.PollIntervalMs > 0 {
 		interval = time.Duration(s.cfg.PollIntervalMs) * time.Millisecond
 	}
+	s.cfgMu.RUnlock()
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -58,45 +62,49 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 		return
 	}
 
-	s.buildsMu.Lock()
-	defer s.buildsMu.Unlock()
+	enrichCtx, cancel := context.WithTimeout(ctx, buildSyncEnrichTimeout)
+	defer cancel()
 
+	s.buildsMu.RLock()
 	known := make(map[string]struct{}, len(s.builds))
+	syncItems := make([]runtime.Build, 0)
 	for _, build := range s.builds {
 		if build.HistoryRef != "" {
 			known[build.HistoryRef] = struct{}{}
+			syncItems = append(syncItems, build)
 		}
 	}
+	importRows := buildhistory.MergeRows(known, rows)
+	s.buildsMu.RUnlock()
 
 	byHistoryID := buildhistory.RowByHistoryID(rows)
-	changed := s.updateSyncedBuilds(ctx, socket, byHistoryID)
 
-	imported := buildhistory.MergeRows(known, rows)
-	for _, row := range imported {
-		s.builds = append([]runtime.Build{s.buildFromHistoryRow(ctx, socket, row)}, s.builds...)
-		changed = true
-	}
-
-	if changed {
-		_ = s.persistBuildsLocked()
-	}
-}
-
-func (s *Server) updateSyncedBuilds(ctx context.Context, socket string, rows map[string]buildhistory.Row) bool {
-	changed := false
-
-	for index, build := range s.builds {
-		if build.HistoryRef == "" {
-			continue
-		}
-
-		row, ok := rows[build.HistoryRef]
+	enrichedByID := make(map[string]runtime.Build, len(syncItems))
+	for _, build := range syncItems {
+		row, ok := byHistoryID[build.HistoryRef]
 		if !ok {
 			continue
 		}
 
-		updated := s.enrichHistoryBuild(ctx, socket, applyHistoryRow(build, row))
-		if buildsEqual(updated, build) {
+		updated := s.enrichHistoryBuild(enrichCtx, socket, applyHistoryRow(build, row))
+		if !buildsEqual(updated, build) {
+			enrichedByID[build.ID] = updated
+		}
+	}
+
+	newBuilds := make([]runtime.Build, 0, len(importRows))
+	for _, row := range importRows {
+		newBuilds = append(newBuilds, s.enrichHistoryBuild(enrichCtx, socket, baseBuildFromHistoryRow(row)))
+	}
+
+	s.buildsMu.Lock()
+	defer s.buildsMu.Unlock()
+
+	changed := false
+
+	for index, build := range s.builds {
+		updated, ok := enrichedByID[build.ID]
+		if !ok {
 			continue
 		}
 
@@ -104,7 +112,18 @@ func (s *Server) updateSyncedBuilds(ctx context.Context, socket string, rows map
 		changed = true
 	}
 
-	return changed
+	if len(newBuilds) > 0 {
+		for index := range newBuilds {
+			s.buildSeq++
+			newBuilds[index].ID = fmt.Sprintf("history-%d", s.buildSeq)
+		}
+		s.builds = append(newBuilds, s.builds...)
+		changed = true
+	}
+
+	if changed {
+		_ = s.persistBuildsLocked()
+	}
 }
 
 func buildsEqual(left, right runtime.Build) bool {
@@ -117,11 +136,11 @@ func buildsEqual(left, right runtime.Build) bool {
 		left.TotalSteps == right.TotalSteps &&
 		left.Context == right.Context &&
 		left.Dockerfile == right.Dockerfile &&
-		len(left.Steps) == len(right.Steps) &&
-		len(left.RawLog) == len(right.RawLog) &&
-		len(left.Dependencies) == len(right.Dependencies) &&
-		len(left.Results) == len(right.Results) &&
-		len(left.Tags) == len(right.Tags) &&
+		reflect.DeepEqual(left.Steps, right.Steps) &&
+		left.RawLog == right.RawLog &&
+		reflect.DeepEqual(left.Dependencies, right.Dependencies) &&
+		reflect.DeepEqual(left.Results, right.Results) &&
+		reflect.DeepEqual(left.Tags, right.Tags) &&
 		timingEqual(left.Timing, right.Timing)
 }
 
@@ -179,15 +198,13 @@ func isTerminalBuildStatus(status string) bool {
 	}
 }
 
-func (s *Server) buildFromHistoryRow(ctx context.Context, socket string, row buildhistory.Row) runtime.Build {
+func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 	createdAt := row.BuildCreatedAt()
 	if createdAt == "" {
 		createdAt = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	s.buildSeq++
-	build := runtime.Build{
-		ID:           fmt.Sprintf("history-%d", s.buildSeq),
+	return runtime.Build{
 		HistoryRef:   row.HistoryID(),
 		Tag:          buildhistory.NormalizeTag(row.BuildName()),
 		Context:      "",
@@ -205,8 +222,6 @@ func (s *Server) buildFromHistoryRow(ctx context.Context, socket string, row bui
 		Results:      []runtime.BuildArtifact{},
 		Tags:         []runtime.BuildTag{},
 	}
-
-	return s.enrichHistoryBuild(ctx, socket, build)
 }
 
 func applyHistoryRow(build runtime.Build, row buildhistory.Row) runtime.Build {

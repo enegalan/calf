@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const ContextName = "calf"
+const cliTimeout = 30 * time.Second
 
 type Status struct {
 	Available      bool   `json:"available"`
@@ -39,7 +41,10 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	status.Available = true
 	status.CurrentContext = readCurrentContext()
 	status.CalfActive = status.CurrentContext == ContextName
-	status.CalfExists = contextExists(ContextName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout)
+	defer cancel()
+	status.CalfExists = contextExists(ctx, ContextName)
 
 	return status, nil
 }
@@ -63,8 +68,8 @@ func readCurrentContext() string {
 	return cfg.CurrentContext
 }
 
-func contextExists(name string) bool {
-	command := exec.Command("docker", "context", "inspect", name, "--format", "{{.Name}}")
+func contextExists(ctx context.Context, name string) bool {
+	command := exec.CommandContext(ctx, "docker", "context", "inspect", name, "--format", "{{.Name}}")
 	output, err := command.Output()
 	if err != nil {
 		return false
@@ -88,7 +93,7 @@ func EnsureContext(ctx context.Context, socket string) error {
 	}
 
 	host := "unix://" + absSocket
-	if contextExists(ContextName) {
+	if contextExists(ctx, ContextName) {
 		return updateContext(ctx, host)
 	}
 

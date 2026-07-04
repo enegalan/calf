@@ -65,6 +65,17 @@ func ParseBuildOutput(output string) BuildResult {
 
 		if matches := buildStepHeaderRe.FindStringSubmatch(trimmed); len(matches) == 4 {
 			stepID, _ := strconv.Atoi(matches[1])
+			if currentStepID > 0 && stepID == currentStepID {
+				step := stepsByID[currentStepID]
+				if step != nil {
+					if step.Log != "" {
+						step.Log += "\n"
+					}
+					step.Log += trimmed
+				}
+				continue
+			}
+
 			step := ensureStep(stepsByID, &stepOrder, stepID)
 			name := strings.TrimSpace(matches[3])
 			if name != "" {

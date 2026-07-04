@@ -9,6 +9,8 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+const dockerContextTimeout = 30 * time.Second
+
 func (s *Server) StartDockerContextManager(ctx context.Context) {
 	interval := 5 * time.Second
 	ticker := time.NewTicker(interval)
@@ -27,7 +29,11 @@ func (s *Server) StartDockerContextManager(ctx context.Context) {
 }
 
 func (s *Server) ensureDockerContext(ctx context.Context) {
-	if !s.cfg.DockerContextManaged {
+	s.cfgMu.RLock()
+	managed := s.cfg.DockerContextManaged
+	s.cfgMu.RUnlock()
+
+	if !managed {
 		return
 	}
 
@@ -45,13 +51,20 @@ func (s *Server) ensureDockerContext(ctx context.Context) {
 		return
 	}
 
-	if err := dockercli.EnsureAndActivate(ctx, socket); err != nil {
+	activateCtx, cancel := context.WithTimeout(ctx, dockerContextTimeout)
+	defer cancel()
+
+	if err := dockercli.EnsureAndActivate(activateCtx, socket); err != nil {
 		s.logger.Debug("docker context activation skipped", "error", err)
 	}
 }
 
 func (s *Server) dockerCLIStatus() (dockercli.Status, error) {
-	return dockercli.StatusFor(s.runtime.DockerSocket(), s.cfg.DockerContextManaged)
+	s.cfgMu.RLock()
+	managed := s.cfg.DockerContextManaged
+	s.cfgMu.RUnlock()
+
+	return dockercli.StatusFor(s.runtime.DockerSocket(), managed)
 }
 
 func (s *Server) activateDockerContext(ctx context.Context) error {

@@ -23,21 +23,17 @@ TYPE=application/vnd.oci.image.manifest.v1+json|PLATFORM=linux/arm64|DIGEST=sha2
 func TestOrderBuildArtifacts(t *testing.T) {
 	ordered := orderBuildArtifacts([]runtime.BuildArtifact{
 		{Name: "Provenance v1"},
-		{Name: "OpenTelemetry traces"},
 		{Name: "application/vnd.oci.image.config.v1+json"},
 	})
 
-	if len(ordered) != 3 {
-		t.Fatalf("expected 3 artifacts, got %d", len(ordered))
+	if len(ordered) != 2 {
+		t.Fatalf("expected 2 artifacts, got %d", len(ordered))
 	}
 
 	if ordered[0].Name != "application/vnd.oci.image.config.v1+json" {
 		t.Fatalf("unexpected first artifact: %q", ordered[0].Name)
 	}
-	if ordered[1].Name != "OpenTelemetry traces" {
+	if ordered[1].Name != "Provenance v1" {
 		t.Fatalf("unexpected second artifact: %q", ordered[1].Name)
-	}
-	if ordered[2].Name != "Provenance v1" {
-		t.Fatalf("unexpected third artifact: %q", ordered[2].Name)
 	}
 }

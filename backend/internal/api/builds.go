@@ -212,9 +212,12 @@ func (s *Server) updateBuildSourcePaths(buildID, contextPath, dockerfile string)
 	}
 }
 
+const buildJobTimeout = 2 * time.Hour
+
 func (s *Server) runBuildJob(buildID, contextPath, tag, dockerfile, platform string) {
 	started := time.Now()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), buildJobTimeout)
+	defer cancel()
 
 	result, err := s.runtime.RunBuild(ctx, contextPath, tag, dockerfile, platform)
 	finishedAt := time.Now().UTC().Format(time.RFC3339)
@@ -258,7 +261,13 @@ func (s *Server) runBuildJob(buildID, contextPath, tag, dockerfile, platform str
 
 		if err != nil {
 			build.Status = "failed"
-			build.Error = err.Error()
+			if ctx.Err() == context.DeadlineExceeded {
+				build.Error = "build timed out"
+			} else if ctx.Err() == context.Canceled {
+				build.Error = "build canceled"
+			} else {
+				build.Error = err.Error()
+			}
 		} else {
 			build.Status = "success"
 		}
@@ -362,12 +371,59 @@ func (s *Server) enrichHistoryBuildIfNeeded(ctx context.Context, build runtime.B
 			continue
 		}
 
-		s.builds[index] = enriched
+		merged := applyBuildEnrichment(candidate, enriched)
+		if buildsEqual(merged, candidate) {
+			return merged
+		}
+
+		s.builds[index] = merged
 		_ = s.persistBuildsLocked()
-		break
+		return merged
 	}
 
 	return enriched
+}
+
+func applyBuildEnrichment(current, enriched runtime.Build) runtime.Build {
+	if enriched.Context != "" && !runtime.IsResolvableBuildContext(current.Context) {
+		current.Context = enriched.Context
+	}
+	if enriched.Dockerfile != "" && enriched.Dockerfile != "Dockerfile" {
+		if current.Dockerfile == "" || current.Dockerfile == "Dockerfile" {
+			current.Dockerfile = enriched.Dockerfile
+		}
+	}
+	if enriched.SourceRevision != "" && current.SourceRevision == "" {
+		current.SourceRevision = enriched.SourceRevision
+	}
+	if enriched.RemoteSource != "" && current.RemoteSource == "" {
+		current.RemoteSource = enriched.RemoteSource
+	}
+	if enriched.RawLog != "" && current.RawLog == "" {
+		current.RawLog = enriched.RawLog
+	}
+	if len(enriched.Steps) > 0 && len(current.Steps) == 0 {
+		current.Steps = enriched.Steps
+	}
+	if len(enriched.Dependencies) > 0 && len(current.Dependencies) == 0 {
+		current.Dependencies = enriched.Dependencies
+	}
+	if len(enriched.Results) > 0 && (len(current.Results) == 0 || hasLegacyBuildResults(current.Results)) {
+		current.Results = enriched.Results
+	}
+	if len(enriched.Tags) > 0 && len(current.Tags) == 0 {
+		current.Tags = enriched.Tags
+	}
+	if enriched.Timing != (runtime.BuildTiming{}) && current.Timing == (runtime.BuildTiming{}) {
+		current.Timing = enriched.Timing
+	}
+	if enriched.CachedSteps > 0 && current.CachedSteps == 0 {
+		current.CachedSteps = enriched.CachedSteps
+	}
+	if enriched.TotalSteps > 0 && current.TotalSteps == 0 {
+		current.TotalSteps = enriched.TotalSteps
+	}
+	return current
 }
 
 func (s *Server) getBuild(id string) (runtime.Build, bool) {

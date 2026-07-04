@@ -12,6 +12,10 @@ func TestParseDurationMs(t *testing.T) {
 	if got := ParseDurationMs("1m 1s"); got < 61000 || got > 62000 {
 		t.Fatalf("expected ~61000ms, got %d", got)
 	}
+
+	if got := ParseDurationMs("1h5m10s"); got < 3910000 || got > 3920000 {
+		t.Fatalf("expected ~3910000ms, got %d", got)
+	}
 }
 
 func TestMergeRowsSkipsDuplicates(t *testing.T) {

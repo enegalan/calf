@@ -2,6 +2,7 @@ package buildhistory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -25,7 +26,7 @@ func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, erro
 		"inspect",
 		historyID,
 		"--format",
-		"Context={{.Context}} Dockerfile={{.Dockerfile}}",
+		"{{json .}}",
 	)
 	if err != nil {
 		return InspectDetail{}, err
@@ -42,13 +43,24 @@ func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, erro
 func parseInspectDetail(output string) InspectDetail {
 	detail := InspectDetail{Dockerfile: "Dockerfile"}
 
-	for _, part := range strings.Fields(strings.TrimSpace(output)) {
-		if value, ok := strings.CutPrefix(part, "Context="); ok {
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return detail
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		return detail
+	}
+
+	for key, value := range payload {
+		switch strings.ToLower(key) {
+		case "context":
 			detail.Context = value
-			continue
-		}
-		if value, ok := strings.CutPrefix(part, "Dockerfile="); ok && value != "" {
-			detail.Dockerfile = value
+		case "dockerfile":
+			if value != "" {
+				detail.Dockerfile = value
+			}
 		}
 	}
 

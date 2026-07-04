@@ -517,6 +517,7 @@ class _InfoTab extends StatelessWidget {
         _DataTable(
           theme: theme,
           columns: const ['Artifact', 'Platform', 'Digest', 'Size'],
+          copyColumnIndex: 2,
           rows: results
               .map(
                 (item) => [
@@ -564,9 +565,20 @@ class _PlatformFilter extends StatelessWidget {
         const SizedBox(width: 8),
         CalfButton.outline(
           onPressed: () async {
+            final renderBox = context.findRenderObject() as RenderBox?;
+            if (renderBox == null) {
+              return;
+            }
+
+            final offset = renderBox.localToGlobal(Offset.zero);
             final selected = await showMenu<String>(
               context: context,
-              position: const RelativeRect.fromLTRB(0, 0, 0, 0),
+              position: RelativeRect.fromLTRB(
+                offset.dx,
+                offset.dy + renderBox.size.height,
+                offset.dx + renderBox.size.width,
+                offset.dy + renderBox.size.height,
+              ),
               items: options
                   .map((option) => PopupMenuItem<String>(value: option, child: Text(option)))
                   .toList(),
@@ -607,11 +619,20 @@ class _TimingCharts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final realTime = _timingSlices(timing);
+    final accumulatedTotal = timing.localTransfersMs +
+        timing.imagePullsMs +
+        timing.executionsMs +
+        timing.fileOperationsMs +
+        timing.resultExportsMs +
+        timing.idleMs;
+    final accumulatedSlices = realTime;
+    final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
-      _TimingSlice('Executions', totalSteps.toDouble(), const Color(0xFF3B82F6)),
       _TimingSlice('Cached steps', cachedSteps.toDouble(), const Color(0xFF22C55E)),
-      _TimingSlice('Other steps', (totalSteps - cachedSteps).toDouble().clamp(0, double.infinity), theme.colorScheme.mutedForeground),
+      _TimingSlice('Other steps', uncachedSteps.toDouble(), theme.colorScheme.mutedForeground),
     ];
+    final idleMs = timing.idleMs.clamp(0, totalMs);
+    final activeMs = (totalMs - idleMs).clamp(0, totalMs);
 
     return GridView.count(
       crossAxisCount: 2,
@@ -629,8 +650,8 @@ class _TimingCharts extends StatelessWidget {
         ),
         _TimingChartCard(
           theme: theme,
-          title: 'Accumulated time (${_formatDuration(totalMs)})',
-          slices: realTime,
+          title: 'Accumulated time (${_formatDuration(accumulatedTotal)})',
+          slices: accumulatedSlices,
           formatValue: (value) => _formatDuration(value.toInt()),
         ),
         _TimingChartCard(
@@ -643,9 +664,9 @@ class _TimingCharts extends StatelessWidget {
           theme: theme,
           title: 'Parallel execution',
           slices: [
-            _TimingSlice('Active', totalMs > 0 ? totalMs.toDouble() : 1, const Color(0xFF3B82F6)),
-            _TimingSlice('Idle', timing.idleMs.toDouble(), theme.colorScheme.mutedForeground),
-          ],
+            _TimingSlice('Active', activeMs > 0 ? activeMs.toDouble() : 1, const Color(0xFF3B82F6)),
+            _TimingSlice('Idle', idleMs > 0 ? idleMs.toDouble() : 0, theme.colorScheme.mutedForeground),
+          ].where((slice) => slice.value > 0).toList(),
           formatValue: (value) => _formatDuration(value.toInt()),
         ),
       ],
@@ -860,12 +881,14 @@ class _DataTable extends StatelessWidget {
     required this.columns,
     required this.rows,
     required this.onCopy,
+    this.copyColumnIndex,
   });
 
   final ShadThemeData theme;
   final List<String> columns;
   final List<List<String>> rows;
   final Future<void> Function(String value) onCopy;
+  final int? copyColumnIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -898,12 +921,22 @@ class _DataTable extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (row.isNotEmpty && row.last.isNotEmpty)
-                  CalfButton.ghost(
-                    padding: const EdgeInsets.all(4),
-                    onPressed: () => onCopy(row.last),
-                    child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                if (row.isNotEmpty) ...[
+                  Builder(
+                    builder: (context) {
+                      final copyIndex = copyColumnIndex ?? row.length - 1;
+                      if (copyIndex < 0 || copyIndex >= row.length || row[copyIndex].isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return CalfButton.ghost(
+                        padding: const EdgeInsets.all(4),
+                        onPressed: () => onCopy(row[copyIndex]),
+                        child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                      );
+                    },
                   ),
+                ],
               ],
             ),
           ),

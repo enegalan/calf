@@ -60,10 +60,6 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 		}
 	}
 
-	if traceArtifact, err := traceArtifact(ctx, socket, historyID); err == nil {
-		artifacts = append(artifacts, traceArtifact)
-	}
-
 	if len(artifacts) == 0 {
 		return []runtime.BuildArtifact{}, nil
 	}
@@ -156,33 +152,12 @@ func attachmentArtifact(
 	}
 
 	artifactPlatform := platform
-	if strings.EqualFold(name, "OpenTelemetry traces") {
-		artifactPlatform = ""
-	}
 
 	return runtime.BuildArtifact{
 		Name:     name,
 		Platform: artifactPlatform,
 		Digest:   digestForBytes(output),
 		Size:     runtime.FormatBytes(int64(len(output))),
-	}, nil
-}
-
-func traceArtifact(ctx context.Context, socket, historyID string) (runtime.BuildArtifact, error) {
-	output, err := runDocker(ctx, socket, "buildx", "history", "trace", historyID)
-	if err != nil {
-		return runtime.BuildArtifact{}, err
-	}
-
-	body := bytesTrim(output)
-	if len(body) == 0 {
-		return runtime.BuildArtifact{}, fmt.Errorf("build history artifacts: empty trace")
-	}
-
-	return runtime.BuildArtifact{
-		Name:     "OpenTelemetry traces",
-		Digest:   digestForBytes(body),
-		Size:     runtime.FormatBytes(int64(len(body))),
 	}, nil
 }
 
@@ -212,7 +187,6 @@ func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtif
 
 	preferred := []string{
 		"application/vnd.oci.image.config.v1+json",
-		"OpenTelemetry traces",
 		"Provenance v1",
 	}
 

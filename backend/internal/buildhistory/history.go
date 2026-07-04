@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -170,45 +169,28 @@ func NormalizeTag(name string) string {
 	return tag
 }
 
+const dockerCLITimeout = 2 * time.Minute
+
 func ParseDurationMs(value string) int64 {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return 0
 	}
 
-	if strings.Contains(value, "m") {
-		parts := strings.Fields(value)
-		var totalMs int64
-		for _, part := range parts {
-			if strings.HasSuffix(part, "m") {
-				minutes, err := strconv.ParseFloat(strings.TrimSuffix(part, "m"), 64)
-				if err == nil {
-					totalMs += int64(minutes * float64(time.Minute/time.Millisecond))
-				}
-				continue
-			}
-			if strings.HasSuffix(part, "s") {
-				seconds, err := strconv.ParseFloat(strings.TrimSuffix(part, "s"), 64)
-				if err == nil {
-					totalMs += int64(seconds * float64(time.Second/time.Millisecond))
-				}
-			}
-		}
-		return totalMs
+	compact := strings.ReplaceAll(value, " ", "")
+	duration, err := time.ParseDuration(compact)
+	if err != nil {
+		return 0
 	}
 
-	if strings.HasSuffix(value, "s") {
-		seconds, err := strconv.ParseFloat(strings.TrimSuffix(value, "s"), 64)
-		if err == nil {
-			return int64(seconds * float64(time.Second/time.Millisecond))
-		}
-	}
-
-	return 0
+	return duration.Milliseconds()
 }
 
 func runDocker(ctx context.Context, socket string, args ...string) ([]byte, error) {
-	command := exec.CommandContext(ctx, "docker", args...)
+	runCtx, cancel := context.WithTimeout(ctx, dockerCLITimeout)
+	defer cancel()
+
+	command := exec.CommandContext(runCtx, "docker", args...)
 	command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
 	output, err := command.CombinedOutput()
 	if err != nil {

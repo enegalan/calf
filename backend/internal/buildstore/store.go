@@ -72,9 +72,15 @@ func Save(builds []runtime.Build, seq int) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0o644)
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0o644); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpPath, path)
 }
 
+// trimBuilds keeps the newest maxBuilds entries. Callers must maintain builds in newest-first order.
 func trimBuilds(builds []runtime.Build) []runtime.Build {
 	if len(builds) <= maxBuilds {
 		return builds

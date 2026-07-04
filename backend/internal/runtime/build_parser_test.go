@@ -58,6 +58,19 @@ func TestParseBuildOutputSteps(t *testing.T) {
 	if result.Timing.ImagePullsMs <= 0 {
 		t.Fatalf("expected image pull timing from metadata step")
 	}
+
+	foundDockerignore := false
+	for _, step := range result.Steps {
+		if strings.Contains(step.Name, "load .dockerignore") {
+			foundDockerignore = true
+			if strings.Contains(step.Name, "transferring context") {
+				t.Fatalf("expected dockerignore step name to stay on header, got %q", step.Name)
+			}
+		}
+	}
+	if !foundDockerignore {
+		t.Fatalf("expected dockerignore step in parsed output")
+	}
 }
 
 func TestApplyBuildLogsPopulatesTiming(t *testing.T) {
