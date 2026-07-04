@@ -537,60 +537,73 @@ class _LogsViewerChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.border),
-              borderRadius: theme.radius,
-              color: logsPanelBackground(theme),
-            ),
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (searchOpen) ...[
-                  _LogsSearchBar(
-                    theme: theme,
-                    controller: searchController,
-                    regexEnabled: regexEnabled,
-                    onChanged: onSearchChanged,
-                    onRegexChanged: onRegexChanged,
-                    onPreviousMatch: onPreviousMatch,
-                    onNextMatch: onNextMatch,
-                    onClose: onToggleSearch,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                Expanded(
-                  child: primaryListView
-                      ? scrollableContent
-                      : SingleChildScrollView(
-                          controller: scrollController,
-                          child: scrollableContent,
-                        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: theme.colorScheme.border),
+                  borderRadius: theme.radius,
+                  color: logsPanelBackground(theme),
                 ),
-              ],
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (searchOpen) ...[
+                      _LogsSearchBar(
+                        theme: theme,
+                        controller: searchController,
+                        regexEnabled: regexEnabled,
+                        onChanged: onSearchChanged,
+                        onRegexChanged: onRegexChanged,
+                        onPreviousMatch: onPreviousMatch,
+                        onNextMatch: onNextMatch,
+                        onClose: onToggleSearch,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Expanded(
+                      child: primaryListView
+                          ? scrollableContent
+                          : SingleChildScrollView(
+                              controller: scrollController,
+                              child: scrollableContent,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            _LogsToolbar(
+              theme: theme,
+              searchOpen: searchOpen,
+              settingsOpen: settingsOpen,
+              onToggleSearch: onToggleSearch,
+              onToggleSettings: onToggleSettings,
+              onCopy: onCopy,
+              onClear: onClear,
+              showSettings: showSettings,
+            ),
+          ],
+        ),
+        if (showSettings && settingsOpen)
+          Positioned(
+            right: 40,
+            top: 40,
+            child: _LogsSettingsPopover(
+              theme: theme,
+              showTimestamp: showTimestamp,
+              wrapLines: wrapLines,
+              onShowTimestampChanged: onShowTimestampChanged,
+              onWrapLinesChanged: onWrapLinesChanged,
             ),
           ),
-        ),
-        const SizedBox(width: 4),
-        _LogsToolbar(
-          theme: theme,
-          searchOpen: searchOpen,
-          settingsOpen: settingsOpen,
-          showTimestamp: showTimestamp,
-          wrapLines: wrapLines,
-          onToggleSearch: onToggleSearch,
-          onToggleSettings: onToggleSettings,
-          onCopy: onCopy,
-          onClear: onClear,
-          onShowTimestampChanged: onShowTimestampChanged,
-          onWrapLinesChanged: onWrapLinesChanged,
-          showSettings: showSettings,
-        ),
       ],
     );
   }
@@ -707,80 +720,55 @@ class _LogsToolbar extends StatelessWidget {
     required this.theme,
     required this.searchOpen,
     required this.settingsOpen,
-    required this.showTimestamp,
-    required this.wrapLines,
     required this.onToggleSearch,
     required this.onToggleSettings,
     required this.onCopy,
     required this.onClear,
-    required this.onShowTimestampChanged,
-    required this.onWrapLinesChanged,
     this.showSettings = true,
   });
 
   final ShadThemeData theme;
   final bool searchOpen;
   final bool settingsOpen;
-  final bool showTimestamp;
-  final bool wrapLines;
   final VoidCallback onToggleSearch;
   final VoidCallback onToggleSettings;
   final Future<void> Function() onCopy;
   final VoidCallback onClear;
-  final ValueChanged<bool> onShowTimestampChanged;
-  final ValueChanged<bool> onWrapLinesChanged;
   final bool showSettings;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 36,
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
         children: [
-          Column(
-            children: [
-              _LogsToolbarButton(
-                theme: theme,
-                icon: LucideIcons.search,
-                tooltip: 'Search',
-                selected: searchOpen,
-                onPressed: onToggleSearch,
-              ),
-              if (showSettings)
-                _LogsToolbarButton(
-                  theme: theme,
-                  icon: LucideIcons.slidersHorizontal,
-                  tooltip: 'Settings',
-                  selected: settingsOpen,
-                  onPressed: onToggleSettings,
-                ),
-              _LogsToolbarButton(
-                theme: theme,
-                icon: LucideIcons.copy,
-                tooltip: 'Copy to clipboard',
-                onPressed: () => onCopy(),
-              ),
-              _LogsToolbarButton(
-                theme: theme,
-                icon: LucideIcons.eraser,
-                tooltip: 'Clear terminal',
-                onPressed: onClear,
-              ),
-            ],
+          _LogsToolbarButton(
+            theme: theme,
+            icon: LucideIcons.search,
+            tooltip: 'Search',
+            selected: searchOpen,
+            onPressed: onToggleSearch,
           ),
-          if (showSettings && settingsOpen)
-            Positioned(
-              right: 40,
-              top: 36,
-              child: _LogsSettingsPopover(
-                theme: theme,
-                showTimestamp: showTimestamp,
-                wrapLines: wrapLines,
-                onShowTimestampChanged: onShowTimestampChanged,
-                onWrapLinesChanged: onWrapLinesChanged,
-              ),
+          if (showSettings)
+            _LogsToolbarButton(
+              theme: theme,
+              icon: LucideIcons.slidersHorizontal,
+              tooltip: 'Settings',
+              selected: settingsOpen,
+              onPressed: onToggleSettings,
             ),
+          _LogsToolbarButton(
+            theme: theme,
+            icon: LucideIcons.copy,
+            tooltip: 'Copy to clipboard',
+            onPressed: () => onCopy(),
+          ),
+          _LogsToolbarButton(
+            theme: theme,
+            icon: LucideIcons.eraser,
+            tooltip: 'Clear terminal',
+            onPressed: onClear,
+          ),
         ],
       ),
     );
