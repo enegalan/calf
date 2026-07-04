@@ -120,6 +120,9 @@ class _ContainersScreenState extends State<ContainersScreen> {
   Future<void> _runAction(Future<void> Function() action) async {
     try {
       await action();
+      if (mounted) {
+        setState(() => _error = null);
+      }
       await _loadContainers();
     } catch (error) {
       if (!mounted) {
@@ -129,10 +132,24 @@ class _ContainersScreenState extends State<ContainersScreen> {
     }
   }
 
-  Future<void> _runGroupAction(List<ContainerItem> containers, Future<void> Function(String id) action) async {
+  Future<void> _runGroupAction(
+    List<ContainerItem> containers,
+    Future<void> Function(String id) action, {
+    bool runningOnly = false,
+    bool stoppedOnly = false,
+  }) async {
     try {
       for (final container in containers) {
+        if (runningOnly && !container.isRunning) {
+          continue;
+        }
+        if (stoppedOnly && container.isRunning) {
+          continue;
+        }
         await action(container.id);
+      }
+      if (mounted) {
+        setState(() => _error = null);
       }
       await _loadContainers();
     } catch (error) {
@@ -304,10 +321,13 @@ class _ContainersScreenState extends State<ContainersScreen> {
               style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
             ),
           ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          ),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
-        else if (_error != null)
-          Text(_error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive))
         else if (isEmpty)
           Expanded(
             child: Center(
@@ -339,7 +359,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
                     onStart: (id) => _runAction(() => widget.apiClient.startContainer(id)),
                     onStop: (id) => _runAction(() => widget.apiClient.stopContainer(id)),
                     onRemove: (id) => _runAction(() => widget.apiClient.removeContainer(id)),
-                    onStopAll: () => _runGroupAction(group.value, widget.apiClient.stopContainer),
+                    onStopAll: () => _runGroupAction(group.value, widget.apiClient.stopContainer, runningOnly: true),
                     onRemoveAll: () => _runGroupAction(group.value, widget.apiClient.removeContainer),
                     onOpen: _openContainer,
                     onOpenPort: _openPort,
@@ -417,7 +437,6 @@ class _ComposeGroupTile extends StatelessWidget {
           theme: theme,
           selected: false,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-          onTap: onOpenGroup,
           child: Row(
             children: [
               CalfButton.ghost(
@@ -428,18 +447,28 @@ class _ComposeGroupTile extends StatelessWidget {
                 child: Icon(expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight, size: 16),
               ),
               const SizedBox(width: 4),
-              _ComposeStackIcon(containers: containers, theme: theme),
-              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(project, style: theme.textTheme.large),
-                    Text(
-                      '$running running / ${containers.length} total',
-                      style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
-                    ),
-                  ],
+                child: GestureDetector(
+                  onTap: onOpenGroup,
+                  behavior: HitTestBehavior.opaque,
+                  child: Row(
+                    children: [
+                      _ComposeStackIcon(containers: containers, theme: theme),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(project, style: theme.textTheme.large),
+                            Text(
+                              '$running running / ${containers.length} total',
+                              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               _ActionIcon(icon: LucideIcons.square, tooltip: 'Stop all', onPressed: onStopAll),

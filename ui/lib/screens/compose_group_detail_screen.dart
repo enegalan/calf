@@ -187,9 +187,19 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
-  Future<bool> _runGroupAction(Future<void> Function(String id) action) async {
+  Future<bool> _runGroupAction(
+    Future<void> Function(String id) action, {
+    bool runningOnly = false,
+    bool stoppedOnly = false,
+  }) async {
     return _runAction(() async {
       for (final container in _containers) {
+        if (runningOnly && !container.isRunning) {
+          continue;
+        }
+        if (stoppedOnly && container.isRunning) {
+          continue;
+        }
         await action(container.id);
       }
     });
@@ -236,7 +246,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             CalfButton.outline(
               enabled: !_busy && running > 0,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running > 0 ? () => _runGroupAction(widget.apiClient.stopContainer) : null,
+              onPressed: running > 0 ? () => _runGroupAction(widget.apiClient.stopContainer, runningOnly: true) : null,
               child: Icon(LucideIcons.square, size: 16, color: theme.colorScheme.foreground),
             ),
             const SizedBox(width: 8),
@@ -244,7 +254,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               enabled: !_busy && running < _containers.length,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: running < _containers.length
-                  ? () => _runGroupAction(widget.apiClient.startContainer)
+                  ? () => _runGroupAction(widget.apiClient.startContainer, stoppedOnly: true)
                   : null,
               child: Icon(LucideIcons.play, size: 16, color: theme.colorScheme.primaryForeground),
             ),
@@ -384,7 +394,6 @@ class _ComposeContainerRow extends StatelessWidget {
     return HoverListRow(
       theme: theme,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      onTap: onOpen,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -402,26 +411,30 @@ class _ComposeContainerRow extends StatelessWidget {
           Icon(LucideIcons.box, size: 18, color: theme.colorScheme.mutedForeground),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(container.displayName, style: theme.textTheme.large, overflow: TextOverflow.ellipsis),
-                Text(
-                  container.subtitle,
-                  style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (port != null) ...[
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: () => onOpenPort(port),
-                    child: Text(
-                      '$port:$port',
-                      style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
-                    ),
+            child: GestureDetector(
+              onTap: onOpen,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(container.displayName, style: theme.textTheme.large, overflow: TextOverflow.ellipsis),
+                  Text(
+                    container.subtitle,
+                    style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                    overflow: TextOverflow.ellipsis,
                   ),
+                  if (port != null) ...[
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => onOpenPort(port),
+                      child: Text(
+                        '$port:$port',
+                        style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           if (container.isRunning)
