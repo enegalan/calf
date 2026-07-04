@@ -1,10 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
+
+import 'package:ui/storage/calf_ui_storage.dart';
 
 class ContainerGroupPreferences {
   static Future<Map<String, bool>> loadExpanded() async {
     try {
-      final file = _file();
+      final file = CalfUiStorage.file('container_groups.json');
       if (!file.existsSync()) {
         return {};
       }
@@ -22,14 +23,9 @@ class ContainerGroupPreferences {
 
   static Future<void> saveExpanded(Map<String, bool> expanded) async {
     try {
-      final file = _file();
+      final file = CalfUiStorage.file('container_groups.json');
       file.parent.createSync(recursive: true);
       file.writeAsStringSync(jsonEncode(expanded));
     } catch (_) {}
-  }
-
-  static File _file() {
-    final home = Platform.environment['HOME'] ?? '';
-    return File('$home/.config/calf/container_groups.json');
   }
 }
