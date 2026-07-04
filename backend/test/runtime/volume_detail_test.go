@@ -45,7 +45,7 @@ func TestListFilesAtPathFallsBackToSudo(t *testing.T) {
 			return nil, context.Canceled
 		}
 
-		if command == "sudo" && len(args) == 3 && args[0] == "ls" {
+		if command == "sudo" && len(args) == 4 && args[0] == "-n" && args[1] == "ls" && args[2] == "-la" {
 			return []byte(`total 0
 `), nil
 		}

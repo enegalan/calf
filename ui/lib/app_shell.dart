@@ -213,7 +213,13 @@ class _NavItem extends StatelessWidget {
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: 10),
-            Text(label, style: theme.textTheme.small.copyWith(color: color)),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.small.copyWith(color: color),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
