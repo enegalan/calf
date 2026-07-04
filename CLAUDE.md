@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (or any AI assistant) when working with code in this repository.
+This file provides guidance to AI assistants when working with code in this repository. It must stay equivalent to `.cursor/rules/calf.mdc` — update both in the same change.
 
 ## Project Overview
 
@@ -76,6 +76,7 @@ calf/
 │   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native/Lima
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── lima.go                         Lima runtime: manages the Lima VM, runs ops via `limactl shell ... nerdctl`
+│   │   │   ├── lima.yaml                       Embedded Lima VM template (go:embed)
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
 │   │   │   ├── mock.go                         In-memory Runtime implementation used by backend tests
 │   │   │   ├── exec.go                         exec.CommandContext wrapper with transient-error retry
@@ -101,8 +102,7 @@ calf/
 │   │   ├── config/config_test.go
 │   │   └── runtime/                            command_error, image_history, localhost_proxy, nerdctl, registry, volume_detail tests
 │   ├── version/version.go                     Single Version constant
-│   ├── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
-│   └── lima.yaml                              Embedded Lima VM template (go:embed)
+│   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
 ├── ui/                                      Flutter application
 │   ├── lib/
 │   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
@@ -268,4 +268,4 @@ CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):
 - **Versioning and living documentation:**
   - `backend/version/version.go` and the version in `ui/pubspec.yaml` must be bumped together — they must always refer to the same release.
   - Any user-visible change (new feature, fix, breaking change) must get an entry in `CHANGELOG.md`, following the existing Keep a Changelog + SemVer format.
-  - `CLAUDE.md` and `.cursor/rules/calf.mdc` are living documents: whenever a file is added, removed, or renamed under `backend/` or `ui/lib/`, update the Project Structure tree and the relevant file-reference section in the same change. Do not let these docs drift out of sync with the actual codebase.
+  - `CLAUDE.md` and `.cursor/rules/calf.mdc` must stay equivalent: whenever a file is added, removed, or renamed under `backend/` or `ui/lib/`, update the Project Structure tree and file-reference sections in both files in the same change.
