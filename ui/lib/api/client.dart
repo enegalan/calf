@@ -449,6 +449,12 @@ class BuildItem {
     required this.context,
     required this.status,
     required this.createdAt,
+    this.dockerfile = 'Dockerfile',
+    this.platform = '',
+    this.durationMs = 0,
+    this.builder = 'default',
+    this.cachedSteps = 0,
+    this.totalSteps = 0,
   });
 
   final String id;
@@ -456,6 +462,12 @@ class BuildItem {
   final String context;
   final String status;
   final String createdAt;
+  final String dockerfile;
+  final String platform;
+  final int durationMs;
+  final String builder;
+  final int cachedSteps;
+  final int totalSteps;
 
   factory BuildItem.fromJson(Map<String, dynamic> json) {
     return BuildItem(
@@ -464,8 +476,246 @@ class BuildItem {
       context: json['context'] as String? ?? '',
       status: json['status'] as String? ?? '',
       createdAt: json['created_at'] as String? ?? '',
+      dockerfile: json['dockerfile'] as String? ?? 'Dockerfile',
+      platform: json['platform'] as String? ?? '',
+      durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      builder: json['builder'] as String? ?? 'default',
+      cachedSteps: (json['cached_steps'] as num?)?.toInt() ?? 0,
+      totalSteps: (json['total_steps'] as num?)?.toInt() ?? 0,
     );
   }
+}
+
+class BuildStep {
+  const BuildStep({
+    required this.index,
+    required this.total,
+    required this.name,
+    required this.cached,
+    required this.durationMs,
+    this.log = '',
+  });
+
+  final int index;
+  final int total;
+  final String name;
+  final bool cached;
+  final int durationMs;
+  final String log;
+
+  factory BuildStep.fromJson(Map<String, dynamic> json) {
+    return BuildStep(
+      index: (json['index'] as num?)?.toInt() ?? 0,
+      total: (json['total'] as num?)?.toInt() ?? 0,
+      name: json['name'] as String? ?? '',
+      cached: json['cached'] as bool? ?? false,
+      durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      log: json['log'] as String? ?? '',
+    );
+  }
+}
+
+class BuildDependency {
+  const BuildDependency({
+    required this.source,
+    required this.platform,
+    required this.digest,
+  });
+
+  final String source;
+  final String platform;
+  final String digest;
+
+  factory BuildDependency.fromJson(Map<String, dynamic> json) {
+    return BuildDependency(
+      source: json['source'] as String? ?? '',
+      platform: json['platform'] as String? ?? '',
+      digest: json['digest'] as String? ?? '',
+    );
+  }
+}
+
+class BuildArtifact {
+  const BuildArtifact({
+    required this.name,
+    required this.platform,
+    required this.digest,
+    required this.size,
+  });
+
+  final String name;
+  final String platform;
+  final String digest;
+  final String size;
+
+  factory BuildArtifact.fromJson(Map<String, dynamic> json) {
+    return BuildArtifact(
+      name: json['name'] as String? ?? '',
+      platform: json['platform'] as String? ?? '',
+      digest: json['digest'] as String? ?? '',
+      size: json['size'] as String? ?? '',
+    );
+  }
+}
+
+class BuildTag {
+  const BuildTag({
+    required this.tag,
+    required this.digest,
+  });
+
+  final String tag;
+  final String digest;
+
+  factory BuildTag.fromJson(Map<String, dynamic> json) {
+    return BuildTag(
+      tag: json['tag'] as String? ?? '',
+      digest: json['digest'] as String? ?? '',
+    );
+  }
+}
+
+class BuildTiming {
+  const BuildTiming({
+    this.imagePullsMs = 0,
+    this.localTransfersMs = 0,
+    this.executionsMs = 0,
+    this.fileOperationsMs = 0,
+    this.resultExportsMs = 0,
+    this.idleMs = 0,
+  });
+
+  final int imagePullsMs;
+  final int localTransfersMs;
+  final int executionsMs;
+  final int fileOperationsMs;
+  final int resultExportsMs;
+  final int idleMs;
+
+  factory BuildTiming.fromJson(Map<String, dynamic> json) {
+    return BuildTiming(
+      imagePullsMs: (json['image_pulls_ms'] as num?)?.toInt() ?? 0,
+      localTransfersMs: (json['local_transfers_ms'] as num?)?.toInt() ?? 0,
+      executionsMs: (json['executions_ms'] as num?)?.toInt() ?? 0,
+      fileOperationsMs: (json['file_operations_ms'] as num?)?.toInt() ?? 0,
+      resultExportsMs: (json['result_exports_ms'] as num?)?.toInt() ?? 0,
+      idleMs: (json['idle_ms'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+class BuildDetail extends BuildItem {
+  const BuildDetail({
+    required super.id,
+    required super.tag,
+    required super.context,
+    required super.status,
+    required super.createdAt,
+    super.dockerfile,
+    super.platform,
+    super.durationMs,
+    super.builder,
+    super.cachedSteps,
+    super.totalSteps,
+    this.finishedAt = '',
+    this.error = '',
+    this.steps = const [],
+    this.dependencies = const [],
+    this.results = const [],
+    this.tags = const [],
+    this.timing = const BuildTiming(),
+    this.sourceRevision = '',
+    this.remoteSource = '',
+    this.rawLog = '',
+  });
+
+  final String finishedAt;
+  final String error;
+  final List<BuildStep> steps;
+  final List<BuildDependency> dependencies;
+  final List<BuildArtifact> results;
+  final List<BuildTag> tags;
+  final BuildTiming timing;
+  final String sourceRevision;
+  final String remoteSource;
+  final String rawLog;
+
+  factory BuildDetail.fromJson(Map<String, dynamic> json) {
+    return BuildDetail(
+      id: json['id'] as String? ?? '',
+      tag: json['tag'] as String? ?? '',
+      context: json['context'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      createdAt: json['created_at'] as String? ?? '',
+      dockerfile: json['dockerfile'] as String? ?? 'Dockerfile',
+      platform: json['platform'] as String? ?? '',
+      durationMs: (json['duration_ms'] as num?)?.toInt() ?? 0,
+      builder: json['builder'] as String? ?? 'default',
+      cachedSteps: (json['cached_steps'] as num?)?.toInt() ?? 0,
+      totalSteps: (json['total_steps'] as num?)?.toInt() ?? 0,
+      finishedAt: json['finished_at'] as String? ?? '',
+      error: json['error'] as String? ?? '',
+      steps: _decodeObjectList(json['steps'], BuildStep.fromJson),
+      dependencies: _decodeObjectList(json['dependencies'], BuildDependency.fromJson),
+      results: _decodeObjectList(json['results'], BuildArtifact.fromJson),
+      tags: _decodeObjectList(json['tags'], BuildTag.fromJson),
+      timing: BuildTiming.fromJson(json['timing'] as Map<String, dynamic>? ?? const {}),
+      sourceRevision: json['source_revision'] as String? ?? '',
+      remoteSource: json['remote_source'] as String? ?? '',
+      rawLog: json['raw_log'] as String? ?? '',
+    );
+  }
+}
+
+class BuildLogs {
+  const BuildLogs({
+    this.rawLog = '',
+    this.steps = const [],
+  });
+
+  final String rawLog;
+  final List<BuildStep> steps;
+
+  factory BuildLogs.fromJson(Map<String, dynamic> json) {
+    return BuildLogs(
+      rawLog: json['raw_log'] as String? ?? '',
+      steps: _decodeObjectList(json['steps'], BuildStep.fromJson),
+    );
+  }
+}
+
+class BuildSource {
+  const BuildSource({
+    required this.path,
+    required this.filename,
+    required this.content,
+    required this.platform,
+  });
+
+  final String path;
+  final String filename;
+  final String content;
+  final String platform;
+
+  factory BuildSource.fromJson(Map<String, dynamic> json) {
+    return BuildSource(
+      path: json['path'] as String? ?? '',
+      filename: json['filename'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      platform: json['platform'] as String? ?? '',
+    );
+  }
+}
+
+List<T> _decodeObjectList<T>(Object? value, T Function(Map<String, dynamic> json) mapper) {
+  if (value is! List) {
+    return const [];
+  }
+
+  return value
+      .whereType<Map>()
+      .map((item) => mapper(Map<String, dynamic>.from(item)))
+      .toList();
 }
 
 class RegistryLoginStatus {
@@ -547,7 +797,10 @@ abstract class CalfClient implements StatusClient {
   Future<VolumeDetail> fetchVolumeDetail(String name);
   Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'});
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
-  Future<List<BuildItem>> fetchBuilds();
+  Future<List<BuildItem>> fetchBuilds({String? tag});
+  Future<BuildDetail> fetchBuildDetail(String id);
+  Future<BuildSource> fetchBuildSource(String id);
+  Future<BuildLogs> fetchBuildLogs(String id);
   Future<void> startContainer(String id);
   Future<void> stopContainer(String id);
   Future<void> removeContainer(String id);
@@ -654,9 +907,30 @@ class ApiClient implements CalfClient {
   }
 
   @override
-  Future<List<BuildItem>> fetchBuilds() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/builds')).timeout(timeout);
+  Future<List<BuildItem>> fetchBuilds({String? tag}) async {
+    final uri = Uri.parse('$baseUrl/v1/builds').replace(
+      queryParameters: tag == null || tag.isEmpty ? null : {'tag': tag},
+    );
+    final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, BuildItem.fromJson);
+  }
+
+  @override
+  Future<BuildDetail> fetchBuildDetail(String id) async {
+    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}');
+    return BuildDetail.fromJson(json);
+  }
+
+  @override
+  Future<BuildSource> fetchBuildSource(String id) async {
+    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}/source');
+    return BuildSource.fromJson(json);
+  }
+
+  @override
+  Future<BuildLogs> fetchBuildLogs(String id) async {
+    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}/logs');
+    return BuildLogs.fromJson(json);
   }
 
   @override
@@ -956,7 +1230,7 @@ class ApiClient implements CalfClient {
         )
         .timeout(timeout);
 
-    if (response.statusCode != 200) {
+    if (response.statusCode != 200 && response.statusCode != 202) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
     }
 
@@ -1173,6 +1447,10 @@ class Config {
     this.memorySwapGB = 1,
     this.hostCPUs = 4,
     this.hostMemoryGB = 8,
+    this.dockerContextManaged = true,
+    this.dockerContextActive = false,
+    this.dockerContextName = '',
+    this.dockerCliAvailable = false,
   });
 
   final int pollIntervalMs;
@@ -1181,11 +1459,16 @@ class Config {
   final int memorySwapGB;
   final int hostCPUs;
   final int hostMemoryGB;
+  final bool dockerContextManaged;
+  final bool dockerContextActive;
+  final String dockerContextName;
+  final bool dockerCliAvailable;
 
   Map<String, dynamic> toJson() => {
         'cpus': cpus,
         'memory_gb': memoryGB,
         'memory_swap_gb': memorySwapGB,
+        'docker_context_managed': dockerContextManaged,
       };
 
   factory Config.fromJson(Map<String, dynamic> json) {
@@ -1196,6 +1479,36 @@ class Config {
       memorySwapGB: (json['memory_swap_gb'] as num?)?.toInt() ?? 1,
       hostCPUs: (json['host_cpus'] as num?)?.toInt() ?? 4,
       hostMemoryGB: (json['host_memory_gb'] as num?)?.toInt() ?? 8,
+      dockerContextManaged: json['docker_context_managed'] as bool? ?? true,
+      dockerContextActive: json['docker_context_active'] as bool? ?? false,
+      dockerContextName: json['docker_context_name'] as String? ?? '',
+      dockerCliAvailable: json['docker_cli_available'] as bool? ?? false,
+    );
+  }
+
+  Config copyWith({
+    int? pollIntervalMs,
+    int? cpus,
+    int? memoryGB,
+    int? memorySwapGB,
+    int? hostCPUs,
+    int? hostMemoryGB,
+    bool? dockerContextManaged,
+    bool? dockerContextActive,
+    String? dockerContextName,
+    bool? dockerCliAvailable,
+  }) {
+    return Config(
+      pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
+      cpus: cpus ?? this.cpus,
+      memoryGB: memoryGB ?? this.memoryGB,
+      memorySwapGB: memorySwapGB ?? this.memorySwapGB,
+      hostCPUs: hostCPUs ?? this.hostCPUs,
+      hostMemoryGB: hostMemoryGB ?? this.hostMemoryGB,
+      dockerContextManaged: dockerContextManaged ?? this.dockerContextManaged,
+      dockerContextActive: dockerContextActive ?? this.dockerContextActive,
+      dockerContextName: dockerContextName ?? this.dockerContextName,
+      dockerCliAvailable: dockerCliAvailable ?? this.dockerCliAvailable,
     );
   }
 }

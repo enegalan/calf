@@ -16,6 +16,7 @@ import (
 
 type Server struct {
 	cfg        config.Config
+	cfgMu      sync.RWMutex
 	logger     *slog.Logger
 	runtime    runtime.Runtime
 	startTime  time.Time
@@ -37,7 +38,7 @@ var logsUpgrader = websocket.Upgrader{
 }
 
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
-	return &Server{
+	server := &Server{
 		cfg:              cfg,
 		logger:           logger,
 		runtime:          rt,
@@ -45,6 +46,8 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 		migrateStatus:    migration.IdleStatus(),
 		logBroadcaster:   newLogBroadcaster(),
 	}
+	server.loadBuilds()
+	return server
 }
 
 func (s *Server) Handler() http.Handler {
@@ -58,6 +61,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/volumes", s.handleVolumes)
 	mux.HandleFunc("/v1/volumes/", s.handleVolumeAction)
 	mux.HandleFunc("/v1/builds", s.handleBuilds)
+	mux.HandleFunc("/v1/builds/", s.handleBuildAction)
 	mux.HandleFunc("/v1/registry", s.handleRegistry)
 	mux.HandleFunc("/v1/registry/login", s.handleRegistryLogin)
 	mux.HandleFunc("/v1/registry/login/", s.handleRegistryLogin)

@@ -13,15 +13,16 @@ import (
 var defaultConfigYAML []byte
 
 type Config struct {
-	ListenAddr     string `yaml:"listen_addr"`
-	LogLevel       string `yaml:"log_level"`
-	VMName         string `yaml:"vm_name"`
-	DockerSocket   string `yaml:"docker_socket"`
-	PollIntervalMs int    `yaml:"poll_interval_ms"`
-	CPUs           int    `yaml:"cpus"`
-	MemoryGB       int    `yaml:"memory_gb"`
-	MemorySwapGB   int    `yaml:"memory_swap_gb"`
-	DiskGB         int    `yaml:"disk_gb"`
+	ListenAddr            string `yaml:"listen_addr"`
+	LogLevel              string `yaml:"log_level"`
+	VMName                string `yaml:"vm_name"`
+	DockerSocket          string `yaml:"docker_socket"`
+	PollIntervalMs        int    `yaml:"poll_interval_ms"`
+	DockerContextManaged  bool   `yaml:"docker_context_managed"`
+	CPUs                  int    `yaml:"cpus"`
+	MemoryGB              int    `yaml:"memory_gb"`
+	MemorySwapGB          int    `yaml:"memory_swap_gb"`
+	DiskGB                int    `yaml:"disk_gb"`
 }
 
 func Default() Config {
@@ -66,6 +67,12 @@ func Load() (Config, error) {
 
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return cfg, err
+	}
+
+	var raw map[string]any
+	_ = yaml.Unmarshal(data, &raw)
+	if _, ok := raw["docker_context_managed"]; !ok {
+		cfg.DockerContextManaged = defaultFromYAML().DockerContextManaged
 	}
 
 	cfg = withDefaults(cfg)

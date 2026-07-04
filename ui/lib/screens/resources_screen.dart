@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/screens/build_detail_screen.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -864,6 +865,7 @@ class _BuildsScreenState extends State<BuildsScreen> {
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  String? _selectedBuildId;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   Timer? _timer;
@@ -932,8 +934,25 @@ class _BuildsScreenState extends State<BuildsScreen> {
     }
   }
 
+  void _openBuild(BuildItem build) {
+    setState(() => _selectedBuildId = build.id);
+  }
+
+  void _closeBuild() {
+    setState(() => _selectedBuildId = null);
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_selectedBuildId != null) {
+      return BuildDetailView(
+        buildId: _selectedBuildId!,
+        apiClient: widget.apiClient,
+        onBack: _closeBuild,
+        onOpenBuild: (id) => setState(() => _selectedBuildId = id),
+      );
+    }
+
     final theme = ShadTheme.of(context);
     final filtered = _searchQuery.isEmpty
         ? _builds
@@ -975,13 +994,35 @@ class _BuildsScreenState extends State<BuildsScreen> {
 
                 return HoverListRow(
                   theme: theme,
+                  onTap: () => _openBuild(build),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Text(build.tag, style: theme.textTheme.large),
-                      Text('${build.context} · ${build.status}', style: theme.textTheme.muted),
-                      Text(build.createdAt, style: theme.textTheme.muted),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _buildStatusColor(build.status, theme),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(build.tag, style: theme.textTheme.large),
+                            Text('${build.context} · ${build.status}', style: theme.textTheme.muted),
+                            Text(
+                              [
+                                if (build.durationMs > 0) _formatBuildDuration(build.durationMs),
+                                build.createdAt,
+                              ].where((item) => item.isNotEmpty).join(' · '),
+                              style: theme.textTheme.muted,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -991,4 +1032,32 @@ class _BuildsScreenState extends State<BuildsScreen> {
       ],
     );
   }
+}
+
+Color _buildStatusColor(String status, ShadThemeData theme) {
+  switch (status) {
+    case 'success':
+      return const Color(0xFF22C55E);
+    case 'failed':
+      return theme.colorScheme.destructive;
+    case 'running':
+      return theme.colorScheme.primary;
+    default:
+      return theme.colorScheme.mutedForeground;
+  }
+}
+
+String _formatBuildDuration(int durationMs) {
+  if (durationMs <= 0) {
+    return '';
+  }
+
+  final seconds = durationMs / 1000;
+  if (seconds < 60) {
+    return '${seconds.toStringAsFixed(1)}s';
+  }
+
+  final minutes = seconds ~/ 60;
+  final remainder = seconds % 60;
+  return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }
