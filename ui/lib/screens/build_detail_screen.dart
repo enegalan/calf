@@ -810,7 +810,7 @@ class _SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600))),
-          if (trailing != null) trailing!,
+          ?trailing,
         ],
       ),
     );

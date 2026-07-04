@@ -92,7 +92,7 @@ class FakeCalfClient implements CalfClient {
   Future<BuildLogs> fetchBuildLogs(String id) async => const BuildLogs(
         rawLog: '#1 DONE 0.1s',
         steps: [
-          BuildStep(index: 1, total: 1, name: 'load build definition', durationMs: 100),
+          BuildStep(index: 1, total: 1, name: 'load build definition', cached: false, durationMs: 100),
         ],
       );
 
@@ -395,7 +395,7 @@ class _ErrorCalfClient implements CalfClient {
   Future<BuildLogs> fetchBuildLogs(String id) async => const BuildLogs(
         rawLog: '#1 DONE 0.1s',
         steps: [
-          BuildStep(index: 1, total: 1, name: 'load build definition', durationMs: 100),
+          BuildStep(index: 1, total: 1, name: 'load build definition', cached: false, durationMs: 100),
         ],
       );
 
