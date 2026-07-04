@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Calf
+Comment=Calf UI App
+Exec=@EXECUTABLE@
+Icon=com.enegalan.ui
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true
