@@ -1,0 +1,75 @@
+# Cursor Rules — calf
+
+## Project
+
+Calf is a lightweight, open-source alternative to Docker Desktop:
+- `backend/` — Go daemon managing containers via `containerd`/`nerdctl`, inside a Lima VM (macOS/Windows) or natively (Linux). Exposes a Docker-API-compatible socket plus a REST + WebSocket API on `127.0.0.1:8765`.
+- `ui/` — native Flutter GUI that drives the daemon over that API.
+
+Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features (see `ROADMAP.md`).
+
+## Tech stack
+
+- **Backend:** Go 1.22.1, stdlib `net/http.ServeMux` (no router framework), `gorilla/websocket`, `creack/pty`, `yaml.v3` config, `log/slog` logging. No Docker/containerd SDK — shells out to `nerdctl`/`limactl`/`docker`.
+- **UI:** Flutter/Dart `^3.12.2`, `shadcn_ui` component kit, `http` + `web_socket_channel`, `xterm` for interactive exec, `fl_chart` for stats. State management is plain `StatefulWidget` + `setState` with `Timer.periodic` polling — no Provider/Riverpod/Bloc/GetX. Models are hand-written classes with manual `fromJson`/`toJson` — no codegen.
+
+## Project layout
+
+```
+backend/cmd/calf/main.go                    entrypoint: config/logger/runtime/server wiring, signal handling
+backend/internal/api/server.go               route registration for all /v1/... endpoints
+backend/internal/api/middleware.go            logging, panic recovery, CORS
+backend/internal/api/log_broadcaster.go       fan-out of one log stream to N WebSocket subscribers
+backend/internal/api/containers.go|images.go|volumes.go|builds.go|exec.go|logs.go   resource CRUD + subresources
+backend/internal/api/migrate.go               Docker Desktop migration orchestration
+backend/internal/api/registry.go|registry_login.go   registry + Docker Hub OAuth login
+backend/internal/config/config.go             Config struct, YAML load/save, defaults
+backend/internal/config/logger.go             slog.TextHandler setup
+backend/internal/runtime/runtime.go            Runtime interface (~30 methods) + shared types
+backend/internal/runtime/native.go|lima.go|mock.go   the three Runtime implementations
+backend/internal/runtime/nerdctl.go            shared nerdctl output parsing, compose inference
+backend/internal/runtime/exec.go|exec_attach.go   command retry wrapper + PTY exec attach
+backend/internal/runtime/container_detail.go|volume_detail.go|inspect_decode.go   inspect/parsing helpers
+backend/internal/runtime/localhost_proxy.go    macOS-only TCP proxy + port-conflict detection
+backend/internal/runtime/registry.go|errors.go|command_error.go   auth parsing, error sentinels, shell cleanup
+backend/internal/migration/docker_desktop.go   migration orchestrator (preflight->images->volumes->containers->builds)
+backend/internal/migration/compose_migration.go   compose project staging + YAML patching
+backend/internal/migration/disk.go|status.go   disk-space check, Phase/Status types
+backend/internal/oauth/dockerhub/device.go     Docker Hub OAuth device-flow client
+backend/internal/browser/open.go               cross-platform "open URL" helper
+backend/test/<pkg>/                            external test packages (NOT *_test.go beside source)
+backend/version/version.go                      single Version constant
+ui/lib/main.dart                                app entrypoint, Material/ShadThemeData bridge
+ui/lib/app_shell.dart                           sidebar nav, top bar, SettingsScreen
+ui/lib/api/client.dart                          HTTP/WebSocket client (CalfClient/ApiClient)
+ui/lib/platform/open_url.dart                   platform-specific URL opener
+ui/lib/storage/calf_ui_storage.dart|container_groups.dart|logs_viewer_preferences.dart   JSON-file local persistence
+ui/lib/screens/*.dart                           one file per top-level screen (containers, container detail, resources, volume detail, compose group)
+ui/lib/widgets/*.dart                           reusable components (button, files panel, logs panel, top bar, hover row)
+```
+
+Full per-file breakdown of what each backend/UI file does lives in `CLAUDE.md` — read it before making non-trivial changes.
+
+## Hard rules
+
+1. **English only, everywhere.** All code, identifiers, UI copy, comments, commit messages, and docs must be in English. Never mix in another language.
+2. **Comments only when the *why* isn't obvious.** No restating what the code already says.
+3. **Fix root causes, never patch symptoms.** When you hit a bug or design flaw, find the actual underlying cause and eliminate or replace it. Do not:
+   - silently swallow or ignore errors
+   - add retries/timeouts around a call that's fundamentally broken
+   - special-case a symptom instead of fixing the source
+   - leave a workaround "for now" without removing the root problem
+4. **No premature abstraction.** The runtime layer has exactly three implementations (`Native`, `Lima`, `Mock`) behind one `Runtime` interface — mirror that discipline; don't add new abstraction layers for hypothetical needs.
+5. **Backend errors are translated, never leaked.** Handlers must go through `writeRuntimeError`/`writeJSON`; map `ErrRuntimeNotRunning` to `503`, everything else appropriately — never return raw internal error strings to the client.
+6. **No generic catch-alls.** Never write a generic `try/catch` (or a generic error check that just forwards `err` without identifying what failed). Handle each *specific* error case individually — if that requires 3, 5, or 10 separate specific handlers, write all of them. Whoever reads the error (logs, UI, API response) must be able to tell exactly which operation failed and why — never just "something went wrong".
+7. **UI stays on `StatefulWidget` + `setState`.** Don't introduce a new state-management library without explicit discussion.
+8. **Tests follow existing conventions.** Backend tests go in `backend/test/<pkg>/` as external test packages (`package xxx_test`), built against `runtime.NewMock()` — not `*_test.go` next to the source. UI tests go in `ui/test/`.
+9. **Commit messages:** conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`), optionally scoped (`feat(runtime): ...`, `fix(ui): ...`).
+10. **Concurrency and resource lifecycle (Go).** Thread `context.Context` with explicit timeout/cancellation from every HTTP handler into the runtime layer — never use bare `context.Background()` for a blocking call inside a handler. Every long-lived goroutine (log broadcasting, migration, polling) must observe cancellation/a stop signal and be stopped on server shutdown — no fire-and-forget goroutines. Release resources with `defer` right next to acquisition (`defer f.Close()`, `defer mu.Unlock()`, `defer cancel()`).
+11. **Versioning and living docs.** Bump `backend/version/version.go` and `ui/pubspec.yaml` together for every release. Add a `CHANGELOG.md` entry for every user-visible change. Whenever a file is added/removed/renamed under `backend/` or `ui/lib/`, update the Project Structure tree and file reference in `CLAUDE.md`/`.cursorrules` in the same change — do not let these docs go stale.
+
+## Before making changes
+
+- Read `CLAUDE.md` for the full architecture and file-by-file reference.
+- Check `ROADMAP.md` before adding scope — respect the explicit non-goals.
+- Run `make dev-backend` / `make dev-ui` to exercise changes locally; CI runs `go vet && go test && go build` for the backend and `flutter analyze && flutter test && flutter build macos` for the UI.
