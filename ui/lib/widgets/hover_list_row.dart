@@ -33,18 +33,22 @@ class _HoverListRowState extends State<HoverListRow> {
       background = widget.theme.colorScheme.muted.withValues(alpha: 0.45);
     }
 
+    final content = Container(
+      color: background,
+      padding: widget.padding,
+      child: widget.child,
+    );
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          color: background,
-          padding: widget.padding,
-          child: widget.child,
-        ),
-      ),
+      child: widget.onTap == null
+          ? content
+          : GestureDetector(
+              onTap: widget.onTap,
+              behavior: HitTestBehavior.deferToChild,
+              child: content,
+            ),
     );
   }
 }
