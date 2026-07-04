@@ -42,75 +42,94 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 0 — Foundations *(current state → technical MVP)*
+## Phase 0 — Foundations *(complete — v0.2.0)*
 
 **Goal:** stable daemon, versioned API, and connected UI. No real containers yet.
 
 - [x] Repository, Go backend, and Flutter UI
-- [ ] Daemon structure: `cmd/`, `internal/api`, `internal/config`
-- [ ] Versioned REST API (`/v1/health`, `/v1/status`)
-- [ ] Persistent configuration (`~/.config/calf/config.yaml`)
-- [ ] Structured logging and uniform error handling
-- [ ] UI: navigation shell (left sidebar), daemon status, basic settings screen
-- [ ] Local packaging: `go build` + `flutter build macos`
-- [ ] CI: lint, test, and build on macOS
+- [x] Daemon structure: `cmd/`, `internal/api`, `internal/config`
+- [x] Versioned REST API (`/v1/health`, `/v1/status`)
+- [x] Persistent configuration (`~/.config/calf/config.yaml`)
+- [x] Structured logging and uniform error handling
+- [x] UI: navigation shell (left sidebar), daemon status, basic settings screen
+- [x] Local packaging: `go build` + `flutter build macos`
+- [x] CI: lint, test, and build on macOS
 
 **Exit criteria:** the app starts, shows daemon status, and survives restarts.
 
 ---
 
-## Phase 1 — Container engine *(basic CLI parity)*
+## Phase 1 — Container engine *(mostly complete — v0.3.0)*
 
 **Goal:** `docker run hello-world` works with Calf as the backend.
 
 ### 1.1 Runtime
 
-- [ ] Integrate lightweight VM on macOS (Lima + vz, virtiofs for bind mounts)
-- [ ] Install and manage `containerd` + `nerdctl` inside the VM
-- [ ] Automatic VM start/stop with the daemon
-- [ ] Linux: native runtime without a VM
+- [x] Integrate lightweight VM on macOS (Lima + vz, virtiofs for bind mounts)
+- [x] Install and manage `containerd` + `nerdctl` inside the VM
+- [x] Automatic VM start/stop with the daemon
+- [x] Linux: native runtime without a VM
 
 ### 1.2 Docker CLI compatibility
 
-- [ ] Expose Docker API-compatible socket (`/var/run/docker.sock` or proxy)
-- [ ] Verify essential commands:
+- [x] Expose Docker API-compatible socket (`~/.config/calf/docker.sock`)
+- [x] Verify essential commands (manual + integration tests + `scripts/verify-docker-cli.sh`):
 
-  | Command | Priority |
-  |---------|----------|
-  | `docker run` / `stop` / `rm` | P0 |
-  | `docker ps` / `inspect` | P0 |
-  | `docker images` / `rmi` | P0 |
-  | `docker pull` / `push` | P0 |
-  | `docker build` | P0 |
-  | `docker exec` / `logs` | P0 |
-  | `docker network *` | P1 |
-  | `docker volume *` | P1 |
-  | `docker compose` | P0 (phase 2) |
+  | Command                      | Status                  |
+  |------------------------------|-------------------------|
+  | `docker run` / `stop` / `rm` | Done                    |
+  | `docker ps` / `inspect`      | Done                    |
+  | `docker images` / `rmi`      | Done                    |
+  | `docker pull` / `push`       | Done                    |
+  | `docker build`               | Done                    |
+  | `docker exec` / `logs`       | Done                    |
+  | `docker network *`           | Engine-level; no UI yet |
+  | `docker volume *`            | Done                    |
+  | `docker compose`             | Done                    |
 
-- [ ] Document migration from Docker Desktop (export images, switch context)
+- [x] Document migration from Docker Desktop (`DEVELOPMENT.md` + in-app migration wizard)
 
 ### 1.3 Minimal UI
 
 - [x] Container list (running / stopped) with start/stop/remove actions
 - [x] Image list with pull and remove
-- [ ] Real-time log viewer (WebSocket)
+- [x] Real-time log viewer (WebSocket)
+- [x] Container detail: inspect, bind mounts, exec, files, stats
 
 **Exit criteria:** a sample project with `Dockerfile` + `docker run` works without Docker Desktop installed.
 
 ---
 
-## Phase 2 — Compose and development workflows *(daily parity)*
+## Phase 2 — Compose and development workflows *(in progress)*
 
 **Goal:** `docker compose up` works friction-free on real projects.
 
-- [ ] `docker compose` v2 support (plugin pointing at Calf socket)
-- [ ] Bridge networks between services
-- [ ] Named volumes and bind mounts with acceptable performance (virtiofs tuning)
+### 2.1 Engine and CLI
+
+- [x] `docker compose` v2 support (plugin pointing at Calf socket)
+- [x] Bridge networks between services (engine-level; validated on real stacks)
+- [x] Named volumes and bind mounts with acceptable performance (virtiofs in Lima)
 - [ ] `host.docker.internal` on macOS
 - [ ] Stable port mapping after sleep/wake
-- [ ] UI: Compose view per project (detect `compose.yaml` in recent directories)
-- [ ] UI: integrated terminal (`docker exec`) for running containers
-- [ ] UI: basic metrics (CPU, RAM, network per container)
+- [x] localhost port conflict detection and proxy (macOS; API port reservation)
+
+### 2.2 Docker Desktop migration
+
+- [x] Automated migration wizard (images, volumes, containers)
+- [x] Compose project detection and staging (`com.docker.compose.*` labels)
+- [x] Compose stack recreation via `nerdctl compose up` with fallback to labeled `create`
+
+### 2.3 UI
+
+- [x] Compose groups in container list + compose group detail screen
+- [x] Integrated terminal (`docker exec` via WebSocket, xterm)
+- [x] Basic metrics (CPU, RAM, network per container)
+- [x] Volumes list, detail, file browser, clone, and remove
+- [x] Image layers, run, and push actions
+- [x] Builds list (history from daemon)
+- [x] Docker Hub registry login (device flow)
+- [ ] Network management UI
+- [ ] Build detail view UI
 
 **Exit criteria:** 3 reference stacks (LAMP, Node+Postgres, Laravel Sail) start with `docker compose up -d` without modifications.
 
@@ -131,18 +150,17 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ### 3.2 Settings
 
-- [ ] CPU/RAM/disk limits for the VM
-- [ ] Configurable shared directories
+- [x] CPU/RAM/disk limits for the VM
 - [ ] HTTP/HTTPS proxy
-- [ ] Private registries and credential helper
-- [ ] Auto-start on login (optional)
+- [x] Auto-start on login (optional)
 
 ### 3.3 Full UI
 
-- [ ] Network and volume management
-- [ ] Consistent light/dark theme (shadcn_ui)
+- [x] Volume management
+- [ ] Network management
+- [x] Consistent light/dark theme (shadcn_ui)
 - [ ] Keyboard shortcuts and basic accessibility
-- [ ] MacOS MenuActions (topbar actions)
+- [ ] MacOS MenuActions (topbar actions exist; native menu integration pending)
 
 **Exit criteria:** a new developer installs Calf in < 5 minutes and works a full day without Docker Desktop.
 
@@ -158,7 +176,6 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [ ] Rootless mode where the OS allows it
 - [ ] Basic `buildx` support (optional multi-arch)
 - [ ] Image export/import (`docker save` / `docker load`)
-- [ ] Integration with common tools: Laravel Sail, DDEV, Dev Containers (validation, not development)
 - [ ] Opt-in telemetry (errors and performance, no container data)
 
 **Exit criteria:** documented benchmarks; idle RAM usage < 50% of Docker Desktop on reference hardware.
@@ -180,13 +197,13 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ## Success metrics
 
-| Metric                                 | Target              |
-|----------------------------------------|---------------------|
-| Cold start time                        | < 5 s               |
-| Idle RAM (macOS)                       | < 1 GB              |
-| Reference compose projects             | 3/3 without changes |
-| Docker CLI compatibility (P0 commands) | 100%                |
-| Install to first container             | < 5 min             |
+| Metric                                 | Target              | Current (approx.)                |
+|----------------------------------------|---------------------|----------------------------------|
+| Cold start time                        | < 5 s               | Not benchmarked                  |
+| Idle RAM (macOS)                       | < 1 GB              | Not benchmarked                  |
+| Reference compose projects             | 3/3 without changes | In validation                    |
+| Docker CLI compatibility               | 100%                | ~100% (`make verify-docker-cli`) |
+| Install to first container             | < 5 min             | Dev setup ~5 min                 |
 
 ---
 

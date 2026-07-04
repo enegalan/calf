@@ -67,7 +67,7 @@ class RuntimeStatus {
 
 class DaemonStatus {
   const DaemonStatus({
-    required this.version,
+    this.version = '',
     required this.uptimeSeconds,
     required this.listenAddr,
     required this.logLevel,

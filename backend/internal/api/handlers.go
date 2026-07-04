@@ -11,6 +11,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/version"
 )
 
 func hostCPUs() int {
@@ -145,7 +146,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, statusResponse{
-		Version:       Version,
+		Version:       version.Version,
 		UptimeSeconds: int64(time.Since(s.startTime).Seconds()),
 		ListenAddr:    s.cfg.ListenAddr,
 		LogLevel:      s.cfg.LogLevel,

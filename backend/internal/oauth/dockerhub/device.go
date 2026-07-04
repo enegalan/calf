@@ -12,6 +12,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/version"
 )
 
 const (
@@ -32,7 +34,7 @@ type Client struct {
 func NewClient() *Client {
 	return &Client{
 		HTTP:      http.DefaultClient,
-		UserAgent: fmt.Sprintf("calf:0.3.0:%s-%s", runtime.GOOS, runtime.GOARCH),
+		UserAgent: fmt.Sprintf("calf:%s:%s-%s", version.Version, runtime.GOOS, runtime.GOARCH),
 		TenantURL: TenantURL,
 		HubURL:    Audience,
 	}

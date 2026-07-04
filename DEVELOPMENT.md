@@ -67,3 +67,9 @@ docker load -i my-image.tar
 ```bash
 docker run hello-world
 ```
+
+Or run the full P0 smoke test (daemon must already be running):
+
+```bash
+make verify-docker-cli
+```

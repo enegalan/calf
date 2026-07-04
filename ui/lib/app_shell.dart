@@ -30,7 +30,7 @@ class _AppShellState extends State<AppShell> {
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
-  String _appVersion = '0.3.0';
+  String _appVersion = '';
 
   @override
   void initState() {

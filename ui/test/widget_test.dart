@@ -239,7 +239,6 @@ void main() {
   testWidgets('opens containers screen on launch', (tester) async {
     final apiClient = FakeCalfClient(
       DaemonStatus(
-        version: '0.3.0',
         uptimeSeconds: 42,
         listenAddr: ':8765',
         logLevel: 'info',
@@ -265,7 +264,6 @@ void main() {
   testWidgets('opens account dropdown when avatar is tapped', (tester) async {
     final apiClient = _LoggedInCalfClient(
       DaemonStatus(
-        version: '0.3.0',
         uptimeSeconds: 42,
         listenAddr: ':8765',
         logLevel: 'info',
@@ -308,7 +306,6 @@ class _ErrorCalfClient implements CalfClient {
   @override
   Future<DaemonStatus> fetchStatus() async {
     return const DaemonStatus(
-      version: '0.3.0',
       uptimeSeconds: 0,
       listenAddr: ':8765',
       logLevel: 'info',

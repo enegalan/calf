@@ -1,4 +1,4 @@
-.PHONY: help ui build clean dev dev-backend dev-ui
+.PHONY: help ui build clean dev dev-backend dev-ui verify-docker-cli
 
 help:
 	@echo "Calf — common commands"
@@ -9,6 +9,7 @@ help:
 	@echo "  make ui            build macOS app"
 	@echo "  make build         build macOS app"
 	@echo "  make clean         remove build artifacts"
+	@echo "  make verify-docker-cli  smoke-test docker CLI against Calf"
 	@echo ""
 	@echo "Full guide: DEVELOPMENT.md"
 
@@ -25,5 +26,8 @@ dev-backend:
 
 dev-ui:
 	cd ui && flutter run -d macos
+
+verify-docker-cli:
+	./scripts/verify-docker-cli.sh
 
 dev: help
