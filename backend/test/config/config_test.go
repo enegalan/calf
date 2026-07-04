@@ -17,12 +17,14 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.ListenAddr != config.DefaultListenAddr {
-		t.Fatalf("expected listen_addr %q, got %q", config.DefaultListenAddr, cfg.ListenAddr)
+	defaults := config.Default()
+
+	if cfg.ListenAddr != defaults.ListenAddr {
+		t.Fatalf("expected listen_addr %q, got %q", defaults.ListenAddr, cfg.ListenAddr)
 	}
 
-	if cfg.LogLevel != config.DefaultLogLevel {
-		t.Fatalf("expected log_level %q, got %q", config.DefaultLogLevel, cfg.LogLevel)
+	if cfg.LogLevel != defaults.LogLevel {
+		t.Fatalf("expected log_level %q, got %q", defaults.LogLevel, cfg.LogLevel)
 	}
 
 	path := filepath.Join(dir, ".config", "calf", "config.yaml")
@@ -57,5 +59,30 @@ func TestLoadReadsExistingConfig(t *testing.T) {
 
 	if cfg.LogLevel != "debug" {
 		t.Fatalf("expected log_level debug, got %q", cfg.LogLevel)
+	}
+}
+
+func TestLoadMigratesLegacyListenPort(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	configDir := filepath.Join(dir, ".config", "calf")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
+
+	path := filepath.Join(configDir, "config.yaml")
+	content := "listen_addr: \":8080\"\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	if cfg.ListenAddr != ":8765" {
+		t.Fatalf("expected migrated listen_addr :8765, got %q", cfg.ListenAddr)
 	}
 }

@@ -1,6 +1,7 @@
 package config
 
 import (
+	_ "embed"
 	"errors"
 	"os"
 	"path/filepath"
@@ -8,21 +9,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	DefaultListenAddr = ":8080"
-	DefaultLogLevel   = "info"
-)
+//go:embed config.yaml
+var defaultConfigYAML []byte
 
 type Config struct {
-	ListenAddr string `yaml:"listen_addr"`
-	LogLevel   string `yaml:"log_level"`
+	ListenAddr     string `yaml:"listen_addr"`
+	LogLevel       string `yaml:"log_level"`
+	VMName         string `yaml:"vm_name"`
+	DockerSocket   string `yaml:"docker_socket"`
+	PollIntervalMs int    `yaml:"poll_interval_ms"`
+	CPUs           int    `yaml:"cpus"`
+	MemoryGB       int    `yaml:"memory_gb"`
+	MemorySwapGB   int    `yaml:"memory_swap_gb"`
+	DiskGB         int    `yaml:"disk_gb"`
 }
 
 func Default() Config {
-	return Config{
-		ListenAddr: DefaultListenAddr,
-		LogLevel:   DefaultLogLevel,
-	}
+	return defaultFromYAML()
+}
+
+func defaultFromYAML() Config {
+	var cfg Config
+	_ = yaml.Unmarshal(defaultConfigYAML, &cfg)
+	return cfg
 }
 
 func Path() (string, error) {
@@ -60,8 +69,7 @@ func Load() (Config, error) {
 	}
 
 	cfg = withDefaults(cfg)
-
-	return cfg, nil
+	return migrateLegacyDefaults(cfg), nil
 }
 
 func Save(cfg Config) error {
@@ -85,12 +93,46 @@ func Save(cfg Config) error {
 }
 
 func withDefaults(cfg Config) Config {
+	defaults := defaultFromYAML()
+
 	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = DefaultListenAddr
+		cfg.ListenAddr = defaults.ListenAddr
 	}
 
 	if cfg.LogLevel == "" {
-		cfg.LogLevel = DefaultLogLevel
+		cfg.LogLevel = defaults.LogLevel
+	}
+
+	if cfg.VMName == "" {
+		cfg.VMName = defaults.VMName
+	}
+
+	if cfg.PollIntervalMs <= 0 {
+		cfg.PollIntervalMs = defaults.PollIntervalMs
+	}
+
+	if cfg.CPUs <= 0 {
+		cfg.CPUs = defaults.CPUs
+	}
+
+	if cfg.MemoryGB <= 0 {
+		cfg.MemoryGB = defaults.MemoryGB
+	}
+
+	if cfg.MemorySwapGB <= 0 {
+		cfg.MemorySwapGB = defaults.MemorySwapGB
+	}
+
+	if cfg.DiskGB <= 0 {
+		cfg.DiskGB = defaults.DiskGB
+	}
+
+	return cfg
+}
+
+func migrateLegacyDefaults(cfg Config) Config {
+	if cfg.ListenAddr == ":8080" {
+		cfg.ListenAddr = ":8765"
 	}
 
 	return cfg

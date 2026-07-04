@@ -1,0 +1,9 @@
+listen_addr: ":8765"
+log_level: info
+vm_name: calf
+docker_socket: ""
+poll_interval_ms: 3000
+cpus: 4
+memory_gb: 4
+memory_swap_gb: 1
+disk_gb: 100

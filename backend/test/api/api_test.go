@@ -6,21 +6,25 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/gorilla/websocket"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	cfg := config.Config{
-		ListenAddr: ":8080",
+		ListenAddr: ":8765",
 		LogLevel:   "info",
 	}
 
-	return httptest.NewServer(api.New(cfg, slog.Default()).Handler())
+	return httptest.NewServer(api.New(cfg, slog.Default(), runtime.NewMock()).Handler())
 }
 
 func TestHealthReturnsOk(t *testing.T) {
@@ -66,10 +70,400 @@ func TestStatusReturnsMetadata(t *testing.T) {
 		t.Fatalf("Decode() error: %v", err)
 	}
 
-	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level"} {
+	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime"} {
 		if _, ok := payload[key]; !ok {
 			t.Fatalf("expected %q in response", key)
 		}
+	}
+}
+
+func TestContainersReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/containers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var containers []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&containers); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+}
+
+func TestContainerInspectAndMounts(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	inspectResponse, err := http.Get(server.URL + "/v1/containers/abc123/inspect")
+	if err != nil {
+		t.Fatalf("GET inspect error: %v", err)
+	}
+	defer inspectResponse.Body.Close()
+
+	if inspectResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected inspect status 200, got %d", inspectResponse.StatusCode)
+	}
+
+	mountsResponse, err := http.Get(server.URL + "/v1/containers/abc123/mounts")
+	if err != nil {
+		t.Fatalf("GET mounts error: %v", err)
+	}
+	defer mountsResponse.Body.Close()
+
+	if mountsResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected mounts status 200, got %d", mountsResponse.StatusCode)
+	}
+
+	statsResponse, err := http.Get(server.URL + "/v1/containers/abc123/stats")
+	if err != nil {
+		t.Fatalf("GET stats error: %v", err)
+	}
+	defer statsResponse.Body.Close()
+
+	if statsResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected stats status 200, got %d", statsResponse.StatusCode)
+	}
+}
+
+func TestImagesReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/images")
+	if err != nil {
+		t.Fatalf("GET /v1/images error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var images []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&images); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(images) != 1 {
+		t.Fatalf("expected 1 image, got %d", len(images))
+	}
+}
+
+func TestImageLayersReturnsHistory(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/images/layers?reference=hello-world:latest")
+	if err != nil {
+		t.Fatalf("GET /v1/images/layers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var layers []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&layers); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(layers) != 3 {
+		t.Fatalf("expected 3 layers, got %d", len(layers))
+	}
+}
+
+func TestImageRunReturnsContainerID(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/images/run", "application/json", strings.NewReader(`{"reference":"hello-world:latest"}`))
+	if err != nil {
+		t.Fatalf("POST /v1/images/run error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if payload["container_id"] == "" {
+		t.Fatalf("expected container_id in response")
+	}
+}
+
+func TestImagePushReturnsOk(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/images/push", "application/json", strings.NewReader(`{"reference":"hello-world:latest"}`))
+	if err != nil {
+		t.Fatalf("POST /v1/images/push error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+}
+
+func TestRegistryStatusReturnsNotLoggedIn(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/registry")
+	if err != nil {
+		t.Fatalf("GET /v1/registry error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if payload["logged_in"] != false {
+		t.Fatalf("expected logged_in=false, got %v", payload["logged_in"])
+	}
+}
+
+func TestRegistryLoginReturnsOk(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(
+		server.URL+"/v1/registry",
+		"application/json",
+		strings.NewReader(`{"username":"demo","password":"secret"}`),
+	)
+	if err != nil {
+		t.Fatalf("POST /v1/registry error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	statusResponse, err := http.Get(server.URL + "/v1/registry")
+	if err != nil {
+		t.Fatalf("GET /v1/registry error: %v", err)
+	}
+	defer statusResponse.Body.Close()
+
+	var status map[string]any
+	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if status["logged_in"] != true {
+		t.Fatalf("expected logged_in=true after login, got %v", status["logged_in"])
+	}
+}
+
+func TestRegistryLogoutReturnsOk(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	loginResponse, err := http.Post(
+		server.URL+"/v1/registry",
+		"application/json",
+		strings.NewReader(`{"username":"demo","password":"secret"}`),
+	)
+	if err != nil {
+		t.Fatalf("POST /v1/registry error: %v", err)
+	}
+	loginResponse.Body.Close()
+
+	if loginResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected login status 200, got %d", loginResponse.StatusCode)
+	}
+
+	logoutRequest, err := http.NewRequest(http.MethodDelete, server.URL+"/v1/registry", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+
+	logoutResponse, err := http.DefaultClient.Do(logoutRequest)
+	if err != nil {
+		t.Fatalf("DELETE /v1/registry error: %v", err)
+	}
+	defer logoutResponse.Body.Close()
+
+	if logoutResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected logout status 200, got %d", logoutResponse.StatusCode)
+	}
+
+	statusResponse, err := http.Get(server.URL + "/v1/registry")
+	if err != nil {
+		t.Fatalf("GET /v1/registry error: %v", err)
+	}
+	defer statusResponse.Body.Close()
+
+	var status map[string]any
+	if err := json.NewDecoder(statusResponse.Body).Decode(&status); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if status["logged_in"] != false {
+		t.Fatalf("expected logged_in=false after logout, got %v", status["logged_in"])
+	}
+}
+
+func TestRegistryLoginSessionNotFound(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/registry/login/missing")
+	if err != nil {
+		t.Fatalf("GET /v1/registry/login/missing error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", response.StatusCode)
+	}
+}
+
+func TestVolumesReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var volumes []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&volumes); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(volumes) != 1 {
+		t.Fatalf("expected 1 volume, got %d", len(volumes))
+	}
+}
+
+func TestVolumeDetailReturnsMetadata(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	for _, key := range []string{"name", "driver", "created", "in_use"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("expected %q in response", key)
+		}
+	}
+}
+
+func TestVolumeFilesReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data/files")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data/files error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var files []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&files); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(files) != 2 {
+		t.Fatalf("expected 2 files, got %d", len(files))
+	}
+}
+
+func TestVolumeContainersReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data/containers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var containers []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&containers); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+}
+
+func TestBuildsReturnsEmptyList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/builds")
+	if err != nil {
+		t.Fatalf("GET /v1/builds error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var builds []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&builds); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(builds) != 0 {
+		t.Fatalf("expected 0 builds, got %d", len(builds))
 	}
 }
 
@@ -123,5 +517,39 @@ func TestHealthMethodNotAllowedReturnsJSONError(t *testing.T) {
 
 	if payload["error"] != "method not allowed" {
 		t.Fatalf("unexpected error message: %q", payload["error"])
+	}
+}
+
+func TestContainerLogsWebSocketStreamsLines(t *testing.T) {
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+
+	mock := runtime.NewMock()
+	mock.LogLines = []string{"alpha", "beta", "gamma"}
+	server := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/v1/containers/mock-id/logs"
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("Dial() error: %v", err)
+	}
+	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	lines := make([]string, 0, 3)
+	for range 3 {
+		_, message, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("ReadMessage() error: %v", err)
+		}
+		lines = append(lines, string(message))
+	}
+
+	if strings.Join(lines, ",") != "alpha,beta,gamma" {
+		t.Fatalf("unexpected lines: %v", lines)
 	}
 }

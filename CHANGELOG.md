@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-01
+
+### Added
+
+- Lima VM runtime on macOS with containerd, nerdctl, and Docker socket forwarding
+- Linux native runtime path via nerdctl
+- `calf start`, `calf stop`, and `calf status` CLI commands
+- Container and image REST API endpoints
+- WebSocket container log streaming at `/v1/containers/{id}/logs`
+- Flutter UI screens for containers, images, and live logs
+- `examples/hello-world/` reference project
+- `scripts/verify-docker-cli.sh` P0 Docker CLI verification script
+- Docker Desktop migration guide in `DEVELOPMENT.md`
+
+### Changed
+
+- `/v1/status` now includes runtime mode, state, and Docker socket path
+- Go tests moved to `backend/test/`
+
 ## [0.2.0] - 2026-07-01
 
 ### Added

@@ -87,13 +87,12 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
   | `docker volume *` | P1 |
   | `docker compose` | P0 (phase 2) |
 
-- [ ] `calf` wrapper command: `calf start`, `calf stop`, `calf status`
 - [ ] Document migration from Docker Desktop (export images, switch context)
 
 ### 1.3 Minimal UI
 
-- [ ] Container list (running / stopped) with start/stop/remove actions
-- [ ] Image list with pull and remove
+- [x] Container list (running / stopped) with start/stop/remove actions
+- [x] Image list with pull and remove
 - [ ] Real-time log viewer (WebSocket)
 
 **Exit criteria:** a sample project with `Dockerfile` + `docker run` works without Docker Desktop installed.
