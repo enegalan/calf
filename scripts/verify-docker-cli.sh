@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke-test P0 docker CLI commands against a running Calf daemon.
+# Smoke-test docker CLI commands against a running Calf daemon.
 # Prerequisites: make dev-backend (or calf daemon) and DOCKER_HOST pointing at Calf.
 set -euo pipefail
 
