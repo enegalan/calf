@@ -279,6 +279,7 @@ CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):
 9. **Commit messages:** conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`), optionally scoped (`feat(runtime): ...`, `fix(ui): ...`).
 10. **Concurrency and resource lifecycle (Go).** Thread `context.Context` with explicit timeout/cancellation from every HTTP handler into the runtime layer — never use bare `context.Background()` for a blocking call inside a handler. Every long-lived goroutine (log broadcasting, migration, polling) must observe cancellation/a stop signal and be stopped on server shutdown — no fire-and-forget goroutines. Release resources with `defer` right next to acquisition (`defer f.Close()`, `defer mu.Unlock()`, `defer cancel()`).
 11. **Versioning and living docs.** Bump `backend/version/version.go` and `ui/pubspec.yaml` together for every release. Add a `CHANGELOG.md` entry for every user-visible change. Whenever a file is added/removed/renamed under `backend/` or `ui/lib/`, update the Project layout tree and file reference sections in both `CLAUDE.md` and `.cursor/rules/calf.mdc` in the same change — keep both files equivalent and in sync with the codebase.
+12. **CHANGELOG in user language.** CHANGELOG entries must describe changes from the user's perspective — no implementation details, library names, file paths, or protocol jargon. Write what users see and feel, not how it was built.
 
 ## Before making changes
 
