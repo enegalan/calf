@@ -75,7 +75,43 @@ func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 		case "clone":
 			s.handleVolumeClone(w, r, name)
 			return
+		case "exports":
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			s.handleVolumeExports(w, r, name)
+			return
+		case "export-schedules":
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			s.handleVolumeExportSchedules(w, r, name)
+			return
 		}
+	}
+
+	if len(parts) == 3 && parts[1] == "export-schedules" {
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		s.handleVolumeExportScheduleItem(w, r, name, parts[2])
+		return
+	}
+
+	if len(parts) == 4 && parts[1] == "exports" && parts[3] == "download" {
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		s.handleVolumeExportDownload(w, r, name, parts[2])
+		return
 	}
 
 	switch r.Method {

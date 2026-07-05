@@ -120,7 +120,9 @@ calf/
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
 │   │   │   ├── resources_screen.dart           Images/Volumes/Builds screens
-│   │   │   └── volume_detail_screen.dart        Stored-data / containers-in-use tabs
+│   │   │   └── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
+│   │   │   └── volume_quick_export_screen.dart  Quick export destination picker
+│   │   │   └── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   └── widgets/
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive)
@@ -223,7 +225,9 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
 - `resources_screen.dart` — Images/Volumes/Builds screens.
-- `volume_detail_screen.dart` — stored-data / containers-in-use tabs.
+- `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
+- `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
+- `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 
 ### `widgets/`
 - `app_top_bar.dart` — registry auth UI.

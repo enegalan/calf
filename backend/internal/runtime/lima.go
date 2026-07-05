@@ -214,6 +214,14 @@ func (l *Lima) CloneVolume(ctx context.Context, source, dest string) error {
 	return cloneVolume(ctx, l.runInVM, source, dest)
 }
 
+func (l *Lima) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return "", err
+	}
+
+	return RunVolumeExport(ctx, l.runInVM, opts)
+}
+
 func (l *Lima) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err

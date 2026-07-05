@@ -129,7 +129,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Builds list (history from daemon)
 - [x] Docker Hub registry login (device flow)
 - [ ] Network management UI
-- [ ] Build detail view UI
+- [x] Build detail view UI
 
 **Exit criteria:** 3 reference stacks (LAMP, Node+Postgres, Laravel Sail) start with `docker compose up -d` without modifications.
 

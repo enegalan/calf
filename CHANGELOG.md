@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-07-05
+
+### Added
+
+- Volume **Exports** tab with export history and download
+- **Quick export** to a local tar file, an existing local image, a new image built from the volume, or a registry push
+- Export file/image name patterns with `{volume}` and `{timestamp}` placeholders (static names allowed with overwrite warning)
+- **Scheduled exports** with per-weekday times, enable/disable from the schedule list, and a background scheduler in the daemon
+- Backend volume export API: `GET/POST /v1/volumes/{name}/exports` and `GET .../exports/{id}/download`
+- Backend schedule API: `GET/POST /v1/volumes/{name}/export-schedules` and `PUT/DELETE .../export-schedules/{id}`
 
 ## [0.3.0] - 2026-07-01
 

@@ -443,6 +443,212 @@ func TestVolumeContainersReturnsList(t *testing.T) {
 	}
 }
 
+func TestVolumeExportsListAndCreate(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/volumes/calf-data/exports")
+	if err != nil {
+		t.Fatalf("GET /v1/volumes/calf-data/exports error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	createResponse, err := http.Post(
+		server.URL+"/v1/volumes/calf-data/exports",
+		"application/json",
+		strings.NewReader(`{"type":"local_file","file_name":"calf-data.tar.gz","folder":"/tmp/exports"}`),
+	)
+	if err != nil {
+		t.Fatalf("POST /v1/volumes/calf-data/exports error: %v", err)
+	}
+	defer createResponse.Body.Close()
+
+	if createResponse.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(createResponse.Body)
+		t.Fatalf("expected status 200, got %d: %s", createResponse.StatusCode, body)
+	}
+
+	var created map[string]any
+	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if created["status"] != "completed" {
+		t.Fatalf("expected completed status, got %v", created["status"])
+	}
+
+	if created["downloadable"] != true {
+		t.Fatalf("expected downloadable export")
+	}
+}
+
+func TestVolumeExportSchedulesCRUD(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	listResponse, err := http.Get(server.URL + "/v1/volumes/calf-data/export-schedules")
+	if err != nil {
+		t.Fatalf("GET export-schedules error: %v", err)
+	}
+	defer listResponse.Body.Close()
+
+	if listResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", listResponse.StatusCode)
+	}
+
+	createResponse, err := http.Post(
+		server.URL+"/v1/volumes/calf-data/export-schedules",
+		"application/json",
+		strings.NewReader(`{
+			"enabled": true,
+			"day_times": [
+				{"day": 1, "times": ["03:00", "15:00"]},
+				{"day": 2, "times": ["09:00"]}
+			],
+			"type": "local_file",
+			"file_name": "{volume}-{timestamp}.tar.gz",
+			"folder": "/tmp/exports"
+		}`),
+	)
+	if err != nil {
+		t.Fatalf("POST export-schedules error: %v", err)
+	}
+	defer createResponse.Body.Close()
+
+	if createResponse.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(createResponse.Body)
+		t.Fatalf("expected status 200, got %d: %s", createResponse.StatusCode, body)
+	}
+
+	var created map[string]any
+	if err := json.NewDecoder(createResponse.Body).Decode(&created); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	scheduleID, ok := created["id"].(string)
+	if !ok || scheduleID == "" {
+		t.Fatalf("expected schedule id in response")
+	}
+
+	if created["next_run_at"] == nil || created["next_run_at"] == "" {
+		t.Fatalf("expected next_run_at in response")
+	}
+
+	updateTimesRequest, err := http.NewRequest(
+		http.MethodPut,
+		server.URL+"/v1/volumes/calf-data/export-schedules/"+scheduleID,
+		strings.NewReader(`{
+			"enabled": true,
+			"day_times": [
+				{"day": 1, "times": ["05:30", "16:00"]},
+				{"day": 2, "times": ["10:15"]}
+			],
+			"type": "local_file",
+			"file_name": "{volume}-{timestamp}.tar.gz",
+			"folder": "/tmp/exports"
+		}`),
+	)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+	updateTimesRequest.Header.Set("Content-Type", "application/json")
+
+	updateTimesResponse, err := http.DefaultClient.Do(updateTimesRequest)
+	if err != nil {
+		t.Fatalf("PUT export-schedules day_times error: %v", err)
+	}
+	defer updateTimesResponse.Body.Close()
+
+	if updateTimesResponse.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateTimesResponse.Body)
+		t.Fatalf("expected status 200, got %d: %s", updateTimesResponse.StatusCode, body)
+	}
+
+	var updated map[string]any
+	if err := json.NewDecoder(updateTimesResponse.Body).Decode(&updated); err != nil {
+		t.Fatalf("Decode() updated schedule error: %v", err)
+	}
+
+	dayTimes, ok := updated["day_times"].([]any)
+	if !ok || len(dayTimes) != 2 {
+		t.Fatalf("expected 2 day_times entries, got %#v", updated["day_times"])
+	}
+
+	monday, ok := dayTimes[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected day_times entry object, got %#v", dayTimes[0])
+	}
+
+	mondayTimes, ok := monday["times"].([]any)
+	if !ok || len(mondayTimes) != 2 || mondayTimes[0] != "05:30" {
+		t.Fatalf("expected Monday times [05:30, 16:00], got %#v", monday["times"])
+	}
+
+	listAfterUpdate, err := http.Get(server.URL + "/v1/volumes/calf-data/export-schedules")
+	if err != nil {
+		t.Fatalf("GET export-schedules after update error: %v", err)
+	}
+	defer listAfterUpdate.Body.Close()
+
+	var schedules []map[string]any
+	if err := json.NewDecoder(listAfterUpdate.Body).Decode(&schedules); err != nil {
+		t.Fatalf("Decode() schedules error: %v", err)
+	}
+
+	if len(schedules) != 1 {
+		t.Fatalf("expected 1 schedule, got %d", len(schedules))
+	}
+
+	storedDayTimes, ok := schedules[0]["day_times"].([]any)
+	if !ok || len(storedDayTimes) != 2 {
+		t.Fatalf("expected stored day_times to persist, got %#v", schedules[0]["day_times"])
+	}
+
+	updateRequest, err := http.NewRequest(
+		http.MethodPut,
+		server.URL+"/v1/volumes/calf-data/export-schedules/"+scheduleID,
+		strings.NewReader(`{"enabled": false}`),
+	)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+	updateRequest.Header.Set("Content-Type", "application/json")
+
+	updateResponse, err := http.DefaultClient.Do(updateRequest)
+	if err != nil {
+		t.Fatalf("PUT export-schedules error: %v", err)
+	}
+	defer updateResponse.Body.Close()
+
+	if updateResponse.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(updateResponse.Body)
+		t.Fatalf("expected status 200, got %d: %s", updateResponse.StatusCode, body)
+	}
+
+	deleteRequest, err := http.NewRequest(
+		http.MethodDelete,
+		server.URL+"/v1/volumes/calf-data/export-schedules/"+scheduleID,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+
+	deleteResponse, err := http.DefaultClient.Do(deleteRequest)
+	if err != nil {
+		t.Fatalf("DELETE export-schedules error: %v", err)
+	}
+	defer deleteResponse.Body.Close()
+
+	if deleteResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", deleteResponse.StatusCode)
+	}
+}
+
 func TestBuildsReturnsEmptyList(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
