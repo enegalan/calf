@@ -2,6 +2,7 @@ package volumeexport
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,6 +66,7 @@ func (s *Store) List(volumeName string) ([]Export, error) {
 	}
 
 	exports := make([]Export, 0, len(entries))
+	var skipped []error
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -72,6 +74,7 @@ func (s *Store) List(volumeName string) ([]Export, error) {
 
 		export, err := s.readMeta(volumeName, entry.Name())
 		if err != nil {
+			skipped = append(skipped, fmt.Errorf("volume %s export %s: %w", volumeName, entry.Name(), err))
 			continue
 		}
 
@@ -82,7 +85,7 @@ func (s *Store) List(volumeName string) ([]Export, error) {
 		return exports[i].CreatedAt > exports[j].CreatedAt
 	})
 
-	return exports, nil
+	return exports, errors.Join(skipped...)
 }
 
 func (s *Store) Get(volumeName, id string) (Export, error) {
@@ -167,5 +170,10 @@ func sanitizeName(value string) string {
 	}
 
 	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
-	return replacer.Replace(value)
+	value = replacer.Replace(value)
+	if value == "." || value == ".." || strings.Contains(value, "..") {
+		return "unknown"
+	}
+
+	return value
 }

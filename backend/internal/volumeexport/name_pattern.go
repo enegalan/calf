@@ -40,8 +40,13 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 		}
 	}
 
+	volumeToken := sanitizeVolumeToken(volumeName)
+	if !forFileExport {
+		volumeToken = strings.ToLower(volumeToken)
+	}
+
 	replacer := strings.NewReplacer(
-		"{volume}", sanitizeVolumeToken(volumeName),
+		"{volume}", volumeToken,
 		"{timestamp}", runTime.Format("20060102-150405"),
 		"{datetime}", runTime.Format("20060102-150405"),
 		"{date}", runTime.Format("2006-01-02"),
@@ -53,7 +58,7 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 		return sanitizeExportFileName(expanded)
 	}
 
-	return strings.TrimSpace(expanded)
+	return strings.ToLower(strings.TrimSpace(expanded))
 }
 
 func ResolveScheduledExportNames(schedule Schedule, runTime time.Time) (fileName, imageRef string) {

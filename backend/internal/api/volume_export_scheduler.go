@@ -13,18 +13,23 @@ import (
 const exportSchedulerInterval = time.Minute
 
 type exportScheduler struct {
-	server   *Server
-	logger   *slog.Logger
-	stop     chan struct{}
-	done     chan struct{}
+	server    *Server
+	logger    *slog.Logger
+	ctx       context.Context
+	cancel    context.CancelFunc
+	stop      chan struct{}
+	done      chan struct{}
 	startOnce sync.Once
 	stopOnce  sync.Once
 }
 
 func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &exportScheduler{
 		server: server,
 		logger: logger,
+		ctx:    ctx,
+		cancel: cancel,
 		stop:   make(chan struct{}),
 		done:   make(chan struct{}),
 	}
@@ -38,6 +43,7 @@ func (s *exportScheduler) Start() {
 
 func (s *exportScheduler) Stop() {
 	s.stopOnce.Do(func() {
+		s.cancel()
 		close(s.stop)
 		<-s.done
 	})
@@ -70,12 +76,20 @@ func (s *exportScheduler) tick() {
 
 	schedules, err := store.ListAll()
 	if err != nil {
-		s.logger.Error("volume export scheduler failed to list schedules", "error", err)
+		s.logger.Warn("volume export scheduler skipped unreadable schedule files", "error", err)
+	}
+	if len(schedules) == 0 {
 		return
 	}
 
 	now := time.Now()
 	for _, schedule := range schedules {
+		select {
+		case <-s.stop:
+			return
+		default:
+		}
+
 		if !schedule.Enabled {
 			continue
 		}
@@ -95,7 +109,7 @@ func (s *exportScheduler) tick() {
 }
 
 func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedule volumeexport.Schedule, tickNow time.Time) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Minute)
 	defer cancel()
 
 	status, err := s.server.runtime.Status(ctx)

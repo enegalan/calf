@@ -648,7 +648,7 @@ class VolumeExportScheduleItem {
       final minute = runAt.minute.toString().padLeft(2, '0');
 
       return '$weekday $month/$day at $hour:$minute';
-    } catch (_) {
+    } on FormatException {
       return nextRunAt;
     }
   }
@@ -1326,18 +1326,29 @@ class ApiClient implements CalfClient {
     String folder = '',
     String imageRef = '',
   }) async {
+    final body = <String, dynamic>{
+      'enabled': enabled,
+      if (type.isNotEmpty) 'type': type,
+      if (fileName.isNotEmpty) 'file_name': fileName,
+      if (folder.isNotEmpty) 'folder': folder,
+      if (imageRef.isNotEmpty) 'image_ref': imageRef,
+    };
+    if (dayTimes.isNotEmpty) {
+      body.addAll(_scheduleTimingBody(dayTimes));
+    } else {
+      if (daysOfWeek.isNotEmpty) {
+        body['days_of_week'] = daysOfWeek;
+      }
+      if (times.isNotEmpty) {
+        body['times'] = times;
+      }
+    }
+
     final response = await httpClient
         .post(
           Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'enabled': enabled,
-            ..._scheduleTimingBody(dayTimes),
-            if (type.isNotEmpty) 'type': type,
-            if (fileName.isNotEmpty) 'file_name': fileName,
-            if (folder.isNotEmpty) 'folder': folder,
-            if (imageRef.isNotEmpty) 'image_ref': imageRef,
-          }),
+          body: jsonEncode(body),
         )
         .timeout(volumeActionTimeout);
 

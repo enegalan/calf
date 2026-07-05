@@ -120,8 +120,8 @@ calf/
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
 │   │   │   ├── resources_screen.dart           Images/Volumes/Builds screens
-│   │   │   └── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
-│   │   │   └── volume_quick_export_screen.dart  Quick export destination picker
+│   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
+│   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   └── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   └── widgets/
 │   │       ├── app_top_bar.dart                Registry auth UI

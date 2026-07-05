@@ -2,6 +2,7 @@ package volumeexport
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,6 +104,7 @@ func (s *ScheduleStore) ListAll() ([]Schedule, error) {
 	}
 
 	schedules := make([]Schedule, 0)
+	var skipped []error
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
@@ -111,11 +113,13 @@ func (s *ScheduleStore) ListAll() ([]Schedule, error) {
 		path := filepath.Join(s.root, entry.Name())
 		payload, err := os.ReadFile(path)
 		if err != nil {
+			skipped = append(skipped, fmt.Errorf("read %s: %w", entry.Name(), err))
 			continue
 		}
 
 		var volumeSchedules []Schedule
 		if err := json.Unmarshal(payload, &volumeSchedules); err != nil {
+			skipped = append(skipped, fmt.Errorf("decode %s: %w", entry.Name(), err))
 			continue
 		}
 
@@ -126,7 +130,7 @@ func (s *ScheduleStore) ListAll() ([]Schedule, error) {
 		NormalizeSchedule(&schedules[index])
 	}
 
-	return schedules, nil
+	return schedules, errors.Join(skipped...)
 }
 
 func (s *ScheduleStore) Get(volumeName, id string) (Schedule, error) {

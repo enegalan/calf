@@ -289,7 +289,6 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final bytes = await widget.apiClient.downloadVolumeExport(widget.volumeName, export.id);
       final suggestedName = export.fileName.isNotEmpty ? export.fileName : '${widget.volumeName}.tar.gz';
       final location = await getSaveLocation(suggestedName: suggestedName);
       if (location == null) {
@@ -299,6 +298,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
         return;
       }
 
+      final bytes = await widget.apiClient.downloadVolumeExport(widget.volumeName, export.id);
       await File(location.path).writeAsBytes(bytes);
       if (!mounted) {
         return;

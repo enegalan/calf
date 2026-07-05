@@ -7,7 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
+
+const volumeExportAlpineImage = "alpine:3.20"
 
 type VolumeExportOptions struct {
 	VolumeName string
@@ -39,7 +42,7 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 		"run", "--rm",
 		"-v", volumeName + ":/from:ro",
 		"-v", vmStagingDir + ":/to",
-		"alpine:3.20",
+		volumeExportAlpineImage,
 		"tar", "czf", "/to/" + archiveName, "-C", "/from", ".",
 	}
 	if _, err := run(ctx, "nerdctl", args...); err != nil {
@@ -68,14 +71,16 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 		_, _ = run(ctx, "nerdctl", "rmi", "-f", imageRef)
 	}
 
-	containerName := fmt.Sprintf("calf-vol-export-%s", filepath.Base(archivePath))
-	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, "alpine:3.20", "sleep", "3600")
+	containerName := fmt.Sprintf("calf-vol-export-%s", filepath.Base(filepath.Dir(archivePath)))
+	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, volumeExportAlpineImage, "sleep", "3600")
 	if err != nil {
 		return fmt.Errorf("start export container: %w", err)
 	}
 
 	defer func() {
-		_, _ = run(ctx, "nerdctl", "rm", "-f", containerName)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cleanupCancel()
+		_, _ = run(cleanupCtx, "nerdctl", "rm", "-f", containerName)
 	}()
 
 	vmArchivePath := mountsVMPath(archivePath)

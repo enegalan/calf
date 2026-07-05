@@ -1,18 +1,25 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
 func (s *Server) volumeExportStore() (*volumeexport.Store, error) {
 	return volumeexport.NewStore()
+}
+
+func (s *Server) writeVolumeStoreError(w http.ResponseWriter, message string, err error) {
+	s.logger.Error(message, "error", err)
+	writeError(w, http.StatusInternalServerError, message)
 }
 
 func (s *Server) handleVolumeExports(w http.ResponseWriter, r *http.Request, volumeName string) {
@@ -26,17 +33,18 @@ func (s *Server) handleVolumeExports(w http.ResponseWriter, r *http.Request, vol
 	}
 }
 
+const volumeExportTimeout = 30 * time.Minute
+
 func (s *Server) handleVolumeExportsList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := s.volumeExportStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open export store", err)
 		return
 	}
 
 	exports, err := store.List(volumeName)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
+		s.logger.Warn("some volume exports could not be read", "volume", volumeName, "error", err)
 	}
 
 	writeJSON(w, http.StatusOK, exports)
@@ -79,7 +87,10 @@ func (s *Server) handleVolumeExportCreate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	export, err := s.executeVolumeExport(r.Context(), volumeName, volumeExportRequest{
+	exportCtx, cancel := context.WithTimeout(r.Context(), volumeExportTimeout)
+	defer cancel()
+
+	export, err := s.executeVolumeExport(exportCtx, volumeName, volumeExportRequest{
 		Type:     exportType,
 		FileName: fileName,
 		Folder:   folder,
@@ -90,7 +101,8 @@ func (s *Server) handleVolumeExportCreate(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.logger.Error("volume export failed", "volume", volumeName, "error", err)
+		writeError(w, http.StatusInternalServerError, "volume export failed")
 		return
 	}
 
@@ -105,7 +117,7 @@ func (s *Server) handleVolumeExportDownload(w http.ResponseWriter, r *http.Reque
 
 	store, err := s.volumeExportStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open export store", err)
 		return
 	}
 
@@ -130,7 +142,8 @@ func (s *Server) handleVolumeExportDownload(w http.ResponseWriter, r *http.Reque
 
 	info, err := file.Stat()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.logger.Error("volume export download stat failed", "volume", volumeName, "export", exportID, "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to read export archive")
 		return
 	}
 

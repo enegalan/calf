@@ -58,3 +58,12 @@ func TestResolveScheduledExportNames(t *testing.T) {
 		t.Fatalf("static file name should be preserved, got %q", staticName)
 	}
 }
+
+func TestExpandExportImageRefPattern(t *testing.T) {
+	runTime := time.Date(2026, 7, 5, 14, 30, 0, 0, time.UTC)
+
+	expanded := ExpandExportImageRefPattern("{volume}-backup:{timestamp}", "My/Vol", runTime)
+	if expanded != "my_vol-backup:20260705-143000" {
+		t.Fatalf("unexpected image ref expansion: %q", expanded)
+	}
+}

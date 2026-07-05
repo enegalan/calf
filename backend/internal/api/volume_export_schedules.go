@@ -42,13 +42,13 @@ func (s *Server) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Requ
 func (s *Server) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
 	schedules, err := store.List(volumeName)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to list export schedules", err)
 		return
 	}
 
@@ -76,7 +76,7 @@ func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http
 
 	store, err := s.volumeScheduleStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http
 	schedule.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	if err := store.Save(schedule); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to save export schedule", err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func (s *Server) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.R
 func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
@@ -183,7 +183,7 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 	schedule.LastError = existing.LastError
 
 	if err := store.Save(schedule); err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to save export schedule", err)
 		return
 	}
 
@@ -193,7 +193,7 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 func (s *Server) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		s.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 

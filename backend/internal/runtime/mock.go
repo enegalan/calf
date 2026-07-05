@@ -22,6 +22,7 @@ type Mock struct {
 	ContainersErr  error
 	ImagesErr      error
 	ContainerErr   error
+	ExportVolumeErr error
 	ImageErr       error
 	LogLines       []string
 	Started        bool
@@ -206,8 +207,8 @@ func (m *Mock) ExportVolume(_ context.Context, opts VolumeExportOptions) (string
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.ContainerErr != nil {
-		return "", m.ContainerErr
+	if m.ExportVolumeErr != nil {
+		return "", m.ExportVolumeErr
 	}
 
 	switch opts.Type {
