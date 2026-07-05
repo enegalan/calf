@@ -158,7 +158,6 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Volume management
 - [x] Network management
 - [x] Consistent light/dark theme (shadcn_ui)
-- [ ] Keyboard shortcuts and basic accessibility
 - [ ] MacOS MenuActions (topbar actions exist; native menu integration pending)
 
 **Exit criteria:** a new developer installs Calf in < 5 minutes and works a full day without Docker Desktop.
