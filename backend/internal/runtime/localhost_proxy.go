@@ -97,13 +97,21 @@ func (p *localhostProxies) stopAll() {
 	p.conflicts = make(map[int]PortConflict)
 }
 
-func (p *localhostProxies) sync(ports map[int]struct{}) {
+func (p *localhostProxies) sync(ports map[int]struct{}, force bool) {
 	if p == nil {
 		return
 	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	if force {
+		for port, listener := range p.listeners {
+			_ = listener.Close()
+			delete(p.listeners, port)
+		}
+		p.conflicts = make(map[int]PortConflict)
+	}
 
 	for port, listener := range p.listeners {
 		if _, ok := ports[port]; ok {

@@ -26,6 +26,10 @@ mounts:
 ssh:
   loadDotSSHPubKeys: true
 
+hostResolver:
+  hosts:
+    host.docker.internal: host.lima.internal
+
 provision:
   - mode: system
     script: |
@@ -58,6 +62,29 @@ provision:
         grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
       fi
       nerdctl run --rm hello-world || true
+      HTTP_PROXY=%[7]s
+      HTTPS_PROXY=%[8]s
+      NO_PROXY=%[9]s
+      sudo mkdir -p /etc/systemd/system/containerd.service.d
+      sudo tee /etc/systemd/system/containerd.service.d/calf-proxy.conf >/dev/null <<EOF
+      [Service]
+      Environment="HTTP_PROXY=${HTTP_PROXY}"
+      Environment="HTTPS_PROXY=${HTTPS_PROXY}"
+      Environment="NO_PROXY=${NO_PROXY}"
+      Environment="http_proxy=${HTTP_PROXY}"
+      Environment="https_proxy=${HTTPS_PROXY}"
+      Environment="no_proxy=${NO_PROXY}"
+      EOF
+      sudo tee /etc/profile.d/calf-proxy.sh >/dev/null <<EOF
+      export HTTP_PROXY=${HTTP_PROXY}
+      export HTTPS_PROXY=${HTTPS_PROXY}
+      export NO_PROXY=${NO_PROXY}
+      export http_proxy=${HTTP_PROXY}
+      export https_proxy=${HTTPS_PROXY}
+      export no_proxy=${NO_PROXY}
+      EOF
+      sudo systemctl daemon-reload
+      sudo systemctl restart containerd docker
 
 portForwards:
   - guestSocket: "/var/run/docker.sock"

@@ -31,7 +31,20 @@ func run() int {
 	}
 
 	logger := config.NewLogger(cfg.LogLevel)
-	rt := runtime.New(cfg.VMName, cfg.DockerSocket, cfg.CPUs, cfg.MemoryGB, cfg.MemorySwapGB, cfg.DiskGB, runtime.ParseListenPort(cfg.ListenAddr))
+	rt := runtime.New(
+		cfg.VMName,
+		cfg.DockerSocket,
+		cfg.CPUs,
+		cfg.MemoryGB,
+		cfg.MemorySwapGB,
+		cfg.DiskGB,
+		runtime.ParseListenPort(cfg.ListenAddr),
+		runtime.ProxyConfig{
+			HTTPProxy:  cfg.HTTPProxy,
+			HTTPSProxy: cfg.HTTPSProxy,
+			NoProxy:    cfg.NoProxy,
+		},
+	)
 	server := api.New(cfg, logger, rt)
 
 	if err := ensurePort(cfg.ListenAddr); err != nil {

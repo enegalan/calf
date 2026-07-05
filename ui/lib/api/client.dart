@@ -391,6 +391,78 @@ class VolumeItem {
   }
 }
 
+class NetworkItem {
+  const NetworkItem({
+    required this.id,
+    required this.name,
+    required this.driver,
+    required this.scope,
+    this.subnet = '',
+    this.created = '',
+  });
+
+  final String id;
+  final String name;
+  final String driver;
+  final String scope;
+  final String subnet;
+  final String created;
+
+  factory NetworkItem.fromJson(Map<String, dynamic> json) {
+    return NetworkItem(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      driver: json['driver'] as String? ?? '',
+      scope: json['scope'] as String? ?? '',
+      subnet: json['subnet'] as String? ?? '',
+      created: json['created'] as String? ?? '',
+    );
+  }
+}
+
+class NetworkDetail {
+  const NetworkDetail({
+    required this.id,
+    required this.name,
+    required this.driver,
+    required this.scope,
+    required this.subnet,
+    required this.gateway,
+    required this.created,
+    this.options = const {},
+  });
+
+  final String id;
+  final String name;
+  final String driver;
+  final String scope;
+  final String subnet;
+  final String gateway;
+  final String created;
+  final Map<String, String> options;
+
+  factory NetworkDetail.fromJson(Map<String, dynamic> json) {
+    final rawOptions = json['options'];
+    final options = <String, String>{};
+    if (rawOptions is Map) {
+      for (final entry in rawOptions.entries) {
+        options['${entry.key}'] = '${entry.value}';
+      }
+    }
+
+    return NetworkDetail(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      driver: json['driver'] as String? ?? '',
+      scope: json['scope'] as String? ?? '',
+      subnet: json['subnet'] as String? ?? '',
+      gateway: json['gateway'] as String? ?? '',
+      created: json['created'] as String? ?? '',
+      options: options,
+    );
+  }
+}
+
 class VolumeDetail {
   const VolumeDetail({
     required this.name,
@@ -1102,6 +1174,8 @@ abstract class CalfClient implements StatusClient {
   Future<List<ImageItem>> fetchImages();
   Future<List<ImageLayer>> fetchImageLayers(String reference);
   Future<List<VolumeItem>> fetchVolumes();
+  Future<List<NetworkItem>> fetchNetworks();
+  Future<NetworkDetail> fetchNetworkDetail(String name);
   Future<VolumeDetail> fetchVolumeDetail(String name);
   Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'});
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
@@ -1159,6 +1233,7 @@ abstract class CalfClient implements StatusClient {
   Future<void> createVolume(String name);
   Future<void> cloneVolume(String source, String name);
   Future<void> removeVolume(String name);
+  Future<void> removeNetwork(String name);
   Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''});
   Stream<String> streamContainerLogs(String id);
   Uri containerLogsWebSocketUri(String id);
@@ -1220,6 +1295,18 @@ class ApiClient implements CalfClient {
   Future<List<VolumeItem>> fetchVolumes() async {
     final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(volumeActionTimeout);
     return _decodeList(response, VolumeItem.fromJson);
+  }
+
+  @override
+  Future<List<NetworkItem>> fetchNetworks() async {
+    final response = await httpClient.get(Uri.parse('$baseUrl/v1/networks')).timeout(timeout);
+    return _decodeList(response, NetworkItem.fromJson);
+  }
+
+  @override
+  Future<NetworkDetail> fetchNetworkDetail(String name) async {
+    final json = await _getJson('/v1/networks/${Uri.encodeComponent(name)}');
+    return NetworkDetail.fromJson(json);
   }
 
   @override
@@ -1743,6 +1830,11 @@ class ApiClient implements CalfClient {
   }
 
   @override
+  Future<void> removeNetwork(String name) async {
+    await _delete('/v1/networks/${Uri.encodeComponent(name)}');
+  }
+
+  @override
   Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {
     final response = await httpClient
         .post(
@@ -1992,6 +2084,9 @@ class Config {
     this.dockerContextActive = false,
     this.dockerContextName = '',
     this.dockerCliAvailable = false,
+    this.httpProxy = '',
+    this.httpsProxy = '',
+    this.noProxy = '',
   });
 
   final int pollIntervalMs;
@@ -2004,12 +2099,18 @@ class Config {
   final bool dockerContextActive;
   final String dockerContextName;
   final bool dockerCliAvailable;
+  final String httpProxy;
+  final String httpsProxy;
+  final String noProxy;
 
   Map<String, dynamic> toJson() => {
         'cpus': cpus,
         'memory_gb': memoryGB,
         'memory_swap_gb': memorySwapGB,
         'docker_context_managed': dockerContextManaged,
+        'http_proxy': httpProxy,
+        'https_proxy': httpsProxy,
+        'no_proxy': noProxy,
       };
 
   factory Config.fromJson(Map<String, dynamic> json) {
@@ -2024,6 +2125,9 @@ class Config {
       dockerContextActive: json['docker_context_active'] as bool? ?? false,
       dockerContextName: json['docker_context_name'] as String? ?? '',
       dockerCliAvailable: json['docker_cli_available'] as bool? ?? false,
+      httpProxy: json['http_proxy'] as String? ?? '',
+      httpsProxy: json['https_proxy'] as String? ?? '',
+      noProxy: json['no_proxy'] as String? ?? '',
     );
   }
 
@@ -2038,6 +2142,9 @@ class Config {
     bool? dockerContextActive,
     String? dockerContextName,
     bool? dockerCliAvailable,
+    String? httpProxy,
+    String? httpsProxy,
+    String? noProxy,
   }) {
     return Config(
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
@@ -2050,6 +2157,9 @@ class Config {
       dockerContextActive: dockerContextActive ?? this.dockerContextActive,
       dockerContextName: dockerContextName ?? this.dockerContextName,
       dockerCliAvailable: dockerCliAvailable ?? this.dockerCliAvailable,
+      httpProxy: httpProxy ?? this.httpProxy,
+      httpsProxy: httpsProxy ?? this.httpsProxy,
+      noProxy: noProxy ?? this.noProxy,
     );
   }
 }

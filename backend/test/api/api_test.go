@@ -372,6 +372,56 @@ func TestVolumesReturnsList(t *testing.T) {
 	}
 }
 
+func TestNetworksReturnsList(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/networks")
+	if err != nil {
+		t.Fatalf("GET /v1/networks error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var networks []map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&networks); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	if len(networks) != 1 {
+		t.Fatalf("expected 1 network, got %d", len(networks))
+	}
+}
+
+func TestNetworkDetailReturnsMetadata(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/networks/bridge")
+	if err != nil {
+		t.Fatalf("GET /v1/networks/bridge error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	for _, key := range []string{"name", "driver", "scope", "subnet", "gateway", "created"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("expected %q in response", key)
+		}
+	}
+}
+
 func TestVolumeDetailReturnsMetadata(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()

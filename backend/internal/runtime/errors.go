@@ -46,6 +46,19 @@ func emptyVolumesIfStopped(ctx context.Context, statusFn func(context.Context) (
 	return listFn(ctx)
 }
 
+func emptyNetworksIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Network, error)) ([]Network, error) {
+	status, err := statusFn(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if status.State != StateRunning {
+		return []Network{}, nil
+	}
+
+	return listFn(ctx)
+}
+
 func requireRunning(ctx context.Context, statusFn func(context.Context) (Status, error)) error {
 	status, err := statusFn(ctx)
 	if err != nil {

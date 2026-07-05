@@ -12,14 +12,15 @@ import (
 
 type Native struct {
 	dockerSocket string
+	proxy        ProxyConfig
 }
 
-func NewNative(_ string, dockerSocket string, _, _, _, _ int) *Native {
+func NewNative(_ string, dockerSocket string, _, _, _, _ int, proxy ProxyConfig) *Native {
 	if dockerSocket == "" {
 		dockerSocket = "/var/run/docker.sock"
 	}
 
-	return &Native{dockerSocket: dockerSocket}
+	return &Native{dockerSocket: dockerSocket, proxy: proxy}
 }
 
 func (n *Native) DockerSocket() string {
@@ -96,6 +97,38 @@ func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
 
 		return enrichVolumesInUse(ctx, n.runLocal, volumes)
 	})
+}
+
+func (n *Native) ListNetworks(ctx context.Context) ([]Network, error) {
+	return emptyNetworksIfStopped(ctx, n.Status, func(ctx context.Context) ([]Network, error) {
+		return listNetworks(ctx, n.runLocal)
+	})
+}
+
+func (n *Native) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return NetworkDetail{}, err
+	}
+
+	return inspectNetwork(ctx, n.runLocal, name)
+}
+
+func (n *Native) RemoveNetwork(ctx context.Context, name string) error {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return err
+	}
+
+	return removeNetwork(ctx, n.runLocal, name)
+}
+
+func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
+	n.proxy = proxy
+
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return nil
+	}
+
+	return applyProxyInVM(ctx, n.runLocal, proxy)
 }
 
 func (n *Native) CreateVolume(ctx context.Context, name string) error {

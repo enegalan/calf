@@ -87,6 +87,26 @@ type VolumeContainerUsage struct {
 	Target string `json:"target"`
 }
 
+type Network struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Driver  string `json:"driver"`
+	Scope   string `json:"scope"`
+	Subnet  string `json:"subnet"`
+	Created string `json:"created"`
+}
+
+type NetworkDetail struct {
+	ID      string            `json:"id"`
+	Name    string            `json:"name"`
+	Driver  string            `json:"driver"`
+	Scope   string            `json:"scope"`
+	Subnet  string            `json:"subnet"`
+	Gateway string            `json:"gateway"`
+	Created string            `json:"created"`
+	Options map[string]string `json:"options"`
+}
+
 type Runtime interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -123,12 +143,16 @@ type Runtime interface {
 	RegistryStatus(ctx context.Context) (RegistryStatus, error)
 	RegistryLogin(ctx context.Context, server, username, password string) error
 	RegistryLogout(ctx context.Context, server string) error
+	ListNetworks(ctx context.Context) ([]Network, error)
+	InspectNetwork(ctx context.Context, name string) (NetworkDetail, error)
+	RemoveNetwork(ctx context.Context, name string) error
+	ApplyProxy(ctx context.Context, proxy ProxyConfig) error
 }
 
-func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int) Runtime {
+func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
-		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB)
+		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, proxy)
 	}
 
-	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort)
+	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, proxy)
 }

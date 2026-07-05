@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-05
+
+### Added
+
+- **Networks** screen in the sidebar with list (name + subnet) and detail view (driver, scope, gateway, options)
+- Backend network API: `GET /v1/networks`, `GET /v1/networks/{name}`, `DELETE /v1/networks/{name}`
+- `host.docker.internal` resolution inside containers on macOS via Lima `hostResolver`
+- HTTP/HTTPS/no-proxy settings in Settings, persisted in config and applied to containerd in the VM
+- Background localhost port-proxy resync after sleep/wake and VM recovery
+
 ## [0.4.0] - 2026-07-05
 
 ### Added

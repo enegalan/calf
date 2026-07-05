@@ -66,6 +66,7 @@ calf/
 │   │   │   ├── images.go                       Image list/inspect/remove endpoints
 │   │   │   ├── logs.go                         Log streaming endpoints (WebSocket)
 │   │   │   ├── volumes.go                      Volume CRUD + subresources
+│   │   │   ├── networks.go                     Network list/inspect/remove endpoints
 │   │   │   ├── migrate.go                       Docker Desktop migration orchestration + status polling
 │   │   │   ├── registry.go                      Registry login/logout
 │   │   │   └── registry_login.go                Docker Hub OAuth device-flow browser login
@@ -78,6 +79,8 @@ calf/
 │   │   │   ├── lima.go                         Lima runtime: manages the Lima VM, runs ops via `limactl shell ... nerdctl`
 │   │   │   ├── lima.yaml                       Embedded Lima VM template (go:embed)
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
+│   │   │   ├── network.go                      Network list/inspect/remove via nerdctl
+│   │   │   ├── proxy.go                        HTTP/HTTPS proxy application in VM/native runtime
 │   │   │   ├── mock.go                         In-memory Runtime implementation used by backend tests
 │   │   │   ├── exec.go                         exec.CommandContext wrapper with transient-error retry
 │   │   │   ├── exec_attach.go                  PTY-based interactive exec attach (stdin/stdout/resize)
@@ -120,6 +123,7 @@ calf/
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
 │   │   │   ├── resources_screen.dart           Images/Volumes/Builds screens
+│   │   │   ├── networks_screen.dart            Network list and detail screens
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   └── volume_schedule_export_screen.dart  Schedule export configuration
@@ -152,7 +156,7 @@ calf/
 Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts.
 
 ### `internal/config/`
-- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml`, a `withDefaults` backfill step, and `migrateLegacyDefaults` (rewrites the old `:8080` port to `:8765`).
+- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml`, a `withDefaults` backfill step, and `migrateLegacyDefaults` (rewrites the old `:8080` port to `:8765`).
 - `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
 
 ### `internal/api/`
@@ -167,7 +171,7 @@ HTTP server built on `net/http.ServeMux`. Every handler follows the same shape: 
 - `runtime_ready.go` — blocks until the runtime is running (3-minute timeout); used before registry login.
 - `runtime_errors.go` — maps `ErrRuntimeNotRunning` to `503`.
 - `builds.go` — in-memory build history; `POST` triggers `RunBuild`.
-- `containers.go` / `exec.go` / `images.go` / `logs.go` / `volumes.go` — CRUD plus subresources (logs, inspect, mounts, files, exec, stats). Exec/logs use WebSocket; other operations use one-shot HTTP.
+- `containers.go` / `exec.go` / `images.go` / `logs.go` / `volumes.go` / `networks.go` — CRUD plus subresources (logs, inspect, mounts, files, exec, stats). Exec/logs use WebSocket; other operations use one-shot HTTP.
 - `migrate.go` — orchestrates the Docker Desktop migration in a background goroutine, exposes status polling.
 - `registry.go` / `registry_login.go` — basic registry login/logout plus Docker Hub OAuth device-flow browser login with session polling.
 
@@ -187,7 +191,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ### `internal/runtime/` (core abstraction)
 - `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, otherwise `NewLima`.
 - `native.go` — `Native` runtime: talks directly to a `nerdctl`/`docker.sock` already available on the Linux host, no VM involved.
-- `lima.go` — `Lima` runtime: manages a Lima VM (embeds a `lima.yaml` template via `go:embed`), starts/creates/stops the instance via `limactl`, runs all container operations via `limactl shell <vm> -- sudo nerdctl ...`. Includes `localhostProxies` for macOS port-forwarding and conflict detection.
+- `lima.go` — `Lima` runtime: manages a Lima VM (embeds a `lima.yaml` template via `go:embed`), starts/creates/stops the instance via `limactl`, runs all container operations via `limactl shell <vm> -- sudo nerdctl ...`. Includes `localhostProxies` for macOS port-forwarding and conflict detection, `host.docker.internal` via Lima `hostResolver`, sleep/wake proxy resync, and proxy application.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.
 - `mock.go` — in-memory `Mock` implementation of the full `Runtime` interface, used by backend tests.
 - `exec.go` — generic `exec.CommandContext` wrapper with retry logic (`runCommandWithRetry`, retries only on `isTransientCommandError`).
@@ -225,6 +229,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
 - `resources_screen.dart` — Images/Volumes/Builds screens.
+- `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options).
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).

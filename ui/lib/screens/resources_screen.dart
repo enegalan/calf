@@ -1012,7 +1012,7 @@ class _BuildsScreenState extends State<BuildsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(build.tag, style: theme.textTheme.large),
-                            Text('${build.context} · ${build.status}', style: theme.textTheme.muted),
+                            Text(build.context.isNotEmpty ? '${build.context} · ${build.status}' : build.status, style: theme.textTheme.muted),
                             Text(
                               [
                                 if (build.durationMs > 0) _formatBuildDuration(build.durationMs),

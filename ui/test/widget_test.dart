@@ -44,6 +44,28 @@ class FakeCalfClient implements CalfClient {
       ];
 
   @override
+  Future<List<NetworkItem>> fetchNetworks() async => const [
+        NetworkItem(
+          id: '9d1ce4c80488',
+          name: 'bridge',
+          driver: 'bridge',
+          scope: 'local',
+          subnet: '192.168.215.0/24',
+        ),
+      ];
+
+  @override
+  Future<NetworkDetail> fetchNetworkDetail(String name) async => NetworkDetail(
+        id: '9d1ce4c80488',
+        name: name,
+        driver: 'bridge',
+        scope: 'local',
+        subnet: '192.168.215.0/24',
+        gateway: '192.168.215.1',
+        created: '9 months ago',
+      );
+
+  @override
   Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
         name: name,
         driver: 'local',
@@ -233,6 +255,9 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<void> removeVolume(String name) async {}
+
+  @override
+  Future<void> removeNetwork(String name) async {}
 
   @override
   Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {
@@ -441,6 +466,20 @@ class _ErrorCalfClient implements CalfClient {
   Future<List<VolumeItem>> fetchVolumes() async => [];
 
   @override
+  Future<List<NetworkItem>> fetchNetworks() async => [];
+
+  @override
+  Future<NetworkDetail> fetchNetworkDetail(String name) async => NetworkDetail(
+        id: '',
+        name: name,
+        driver: 'bridge',
+        scope: 'local',
+        subnet: '',
+        gateway: '',
+        created: '',
+      );
+
+  @override
   Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
         name: name,
         driver: 'local',
@@ -605,6 +644,9 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<void> removeVolume(String name) async {}
+
+  @override
+  Future<void> removeNetwork(String name) async {}
 
   @override
   Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {

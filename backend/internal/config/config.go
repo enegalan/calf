@@ -23,6 +23,9 @@ type Config struct {
 	MemoryGB              int    `yaml:"memory_gb"`
 	MemorySwapGB          int    `yaml:"memory_swap_gb"`
 	DiskGB                int    `yaml:"disk_gb"`
+	HTTPProxy             string `yaml:"http_proxy"`
+	HTTPSProxy            string `yaml:"https_proxy"`
+	NoProxy               string `yaml:"no_proxy"`
 }
 
 func Default() Config {

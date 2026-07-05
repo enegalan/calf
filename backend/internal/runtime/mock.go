@@ -16,6 +16,7 @@ type Mock struct {
 	Containers     []Container
 	Images         []Image
 	Volumes        []Volume
+	Networks       []Network
 	StartErr       error
 	StopErr        error
 	StatusErr      error
@@ -56,6 +57,9 @@ func NewMock() *Mock {
 		},
 		Volumes: []Volume{
 			{Name: "calf-data", Driver: "local"},
+		},
+		Networks: []Network{
+			{ID: "9d1ce4c80488", Name: "bridge", Driver: "bridge", Scope: "local", Subnet: "192.168.215.0/24", Created: "9 months ago"},
 		},
 		LogLines: []string{"hello", "world"},
 	}
@@ -652,5 +656,73 @@ func (m *Mock) RegistryLogout(_ context.Context, _ string) error {
 	}
 
 	m.registryLoggedIn = false
+	return nil
+}
+
+func (m *Mock) ListNetworks(_ context.Context) ([]Network, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != StateRunning {
+		return []Network{}, nil
+	}
+
+	if m.ContainersErr != nil {
+		return nil, m.ContainersErr
+	}
+
+	return append([]Network(nil), m.Networks...), nil
+}
+
+func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != StateRunning {
+		return NetworkDetail{}, ErrRuntimeNotRunning
+	}
+
+	for _, network := range m.Networks {
+		if network.Name != name {
+			continue
+		}
+
+		return NetworkDetail{
+			ID:      network.ID,
+			Name:    network.Name,
+			Driver:  network.Driver,
+			Scope:   network.Scope,
+			Subnet:  network.Subnet,
+			Gateway: "192.168.215.1",
+			Created: network.Created,
+			Options: map[string]string{
+				"com.docker.network.bridge.default_bridge": "true",
+			},
+		}, nil
+	}
+
+	return NetworkDetail{}, fmt.Errorf("network %s not found", name)
+}
+
+func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ContainerErr != nil {
+		return m.ContainerErr
+	}
+
+	filtered := make([]Network, 0, len(m.Networks))
+	for _, network := range m.Networks {
+		if network.Name != name {
+			filtered = append(filtered, network)
+		}
+	}
+
+	m.Networks = filtered
+	return nil
+}
+
+func (m *Mock) ApplyProxy(_ context.Context, _ ProxyConfig) error {
 	return nil
 }

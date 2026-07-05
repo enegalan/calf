@@ -109,8 +109,8 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] `docker compose` v2 support (plugin pointing at Calf socket)
 - [x] Bridge networks between services (engine-level; validated on real stacks)
 - [x] Named volumes and bind mounts with acceptable performance (virtiofs in Lima)
-- [ ] `host.docker.internal` on macOS
-- [ ] Stable port mapping after sleep/wake
+- [x] `host.docker.internal` on macOS
+- [x] Stable port mapping after sleep/wake
 - [x] localhost port conflict detection and proxy (macOS; API port reservation)
 
 ### 2.2 Docker Desktop migration
@@ -128,7 +128,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Image layers, run, and push actions
 - [x] Builds list (history persisted to disk)
 - [x] Docker Hub registry login (device flow)
-- [ ] Network management UI
+- [x] Network management UI
 - [x] Build detail view UI
 
 **Exit criteria:** 3 reference stacks (LAMP, Node+Postgres, Laravel Sail) start with `docker compose up -d` without modifications.
@@ -150,13 +150,13 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 ### 3.2 Settings
 
 - [x] CPU/RAM/disk limits for the VM
-- [ ] HTTP/HTTPS proxy
+- [x] HTTP/HTTPS proxy
 - [x] Auto-start on login (optional)
 
 ### 3.3 Full UI
 
 - [x] Volume management
-- [ ] Network management
+- [x] Network management
 - [x] Consistent light/dark theme (shadcn_ui)
 - [ ] Keyboard shortcuts and basic accessibility
 - [ ] MacOS MenuActions (topbar actions exist; native menu integration pending)
