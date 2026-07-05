@@ -6,19 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
+
+var limaLogger = slog.Default()
 
 //go:embed lima.yaml
 var limaTemplate string
 
 type Lima struct {
+	mu sync.Mutex
+
 	vmName         string
 	dockerSocket   string
 	templatePath   string
@@ -26,11 +32,15 @@ type Lima struct {
 	memoryGB       int
 	memorySwapGB   int
 	diskGB         int
+	proxy          ProxyConfig
 	started        atomic.Bool
+	proxyResync    atomic.Bool
+	lastState      State
 	localhostProxy *localhostProxies
+	watcherCancel  context.CancelFunc
 }
 
-func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int) *Lima {
+func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
 	if vmName == "" {
 		vmName = "calf"
 	}
@@ -46,6 +56,7 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 		memoryGB:       memoryGB,
 		memorySwapGB:   memorySwapGB,
 		diskGB:         diskGB,
+		proxy:          proxy,
 		localhostProxy: newLocalhostProxies(),
 	}
 	lima.localhostProxy.setReservedPorts(apiListenPort)
@@ -85,7 +96,16 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
+	if l.proxy != (ProxyConfig{}) {
+		if err := l.ApplyProxy(ctx, l.proxy); err != nil {
+			limaLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
+		}
+	}
+
 	l.started.Store(true)
+	wCtx, wCancel := context.WithCancel(context.Background())
+	l.watcherCancel = wCancel
+	go l.watchPortProxies(wCtx)
 	return nil
 }
 
@@ -101,6 +121,11 @@ func (l *Lima) Stop(ctx context.Context) error {
 
 	if !exists {
 		return nil
+	}
+
+	if l.watcherCancel != nil {
+		l.watcherCancel()
+		l.watcherCancel = nil
 	}
 
 	l.localhostProxy.stopAll()
@@ -147,6 +172,14 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 		}
 	}
 
+	l.mu.Lock()
+	if status.State == StateRunning && l.lastState != StateRunning {
+		l.started.Store(true)
+		l.proxyResync.Store(true)
+	}
+
+	l.lastState = status.State
+	l.mu.Unlock()
 	status.PortConflicts = l.localhostProxy.conflictsSnapshot()
 
 	return status, nil
@@ -160,7 +193,11 @@ func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
 
 		containers, err := listContainers(ctx, l.runInVM)
 		if err == nil {
-			l.localhostProxy.sync(publishedTCPPorts(containers))
+			force := l.proxyResync.Load()
+			l.localhostProxy.sync(publishedTCPPorts(containers), force)
+			if force {
+				l.proxyResync.Store(false)
+			}
 		}
 
 		return containers, err
@@ -190,6 +227,69 @@ func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
 
 		return enrichVolumesInUse(ctx, l.runInVM, volumes)
 	})
+}
+
+func (l *Lima) ListNetworks(ctx context.Context) ([]Network, error) {
+	return emptyNetworksIfStopped(ctx, l.Status, func(ctx context.Context) ([]Network, error) {
+		return listNetworks(ctx, l.runInVM)
+	})
+}
+
+func (l *Lima) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return NetworkDetail{}, err
+	}
+
+	return inspectNetwork(ctx, l.runInVM, name)
+}
+
+func (l *Lima) RemoveNetwork(ctx context.Context, name string) error {
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return err
+	}
+
+	return removeNetwork(ctx, l.runInVM, name)
+}
+
+func (l *Lima) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
+	l.mu.Lock()
+	l.proxy = proxy
+	l.mu.Unlock()
+
+	if err := requireRunning(ctx, l.Status); err != nil {
+		return nil
+	}
+
+	return applyProxyInVM(ctx, l.runInVM, proxy)
+}
+
+func (l *Lima) watchPortProxies(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			status, err := l.Status(ctx)
+			if err != nil || status.State != StateRunning || !l.started.Load() {
+				continue
+			}
+
+			containers, err := listContainers(ctx, l.runInVM)
+			if err != nil {
+				l.proxyResync.Store(true)
+				continue
+			}
+
+			force := l.proxyResync.Load()
+			l.localhostProxy.sync(publishedTCPPorts(containers), force)
+			if force {
+				l.proxyResync.Store(false)
+			}
+		}
+	}
 }
 
 func (l *Lima) CreateVolume(ctx context.Context, name string) error {
@@ -519,7 +619,11 @@ func (l *Lima) ensureTemplate() error {
 		diskGB = 100
 	}
 
-	content := fmt.Sprintf(limaTemplate, home, home, l.cpus, l.memoryGB, l.memorySwapGB, diskGB)
+	l.mu.Lock()
+	currentProxy := l.proxy
+	l.mu.Unlock()
+
+	content := fmt.Sprintf(limaTemplate, home, home, l.cpus, l.memoryGB, l.memorySwapGB, diskGB, currentProxy.HTTPProxy, currentProxy.HTTPSProxy, currentProxy.NoProxy)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}

@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/screens/containers_screen.dart';
+import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/resources_screen.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -115,6 +116,7 @@ class _AppShellState extends State<AppShell> {
       (label: 'Containers', icon: LucideIcons.box),
       (label: 'Images', icon: LucideIcons.layers),
       (label: 'Volumes', icon: LucideIcons.hardDrive),
+      (label: 'Networks', icon: LucideIcons.network),
       (label: 'Builds', icon: LucideIcons.wrench),
     ];
 
@@ -173,6 +175,7 @@ class _AppShellState extends State<AppShell> {
                           0 => ContainersScreen(apiClient: widget.apiClient),
                           1 => ImagesScreen(apiClient: widget.apiClient),
                           2 => VolumesScreen(apiClient: widget.apiClient),
+                          3 => NetworksScreen(apiClient: widget.apiClient),
                           _ => BuildsScreen(apiClient: widget.apiClient),
                         },
                 ),
@@ -252,6 +255,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _draftCpus = 4;
   double _draftMemory = 4;
   double _draftSwap = 1;
+  final _httpProxyController = TextEditingController();
+  final _httpsProxyController = TextEditingController();
+  final _noProxyInputController = TextEditingController();
+  List<String> _noProxyEntries = [];
+  String? _httpProxyError;
+  String? _httpsProxyError;
   bool _migrating = false;
   MigrationStatus? _migrationStatus;
   bool _dockerContextManaged = true;
@@ -260,7 +269,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool get _dirty => _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
           _draftMemory.toInt() != _config!.memoryGB ||
-          _draftSwap.toInt() != _config!.memorySwapGB);
+          _draftSwap.toInt() != _config!.memorySwapGB ||
+          _httpProxyController.text.trim() != _config!.httpProxy ||
+          _httpsProxyController.text.trim() != _config!.httpsProxy ||
+          _noProxyEntries.join(',') != _config!.noProxy);
+
+  @override
+  void dispose() {
+    _httpProxyController.dispose();
+    _httpsProxyController.dispose();
+    _noProxyInputController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -282,6 +302,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftCpus = config.cpus.toDouble();
         _draftMemory = config.memoryGB.toDouble();
         _draftSwap = config.memorySwapGB.toDouble();
+        _httpProxyController.text = config.httpProxy;
+        _httpsProxyController.text = config.httpsProxy;
+        _noProxyEntries = config.noProxy
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        _httpProxyError = null;
+        _httpsProxyError = null;
         _dockerContextManaged = config.dockerContextManaged;
         _configLoading = false;
       });
@@ -306,6 +335,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           cpus: _draftCpus.toInt(),
           memoryGB: _draftMemory.toInt(),
           memorySwapGB: _draftSwap.toInt(),
+          httpProxy: _httpProxyController.text.trim(),
+          httpsProxy: _httpsProxyController.text.trim(),
+          noProxy: _noProxyEntries.join(','),
         ),
       );
       if (!mounted) return;
@@ -314,6 +346,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftCpus = updated.cpus.toDouble();
         _draftMemory = updated.memoryGB.toDouble();
         _draftSwap = updated.memorySwapGB.toDouble();
+        _httpProxyController.text = updated.httpProxy;
+        _httpsProxyController.text = updated.httpsProxy;
+        _noProxyEntries = updated.noProxy
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        _httpProxyError = null;
+        _httpsProxyError = null;
         _saving = false;
       });
     } catch (error) {
@@ -499,6 +540,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ],
           const SizedBox(height: 24),
+          ShadCard(
+            padding: const EdgeInsets.all(20),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Proxy'),
+                if (_config != null &&
+                    (_config!.httpProxy.isNotEmpty ||
+                        _config!.httpsProxy.isNotEmpty ||
+                        _config!.noProxy.isNotEmpty))
+                  const Padding(
+                    padding: EdgeInsets.only(left: 8),
+                    child: ShadBadge.secondary(
+                      child: Text('Configured'),
+                    ),
+                  ),
+              ],
+            ),
+            description: const Text(
+              'HTTP and HTTPS proxy settings for image pulls inside the VM.',
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                _proxyField(
+                  label: 'HTTP proxy',
+                  controller: _httpProxyController,
+                  placeholder: 'http://proxy.example.com:8080',
+                  icon: LucideIcons.globe,
+                  theme: theme,
+                  error: _httpProxyError,
+                  onChanged: _validateHttpProxy,
+                ),
+                const SizedBox(height: 12),
+                _proxyField(
+                  label: 'HTTPS proxy',
+                  controller: _httpsProxyController,
+                  placeholder: 'http://proxy.example.com:8080',
+                  icon: LucideIcons.lock,
+                  theme: theme,
+                  error: _httpsProxyError,
+                  onChanged: _validateHttpsProxy,
+                ),
+                const SizedBox(height: 12),
+                _noProxySection(theme),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           _sectionHeader('System', theme),
           const SizedBox(height: 12),
           if (_configLoading)
@@ -537,8 +628,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             CalfButton(
-              onPressed: _dirty && !_saving ? applyConfig : null,
-              enabled: _dirty,
+              onPressed: _dirty && !_saving && _httpProxyError == null && _httpsProxyError == null
+                  ? applyConfig
+                  : null,
+              enabled: _dirty && _httpProxyError == null && _httpsProxyError == null,
               child: Text(_saving ? 'Saving...' : 'Apply'),
             ),
           ],
@@ -614,6 +707,191 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ],
         ),
+      ],
+    );
+  }
+
+  void _validateHttpProxy(String value) {
+    setState(() => _httpProxyError = _validateProxyUrl(value, ['http']));
+  }
+
+  void _validateHttpsProxy(String value) {
+    setState(() => _httpsProxyError = _validateProxyUrl(value, ['http', 'https']));
+  }
+
+  String? _validateProxyUrl(String value, List<String> allowedSchemes) {
+    final v = value.trim();
+    if (v.isEmpty) return null;
+    final hasScheme = allowedSchemes.any((s) => v.startsWith('$s://'));
+    if (!hasScheme) {
+      return allowedSchemes.length == 1
+          ? 'Must start with ${allowedSchemes.first}://'
+          : 'Must start with ${allowedSchemes.join(' or ')}://';
+    }
+    final uri = Uri.tryParse(v);
+    if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+      return 'Invalid URL format';
+    }
+    return null;
+  }
+
+  Widget _noProxySection(ShadThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('No proxy', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        const SizedBox(height: 8),
+        if (_noProxyEntries.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _noProxyEntries.map((entry) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.muted,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(entry, style: theme.textTheme.small),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _noProxyEntries.remove(entry));
+                      },
+                      child: Icon(LucideIcons.x, size: 12, color: theme.colorScheme.mutedForeground),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: ShadInput(
+                controller: _noProxyInputController,
+                placeholder: const Text('localhost'),
+                leading: Icon(LucideIcons.ban, size: 16, color: theme.colorScheme.mutedForeground),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: (value) {
+                  _addNoProxyEntry(value, theme);
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            CalfButton.outline(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              onPressed: _noProxyInputController.text.trim().isEmpty
+                  ? null
+                  : () => _addNoProxyEntry(_noProxyInputController.text, theme),
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+        if (_noProxyInputController.text.trim().isNotEmpty &&
+            !_isValidNoProxyEntry(_noProxyInputController.text.trim()))
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Must be a valid hostname or IP address',
+              style: theme.textTheme.muted.copyWith(fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _addNoProxyEntry(String rawValue, ShadThemeData theme) {
+    final value = rawValue.trim();
+    if (value.isEmpty || _noProxyEntries.contains(value)) return;
+    if (!_isValidNoProxyEntry(value)) return;
+    setState(() {
+      _noProxyEntries.add(value);
+      _noProxyInputController.clear();
+    });
+  }
+
+  bool _isValidNoProxyEntry(String entry) {
+    if (entry.isEmpty) return false;
+    if (entry.contains('/')) return false;
+    final host = entry.startsWith('.') ? entry.substring(1) : entry;
+    if (_isIpAddress(host)) return true;
+    final colonIdx = host.lastIndexOf(':');
+    if (colonIdx > 0) {
+      final port = host.substring(colonIdx + 1);
+      if (RegExp(r'^\d+$').hasMatch(port)) {
+        return _isValidHostname(host.substring(0, colonIdx));
+      }
+    }
+    return _isValidHostname(host);
+  }
+
+  bool _isIpAddress(String host) {
+    return RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host);
+  }
+
+  bool _isValidHostname(String host) {
+    if (host.isEmpty || host.length > 253) return false;
+    final parts = host.split('.');
+    for (final part in parts) {
+      if (part.isEmpty || part.length > 63) return false;
+      if (part.startsWith('-') || part.endsWith('-')) return false;
+      if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(part)) return false;
+    }
+    return true;
+  }
+
+  Widget _proxyField({
+    required String label,
+    required TextEditingController controller,
+    required String placeholder,
+    required IconData icon,
+    required ShadThemeData theme,
+    String? error,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        const SizedBox(height: 8),
+        ShadInput(
+          controller: controller,
+          placeholder: Text(placeholder),
+          leading: Icon(icon, size: 16, color: theme.colorScheme.mutedForeground),
+          trailing: controller.text.isNotEmpty
+              ? GestureDetector(
+                  onTap: () {
+                    controller.clear();
+                    onChanged('');
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(4),
+                    child: Icon(LucideIcons.x, size: 14, color: theme.colorScheme.mutedForeground),
+                  ),
+                )
+              : null,
+          onChanged: (value) {
+            setState(() {});
+            onChanged(value);
+          },
+        ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              error,
+              style: theme.textTheme.muted.copyWith(
+                fontSize: 12,
+                color: theme.colorScheme.destructive,
+              ),
+            ),
+          ),
       ],
     );
   }

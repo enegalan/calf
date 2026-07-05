@@ -6,6 +6,7 @@ import (
 )
 
 var ErrRuntimeNotRunning = errors.New("runtime is not running")
+var ErrNetworkNotFound = errors.New("network not found")
 
 func emptyContainersIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Container, error)) ([]Container, error) {
 	status, err := statusFn(ctx)
@@ -41,6 +42,19 @@ func emptyVolumesIfStopped(ctx context.Context, statusFn func(context.Context) (
 
 	if status.State != StateRunning {
 		return []Volume{}, nil
+	}
+
+	return listFn(ctx)
+}
+
+func emptyNetworksIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Network, error)) ([]Network, error) {
+	status, err := statusFn(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if status.State != StateRunning {
+		return []Network{}, nil
 	}
 
 	return listFn(ctx)
