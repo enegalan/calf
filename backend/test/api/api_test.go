@@ -19,6 +19,9 @@ import (
 func newTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
 	cfg := config.Config{
 		ListenAddr: ":8765",
 		LogLevel:   "info",

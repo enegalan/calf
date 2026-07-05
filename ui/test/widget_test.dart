@@ -152,7 +152,32 @@ class FakeCalfClient implements CalfClient {
   Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
 
   @override
-  Future<List<BuildItem>> fetchBuilds() async => const [];
+  Future<List<BuildItem>> fetchBuilds({String? tag}) async => const [];
+
+  @override
+  Future<BuildDetail> fetchBuildDetail(String id) async => BuildDetail(
+        id: id,
+        tag: 'demo',
+        context: '.',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:00Z',
+      );
+
+  @override
+  Future<BuildSource> fetchBuildSource(String id) async => const BuildSource(
+        path: 'Dockerfile',
+        filename: 'Dockerfile',
+        content: 'FROM alpine',
+        platform: 'arm64',
+      );
+
+  @override
+  Future<BuildLogs> fetchBuildLogs(String id) async => const BuildLogs(
+        rawLog: '#1 DONE 0.1s',
+        steps: [
+          BuildStep(index: 1, total: 1, name: 'load build definition', cached: false, durationMs: 100),
+        ],
+      );
 
   @override
   Future<void> startContainer(String id) async {}
@@ -509,7 +534,22 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
 
   @override
-  Future<List<BuildItem>> fetchBuilds() async => [];
+  Future<List<BuildItem>> fetchBuilds({String? tag}) async => [];
+
+  @override
+  Future<BuildDetail> fetchBuildDetail(String id) async {
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
+  Future<BuildSource> fetchBuildSource(String id) async {
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
+  Future<BuildLogs> fetchBuildLogs(String id) async {
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
 
   @override
   Future<void> startContainer(String id) async {}

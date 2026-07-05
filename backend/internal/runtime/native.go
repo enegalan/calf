@@ -165,12 +165,12 @@ func (n *Native) VolumeContainers(ctx context.Context, name string) ([]VolumeCon
 	return volumeContainerUsages(ctx, n.runLocal, name)
 }
 
-func (n *Native) RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error {
+func (n *Native) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
-		return err
+		return BuildResult{}, err
 	}
 
-	return runBuild(ctx, n.runLocal, contextPath, tag, dockerfile)
+	return runBuild(ctx, n.runLocal, contextPath, tag, dockerfile, platform)
 }
 
 func (n *Native) StartContainer(ctx context.Context, id string) error {

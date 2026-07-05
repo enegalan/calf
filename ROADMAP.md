@@ -126,7 +126,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Basic metrics (CPU, RAM, network per container)
 - [x] Volumes list, detail, file browser, clone, and remove
 - [x] Image layers, run, and push actions
-- [x] Builds list (history from daemon)
+- [x] Builds list (history persisted to disk)
 - [x] Docker Hub registry login (device flow)
 - [ ] Network management UI
 - [x] Build detail view UI

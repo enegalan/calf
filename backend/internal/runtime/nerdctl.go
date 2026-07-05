@@ -81,15 +81,23 @@ func listVolumes(ctx context.Context, run commandRunner) ([]Volume, error) {
 	return ParseVolumeLines(output)
 }
 
-func runBuild(ctx context.Context, run commandRunner, contextPath, tag, dockerfile string) error {
-	args := []string{"build", "-t", tag}
+func runBuild(ctx context.Context, run commandRunner, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
+	args := []string{"build", "--progress=plain", "-t", tag}
 	if dockerfile != "" {
 		args = append(args, "-f", dockerfile)
 	}
+	if platform != "" {
+		args = append(args, "--platform", platform)
+	}
 
 	args = append(args, contextPath)
-	_, err := run(ctx, "nerdctl", args...)
-	return err
+	output, err := run(ctx, "nerdctl", args...)
+	result := ParseBuildOutput(string(output))
+	if err != nil {
+		return result, err
+	}
+
+	return enrichBuildResult(ctx, run, contextPath, dockerfile, tag, platform, result), nil
 }
 
 func runImage(ctx context.Context, run commandRunner, ref string) (string, error) {

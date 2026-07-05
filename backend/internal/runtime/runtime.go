@@ -87,14 +87,6 @@ type VolumeContainerUsage struct {
 	Target string `json:"target"`
 }
 
-type Build struct {
-	ID        string `json:"id"`
-	Tag       string `json:"tag"`
-	Context   string `json:"context"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"created_at"`
-}
-
 type Runtime interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -118,7 +110,7 @@ type Runtime interface {
 	CloneVolume(ctx context.Context, source, dest string) error
 	ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error)
 	RemoveVolume(ctx context.Context, name string) error
-	RunBuild(ctx context.Context, contextPath, tag, dockerfile string) error
+	RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error)
 	StreamLogs(ctx context.Context, id string, output func(string)) error
 	StreamLogsFollow(ctx context.Context, id string, output func(string)) error
 	InspectContainer(ctx context.Context, id string) (json.RawMessage, error)
