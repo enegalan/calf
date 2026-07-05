@@ -108,6 +108,7 @@ type Runtime interface {
 	RunImage(ctx context.Context, ref string) (string, error)
 	CreateVolume(ctx context.Context, name string) error
 	CloneVolume(ctx context.Context, source, dest string) error
+	ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error)
 	RemoveVolume(ctx context.Context, name string) error
 	RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error)
 	StreamLogs(ctx context.Context, id string, output func(string)) error

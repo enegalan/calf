@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"path/filepath"
 	"sync"
 )
 
@@ -21,6 +22,7 @@ type Mock struct {
 	ContainersErr  error
 	ImagesErr      error
 	ContainerErr   error
+	ExportVolumeErr error
 	ImageErr       error
 	LogLines       []string
 	Started        bool
@@ -199,6 +201,32 @@ func (m *Mock) CloneVolume(_ context.Context, source, dest string) error {
 
 	m.Volumes = append(m.Volumes, Volume{Name: dest, Driver: driver})
 	return nil
+}
+
+func (m *Mock) ExportVolume(_ context.Context, opts VolumeExportOptions) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ExportVolumeErr != nil {
+		return "", m.ExportVolumeErr
+	}
+
+	switch opts.Type {
+	case "local_file":
+		if opts.Folder == "" {
+			return "", fmt.Errorf("destination folder is required")
+		}
+
+		return filepath.Join(opts.Folder, opts.FileName), nil
+	case "local_image", "new_image", "registry":
+		if opts.ImageRef == "" {
+			return "", fmt.Errorf("image reference is required")
+		}
+
+		return opts.ImageRef, nil
+	default:
+		return "", fmt.Errorf("unsupported export type %q", opts.Type)
+	}
 }
 
 func (m *Mock) RemoveVolume(_ context.Context, name string) error {

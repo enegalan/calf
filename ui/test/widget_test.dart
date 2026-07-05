@@ -69,6 +69,89 @@ class FakeCalfClient implements CalfClient {
       ];
 
   @override
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async => const [];
+
+  @override
+  Future<VolumeExportItem> createVolumeExport({
+    required String name,
+    required String type,
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportItem(
+        id: 'export-1',
+        volume: name,
+        type: type,
+        status: 'completed',
+        createdAt: '2026-01-01T00:00:00Z',
+        fileName: fileName,
+        filePath: folder,
+        imageRef: imageRef,
+        downloadable: type == 'local_file',
+      );
+
+  @override
+  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async => const [1, 2, 3];
+
+  @override
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async => const [];
+
+  @override
+  Future<VolumeExportScheduleItem> createVolumeExportSchedule({
+    required String name,
+    required String type,
+    bool enabled = false,
+    List<VolumeExportDayTimes> dayTimes = const [],
+    List<int> daysOfWeek = const [],
+    List<String> times = const [],
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportScheduleItem(
+        id: 'schedule-1',
+        volume: name,
+        enabled: enabled,
+        dayTimes: dayTimes,
+        daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : daysOfWeek,
+        times: dayTimes.isNotEmpty
+            ? dayTimes.expand((entry) => entry.times).toList()
+            : times,
+        type: type,
+        nextRunAt: enabled ? '2026-01-02T03:00:00Z' : '',
+      );
+
+  @override
+  Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
+    required String volumeName,
+    required String scheduleId,
+    bool? enabled,
+    List<VolumeExportDayTimes>? dayTimes,
+    List<int>? daysOfWeek,
+    List<String>? times,
+    String type = '',
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportScheduleItem(
+        id: scheduleId,
+        volume: volumeName,
+        enabled: enabled ?? true,
+        dayTimes: dayTimes ??
+            [
+              VolumeExportDayTimes(day: 1, times: times ?? const ['03:00']),
+            ],
+        daysOfWeek: daysOfWeek ?? const [1, 3, 5],
+        times: times ?? const ['03:00'],
+        type: type.isNotEmpty ? type : 'local_file',
+      );
+
+  @override
+  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
+
+  @override
   Future<List<BuildItem>> fetchBuilds({String? tag}) async => const [];
 
   @override
@@ -370,6 +453,85 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async => const [];
+
+  @override
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async => const [];
+
+  @override
+  Future<VolumeExportItem> createVolumeExport({
+    required String name,
+    required String type,
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportItem(
+        id: 'export-1',
+        volume: name,
+        type: type,
+        status: 'completed',
+        createdAt: '2026-01-01T00:00:00Z',
+        downloadable: type == 'local_file',
+      );
+
+  @override
+  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async => const [];
+
+  @override
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async => const [];
+
+  @override
+  Future<VolumeExportScheduleItem> createVolumeExportSchedule({
+    required String name,
+    required String type,
+    bool enabled = false,
+    List<VolumeExportDayTimes> dayTimes = const [],
+    List<int> daysOfWeek = const [],
+    List<String> times = const [],
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportScheduleItem(
+        id: 'schedule-1',
+        volume: name,
+        enabled: enabled,
+        dayTimes: dayTimes,
+        daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : daysOfWeek,
+        times: dayTimes.isNotEmpty
+            ? dayTimes.expand((entry) => entry.times).toList()
+            : times,
+        type: type,
+      );
+
+  @override
+  Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
+    required String volumeName,
+    required String scheduleId,
+    bool? enabled,
+    List<VolumeExportDayTimes>? dayTimes,
+    List<int>? daysOfWeek,
+    List<String>? times,
+    String type = '',
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async =>
+      VolumeExportScheduleItem(
+        id: scheduleId,
+        volume: volumeName,
+        enabled: enabled ?? true,
+        dayTimes: dayTimes ??
+            [
+              VolumeExportDayTimes(day: 1, times: times ?? const ['03:00']),
+            ],
+        daysOfWeek: daysOfWeek ?? const [1],
+        times: times ?? const ['03:00'],
+        type: type.isNotEmpty ? type : 'local_file',
+      );
+
+  @override
+  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
 
   @override
   Future<List<BuildItem>> fetchBuilds({String? tag}) async => [];

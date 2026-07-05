@@ -120,6 +120,14 @@ func (n *Native) CloneVolume(ctx context.Context, source, dest string) error {
 	return cloneVolume(ctx, n.runLocal, source, dest)
 }
 
+func (n *Native) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return "", err
+	}
+
+	return RunVolumeExport(ctx, n.runLocal, opts)
+}
+
 func (n *Native) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err

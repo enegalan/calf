@@ -8,6 +8,7 @@ const defaultBaseUrl = 'http://127.0.0.1:8765';
 const defaultRequestTimeout = Duration(seconds: 5);
 const imageActionTimeout = Duration(minutes: 10);
 const volumeActionTimeout = Duration(seconds: 30);
+const volumeExportTimeout = Duration(minutes: 30);
 
 class PortConflict {
   const PortConflict({
@@ -442,6 +443,313 @@ class VolumeContainerUsage {
   }
 }
 
+class VolumeExportItem {
+  const VolumeExportItem({
+    required this.id,
+    required this.volume,
+    required this.type,
+    required this.status,
+    required this.createdAt,
+    this.fileName = '',
+    this.filePath = '',
+    this.imageRef = '',
+    this.size = '',
+    this.error = '',
+    this.downloadable = false,
+  });
+
+  final String id;
+  final String volume;
+  final String type;
+  final String status;
+  final String createdAt;
+  final String fileName;
+  final String filePath;
+  final String imageRef;
+  final String size;
+  final String error;
+  final bool downloadable;
+
+  String get typeLabel {
+    switch (type) {
+      case 'local_file':
+        return 'Local file';
+      case 'local_image':
+        return 'Local image';
+      case 'new_image':
+        return 'New image';
+      case 'registry':
+        return 'Registry';
+      default:
+        return type;
+    }
+  }
+
+  String get summary {
+    if (type == 'local_file') {
+      return fileName.isNotEmpty ? fileName : filePath;
+    }
+
+    return imageRef;
+  }
+
+  factory VolumeExportItem.fromJson(Map<String, dynamic> json) {
+    return VolumeExportItem(
+      id: json['id'] as String? ?? '',
+      volume: json['volume'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      status: json['status'] as String? ?? '',
+      createdAt: json['created_at'] as String? ?? '',
+      fileName: json['file_name'] as String? ?? '',
+      filePath: json['file_path'] as String? ?? '',
+      imageRef: json['image_ref'] as String? ?? '',
+      size: json['size'] as String? ?? '',
+      error: json['error'] as String? ?? '',
+      downloadable: json['downloadable'] as bool? ?? false,
+    );
+  }
+}
+
+class VolumeExportDayTimes {
+  const VolumeExportDayTimes({
+    required this.day,
+    required this.times,
+  });
+
+  final int day;
+  final List<String> times;
+
+  factory VolumeExportDayTimes.fromJson(Map<String, dynamic> json) {
+    return VolumeExportDayTimes(
+      day: json['day'] as int? ?? 0,
+      times: (json['times'] as List?)?.whereType<String>().toList() ?? const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'day': day,
+        'times': times,
+      };
+}
+
+class VolumeExportScheduleItem {
+  const VolumeExportScheduleItem({
+    required this.id,
+    required this.volume,
+    required this.enabled,
+    required this.type,
+    List<VolumeExportDayTimes>? dayTimes,
+    this.daysOfWeek = const [],
+    this.times = const [],
+    this.frequency = '',
+    this.timeOfDay = '',
+    this.dayOfWeek = 0,
+    this.dayOfMonth = 1,
+    this.fileName = '',
+    this.folder = '',
+    this.imageRef = '',
+    this.createdAt = '',
+    this.lastRunAt = '',
+    this.nextRunAt = '',
+    this.lastStatus = '',
+    this.lastError = '',
+  }) : _storedDayTimes = dayTimes;
+
+  final List<VolumeExportDayTimes>? _storedDayTimes;
+
+  List<VolumeExportDayTimes> get dayTimes {
+    final stored = _storedDayTimes;
+    if (stored != null && stored.isNotEmpty) {
+      return stored;
+    }
+
+    if (daysOfWeek.isNotEmpty && times.isNotEmpty) {
+      return daysOfWeek.map((day) => VolumeExportDayTimes(day: day, times: times)).toList();
+    }
+
+    return const [];
+  }
+
+  final String id;
+  final String volume;
+  final bool enabled;
+  final List<int> daysOfWeek;
+  final List<String> times;
+  final String frequency;
+  final String timeOfDay;
+  final int dayOfWeek;
+  final int dayOfMonth;
+  final String type;
+  final String fileName;
+  final String folder;
+  final String imageRef;
+  final String createdAt;
+  final String lastRunAt;
+  final String nextRunAt;
+  final String lastStatus;
+  final String lastError;
+
+  String get scheduleSummary {
+    if (!enabled) {
+      return 'Schedule paused';
+    }
+
+    if (dayTimes.isEmpty) {
+      if (daysOfWeek.isEmpty || times.isEmpty) {
+        return 'Not configured';
+      }
+
+      final dayLabels = daysOfWeek.map(weekdayShort).join(', ');
+      final timeLabels = times.join(', ');
+      final runCount = times.length;
+      final runLabel = runCount == 1 ? 'export' : 'exports';
+
+      return '$runCount $runLabel per day on $dayLabels at $timeLabels';
+    }
+
+    return dayTimes
+        .map((entry) => '${weekdayShort(entry.day)} at ${entry.times.join(', ')}')
+        .join('; ');
+  }
+
+  String get destinationSummary {
+    if (type == 'local_file') {
+      return fileName.isNotEmpty ? fileName : folder;
+    }
+
+    return imageRef;
+  }
+
+  String get typeLabel {
+    switch (type) {
+      case 'local_image':
+        return 'Local image';
+      case 'new_image':
+        return 'New image';
+      case 'registry':
+        return 'Registry';
+      default:
+        return 'Local file';
+    }
+  }
+
+  String get formattedNextRun {
+    if (nextRunAt.isEmpty) {
+      return '';
+    }
+
+    try {
+      final runAt = DateTime.parse(nextRunAt).toLocal();
+      const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final weekday = weekdays[runAt.weekday - 1];
+      final month = runAt.month.toString().padLeft(2, '0');
+      final day = runAt.day.toString().padLeft(2, '0');
+      final hour = runAt.hour.toString().padLeft(2, '0');
+      final minute = runAt.minute.toString().padLeft(2, '0');
+
+      return '$weekday $month/$day at $hour:$minute';
+    } on FormatException {
+      return nextRunAt;
+    }
+  }
+
+  static String weekdayShort(int day) {
+    const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    if (day < 0 || day >= labels.length) {
+      return '?';
+    }
+
+    return labels[day];
+  }
+
+  static int compareWeekdays(int left, int right) {
+    int order(int day) => day == 0 ? 7 : day;
+
+    return order(left).compareTo(order(right));
+  }
+
+  static List<int> _daysFromJson(Map<String, dynamic> json) {
+    final raw = json['days_of_week'];
+    if (raw is List) {
+      return raw.whereType<num>().map((value) => value.toInt()).toList()
+        ..sort(compareWeekdays);
+    }
+
+    final frequency = json['frequency'] as String? ?? '';
+    if (frequency == 'weekly') {
+      return [json['day_of_week'] as int? ?? 0];
+    }
+
+    if (frequency == 'daily') {
+      return [1, 2, 3, 4, 5, 6, 0];
+    }
+
+    return const [];
+  }
+
+  static List<String> _timesFromJson(Map<String, dynamic> json) {
+    final raw = json['times'];
+    if (raw is List) {
+      return raw.whereType<String>().where((value) => value.trim().isNotEmpty).toList();
+    }
+
+    final legacy = json['time_of_day'] as String? ?? '';
+    if (legacy.isNotEmpty) {
+      return [legacy];
+    }
+
+    return const [];
+  }
+
+  static List<VolumeExportDayTimes> _dayTimesFromJson(Map<String, dynamic> json) {
+    final raw = json['day_times'];
+    if (raw is List && raw.isNotEmpty) {
+      final entries = raw
+          .whereType<Map>()
+          .map((value) => VolumeExportDayTimes.fromJson(Map<String, dynamic>.from(value)))
+          .toList()
+        ..sort((left, right) => compareWeekdays(left.day, right.day));
+      return entries;
+    }
+
+    final days = _daysFromJson(json);
+    final times = _timesFromJson(json);
+    if (days.isEmpty || times.isEmpty) {
+      return const [];
+    }
+
+    return days.map((day) => VolumeExportDayTimes(day: day, times: times)).toList();
+  }
+
+  factory VolumeExportScheduleItem.fromJson(Map<String, dynamic> json) {
+    final dayTimes = _dayTimesFromJson(json);
+
+    return VolumeExportScheduleItem(
+      id: json['id'] as String? ?? '',
+      volume: json['volume'] as String? ?? '',
+      enabled: json['enabled'] as bool? ?? false,
+      dayTimes: dayTimes,
+      daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : _daysFromJson(json),
+      times: dayTimes.isNotEmpty
+          ? dayTimes.expand((entry) => entry.times).toSet().toList()
+          : _timesFromJson(json),
+      frequency: json['frequency'] as String? ?? '',
+      timeOfDay: json['time_of_day'] as String? ?? '',
+      dayOfWeek: json['day_of_week'] as int? ?? 0,
+      dayOfMonth: json['day_of_month'] as int? ?? 1,
+      type: json['type'] as String? ?? '',
+      fileName: json['file_name'] as String? ?? '',
+      folder: json['folder'] as String? ?? '',
+      imageRef: json['image_ref'] as String? ?? '',
+      createdAt: json['created_at'] as String? ?? '',
+      lastRunAt: json['last_run_at'] as String? ?? '',
+      nextRunAt: json['next_run_at'] as String? ?? '',
+      lastStatus: json['last_status'] as String? ?? '',
+      lastError: json['last_error'] as String? ?? '',
+    );
+  }
+}
+
 class BuildItem {
   const BuildItem({
     required this.id,
@@ -797,6 +1105,40 @@ abstract class CalfClient implements StatusClient {
   Future<VolumeDetail> fetchVolumeDetail(String name);
   Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'});
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name);
+  Future<VolumeExportItem> createVolumeExport({
+    required String name,
+    required String type,
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  });
+  Future<List<int>> downloadVolumeExport(String volumeName, String exportId);
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name);
+  Future<VolumeExportScheduleItem> createVolumeExportSchedule({
+    required String name,
+    required String type,
+    bool enabled = false,
+    List<VolumeExportDayTimes> dayTimes = const [],
+    List<int> daysOfWeek = const [],
+    List<String> times = const [],
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  });
+  Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
+    required String volumeName,
+    required String scheduleId,
+    bool? enabled,
+    List<VolumeExportDayTimes>? dayTimes,
+    List<int>? daysOfWeek,
+    List<String>? times,
+    String type = '',
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  });
+  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId);
   Future<List<BuildItem>> fetchBuilds({String? tag});
   Future<BuildDetail> fetchBuildDetail(String id);
   Future<BuildSource> fetchBuildSource(String id);
@@ -904,6 +1246,190 @@ class ApiClient implements CalfClient {
         .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/containers'))
         .timeout(volumeActionTimeout);
     return _decodeList(response, VolumeContainerUsage.fromJson);
+  }
+
+  @override
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async {
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/exports'))
+        .timeout(volumeActionTimeout);
+    return _decodeList(response, VolumeExportItem.fromJson);
+  }
+
+  @override
+  Future<VolumeExportItem> createVolumeExport({
+    required String name,
+    required String type,
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/exports'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'type': type,
+            if (fileName.isNotEmpty) 'file_name': fileName,
+            if (folder.isNotEmpty) 'folder': folder,
+            if (imageRef.isNotEmpty) 'image_ref': imageRef,
+          }),
+        )
+        .timeout(volumeExportTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+    }
+
+    return VolumeExportItem.fromJson(json);
+  }
+
+  @override
+  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async {
+    final response = await httpClient
+        .get(
+          Uri.parse(
+            '$baseUrl/v1/volumes/${Uri.encodeComponent(volumeName)}/exports/${Uri.encodeComponent(exportId)}/download',
+          ),
+        )
+        .timeout(volumeExportTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+    }
+
+    return response.bodyBytes;
+  }
+
+  @override
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async {
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'))
+        .timeout(volumeActionTimeout);
+    return _decodeList(response, VolumeExportScheduleItem.fromJson);
+  }
+
+  @override
+  Future<VolumeExportScheduleItem> createVolumeExportSchedule({
+    required String name,
+    required String type,
+    bool enabled = false,
+    List<VolumeExportDayTimes> dayTimes = const [],
+    List<int> daysOfWeek = const [],
+    List<String> times = const [],
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async {
+    final body = <String, dynamic>{
+      'enabled': enabled,
+      if (type.isNotEmpty) 'type': type,
+      if (fileName.isNotEmpty) 'file_name': fileName,
+      if (folder.isNotEmpty) 'folder': folder,
+      if (imageRef.isNotEmpty) 'image_ref': imageRef,
+    };
+    if (dayTimes.isNotEmpty) {
+      body.addAll(_scheduleTimingBody(dayTimes));
+    } else {
+      if (daysOfWeek.isNotEmpty) {
+        body['days_of_week'] = daysOfWeek;
+      }
+      if (times.isNotEmpty) {
+        body['times'] = times;
+      }
+    }
+
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(volumeActionTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+    }
+
+    return VolumeExportScheduleItem.fromJson(json);
+  }
+
+  @override
+  Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
+    required String volumeName,
+    required String scheduleId,
+    bool? enabled,
+    List<VolumeExportDayTimes>? dayTimes,
+    List<int>? daysOfWeek,
+    List<String>? times,
+    String type = '',
+    String fileName = '',
+    String folder = '',
+    String imageRef = '',
+  }) async {
+    final body = <String, dynamic>{};
+    if (enabled != null) {
+      body['enabled'] = enabled;
+    }
+    if (dayTimes != null) {
+      body.addAll(_scheduleTimingBody(dayTimes));
+    }
+    if (daysOfWeek != null) {
+      body['days_of_week'] = daysOfWeek;
+    }
+    if (times != null) {
+      body['times'] = times;
+    }
+    if (type.isNotEmpty) {
+      body['type'] = type;
+    }
+    if (fileName.isNotEmpty) {
+      body['file_name'] = fileName;
+    }
+    if (folder.isNotEmpty) {
+      body['folder'] = folder;
+    }
+    if (imageRef.isNotEmpty) {
+      body['image_ref'] = imageRef;
+    }
+
+    final response = await httpClient
+        .put(
+          Uri.parse(
+            '$baseUrl/v1/volumes/${Uri.encodeComponent(volumeName)}/export-schedules/${Uri.encodeComponent(scheduleId)}',
+          ),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        )
+        .timeout(volumeActionTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+    }
+
+    return VolumeExportScheduleItem.fromJson(json);
+  }
+
+  @override
+  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {
+    await _delete(
+      '/v1/volumes/${Uri.encodeComponent(volumeName)}/export-schedules/${Uri.encodeComponent(scheduleId)}',
+    );
   }
 
   @override
@@ -1354,6 +1880,21 @@ class ApiClient implements CalfClient {
       }
     } catch (_) {}
     return 'Error: ${response.statusCode}';
+  }
+
+  Map<String, dynamic> _scheduleTimingBody(List<VolumeExportDayTimes> dayTimes) {
+    final entries = dayTimes.where((entry) => entry.times.isNotEmpty).toList();
+    if (entries.isEmpty) {
+      return const {};
+    }
+
+    final times = entries.expand((entry) => entry.times).toSet().toList()..sort();
+
+    return {
+      'day_times': entries.map((entry) => entry.toJson()).toList(),
+      'days_of_week': entries.map((entry) => entry.day).toList(),
+      'times': times,
+    };
   }
 }
 

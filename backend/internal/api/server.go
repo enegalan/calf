@@ -29,6 +29,7 @@ type Server struct {
 	migrateRunning bool
 	registrySessions *sync.Map
 	logBroadcaster   *logBroadcaster
+	exportScheduler  *exportScheduler
 }
 
 var logsUpgrader = websocket.Upgrader{
@@ -46,6 +47,8 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 		migrateStatus:    migration.IdleStatus(),
 		logBroadcaster:   newLogBroadcaster(),
 	}
+	server.exportScheduler = newExportScheduler(server, logger)
+	server.exportScheduler.Start()
 	server.loadBuilds()
 	return server
 }
@@ -86,6 +89,10 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
+	if s.exportScheduler != nil {
+		s.exportScheduler.Stop()
+	}
+
 	if s.httpServer == nil {
 		return nil
 	}
