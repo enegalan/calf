@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 )
@@ -79,14 +80,19 @@ func IsPseudoNetwork(name string) bool {
 }
 
 func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
-	networks, err := queryNerdctlNetworks(ctx, run)
-	if err != nil {
-		return nil, err
-	}
+	networks, nerdctlErr := queryNerdctlNetworks(ctx, run)
+	if nerdctlErr != nil {
+		dockerNetworks, dockerErr := queryDockerNetworks(ctx, run)
+		if dockerErr != nil {
+			return nil, nerdctlErr
+		}
 
-	dockerExtra, err := queryDockerNetworks(ctx, run)
-	if err == nil {
-		networks = mergeNetworksByName(networks, dockerExtra)
+		networks = dockerNetworks
+	} else {
+		dockerExtra, err := queryDockerNetworks(ctx, run)
+		if err == nil {
+			networks = mergeNetworksByName(networks, dockerExtra)
+		}
 	}
 
 	if len(networks) == 0 {
@@ -255,6 +261,7 @@ func networkInspectMetadataBatch(ctx context.Context, run commandRunner, names [
 
 		row, err := inspectNetworkMetadata(ctx, run, name)
 		if err != nil {
+			slog.Warn("failed to inspect network metadata", "network", name, "error", err)
 			continue
 		}
 

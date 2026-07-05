@@ -6,6 +6,7 @@ import (
 )
 
 var ErrRuntimeNotRunning = errors.New("runtime is not running")
+var ErrNetworkNotFound = errors.New("network not found")
 
 func emptyContainersIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Container, error)) ([]Container, error) {
 	status, err := statusFn(ctx)

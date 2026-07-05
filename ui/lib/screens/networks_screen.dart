@@ -268,9 +268,19 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
   }
 
   Future<void> _removeNetwork() async {
-    await widget.apiClient.removeNetwork(widget.networkName);
-    await widget.onRemoved();
-    widget.onBack();
+    try {
+      await widget.apiClient.removeNetwork(widget.networkName);
+      if (!mounted) {
+        return;
+      }
+      await widget.onRemoved();
+      widget.onBack();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 
   @override

@@ -13,9 +13,13 @@ type ProxyConfig struct {
 }
 
 func applyProxyInVM(ctx context.Context, run commandRunner, proxy ProxyConfig) error {
-	httpProxy := shellQuote(proxy.HTTPProxy)
-	httpsProxy := shellQuote(proxy.HTTPSProxy)
-	noProxy := shellQuote(proxy.NoProxy)
+	httpProxyDQ := shellDoubleQuote(proxy.HTTPProxy)
+	httpsProxyDQ := shellDoubleQuote(proxy.HTTPSProxy)
+	noProxyDQ := shellDoubleQuote(proxy.NoProxy)
+
+	httpProxySQ := shellQuote(proxy.HTTPProxy)
+	httpsProxySQ := shellQuote(proxy.HTTPSProxy)
+	noProxySQ := shellQuote(proxy.NoProxy)
 
 	script := fmt.Sprintf(`set -eux -o pipefail
 sudo mkdir -p /etc/systemd/system/containerd.service.d
@@ -29,12 +33,12 @@ Environment="https_proxy=%s"
 Environment="no_proxy=%s"
 EOF
 sudo tee /etc/profile.d/calf-proxy.sh >/dev/null <<'EOF'
-export HTTP_PROXY=%s
-export HTTPS_PROXY=%s
-export NO_PROXY=%s
-export http_proxy=%s
-export https_proxy=%s
-export no_proxy=%s
+export HTTP_PROXY='%s'
+export HTTPS_PROXY='%s'
+export NO_PROXY='%s'
+export http_proxy='%s'
+export https_proxy='%s'
+export no_proxy='%s'
 EOF
 sudo systemctl daemon-reload
 if systemctl is-active --quiet containerd; then
@@ -44,8 +48,8 @@ if systemctl is-active --quiet docker; then
   sudo systemctl restart docker
 fi
 `,
-		httpProxy, httpsProxy, noProxy, httpProxy, httpsProxy, noProxy,
-		httpProxy, httpsProxy, noProxy, httpProxy, httpsProxy, noProxy,
+		httpProxyDQ, httpsProxyDQ, noProxyDQ, httpProxyDQ, httpsProxyDQ, noProxyDQ,
+		httpProxySQ, httpsProxySQ, noProxySQ, httpProxySQ, httpsProxySQ, noProxySQ,
 	)
 
 	_, err := run(ctx, "bash", "-lc", script)
@@ -58,5 +62,17 @@ func shellQuote(value string) string {
 		return ""
 	}
 
-	return strings.NewReplacer(`'`, `'"'"'`).Replace(value)
+	return strings.ReplaceAll(value, "'", "'\\''")
+}
+
+func shellDoubleQuote(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, "\"", "\\\"")
+	value = strings.ReplaceAll(value, "$", "\\$")
+	return value
 }

@@ -137,23 +137,25 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		activateManaged := s.cfg.DockerContextManaged
 		s.cfgMu.Unlock()
 
+		writeJSON(w, http.StatusOK, s.configResponse())
+
 		if proxyChanged {
-			proxyCtx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
-			defer cancel()
-			if err := s.runtime.ApplyProxy(proxyCtx, savedProxy); err != nil {
-				s.logger.Warn("failed to apply proxy settings", "error", err)
-			}
+			go func() {
+				proxyCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				if err := s.runtime.ApplyProxy(proxyCtx, savedProxy); err != nil {
+					s.logger.Warn("failed to apply proxy settings", "error", err)
+				}
+			}()
 		}
 
 		if activateManaged {
-			activateCtx, cancel := context.WithTimeout(r.Context(), dockerContextTimeout)
+			activateCtx, cancel := context.WithTimeout(context.Background(), dockerContextTimeout)
 			defer cancel()
 			if err := s.activateDockerContext(activateCtx); err != nil {
 				s.logger.Warn("failed to activate docker context", "error", err)
 			}
 		}
-
-		writeJSON(w, http.StatusOK, s.configResponse())
 
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -275,13 +277,11 @@ func validateNoProxyEntry(entry string) error {
 		return nil
 	}
 
-	if _, _, err := net.SplitHostPort(host); err == nil {
-		host, _, err = net.SplitHostPort(host)
-		if err == nil {
-			if net.ParseIP(host) != nil {
-				return nil
-			}
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		if net.ParseIP(h) != nil {
+			return nil
 		}
+		host = h
 	}
 
 	if isValidDomain(host) {

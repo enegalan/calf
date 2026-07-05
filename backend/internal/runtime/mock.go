@@ -25,6 +25,8 @@ type Mock struct {
 	ContainerErr   error
 	ExportVolumeErr error
 	ImageErr       error
+	NetworksErr    error
+	NetworkErr     error
 	LogLines       []string
 	Started        bool
 	registryLoggedIn bool
@@ -667,8 +669,8 @@ func (m *Mock) ListNetworks(_ context.Context) ([]Network, error) {
 		return []Network{}, nil
 	}
 
-	if m.ContainersErr != nil {
-		return nil, m.ContainersErr
+	if m.NetworksErr != nil {
+		return nil, m.NetworksErr
 	}
 
 	return append([]Network(nil), m.Networks...), nil
@@ -680,6 +682,10 @@ func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, er
 
 	if m.StatusValue.State != StateRunning {
 		return NetworkDetail{}, ErrRuntimeNotRunning
+	}
+
+	if m.NetworkErr != nil {
+		return NetworkDetail{}, m.NetworkErr
 	}
 
 	for _, network := range m.Networks {
@@ -701,15 +707,19 @@ func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, er
 		}, nil
 	}
 
-	return NetworkDetail{}, fmt.Errorf("network %s not found", name)
+	return NetworkDetail{}, ErrNetworkNotFound
 }
 
 func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.ContainerErr != nil {
-		return m.ContainerErr
+	if m.StatusValue.State != StateRunning {
+		return ErrRuntimeNotRunning
+	}
+
+	if m.NetworkErr != nil {
+		return m.NetworkErr
 	}
 
 	filtered := make([]Network, 0, len(m.Networks))

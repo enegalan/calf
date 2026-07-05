@@ -62,26 +62,23 @@ provision:
         grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
       fi
       nerdctl run --rm hello-world || true
-      HTTP_PROXY=%[7]s
-      HTTPS_PROXY=%[8]s
-      NO_PROXY=%[9]s
       sudo mkdir -p /etc/systemd/system/containerd.service.d
-      sudo tee /etc/systemd/system/containerd.service.d/calf-proxy.conf >/dev/null <<EOF
+      sudo tee /etc/systemd/system/containerd.service.d/calf-proxy.conf >/dev/null <<'EOF'
       [Service]
-      Environment="HTTP_PROXY=${HTTP_PROXY}"
-      Environment="HTTPS_PROXY=${HTTPS_PROXY}"
-      Environment="NO_PROXY=${NO_PROXY}"
-      Environment="http_proxy=${HTTP_PROXY}"
-      Environment="https_proxy=${HTTPS_PROXY}"
-      Environment="no_proxy=${NO_PROXY}"
+      Environment="HTTP_PROXY=%[7]s"
+      Environment="HTTPS_PROXY=%[8]s"
+      Environment="NO_PROXY=%[9]s"
+      Environment="http_proxy=%[7]s"
+      Environment="https_proxy=%[8]s"
+      Environment="no_proxy=%[9]s"
       EOF
-      sudo tee /etc/profile.d/calf-proxy.sh >/dev/null <<EOF
-      export HTTP_PROXY=${HTTP_PROXY}
-      export HTTPS_PROXY=${HTTPS_PROXY}
-      export NO_PROXY=${NO_PROXY}
-      export http_proxy=${HTTP_PROXY}
-      export https_proxy=${HTTPS_PROXY}
-      export no_proxy=${NO_PROXY}
+      sudo tee /etc/profile.d/calf-proxy.sh >/dev/null <<'EOF'
+      export HTTP_PROXY=%[7]s
+      export HTTPS_PROXY=%[8]s
+      export NO_PROXY=%[9]s
+      export http_proxy=%[7]s
+      export https_proxy=%[8]s
+      export no_proxy=%[9]s
       EOF
       sudo systemctl daemon-reload
       sudo systemctl restart containerd docker

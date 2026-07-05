@@ -6,19 +6,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
+
+var limaLogger = slog.Default()
 
 //go:embed lima.yaml
 var limaTemplate string
 
 type Lima struct {
+	mu sync.Mutex
+
 	vmName         string
 	dockerSocket   string
 	templatePath   string
@@ -31,6 +37,7 @@ type Lima struct {
 	proxyResync    atomic.Bool
 	lastState      State
 	localhostProxy *localhostProxies
+	watcherCancel  context.CancelFunc
 }
 
 func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
@@ -89,12 +96,16 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := l.ApplyProxy(ctx, l.proxy); err != nil {
-		return err
+	if l.proxy != (ProxyConfig{}) {
+		if err := l.ApplyProxy(ctx, l.proxy); err != nil {
+			limaLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
+		}
 	}
 
 	l.started.Store(true)
-	go l.watchPortProxies(ctx)
+	wCtx, wCancel := context.WithCancel(context.Background())
+	l.watcherCancel = wCancel
+	go l.watchPortProxies(wCtx)
 	return nil
 }
 
@@ -110,6 +121,11 @@ func (l *Lima) Stop(ctx context.Context) error {
 
 	if !exists {
 		return nil
+	}
+
+	if l.watcherCancel != nil {
+		l.watcherCancel()
+		l.watcherCancel = nil
 	}
 
 	l.localhostProxy.stopAll()
@@ -156,12 +172,14 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 		}
 	}
 
+	l.mu.Lock()
 	if status.State == StateRunning && l.lastState != StateRunning {
 		l.started.Store(true)
 		l.proxyResync.Store(true)
 	}
 
 	l.lastState = status.State
+	l.mu.Unlock()
 	status.PortConflicts = l.localhostProxy.conflictsSnapshot()
 
 	return status, nil
@@ -234,7 +252,9 @@ func (l *Lima) RemoveNetwork(ctx context.Context, name string) error {
 }
 
 func (l *Lima) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
+	l.mu.Lock()
 	l.proxy = proxy
+	l.mu.Unlock()
 
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil
@@ -599,7 +619,11 @@ func (l *Lima) ensureTemplate() error {
 		diskGB = 100
 	}
 
-	content := fmt.Sprintf(limaTemplate, home, home, l.cpus, l.memoryGB, l.memorySwapGB, diskGB, l.proxy.HTTPProxy, l.proxy.HTTPSProxy, l.proxy.NoProxy)
+	l.mu.Lock()
+	currentProxy := l.proxy
+	l.mu.Unlock()
+
+	content := fmt.Sprintf(limaTemplate, home, home, l.cpus, l.memoryGB, l.memorySwapGB, diskGB, currentProxy.HTTPProxy, currentProxy.HTTPSProxy, currentProxy.NoProxy)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return err
 	}

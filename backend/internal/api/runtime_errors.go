@@ -13,5 +13,10 @@ func writeRuntimeError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 
+	if errors.Is(err, runtime.ErrNetworkNotFound) {
+		writeError(w, http.StatusNotFound, "network not found")
+		return true
+	}
+
 	return false
 }

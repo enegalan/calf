@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -34,20 +35,20 @@ func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, erro
 		return InspectDetail{}, err
 	}
 
-	return parseInspectDetail(string(output)), nil
+	return parseInspectDetail(string(output))
 }
 
-func parseInspectDetail(output string) InspectDetail {
+func parseInspectDetail(output string) (InspectDetail, error) {
 	detail := InspectDetail{Dockerfile: "Dockerfile", Labels: make(map[string]string)}
 
 	output = strings.TrimSpace(output)
 	if output == "" {
-		return detail
+		return detail, nil
 	}
 
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(output), &payload); err != nil {
-		return detail
+		return InspectDetail{}, fmt.Errorf("build history inspect: parse output: %w", err)
 	}
 
 	for key, value := range payload {
@@ -75,7 +76,7 @@ func parseInspectDetail(output string) InspectDetail {
 		detail.Context = resolveContextFromLabels(detail.Labels)
 	}
 
-	return detail
+	return detail, nil
 }
 
 func resolveContextFromLabels(labels map[string]string) string {
@@ -100,10 +101,6 @@ func resolveContextFromLabels(labels map[string]string) string {
 	return ""
 }
 
-func stripLastComponent(path string) string {
-	idx := strings.LastIndex(path, "/")
-	if idx < 0 {
-		return path
-	}
-	return path[:idx]
+func stripLastComponent(p string) string {
+	return path.Dir(p)
 }

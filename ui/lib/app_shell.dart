@@ -628,8 +628,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             CalfButton(
-              onPressed: _dirty && !_saving ? applyConfig : null,
-              enabled: _dirty,
+              onPressed: _dirty && !_saving && _httpProxyError == null && _httpsProxyError == null
+                  ? applyConfig
+                  : null,
+              enabled: _dirty && _httpProxyError == null && _httpsProxyError == null,
               child: Text(_saving ? 'Saving...' : 'Apply'),
             ),
           ],
