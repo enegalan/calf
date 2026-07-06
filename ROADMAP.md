@@ -143,7 +143,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 - [ ] macOS installer (.dmg / .pkg) with signing and notarization
 - [ ] Daemon as a user service (launchd / systemd)
-- [ ] In-app updates or Homebrew cask
+- [ ] In-app updates
 - [ ] Windows installer (WSL2 + integration)
 - [ ] Linux installer (.deb / .rpm / AppImage)
 
@@ -173,7 +173,6 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [ ] Image and layer cache across restarts
 - [ ] Rootless mode where the OS allows it
 - [ ] Basic `buildx` support (optional multi-arch)
-- [ ] Image export/import (`docker save` / `docker load`)
 - [ ] Opt-in telemetry (errors and performance, no container data)
 
 **Exit criteria:** documented benchmarks; idle RAM usage < 50% of Docker Desktop on reference hardware.
