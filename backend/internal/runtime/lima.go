@@ -4,16 +4,21 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -38,6 +43,8 @@ type Lima struct {
 	lastState      State
 	localhostProxy *localhostProxies
 	watcherCancel  context.CancelFunc
+	proxyListener  net.Listener
+	dockerProxy    *http.Server
 }
 
 func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
@@ -102,6 +109,10 @@ func (l *Lima) Start(ctx context.Context) error {
 		}
 	}
 
+	if err := l.ensureDockerCLISocket(); err != nil {
+		limaLogger.Warn("failed to set up Docker CLI socket symlink (non-fatal)", "error", err)
+	}
+
 	l.started.Store(true)
 	wCtx, wCancel := context.WithCancel(context.Background())
 	l.watcherCancel = wCancel
@@ -129,6 +140,7 @@ func (l *Lima) Stop(ctx context.Context) error {
 	}
 
 	l.localhostProxy.stopAll()
+	l.removeDockerCLISocket()
 	l.started.Store(false)
 
 	_, err = runCommand(ctx, "limactl", "stop", l.vmName)
@@ -144,29 +156,55 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 	}
 
 	if _, err := exec.LookPath("limactl"); err != nil {
+		limaLogger.Warn("limactl not found", "error", err, "PATH", os.Getenv("PATH"))
+		status.Log = fmt.Sprintf("limactl not found: %v (PATH: %s)", err, os.Getenv("PATH"))
 		return status, nil
 	}
 
 	output, err := runCommand(ctx, "limactl", "list", "--format", "{{.Name}}\t{{.Status}}")
 	if err != nil {
+		limaLogger.Warn("limactl list failed", "error", err)
+		status.Log = fmt.Sprintf("limactl list failed: %v", err)
 		return status, nil
 	}
+	limaLogger.Debug("limactl list output", "output", string(output))
 
+	found := false
 	for _, line := range strings.Split(string(output), "\n") {
 		fields := strings.Split(line, "\t")
 		if len(fields) != 2 || fields[0] != l.vmName {
 			continue
 		}
+		found = true
 
 		if strings.Contains(strings.ToLower(fields[1]), "running") {
 			status.State = StateRunning
+		} else {
+			limaLogger.Warn("vm not running", "vm", l.vmName, "status", fields[1])
 		}
+	}
+
+	if !found {
+		status.Log = "VM not found in limactl list"
 	}
 
 	if status.State == StateRunning && l.dockerSocket != "" {
 		conn, err := net.DialTimeout("unix", l.dockerSocket, 100*time.Millisecond)
 		if err != nil {
-			status.State = StateStopped
+			if errors.Is(err, syscall.ENOENT) {
+				limaLogger.Debug("socket not ready yet (expected during startup)", "socket", l.dockerSocket)
+			} else {
+				limaLogger.Warn("socket dial failed", "socket", l.dockerSocket, "error", err)
+			}
+			// Fall back to TCP on port 2375 (via Lima port forward + socat inside VM)
+			tcpConn, tcpErr := net.DialTimeout("tcp", "127.0.0.1:2375", 100*time.Millisecond)
+			if tcpErr != nil {
+				limaLogger.Warn("tcp fallback also failed", "error", tcpErr)
+				status.State = StateStopped
+				status.Log = fmt.Sprintf("socket dial failed: %v", err)
+			} else {
+				tcpConn.Close()
+			}
 		} else {
 			conn.Close()
 		}
@@ -447,7 +485,7 @@ func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(stri
 }
 
 func (l *Lima) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
-	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("logs", "-f", "--since", since, id)...)...)
+	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--", "sudo", "docker"}, "logs", "-f", "--since", since, id)...)
 	command.Env = limaShellEnv()
 	return streamCommandLogs(ctx, command, output)
 }
@@ -494,7 +532,7 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 		return err
 	}
 
-	shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs(interactiveExecArgs(id)...)...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, append([]string{"docker"}, interactiveExecArgs(id)...)...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }
@@ -554,9 +592,12 @@ func (l *Lima) RegistryLogout(ctx context.Context, server string) error {
 	return registryLogout(ctx, l.runInVM, server)
 }
 
+// vmCommand routes commands for the Lima VM. "nerdctl" is transparently
+// redirected to "docker" because the VM runs Docker Engine — containers
+// live in its moby namespace, not containerd's default namespace.
 func vmCommand(command string, args ...string) []string {
 	if command == "nerdctl" {
-		return NerdctlVMArgs(args...)
+		return append([]string{"sudo", "docker"}, args...)
 	}
 
 	return append([]string{command}, args...)
@@ -657,4 +698,83 @@ func defaultDockerSocket() string {
 	}
 
 	return filepath.Join(home, ".config", "calf", "docker.sock")
+}
+
+func dockerCLISocketPath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+
+	return filepath.Join(home, ".docker", "run", "docker.sock")
+}
+
+func (l *Lima) ensureDockerCLISocket() error {
+	if l.dockerSocket == "" {
+		return nil
+	}
+
+	dir := filepath.Dir(l.dockerSocket)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+
+	os.Remove(l.dockerSocket)
+
+	listener, err := net.Listen("unix", l.dockerSocket)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", l.dockerSocket, err)
+	}
+	l.proxyListener = listener
+
+	dockerCliPath := dockerCLISocketPath()
+	if dockerCliPath != "" {
+		os.MkdirAll(filepath.Dir(dockerCliPath), 0o755)
+		os.Remove(dockerCliPath)
+		if err := os.Symlink(l.dockerSocket, dockerCliPath); err != nil {
+			limaLogger.Warn("failed to create Docker CLI symlink", "path", dockerCliPath, "error", err)
+		}
+	}
+
+	go l.serveTCPProxy()
+
+	return nil
+}
+
+func (l *Lima) serveTCPProxy() {
+	targetURL, err := url.Parse("http://127.0.0.1:2375")
+	if err != nil {
+		limaLogger.Warn("docker HTTP proxy: invalid target URL", "error", err)
+		return
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(targetURL)
+	proxy.ErrorLog = slog.NewLogLogger(slog.NewTextHandler(io.Discard, nil), slog.LevelError)
+	proxy.Transport = &http.Transport{
+		DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
+	}
+
+	l.dockerProxy = &http.Server{Handler: proxy}
+
+	if err := l.dockerProxy.Serve(l.proxyListener); err != nil && err != http.ErrServerClosed {
+		limaLogger.Warn("docker HTTP proxy: serve error", "error", err)
+	}
+}
+
+func (l *Lima) removeDockerCLISocket() {
+	if l.dockerProxy != nil {
+		l.dockerProxy.Close()
+		l.dockerProxy = nil
+	}
+	if l.proxyListener != nil {
+		l.proxyListener.Close()
+		l.proxyListener = nil
+	}
+
+	os.Remove(l.dockerSocket)
+
+	dockerCliPath := dockerCLISocketPath()
+	if dockerCliPath != "" {
+		os.Remove(dockerCliPath)
+	}
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform, Process;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart' show Divider, SelectableText;
@@ -11,6 +10,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:xterm/xterm.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/logs_panel.dart';
@@ -307,13 +307,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
-  void _openPort(int port) {
-    if (!Platform.isMacOS) {
-      return;
-    }
-    Process.run('open', ['http://localhost:$port']);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -361,7 +354,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       Text(_container.displayImage, style: theme.textTheme.muted),
                       if (port != null)
                         GestureDetector(
-                          onTap: () => _openPort(port),
+                          onTap: () => openPort(port),
                           child: Text(
                             '$port:$port',
                             style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),

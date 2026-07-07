@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io' show Platform, Process;
 
 import 'package:flutter/material.dart' show Tooltip;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
@@ -205,13 +205,6 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
   }
 
-  void _openPort(int port) {
-    if (!Platform.isMacOS) {
-      return;
-    }
-    Process.run('open', ['http://localhost:$port']);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -291,7 +284,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   onStart: (id) => _runAction(() => widget.apiClient.startContainer(id)),
                   onStop: (id) => _runAction(() => widget.apiClient.stopContainer(id)),
                   onRemove: (id) => _runAction(() => widget.apiClient.removeContainer(id)),
-                  onOpenPort: _openPort,
+                  onOpenPort: openPort,
                   busy: _busy,
                 ),
               ),

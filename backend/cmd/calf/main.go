@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	goRuntime "runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,6 +26,8 @@ func main() {
 }
 
 func run() int {
+	os.Setenv("PATH", ensurePath())
+
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
@@ -57,6 +61,23 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if os.Getppid() == 1 {
+					logger.Warn("parent process died, shutting down")
+					stop()
+					return
+				}
+			}
+		}
+	}()
+
 	rtCtx, rtCancel := context.WithCancel(ctx)
 	defer rtCancel()
 
@@ -82,8 +103,8 @@ func run() int {
 		if err != nil {
 			logger.Error("server stopped", "error", err)
 			rtCancel()
-			stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+			stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer stopCancel()
 			if stopErr := rt.Stop(stopCtx); stopErr != nil {
 				logger.Error("runtime stop failed", "error", stopErr)
 			}
@@ -91,16 +112,16 @@ func run() int {
 		}
 	case <-ctx.Done():
 		logger.Info("shutting down")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logger.Error("shutdown failed", "error", err)
 		}
 	}
 
 	rtCancel()
-	stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer stopCancel()
 	if err := rt.Stop(stopCtx); err != nil {
 		logger.Error("runtime stop failed", "error", err)
 	}
@@ -130,8 +151,8 @@ func ensurePort(addr string) error {
 		return nil
 	}
 
-	pid := findPidOnPort(port)
-	if pid == 0 {
+	pid, err := findPidOnPort(port)
+	if err != nil || pid == 0 {
 		return fmt.Errorf("port %s is in use; run: pkill -f calf", addr)
 	}
 
@@ -140,8 +161,14 @@ func ensurePort(addr string) error {
 		return fmt.Errorf("port %s is in use by pid %d", addr, pid)
 	}
 
-	proc, _ := os.FindProcess(pid)
-	if proc != nil {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("port %s is in use by pid %d, but process not found", addr, pid)
+	}
+
+	if goRuntime.GOOS == "windows" {
+		proc.Kill()
+	} else {
 		proc.Signal(syscall.SIGTERM)
 	}
 
@@ -157,10 +184,19 @@ func ensurePort(addr string) error {
 	return fmt.Errorf("port %s is still in use after cleanup; run: pkill -f calf", addr)
 }
 
-func findPidOnPort(port string) int {
+func findPidOnPort(port string) (int, error) {
+	switch goRuntime.GOOS {
+	case "windows":
+		return findPidOnPortWindows(port)
+	default:
+		return findPidOnPortUnix(port)
+	}
+}
+
+func findPidOnPortUnix(port string) (int, error) {
 	out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%s", port), "-s", "TCP:LISTEN").Output()
 	if err != nil {
-		return 0
+		return 0, err
 	}
 	for _, raw := range strings.Fields(string(out)) {
 		pid, err := strconv.Atoi(strings.TrimSpace(raw))
@@ -168,15 +204,68 @@ func findPidOnPort(port string) int {
 			continue
 		}
 		if pid != os.Getpid() && pid != os.Getppid() {
-			return pid
+			return pid, nil
 		}
 	}
-	return 0
+	return 0, errors.New("no pid found on port")
+}
+
+func findPidOnPortWindows(port string) (int, error) {
+	out, err := exec.Command("netstat", "-ano").Output()
+	if err != nil {
+		return 0, err
+	}
+	target := fmt.Sprintf(":%s", port)
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.Contains(line, "LISTENING") && strings.Contains(line, target) {
+			fields := strings.Fields(line)
+			if len(fields) > 4 {
+				pid, err := strconv.Atoi(strings.TrimSpace(fields[len(fields)-1]))
+				if err == nil && pid != os.Getpid() && pid != os.Getppid() {
+					return pid, nil
+				}
+			}
+		}
+	}
+	return 0, errors.New("no pid found on port")
 }
 
 func pidFilePath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "calf", "calf.pid")
+}
+
+func ensurePath() string {
+	existing := os.Getenv("PATH")
+	if goRuntime.GOOS == "windows" {
+		return existing
+	}
+
+	needed := false
+	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
+		if _, err := os.Stat(filepath.Join(dir, "limactl")); err == nil && !inPath(dir, existing) {
+			existing = dir + ":" + existing
+			needed = true
+		}
+	}
+	if !needed {
+		for _, dir := range []string{"/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin"} {
+			if !inPath(dir, existing) {
+				existing = dir + ":" + existing
+			}
+		}
+	}
+	return existing
+}
+
+func inPath(dir, path string) bool {
+	for _, p := range strings.Split(path, ":") {
+		if p == dir {
+			return true
+		}
+	}
+	return false
 }
 
 func readPidFile() (int, error) {

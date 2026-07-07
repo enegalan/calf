@@ -34,6 +34,7 @@ type Status struct {
 	DockerSocket  string         `json:"docker_socket"`
 	VMName        string         `json:"vm_name,omitempty"`
 	PortConflicts []PortConflict `json:"port_conflicts,omitempty"`
+	Log           string         `json:"log,omitempty"`
 }
 
 type Container struct {

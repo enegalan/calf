@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.0] - 2026-07-08
+
+### Added
+
+- **Cross-platform support** — daemon now builds on Linux, macOS, and Windows
+- **Backend cross-compilation** verified in CI for linux/amd64 and windows/amd64
+- **Windows port conflict detection** via `netstat -ano`
+- **Linux Flutter build target** (`make ui-linux`, `make release-linux`)
+- **Windows Flutter build target** (`make ui-windows`, `make release-windows`)
+- **Docker CLI proxy** replaced TCP-level proxy with HTTP reverse proxy (`httputil.ReverseProxy`) to fix compose commands hanging on completion
+
+### Changed
+
+- Port conflict detection uses `lsof` on Unix, `netstat` on Windows
+- PATH setup on macOS prefers Homebrew paths without hardcoding on other OS
+- UI port opening now uses the platform URL opener on all OS (open/xdg-open/rundll32)
+- Daemon binary discovery works next to the Flutter executable on all platforms
+- Socket dial failure during startup logged at Debug level instead of Warn when socket does not yet exist
+
 ## [0.6.0] - 2026-07-06
 
 ### Changed
