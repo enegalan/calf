@@ -1,5 +1,6 @@
 .PHONY: help ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli release-macos \
-        ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release
+        ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release \
+        package-macos package-windows package-linux package
 
 help:
 	@echo "Calf — common commands"
@@ -20,6 +21,11 @@ help:
 	@echo "  make release-linux      build Go daemon + Linux app"
 	@echo "  make release-windows    build Go daemon + Windows app"
 	@echo "  make release            build for all platforms (macOS + Linux + Windows)"
+	@echo ""
+	@echo "  make package-macos      create macOS .dmg and .pkg installers"
+	@echo "  make package-linux      create Linux .deb, .rpm, and AppImage installers"
+	@echo "  make package-windows    create Windows .exe installer"
+	@echo ""
 	@echo "  make clean              remove build artifacts"
 	@echo "  make verify-docker-cli  smoke-test docker CLI against Calf"
 	@echo ""
@@ -57,6 +63,18 @@ release-windows: ui-windows
 	cd backend && CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -o calf-daemon.exe ./cmd/calf
 	cp backend/calf-daemon.exe ui/build/windows/x64/runner/Release/calf-daemon.exe
 	rm backend/calf-daemon.exe
+
+
+package: package-macos package-windows package-linux
+
+package-macos: release-macos
+	./scripts/package-macos.sh
+
+package-windows: release-windows
+	pwsh -ExecutionPolicy Bypass -File scripts/package-windows.ps1
+
+package-linux: release-linux
+	./scripts/package-linux.sh
 
 clean:
 	cd ui && flutter clean

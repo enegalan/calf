@@ -145,8 +145,13 @@ calf/
 │   ├── compose.yaml                            build: . + sleep 300
 │   └── .dockerignore
 ├── scripts/verify-docker-cli.sh             Verifies `docker` CLI works against Calf's socket
+├── scripts/_common.sh                       Shared packaging constants and helpers sourced by the bash packaging scripts
+├── scripts/package-macos.sh                 Creates macOS .dmg and .pkg installers from the release app bundle
+├── scripts/package-windows.ps1              Creates Windows .exe installer via Inno Setup
+├── scripts/package-linux.sh                 Creates Linux .deb, .rpm, and AppImage installers from the release bundle
 ├── .github/workflows/ci.yml                 CI: backend (vet/test/build) + ui (analyze/test/build) jobs, macos-latest
-├── Makefile                                 dev-backend / dev-ui-macos / dev-ui-linux / dev-ui-windows / ui-macos / ui-linux / ui-windows / clean / verify-docker-cli / release / release-macos / release-linux / release-windows targets
+├── .github/workflows/release.yml            Release: builds platform installers on version bumps and creates a draft GitHub release
+├── Makefile                                 dev-backend / dev-ui-macos / dev-ui-linux / dev-ui-windows / ui-macos / ui-linux / ui-windows / clean / verify-docker-cli / release / release-macos / release-linux / release-windows / package / package-macos / package-windows / package-linux targets
 ├── README.md                                Project pitch + quick start
 ├── DEVELOPMENT.md                           Dev setup, config file example, Docker Desktop migration walkthrough
 ├── ROADMAP.md                                Phased plan, architecture diagram, non-goals, competitor comparison
@@ -264,6 +269,9 @@ make release            # build Go daemon + Flutter app for all platforms
 make release-macos      # build Go daemon + macOS .app
 make release-linux      # build Go daemon + Linux bundle
 make release-windows    # build Go daemon + Windows bundle
+make package-macos      # create macOS .dmg and .pkg installers
+make package-linux      # create Linux .deb, .rpm, and AppImage installers
+make package-windows    # create Windows .exe installer
 make clean              # flutter clean
 make verify-docker-cli  # runs scripts/verify-docker-cli.sh
 ```
@@ -271,6 +279,12 @@ make verify-docker-cli  # runs scripts/verify-docker-cli.sh
 CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):
 - **backend job:** `go vet ./...`, `go test ./...`, `go build -o /dev/null ./cmd/calf` (all `CGO_ENABLED=0`).
 - **ui job:** `flutter pub get`, `flutter analyze`, `flutter test`, `flutter build macos --no-pub`.
+
+Release (`.github/workflows/release.yml`):
+- Triggered on pushes to `main` that modify `backend/version/version.go` or `ui/pubspec.yaml`.
+- Matrix builds on `macos-latest`, `windows-latest`, and `ubuntu-latest`.
+- Each runner builds the platform release bundle and packages it into native installers (macOS `.dmg`/`.pkg`, Windows `.exe`, Linux `.deb`/`.rpm`/`.AppImage`).
+- Artifacts are collected and published as a draft GitHub release with an auto-generated tag `v<version>`.
 
 ## Hard rules
 
