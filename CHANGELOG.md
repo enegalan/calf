@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Official platform installers** — each release now publishes macOS `.dmg`/`.pkg`, Windows `.exe`, and Linux `.deb`/`.rpm`/`.AppImage` installers on GitHub Releases, built automatically when the app version is updated on the main branch.
+- **Official platform installers** — macOS `.dmg`/`.pkg`, Windows `.exe`, and Linux `.deb`/`.rpm`/`.AppImage` installers are now available from GitHub Releases.
 
 ## [0.7.0] - 2026-07-08
 

@@ -5,6 +5,9 @@ $DIST_DIR = "dist"
 
 function Get-ProjectVersion {
     $match = Select-String -Path "backend/version/version.go" -Pattern 'const Version = "(.*)"'
+    if ($null -eq $match) {
+        throw "could not extract version from backend/version/version.go"
+    }
     $version = $match.Matches.Groups[1].Value
     if ([string]::IsNullOrWhiteSpace($version)) {
         throw "could not extract version from backend/version/version.go"
@@ -14,6 +17,9 @@ function Get-ProjectVersion {
 
 function Get-FlutterVersion {
     $match = Select-String -Path "ui/pubspec.yaml" -Pattern '^version: ([0-9.]+)'
+    if ($null -eq $match) {
+        throw "could not extract version from ui/pubspec.yaml"
+    }
     $version = $match.Matches.Groups[1].Value
     if ([string]::IsNullOrWhiteSpace($version)) {
         throw "could not extract version from ui/pubspec.yaml"

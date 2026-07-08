@@ -15,6 +15,7 @@ require_directory "$BUNDLE" "run 'make release-linux' first"
 require_command dpkg-deb
 require_command rpmbuild
 require_command wget
+require_command sha256sum
 
 mkdir -p "$DIST_DIR" "$LINUX_BUILD_DIR"
 
@@ -73,7 +74,7 @@ EOF
 }
 
 build_rpm() {
-    local rpmbuild="$HOME/rpmbuild"
+    local rpmbuild="$LINUX_BUILD_DIR/rpmbuild"
     rm -rf "$rpmbuild"
     mkdir -p "$rpmbuild/SPECS" "$rpmbuild/BUILD" "$rpmbuild/RPMS" \
         "$rpmbuild/SOURCES" "$rpmbuild/SRPMS"
@@ -108,6 +109,7 @@ ln -s /opt/$APP_NAME/ui %{buildroot}/usr/bin/$APP_NAME
 EOF
 
     rpmbuild -bb \
+        --define "_topdir $rpmbuild" \
         --define "_version $VERSION" \
         --define "_bundle $(pwd)/$BUNDLE" \
         --define "_desktop $(pwd)/$DESKTOP_DEB_RPM" \
@@ -133,14 +135,55 @@ exec "\$HERE/opt/$APP_NAME/ui" "\$@"
 EOF
     chmod +x "$appdir/AppRun"
 
-    local appimagetool="$LINUX_BUILD_DIR/appimagetool"
-    if [[ ! -f "$appimagetool" ]]; then
-        wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
-            -O "$appimagetool"
-        chmod +x "$appimagetool"
-    fi
+    local appimagetool
+    appimagetool=$(ensure_appimagetool)
 
     "$appimagetool" --appimage-extract-and-run "$appdir" "$DIST_DIR/${APP_NAME_TITLE}-${VERSION}-x86_64.AppImage"
+}
+
+ensure_appimagetool() {
+    local version="13"
+    local base_url="https://github.com/AppImage/AppImageKit/releases/download/${version}"
+    local binary="appimagetool-x86_64.AppImage"
+    local checksums="SHA256SUMS"
+    local tmp_dir="$LINUX_BUILD_DIR/appimagetool-tmp"
+    local final="$LINUX_BUILD_DIR/appimagetool"
+
+    mkdir -p "$tmp_dir"
+
+    wget -q "$base_url/$checksums" -O "$tmp_dir/$checksums"
+
+    local expected
+    expected=$(grep "^[^#]*$binary" "$tmp_dir/$checksums" | awk '{print $1}')
+    if [[ -z "$expected" ]]; then
+        echo "error: could not find checksum for $binary" >&2
+        exit 1
+    fi
+
+    if [[ -f "$final" ]]; then
+        local actual
+        actual=$(sha256sum "$final" | awk '{print $1}')
+        if [[ "$actual" == "$expected" ]]; then
+            rm -rf "$tmp_dir"
+            echo "$final"
+            return
+        fi
+        rm -f "$final"
+    fi
+
+    wget -q "$base_url/$binary" -O "$tmp_dir/$binary"
+    chmod +x "$tmp_dir/$binary"
+
+    local actual
+    actual=$(sha256sum "$tmp_dir/$binary" | awk '{print $1}')
+    if [[ "$actual" != "$expected" ]]; then
+        echo "error: checksum mismatch for appimagetool" >&2
+        exit 1
+    fi
+
+    mv "$tmp_dir/$binary" "$final"
+    rm -rf "$tmp_dir"
+    echo "$final"
 }
 
 build_deb

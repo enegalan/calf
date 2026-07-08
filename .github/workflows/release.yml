@@ -93,10 +93,11 @@ jobs:
           merge-multiple: true
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Calf ${{ steps.version.outputs.version }}
-          draft: true
-          generate_release_notes: true
-          files: dist/*
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "Calf ${{ steps.version.outputs.version }}" \
+            --draft \
+            --generate-notes \
+            dist/*
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
