@@ -74,7 +74,8 @@ EOF
 }
 
 build_rpm() {
-    local rpmbuild="$LINUX_BUILD_DIR/rpmbuild"
+    local rpmbuild
+    rpmbuild="$(cd "$LINUX_BUILD_DIR" && pwd)/rpmbuild"
     rm -rf "$rpmbuild"
     mkdir -p "$rpmbuild/SPECS" "$rpmbuild/BUILD" "$rpmbuild/RPMS" \
         "$rpmbuild/SOURCES" "$rpmbuild/SRPMS"

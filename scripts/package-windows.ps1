@@ -43,7 +43,7 @@ function Write-InnoSetupScript {
         [string]$Dist,
         [string]$Output
     )
-    $script = @"
+    return @"
 [Setup]
 AppName=$APP_NAME_TITLE
 AppVersion=$Version
@@ -57,7 +57,7 @@ ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=admin
 
 [Files]
-Source: "$SOURCE\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "$Source\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 
 [Icons]
 Name: "{group}\$APP_NAME_TITLE"; Filename: "{app}\ui.exe"; WorkingDir: "{app}"
@@ -69,9 +69,6 @@ Name: desktopicon; Description: "Create a desktop icon"; GroupDescription: "Addi
 [Run]
 Filename: "{app}\ui.exe"; Description: "Launch $APP_NAME_TITLE"; Flags: nowait postinstall skipifsilent
 "@
-    $path = "$Dist\Calf.iss"
-    $script | Out-File -FilePath $path -Encoding UTF8
-    return $path
 }
 
 function Get-ISCCPath {
@@ -95,11 +92,16 @@ if (!(Test-Path $SOURCE)) {
 
 New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
 
-$issPath = Write-InnoSetupScript -Version $VERSION -Source $SOURCE -Dist $DIST_DIR -Output $OUTPUT
+$sourceAbsolute = (Resolve-Path $SOURCE).Path
+$distAbsolute = (Resolve-Path $DIST_DIR).Path
+$issPath = "$distAbsolute\Calf.iss"
+
+Write-InnoSetupScript -Version $VERSION -Source $sourceAbsolute -Dist $distAbsolute -Output $OUTPUT | Out-File -FilePath $issPath -Encoding UTF8
+
 $isccPath = Get-ISCCPath
 & $isccPath "$issPath"
 
-$expectedExe = "$DIST_DIR\$OUTPUT.exe"
+$expectedExe = "$distAbsolute\$OUTPUT.exe"
 if (!(Test-Path $expectedExe)) {
     throw "expected installer not found at $expectedExe"
 }
