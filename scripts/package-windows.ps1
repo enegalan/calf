@@ -74,11 +74,15 @@ Filename: "{app}\ui.exe"; Description: "Launch $APP_NAME_TITLE"; Flags: nowait p
     return $path
 }
 
-function Require-Command {
-    param([string]$Name)
-    if (!(Get-Command $Name -ErrorAction SilentlyContinue)) {
-        throw "required command '$Name' not found"
+function Get-ISCCPath {
+    if (Get-Command iscc -ErrorAction SilentlyContinue) {
+        return "iscc"
     }
+    $defaultPath = "${env:ProgramFiles(x86)}\Inno Setup 6\iscc.exe"
+    if (Test-Path $defaultPath) {
+        return $defaultPath
+    }
+    throw "Inno Setup compiler (iscc) not found"
 }
 
 $VERSION = Assert-VersionMatch
@@ -92,5 +96,11 @@ if (!(Test-Path $SOURCE)) {
 New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
 
 $issPath = Write-InnoSetupScript -Version $VERSION -Source $SOURCE -Dist $DIST_DIR -Output $OUTPUT
-Require-Command iscc
-iscc "$issPath"
+$isccPath = Get-ISCCPath
+& $isccPath "$issPath"
+
+$expectedExe = "$DIST_DIR\$OUTPUT.exe"
+if (!(Test-Path $expectedExe)) {
+    throw "expected installer not found at $expectedExe"
+}
+Write-Host "created $expectedExe"
