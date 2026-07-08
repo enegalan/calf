@@ -9,7 +9,7 @@ This file provides guidance to AI assistants when working with code in this repo
 - A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **Lima** VM on macOS/Windows, or talking directly to the host runtime on Linux.
 - A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
-The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
+The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
 
 The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
 

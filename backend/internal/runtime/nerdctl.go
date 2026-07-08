@@ -183,6 +183,9 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 	return containers, nil
 }
 
+// parseLabels decodes nerdctl label output. The comma-separated path is
+// intentional: label values that contain commas will be split and fragments
+// without '=' are ignored, matching nerdctl's default formatting.
 func parseLabels(raw json.RawMessage) map[string]string {
 	if len(raw) == 0 {
 		return nil

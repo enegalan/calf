@@ -11,6 +11,8 @@ Calf is a lightweight, open-source alternative to Docker Desktop:
 - `backend/` — Go daemon managing containers via `containerd`/`nerdctl`, inside a Lima VM (macOS/Windows) or natively (Linux). Exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`) plus a REST + WebSocket API on `127.0.0.1:8765`.
 - `ui/` — native Flutter GUI that drives the daemon over that API.
 
+The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
+
 The real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
 
 Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features (see `ROADMAP.md`).
@@ -51,7 +53,7 @@ Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud 
 calf/
 ├── backend/                                Go daemon
 │   ├── cmd/calf/
-│   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover
+│   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover (cross-platform: lsof/Unix, netstat/Windows)
 │   ├── internal/
 │   │   ├── api/
 │   │   │   ├── server.go                     Server struct, route registration for all /v1/... endpoints
@@ -110,7 +112,7 @@ calf/
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
 ├── ui/                                      Flutter application
 │   ├── lib/
-│   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
+│   │   ├── main.dart                          App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
 │   │   ├── app_shell.dart                     Sidebar nav, top bar, SettingsScreen (resources, migration, theme)
 │   │   ├── api/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)

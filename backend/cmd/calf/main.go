@@ -61,22 +61,7 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if os.Getppid() == 1 {
-					logger.Warn("parent process died, shutting down")
-					stop()
-					return
-				}
-			}
-		}
-	}()
+	go watchParent(ctx, os.Getppid(), stop, logger)
 
 	rtCtx, rtCancel := context.WithCancel(ctx)
 	defer rtCancel()
@@ -218,13 +203,14 @@ func findPidOnPortWindows(port string) (int, error) {
 	target := fmt.Sprintf(":%s", port)
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.Contains(line, "LISTENING") && strings.Contains(line, target) {
-			fields := strings.Fields(line)
-			if len(fields) > 4 {
-				pid, err := strconv.Atoi(strings.TrimSpace(fields[len(fields)-1]))
-				if err == nil && pid != os.Getpid() && pid != os.Getppid() {
-					return pid, nil
-				}
+		fields := strings.Fields(line)
+		if len(fields) < 5 || fields[3] != "LISTENING" {
+			continue
+		}
+		if strings.HasSuffix(fields[1], target) {
+			pid, err := strconv.Atoi(strings.TrimSpace(fields[len(fields)-1]))
+			if err == nil && pid != os.Getpid() && pid != os.Getppid() {
+				return pid, nil
 			}
 		}
 	}

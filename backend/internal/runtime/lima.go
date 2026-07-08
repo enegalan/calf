@@ -157,7 +157,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 
 	if _, err := exec.LookPath("limactl"); err != nil {
 		limaLogger.Warn("limactl not found", "error", err, "PATH", os.Getenv("PATH"))
-		status.Log = fmt.Sprintf("limactl not found: %v (PATH: %s)", err, os.Getenv("PATH"))
+		status.Log = "limactl not found: install Lima first"
 		return status, nil
 	}
 
@@ -725,7 +725,10 @@ func (l *Lima) ensureDockerCLISocket() error {
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", l.dockerSocket, err)
 	}
+
+	l.mu.Lock()
 	l.proxyListener = listener
+	l.mu.Unlock()
 
 	dockerCliPath := dockerCLISocketPath()
 	if dockerCliPath != "" {
@@ -754,21 +757,31 @@ func (l *Lima) serveTCPProxy() {
 		DialContext: (&net.Dialer{Timeout: 5 * time.Second}).DialContext,
 	}
 
-	l.dockerProxy = &http.Server{Handler: proxy}
+	server := &http.Server{Handler: proxy}
 
-	if err := l.dockerProxy.Serve(l.proxyListener); err != nil && err != http.ErrServerClosed {
+	l.mu.Lock()
+	l.dockerProxy = server
+	listener := l.proxyListener
+	l.mu.Unlock()
+
+	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		limaLogger.Warn("docker HTTP proxy: serve error", "error", err)
 	}
 }
 
 func (l *Lima) removeDockerCLISocket() {
-	if l.dockerProxy != nil {
-		l.dockerProxy.Close()
-		l.dockerProxy = nil
+	l.mu.Lock()
+	server := l.dockerProxy
+	listener := l.proxyListener
+	l.dockerProxy = nil
+	l.proxyListener = nil
+	l.mu.Unlock()
+
+	if server != nil {
+		server.Close()
 	}
-	if l.proxyListener != nil {
-		l.proxyListener.Close()
-		l.proxyListener = nil
+	if listener != nil {
+		listener.Close()
 	}
 
 	os.Remove(l.dockerSocket)

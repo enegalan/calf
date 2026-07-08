@@ -9,27 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Cross-platform support** — daemon now builds on Linux, macOS, and Windows
-- **Backend cross-compilation** verified in CI for linux/amd64 and windows/amd64
-- **Windows port conflict detection** via `netstat -ano`
-- **Linux Flutter build target** (`make ui-linux`, `make release-linux`)
-- **Windows Flutter build target** (`make ui-windows`, `make release-windows`)
-- **Docker CLI proxy** replaced TCP-level proxy with HTTP reverse proxy (`httputil.ReverseProxy`) to fix compose commands hanging on completion
+- **Cross-platform support** — Calf now runs on Linux, macOS, and Windows.
+- **Automated cross-platform builds** verified in CI for Linux and Windows.
+- **Windows port conflict cleanup** — stale daemon instances are detected and removed on Windows.
+- **Linux build target** — `make ui-linux` and `make release-linux` are available.
+- **Windows build target** — `make ui-windows` and `make release-windows` are available.
+- **`docker compose` no longer hangs** — compose commands finish reliably.
 
 ### Changed
 
-- Port conflict detection uses `lsof` on Unix, `netstat` on Windows
-- PATH setup on macOS prefers Homebrew paths without hardcoding on other OS
-- UI port opening now uses the platform URL opener on all OS (open/xdg-open/rundll32)
-- Daemon binary discovery works next to the Flutter executable on all platforms
-- Socket dial failure during startup logged at Debug level instead of Warn when socket does not yet exist
-- macOS release entitlements: removed `com.apple.security.cs.allow-unsigned-executable-memory` and `com.apple.security.cs.disable-library-validation`. App sandbox remains off because the backend must execute external `limactl`/`nerdctl`/`docker` binaries.
+- Port conflict cleanup works across operating systems.
+- PATH setup on macOS prefers Homebrew paths while leaving other systems unchanged.
+- Links and URLs open with the platform handler on all supported systems.
+- The bundled daemon binary is discovered next to the app executable on all platforms.
+- Startup socket checks log missing sockets at Debug level instead of Warn.
+- macOS release entitlements tightened: removed unsafe memory and library-validation exceptions. The app sandbox remains off so the backend can run required external tools.
 
 ### Fixed
 
-- Container list parsing now uses a single parser that handles both map-shaped and comma-separated labels.
-- Lima streaming log and interactive exec commands consistently run through the `sudo docker` wrapper.
-- macOS release build now produces a universal `calf-daemon` (x86_64 + arm64) and signs the helper without its own entitlements so the app can launch the backend successfully.
+- Container list parsing handles both structured and comma-separated labels.
+- Streaming log and interactive exec commands consistently route through the VM runtime.
+- macOS release build produces a single daemon binary that works on both Intel and Apple Silicon Macs, and signs it correctly so the app can launch the backend.
 - UI startup spinner clears transient daemon errors once the runtime reaches the running state and no longer pretends the app is ready after the timeout expires.
 
 ## [0.6.0] - 2026-07-06

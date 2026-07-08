@@ -49,7 +49,7 @@ release-macos:
 	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
 
 release-linux: ui-linux
-	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
+	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o calf-daemon ./cmd/calf
 	cp backend/calf-daemon ui/build/linux/x64/release/bundle/calf-daemon
 	rm backend/calf-daemon
 

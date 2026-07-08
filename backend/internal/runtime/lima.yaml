@@ -90,7 +90,7 @@ provision:
       Requires=docker.service
       [Service]
       Type=simple
-      ExecStart=/usr/bin/socat TCP-LISTEN:2375,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock
+      ExecStart=/usr/bin/socat TCP-LISTEN:2375,bind=127.0.0.1,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock
       Restart=always
       RestartSec=5
       [Install]
