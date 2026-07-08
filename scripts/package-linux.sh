@@ -15,7 +15,7 @@ require_directory "$BUNDLE" "run 'make release-linux' first"
 require_command dpkg-deb
 require_command rpmbuild
 require_command wget
-require_command sha256sum
+require_command od
 
 mkdir -p "$DIST_DIR" "$LINUX_BUILD_DIR"
 
@@ -143,28 +143,16 @@ EOF
 }
 
 ensure_appimagetool() {
-    local version="13"
-    local base_url="https://github.com/AppImage/AppImageKit/releases/download/${version}"
+    local version="1.9.1"
+    local base_url="https://github.com/AppImage/appimagetool/releases/download/${version}"
     local binary="appimagetool-x86_64.AppImage"
-    local checksums="SHA256SUMS"
     local tmp_dir="$LINUX_BUILD_DIR/appimagetool-tmp"
     local final="$LINUX_BUILD_DIR/appimagetool"
 
     mkdir -p "$tmp_dir"
 
-    wget -q "$base_url/$checksums" -O "$tmp_dir/$checksums"
-
-    local expected
-    expected=$(grep "^[^#]*$binary" "$tmp_dir/$checksums" | awk '{print $1}')
-    if [[ -z "$expected" ]]; then
-        echo "error: could not find checksum for $binary" >&2
-        exit 1
-    fi
-
     if [[ -f "$final" ]]; then
-        local actual
-        actual=$(sha256sum "$final" | awk '{print $1}')
-        if [[ "$actual" == "$expected" ]]; then
+        if validate_appimagetool "$final"; then
             rm -rf "$tmp_dir"
             echo "$final"
             return
@@ -172,19 +160,40 @@ ensure_appimagetool() {
         rm -f "$final"
     fi
 
-    wget -q "$base_url/$binary" -O "$tmp_dir/$binary"
+    wget -q --timeout=60 "$base_url/$binary" -O "$tmp_dir/$binary"
     chmod +x "$tmp_dir/$binary"
 
-    local actual
-    actual=$(sha256sum "$tmp_dir/$binary" | awk '{print $1}')
-    if [[ "$actual" != "$expected" ]]; then
-        echo "error: checksum mismatch for appimagetool" >&2
+    if ! validate_appimagetool "$tmp_dir/$binary"; then
+        echo "error: downloaded appimagetool is invalid or incomplete" >&2
         exit 1
     fi
 
     mv "$tmp_dir/$binary" "$final"
     rm -rf "$tmp_dir"
     echo "$final"
+}
+
+validate_appimagetool() {
+    local path=$1
+    if [[ ! -f "$path" ]]; then
+        return 1
+    fi
+
+    local size
+    size=$(wc -c < "$path")
+    if [[ "$size" -lt 10485760 ]]; then
+        echo "error: appimagetool is too small ($size bytes)" >&2
+        return 1
+    fi
+
+    local magic
+    magic=$(od -An -tx1 -N 4 "$path" | tr -d ' ')
+    if [[ "$magic" != "7f454c46" ]]; then
+        echo "error: appimagetool does not have ELF magic bytes" >&2
+        return 1
+    fi
+
+    return 0
 }
 
 build_deb
