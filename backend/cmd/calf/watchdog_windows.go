@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"golang.org/x/sys/windows"
 )
@@ -17,15 +18,31 @@ func watchParent(ctx context.Context, parentPID int, stop context.CancelFunc, lo
 	}
 	defer windows.CloseHandle(handle)
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
-		_, err := windows.WaitForSingleObject(handle, windows.INFINITE)
-		if err != nil {
-			logger.Warn("parent process wait failed", "error", err)
-			return
+		defer wg.Done()
+		const pollMs = 1000
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			result, err := windows.WaitForSingleObject(handle, pollMs)
+			if err != nil {
+				logger.Warn("parent process wait failed", "error", err)
+				return
+			}
+			if result == windows.WAIT_OBJECT_0 {
+				logger.Warn("parent process died, shutting down")
+				stop()
+				return
+			}
 		}
-		logger.Warn("parent process died, shutting down")
-		stop()
 	}()
 
 	<-ctx.Done()
+	wg.Wait()
 }
