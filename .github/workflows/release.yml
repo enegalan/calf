@@ -83,6 +83,10 @@ jobs:
         id: version
         run: |
           VERSION=$(grep 'const Version' backend/version/version.go | sed 's/.*"\(.*\)".*/\1/')
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "error: invalid version format: $VERSION" >&2
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download all installer artifacts
