@@ -29,6 +29,14 @@ cask "calf" do
 
   app "Calf.app"
 
+  postflight do
+    if OS.mac?
+      system_command "/usr/bin/xattr",
+                     args: ["-dr", "com.apple.quarantine", "#{appdir}/Calf.app"],
+                     sudo: false
+    end
+  end
+
   zap trash: [
     "~/.config/calf",
     "~/Library/Application Support/calf",

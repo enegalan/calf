@@ -16,11 +16,10 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for configuration and migration from Docker
 
 ### macOS
 
-The `.dmg` and `.pkg` installers are unsigned during the development phase. To install Calf on macOS without security warnings, use our Homebrew Tap with the `--no-quarantine` flag:
+The `.dmg` and `.pkg` installers are unsigned during the development phase. To install Calf on macOS, run this single command to install the application:
 
 ```bash
-brew tap enegalan/calf-homebrew https://github.com/enegalan/calf-homebrew
-brew install --cask --no-quarantine calf
+brew install --cask enegalan/calf-homebrew/calf
 ```
 
 ### Windows
