@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -27,7 +28,12 @@ func newTestServer(t *testing.T) *httptest.Server {
 		LogLevel:   "info",
 	}
 
-	return httptest.NewServer(api.New(cfg, slog.Default(), runtime.NewMock()).Handler())
+	apiServer := api.New(cfg, slog.Default(), runtime.NewMock())
+	server := httptest.NewServer(apiServer.Handler())
+	t.Cleanup(func() {
+		apiServer.Shutdown(context.Background())
+	})
+	return server
 }
 
 func TestHealthReturnsOk(t *testing.T) {
