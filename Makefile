@@ -1,6 +1,6 @@
 .PHONY: help ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli release-macos \
         ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release \
-        package-macos package-windows package-linux package
+        package-macos package-windows package-linux package homebrew-cask
 
 help:
 	@echo "Calf — common commands"
@@ -69,6 +69,9 @@ package: package-macos package-windows package-linux
 
 package-macos: release-macos
 	./scripts/package-macos.sh
+
+homebrew-cask:
+	./scripts/update-homebrew.sh
 
 package-windows: release-windows
 	pwsh -ExecutionPolicy Bypass -File scripts/package-windows.ps1
