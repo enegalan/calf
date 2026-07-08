@@ -36,7 +36,7 @@ provision:
       #!/bin/bash
       set -eux -o pipefail
       apt-get update
-      DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io curl ca-certificates
+      DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io curl ca-certificates socat
       systemctl enable --now containerd
       systemctl enable --now docker
       if [ -f /mnt/lima-cidata/lima.env ]; then
@@ -83,6 +83,22 @@ provision:
       sudo systemctl daemon-reload
       sudo systemctl restart containerd docker
 
+      sudo tee /etc/systemd/system/docker-tcp-proxy.service >/dev/null <<'SERVICEEOF'
+      [Unit]
+      Description=Docker TCP Proxy
+      After=docker.service
+      Requires=docker.service
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/socat TCP-LISTEN:2375,bind=127.0.0.1,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock
+      Restart=always
+      RestartSec=5
+      [Install]
+      WantedBy=multi-user.target
+SERVICEEOF
+      sudo systemctl enable docker-tcp-proxy
+      sudo systemctl start docker-tcp-proxy
+
 portForwards:
-  - guestSocket: "/var/run/docker.sock"
-    hostSocket: "%[2]s/.config/calf/docker.sock"
+  - guestPort: 2375
+    hostPort: 2375

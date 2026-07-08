@@ -1,2 +1,6 @@
 .DS_Store
 .vscode
+
+# Binaries
+backend/calf
+backend/calf-daemon

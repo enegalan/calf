@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform, Process;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart' show Tooltip;
@@ -7,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -190,13 +190,6 @@ class _ContainersScreenState extends State<ContainersScreen> {
     });
   }
 
-  void _openPort(int port) {
-    if (!Platform.isMacOS) {
-      return;
-    }
-    Process.run('open', ['http://localhost:$port']);
-  }
-
   Future<void> _loadGroupPreferences() async {
     final saved = await ContainerGroupPreferences.loadExpanded();
     if (!mounted) {
@@ -367,7 +360,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
                     onStopAll: () => _runGroupAction(group.value, widget.apiClient.stopContainer, runningOnly: true),
                     onRemoveAll: () => _runGroupAction(group.value, widget.apiClient.removeContainer),
                     onOpen: _openContainer,
-                    onOpenPort: _openPort,
+                    onOpenPort: openPort,
                   ),
                 for (final container in layout.standalone)
                   _ContainerTile(
@@ -378,7 +371,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
                     onStop: () => _runAction(() => widget.apiClient.stopContainer(container.id)),
                     onRemove: () => _runAction(() => widget.apiClient.removeContainer(container.id)),
                     onOpen: () => _openContainer(container),
-                    onOpenPort: _openPort,
+                    onOpenPort: openPort,
                   ),
               ],
             ),

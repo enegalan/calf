@@ -142,7 +142,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 ### 3.1 Installation and lifecycle
 
 - [ ] macOS installer (.dmg / .pkg) with signing and notarization
-- [ ] Daemon as a user service (launchd / systemd)
+- [x] Daemon embedded in .app bundle, spawned by Flutter app on launch, killed on close
 - [ ] In-app updates
 - [ ] Windows installer (WSL2 + integration)
 - [ ] Linux installer (.deb / .rpm / AppImage)

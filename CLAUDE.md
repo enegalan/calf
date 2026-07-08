@@ -9,6 +9,8 @@ This file provides guidance to AI assistants when working with code in this repo
 - A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **Lima** VM on macOS/Windows, or talking directly to the host runtime on Linux.
 - A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
+The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
+
 The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
 
 Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features.
@@ -49,7 +51,7 @@ Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace,
 calf/
 ├── backend/                                Go daemon
 │   ├── cmd/calf/
-│   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover
+│   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover (cross-platform: lsof/Unix, netstat/Windows)
 │   ├── internal/
 │   │   ├── api/
 │   │   │   ├── server.go                     Server struct, route registration for all /v1/... endpoints
@@ -142,7 +144,7 @@ calf/
 │   └── .dockerignore
 ├── scripts/verify-docker-cli.sh             Verifies `docker` CLI works against Calf's socket
 ├── .github/workflows/ci.yml                 CI: backend (vet/test/build) + ui (analyze/test/build) jobs, macos-latest
-├── Makefile                                 dev-backend / dev-ui / ui / clean / verify-docker-cli targets
+├── Makefile                                 dev-backend / dev-ui-macos / dev-ui-linux / dev-ui-windows / ui-macos / ui-linux / ui-windows / clean / verify-docker-cli / release / release-macos / release-linux / release-windows targets
 ├── README.md                                Project pitch + quick start
 ├── DEVELOPMENT.md                           Dev setup, config file example, Docker Desktop migration walkthrough
 ├── ROADMAP.md                                Phased plan, architecture diagram, non-goals, competitor comparison
@@ -207,7 +209,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ## UI File Reference (`ui/lib/`)
 
 ### `main.dart`
-Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
+App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
 
 ### `app_shell.dart`
 Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, and a top bar showing Docker Hub registry sign-in status. `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
@@ -250,10 +252,18 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 
 ```
 make dev-backend        # cd backend && CGO_ENABLED=0 go run ./cmd/calf
-make dev-ui              # flutter run -d macos
-make ui                  # flutter build macos  (alias: make build)
-make clean                # flutter clean
-make verify-docker-cli    # runs scripts/verify-docker-cli.sh
+make dev-ui-macos       # flutter run -d macos
+make dev-ui-linux       # flutter run -d linux
+make dev-ui-windows     # flutter run -d windows
+make ui-macos           # flutter build macos
+make ui-linux           # flutter build linux
+make ui-windows         # flutter build windows
+make release            # build Go daemon + Flutter app for all platforms
+make release-macos      # build Go daemon + macOS .app
+make release-linux      # build Go daemon + Linux bundle
+make release-windows    # build Go daemon + Windows bundle
+make clean              # flutter clean
+make verify-docker-cli  # runs scripts/verify-docker-cli.sh
 ```
 
 CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):

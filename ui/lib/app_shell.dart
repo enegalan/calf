@@ -247,7 +247,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _startAtLogin = false;
   Config? _config;
   bool _configLoading = true;
   String? _configError;
@@ -465,15 +464,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Text('Settings', style: theme.textTheme.h3),
           const SizedBox(height: 24),
-          _sectionHeader('General', theme),
-          const SizedBox(height: 12),
-          _settingRow(
-            'Start Calf when you sign in to your computer',
-            ShadSwitch(
-              value: _startAtLogin,
-              onChanged: (value) => setState(() => _startAtLogin = value),
-            ),
-          ),
           const SizedBox(height: 12),
           _settingRow(
             'Use Calf for Docker CLI',

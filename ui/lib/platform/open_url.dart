@@ -1,5 +1,9 @@
 import 'dart:io';
 
+void openPort(int port) {
+  openExternalUrl('http://localhost:$port');
+}
+
 Future<bool> openExternalUrl(String url) async {
   if (url.isEmpty) {
     return false;

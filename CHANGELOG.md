@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-08
+
+### Added
+
+- **Cross-platform support** — Calf now runs on Linux, macOS, and Windows.
+- **Automated cross-platform builds** verified in CI for Linux and Windows.
+- **Windows port conflict cleanup** — stale daemon instances are detected and removed on Windows.
+- **Linux build target** — `make ui-linux` and `make release-linux` are available.
+- **Windows build target** — `make ui-windows` and `make release-windows` are available.
+- **`docker compose` no longer hangs** — compose commands finish reliably.
+
+### Changed
+
+- Port conflict cleanup works across operating systems.
+- PATH setup on macOS prefers Homebrew paths while leaving other systems unchanged.
+- Links and URLs open with the platform handler on all supported systems.
+- The bundled daemon binary is discovered next to the app executable on all platforms.
+- Startup socket checks log missing sockets at Debug level instead of Warn.
+- macOS release entitlements tightened: removed unsafe memory and library-validation exceptions. The app sandbox remains off so the backend can run required external tools.
+
+### Fixed
+
+- Container list parsing handles both structured and comma-separated labels.
+- Streaming log and interactive exec commands consistently route through the VM runtime.
+- macOS release build produces a single daemon binary that works on both Intel and Apple Silicon Macs, and signs it correctly so the app can launch the backend.
+- UI startup spinner clears transient daemon errors once the runtime reaches the running state and no longer pretends the app is ready after the timeout expires.
+
 ## [0.6.0] - 2026-07-06
 
 ### Changed
