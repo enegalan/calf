@@ -163,7 +163,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
   Future<void> _waitForDaemon() async {
     const url = 'http://127.0.0.1:8765/v1/status';
-    final attempts = 120;
+    const attempts = 120;
     final client = http.Client();
 
     for (var i = 0; i < attempts; i++) {
@@ -176,13 +176,17 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             if (runtime is Map<String, dynamic> && runtime['state'] == 'running') {
               client.close();
               if (mounted) {
-                setState(() => _daemonReady = true);
+                setState(() {
+                  _daemonReady = true;
+                  _error = null;
+                });
               }
               return;
             }
-            if (runtime is Map<String, dynamic> && runtime['log'] != null && runtime['log'] != '') {
+            if (runtime is Map<String, dynamic>) {
+              final log = runtime['log'];
               if (mounted) {
-                setState(() => _error = runtime['log']);
+                setState(() => _error = (log is String && log.isNotEmpty) ? log : null);
               }
             }
           }
@@ -193,7 +197,6 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     client.close();
     if (mounted) {
       setState(() {
-        _daemonReady = true;
         _error = _error ?? 'Daemon did not become ready in time. Try restarting Calf.';
       });
     }

@@ -485,7 +485,7 @@ func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(stri
 }
 
 func (l *Lima) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
-	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--", "sudo", "docker"}, "logs", "-f", "--since", since, id)...)
+	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", "logs", "-f", "--since", since, id)...)...)
 	command.Env = limaShellEnv()
 	return streamCommandLogs(ctx, command, output)
 }
@@ -532,7 +532,7 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 		return err
 	}
 
-	shellArgs := append([]string{"shell", l.vmName, "--"}, append([]string{"docker"}, interactiveExecArgs(id)...)...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", interactiveExecArgs(id)...)...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }

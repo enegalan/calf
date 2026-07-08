@@ -5,8 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
 ## [0.7.0] - 2026-07-08
 
 ### Added
@@ -25,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - UI port opening now uses the platform URL opener on all OS (open/xdg-open/rundll32)
 - Daemon binary discovery works next to the Flutter executable on all platforms
 - Socket dial failure during startup logged at Debug level instead of Warn when socket does not yet exist
+- macOS release entitlements: removed `com.apple.security.cs.allow-unsigned-executable-memory` and `com.apple.security.cs.disable-library-validation`. App sandbox remains off because the backend must execute external `limactl`/`nerdctl`/`docker` binaries.
+
+### Fixed
+
+- Container list parsing now uses a single parser that handles both map-shaped and comma-separated labels.
+- Lima streaming log and interactive exec commands consistently run through the `sudo docker` wrapper.
+- macOS release build now produces a universal `calf-daemon` (x86_64 + arm64) and signs the helper without its own entitlements so the app can launch the backend successfully.
+- UI startup spinner clears transient daemon errors once the runtime reaches the running state and no longer pretends the app is ready after the timeout expires.
 
 ## [0.6.0] - 2026-07-06
 

@@ -1,5 +1,5 @@
 .PHONY: help ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli release-macos \
-        ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release ui
+        ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release
 
 help:
 	@echo "Calf — common commands"
@@ -15,7 +15,7 @@ help:
 	@echo "  make ui-linux           build Linux app"
 	@echo "  make ui-windows         build Windows app"
 
-    @echo ""
+	@echo ""
 	@echo "  make release-macos      build Go daemon + macOS app"
 	@echo "  make release-linux      build Go daemon + Linux app"
 	@echo "  make release-windows    build Go daemon + Windows app"
@@ -37,11 +37,16 @@ ui-windows:
 release: release-macos release-linux release-windows
 
 release-macos:
-	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
+	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o calf-daemon-amd64 ./cmd/calf
+	cd backend && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o calf-daemon-arm64 ./cmd/calf
+	lipo -create -output backend/calf-daemon backend/calf-daemon-amd64 backend/calf-daemon-arm64
+	rm backend/calf-daemon-amd64 backend/calf-daemon-arm64
 	cd ui && flutter build macos
 	cp backend/calf-daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
 	rm backend/calf-daemon
-	codesign --force --deep --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
+	codesign --force --sign - --identifier com.enegalan.calf.daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
+	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
+	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
 
 release-linux: ui-linux
 	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf

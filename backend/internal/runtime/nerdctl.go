@@ -60,93 +60,7 @@ func listContainers(ctx context.Context, run commandRunner) ([]Container, error)
 		return nil, err
 	}
 
-	return parseContainerLines(output)
-}
-
-func parseContainerLines(output []byte) ([]Container, error) {
-	containers := make([]Container, 0)
-	seen := make(map[string]bool)
-
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		var row struct {
-			ID        string `json:"ID"`
-			Names     string `json:"Names"`
-			Image     string `json:"Image"`
-			State     string `json:"State"`
-			Status    string `json:"Status"`
-			Ports     string `json:"Ports"`
-			CreatedAt string `json:"CreatedAt"`
-			Labels    string `json:"Labels"`
-		}
-		if err := json.Unmarshal([]byte(line), &row); err != nil {
-			continue
-		}
-
-		if row.ID == "" || seen[row.ID] {
-			continue
-		}
-		seen[row.ID] = true
-
-		containerID := row.ID
-		if len(containerID) > 12 {
-			containerID = containerID[:12]
-		}
-
-		containerName := row.Names
-		if containerName == "" {
-			containerName = containerID
-		}
-
-		labels := parseCommaLabels(row.Labels)
-		project, service := composeFields(containerName, labels)
-
-		containers = append(containers, Container{
-			ID:             containerID,
-			Name:           containerName,
-			Image:          row.Image,
-			State:          containerState(row.Status, row.State),
-			Status:         row.Status,
-			Ports:          row.Ports,
-			Created:        row.CreatedAt,
-			ComposeProject: project,
-			ComposeService: service,
-		})
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	inferComposeProjects(containers)
-
-	return containers, nil
-}
-
-func parseCommaLabels(raw string) map[string]string {
-	if raw == "" {
-		return nil
-	}
-
-	labels := make(map[string]string)
-	for _, pair := range strings.Split(raw, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-
-		parts := strings.SplitN(pair, "=", 2)
-		if len(parts) == 2 {
-			labels[parts[0]] = parts[1]
-		}
-	}
-
-	return labels
+	return ParseContainerLines(output)
 }
 
 func listImages(ctx context.Context, run commandRunner) ([]Image, error) {
@@ -208,6 +122,7 @@ func pushImage(ctx context.Context, run commandRunner, ref string) error {
 
 func ParseContainerLines(output []byte) ([]Container, error) {
 	containers := make([]Container, 0)
+	seen := make(map[string]struct{})
 	scanner := bufio.NewScanner(bytes.NewReader(output))
 
 	for scanner.Scan() {
@@ -216,17 +131,35 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 			continue
 		}
 
-		var row nerdctlLine
+		var row struct {
+			ID        string          `json:"ID"`
+			Names     string          `json:"Names"`
+			Image     string          `json:"Image"`
+			State     string          `json:"State"`
+			Status    string          `json:"Status"`
+			Ports     string          `json:"Ports"`
+			CreatedAt string          `json:"CreatedAt"`
+			Labels    json.RawMessage `json:"Labels"`
+		}
 		if err := json.Unmarshal([]byte(line), &row); err != nil {
 			continue
 		}
+
+		if row.ID == "" {
+			continue
+		}
+		if _, exists := seen[row.ID]; exists {
+			continue
+		}
+		seen[row.ID] = struct{}{}
 
 		containerName := row.Names
 		if containerName == "" {
 			containerName = row.ID
 		}
 
-		project, service := composeFields(containerName, row.Labels)
+		labels := parseLabels(row.Labels)
+		project, service := composeFields(containerName, labels)
 
 		containers = append(containers, Container{
 			ID:             row.ID,
@@ -248,6 +181,42 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 	inferComposeProjects(containers)
 
 	return containers, nil
+}
+
+func parseLabels(raw json.RawMessage) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	if raw[0] == '{' {
+		var labels map[string]string
+		if err := json.Unmarshal(raw, &labels); err == nil {
+			return labels
+		}
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil
+	}
+	if s == "" {
+		return nil
+	}
+
+	labels := make(map[string]string)
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) == 2 {
+			labels[parts[0]] = parts[1]
+		}
+	}
+
+	return labels
 }
 
 func ParseImageLines(output []byte) ([]Image, error) {

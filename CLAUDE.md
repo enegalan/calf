@@ -144,7 +144,7 @@ calf/
 │   └── .dockerignore
 ├── scripts/verify-docker-cli.sh             Verifies `docker` CLI works against Calf's socket
 ├── .github/workflows/ci.yml                 CI: backend (vet/test/build) + ui (analyze/test/build) jobs, macos-latest
-├── Makefile                                 dev-backend / dev-ui / ui / clean / verify-docker-cli / release / ui-linux / ui-windows / release-linux / release-windows targets
+├── Makefile                                 dev-backend / dev-ui-macos / dev-ui-linux / dev-ui-windows / ui-macos / ui-linux / ui-windows / clean / verify-docker-cli / release / release-macos / release-linux / release-windows targets
 ├── README.md                                Project pitch + quick start
 ├── DEVELOPMENT.md                           Dev setup, config file example, Docker Desktop migration walkthrough
 ├── ROADMAP.md                                Phased plan, architecture diagram, non-goals, competitor comparison
@@ -252,11 +252,18 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 
 ```
 make dev-backend        # cd backend && CGO_ENABLED=0 go run ./cmd/calf
-make dev-ui              # flutter run -d macos
-make ui                  # flutter build macos  (alias: make build)
-make release             # build Go daemon + Flutter .app and bundle together
-make clean                # flutter clean
-make verify-docker-cli    # runs scripts/verify-docker-cli.sh
+make dev-ui-macos       # flutter run -d macos
+make dev-ui-linux       # flutter run -d linux
+make dev-ui-windows     # flutter run -d windows
+make ui-macos           # flutter build macos
+make ui-linux           # flutter build linux
+make ui-windows         # flutter build windows
+make release            # build Go daemon + Flutter app for all platforms
+make release-macos      # build Go daemon + macOS .app
+make release-linux      # build Go daemon + Linux bundle
+make release-windows    # build Go daemon + Windows bundle
+make clean              # flutter clean
+make verify-docker-cli  # runs scripts/verify-docker-cli.sh
 ```
 
 CI (`.github/workflows/ci.yml`, both jobs on `macos-latest`):
