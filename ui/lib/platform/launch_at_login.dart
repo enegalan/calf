@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 const _appName = 'Calf';
@@ -74,7 +76,8 @@ class LaunchAtLogin {
       final contents = await plist.readAsString();
       final launchPath = launchAtLoginPath();
       return contents.contains(launchPath);
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to read launch-at-login plist: $error');
       return false;
     }
   }
@@ -90,7 +93,8 @@ class LaunchAtLogin {
       plist.parent.createSync(recursive: true);
       await plist.writeAsString(_macLaunchAgentPlist(launchPath));
       return true;
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to write launch-at-login plist: $error');
       return false;
     }
   }
@@ -104,7 +108,8 @@ class LaunchAtLogin {
     try {
       await plist.delete();
       return true;
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to delete launch-at-login plist: $error');
       return false;
     }
   }
@@ -144,7 +149,8 @@ class LaunchAtLogin {
       final contents = await desktopFile.readAsString();
       final launchPath = launchAtLoginPath();
       return contents.contains('Exec=$launchPath') || contents.contains('Exec="$launchPath"');
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to read launch-at-login desktop file: $error');
       return false;
     }
   }
@@ -163,7 +169,8 @@ Terminal=false
 X-GNOME-Autostart-enabled=true
 ''');
       return true;
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to write launch-at-login desktop file: $error');
       return false;
     }
   }
@@ -177,7 +184,8 @@ X-GNOME-Autostart-enabled=true
     try {
       await desktopFile.delete();
       return true;
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to delete launch-at-login desktop file: $error');
       return false;
     }
   }
@@ -200,31 +208,38 @@ X-GNOME-Autostart-enabled=true
       }
 
       final launchPath = launchAtLoginPath().toLowerCase();
-      return result.stdout.toString().toLowerCase().contains(launchPath);
-    } catch (_) {
+      final output = result.stdout.toString().toLowerCase();
+      return output.contains(launchPath) || output.contains('"$launchPath"');
+    } on ProcessException catch (error) {
+      debugPrint('Failed to query Windows launch-at-login registry: $error');
       return false;
     }
   }
 
   static Future<bool> _windowsEnable() async {
     final launchPath = launchAtLoginPath();
+    final runValue = _windowsRunValue(launchPath);
 
     try {
       final result = await Process.run(
         'reg',
-        ['add', _windowsRunKey, '/v', _appName, '/t', 'REG_SZ', '/d', launchPath, '/f'],
+        ['add', _windowsRunKey, '/v', _appName, '/t', 'REG_SZ', '/d', runValue, '/f'],
       );
       return result.exitCode == 0;
-    } catch (_) {
+    } on ProcessException catch (error) {
+      debugPrint('Failed to enable Windows launch-at-login: $error');
       return false;
     }
   }
+
+  static String _windowsRunValue(String launchPath) => '"$launchPath"';
 
   static Future<bool> _windowsDisable() async {
     try {
       final result = await Process.run('reg', ['delete', _windowsRunKey, '/v', _appName, '/f']);
       return result.exitCode == 0;
-    } catch (_) {
+    } on ProcessException catch (error) {
+      debugPrint('Failed to disable Windows launch-at-login: $error');
       return false;
     }
   }

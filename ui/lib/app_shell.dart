@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -81,7 +83,19 @@ class _AppShellState extends State<AppShell> {
       if (!mounted) return;
       setState(() => _appVersion = status.version);
       await checkForUpdates(force: false);
-    } catch (_) {}
+    } on ApiException catch (error) {
+      debugPrint('Failed to load app version from daemon: ${error.message}');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    } on TimeoutException catch (error) {
+      debugPrint('Timed out loading app version: $error');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    } on FormatException catch (error) {
+      debugPrint('Failed to parse app version response: $error');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    }
   }
 
   Future<void> checkForUpdates({required bool force}) async {
@@ -233,7 +247,9 @@ class _AppShellState extends State<AppShell> {
     } else if (_lastWidthWasSmall != isSmallScreen) {
       _lastWidthWasSmall = isSmallScreen;
       _isCollapsed = isSmallScreen;
-      SidebarPreferences.saveCollapsed(_isCollapsed);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SidebarPreferences.saveCollapsed(_isCollapsed);
+      });
     }
 
     final shell = Column(

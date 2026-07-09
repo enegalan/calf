@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui/updates/update_checker.dart';
 
@@ -33,8 +35,18 @@ void main() {
     expect(release.downloadUrl, 'https://example.com/Calf-1.2.3.dmg');
   });
 
-  test('preferredAssetNames includes macOS installer names', () {
+  test('preferredAssetNames matches current platform', () {
     final assetNames = UpdateChecker.preferredAssetNames('1.2.3');
-    expect(assetNames, contains('Calf-1.2.3.dmg'));
+
+    if (Platform.isMacOS) {
+      expect(assetNames, contains('Calf-1.2.3.dmg'));
+      expect(assetNames, contains('Calf-1.2.3.pkg'));
+    } else if (Platform.isWindows) {
+      expect(assetNames, contains('Calf-1.2.3.exe'));
+    } else if (Platform.isLinux) {
+      expect(assetNames, contains('Calf-1.2.3-x86_64.AppImage'));
+    } else {
+      expect(assetNames, isEmpty);
+    }
   });
 }

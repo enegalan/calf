@@ -4,8 +4,6 @@ import 'package:flutter/widgets.dart';
 
 import 'package:ui/widgets/about_dialog.dart';
 
-const _githubRepo = 'enegalan/calf';
-
 bool get supportsNativeMacosMenu =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
@@ -82,15 +80,15 @@ class MacosMenuScope extends StatelessWidget {
           ),
         ],
       ),
-      if (_platformMenu(PlatformProvidedMenuItemType.servicesSubmenu) case final item?) item,
+      ?_platformMenu(PlatformProvidedMenuItemType.servicesSubmenu),
       PlatformMenuItemGroup(
         members: [
-          if (_platformMenu(PlatformProvidedMenuItemType.hide) case final item?) item,
-          if (_platformMenu(PlatformProvidedMenuItemType.hideOtherApplications) case final item?) item,
-          if (_platformMenu(PlatformProvidedMenuItemType.showAllApplications) case final item?) item,
+          ?_platformMenu(PlatformProvidedMenuItemType.hide),
+          ?_platformMenu(PlatformProvidedMenuItemType.hideOtherApplications),
+          ?_platformMenu(PlatformProvidedMenuItemType.showAllApplications),
         ],
       ),
-      if (_platformMenu(PlatformProvidedMenuItemType.quit) case final item?) item,
+      ?_platformMenu(PlatformProvidedMenuItemType.quit),
     ];
 
     final viewMenuItems = <PlatformMenuItem>[
@@ -114,17 +112,17 @@ class MacosMenuScope extends StatelessWidget {
             ),
             onSelected: onToggleSidebar,
           ),
-          if (_platformMenu(PlatformProvidedMenuItemType.toggleFullScreen) case final item?) item,
+          ?_platformMenu(PlatformProvidedMenuItemType.toggleFullScreen),
         ],
       ),
     ];
 
     final windowMenuItems = <PlatformMenuItem>[
-      if (_platformMenu(PlatformProvidedMenuItemType.minimizeWindow) case final item?) item,
-      if (_platformMenu(PlatformProvidedMenuItemType.zoomWindow) case final item?) item,
+      ?_platformMenu(PlatformProvidedMenuItemType.minimizeWindow),
+      ?_platformMenu(PlatformProvidedMenuItemType.zoomWindow),
       PlatformMenuItemGroup(
         members: [
-          if (_platformMenu(PlatformProvidedMenuItemType.arrangeWindowsInFront) case final item?) item,
+          ?_platformMenu(PlatformProvidedMenuItemType.arrangeWindowsInFront),
         ],
       ),
     ];
@@ -182,9 +180,3 @@ class MacosMenuScope extends StatelessWidget {
     );
   }
 }
-
-String get calfDocumentationUrl => 'https://github.com/$_githubRepo/blob/main/DEVELOPMENT.md';
-
-String get calfReportIssueUrl => 'https://github.com/$_githubRepo/issues/new';
-
-String get calfRepositoryUrl => 'https://github.com/$_githubRepo';

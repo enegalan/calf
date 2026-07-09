@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:ui/storage/calf_ui_storage.dart';
 import 'package:ui/updates/update_info.dart';
 
@@ -46,7 +48,11 @@ class UpdatePreferences {
         skippedVersion: skippedVersion is String ? skippedVersion : '',
         cachedUpdate: cachedUpdate,
       );
-    } catch (_) {
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to read updates.json: $error');
+      return const UpdatePreferencesData();
+    } on FormatException catch (error) {
+      debugPrint('Failed to parse updates.json: $error');
       return const UpdatePreferencesData();
     }
   }
@@ -93,7 +99,10 @@ class UpdatePreferences {
             },
         }),
       );
-    } catch (_) {}
+    } on FileSystemException catch (error) {
+      debugPrint('Failed to write updates.json: $error');
+      rethrow;
+    }
   }
 
   static UpdateInfo? _parseCachedUpdate(Map<String, dynamic> raw) {

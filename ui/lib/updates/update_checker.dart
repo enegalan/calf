@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,6 +9,7 @@ import 'package:ui/updates/update_info.dart';
 
 const _githubRepo = 'enegalan/calf';
 const _checkInterval = Duration(hours: 24);
+const _requestTimeout = Duration(seconds: 15);
 
 class UpdateChecker {
   UpdateChecker({http.Client? client}) : _client = client ?? http.Client();
@@ -108,13 +110,15 @@ class UpdateChecker {
     }
 
     try {
-      final response = await _client.get(
-        Uri.parse('https://api.github.com/repos/$_githubRepo/releases/latest'),
-        headers: const {
-          'Accept': 'application/vnd.github+json',
-          'User-Agent': 'Calf',
-        },
-      );
+      final response = await _client
+          .get(
+            Uri.parse('https://api.github.com/repos/$_githubRepo/releases/latest'),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'Calf',
+            },
+          )
+          .timeout(_requestTimeout);
 
       if (response.statusCode != 200) {
         return UpdateCheckResult.failed(
@@ -154,6 +158,11 @@ class UpdateChecker {
         checkedAt: checkedAt,
         skippedVersion: preferences.skippedVersion,
       );
+    } on TimeoutException {
+      return UpdateCheckResult.failed(
+        currentVersion: normalizedCurrent,
+        error: 'Update check timed out.',
+      );
     } on SocketException {
       return UpdateCheckResult.failed(
         currentVersion: normalizedCurrent,
@@ -176,13 +185,15 @@ class UpdateChecker {
     _client.close();
   }
 
+  static final RegExp _versionPrefixPattern = RegExp(r'^\d+');
+
   static List<int> _parseVersionParts(String version) {
     final normalized = normalizeTagName(version);
     final parts = normalized.split('.');
     final values = <int>[];
 
     for (var index = 0; index < parts.length && values.length < 3; index++) {
-      final match = RegExp(r'^\d+').firstMatch(parts[index]);
+      final match = _versionPrefixPattern.firstMatch(parts[index]);
       if (match == null) {
         break;
       }

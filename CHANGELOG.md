@@ -5,22 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-07-09
 
 ### Added
 
-- **Update notifications** — Calf checks GitHub Releases on launch and in Settings, shows when a newer version is available, and opens the right installer download for your platform.
-
-## [Unreleased]
-
-### Added
-
+- **Update notifications** — Calf checks for updates on launch and in Settings, shows when a newer version is available, and opens the right installer for your platform.
 - **macOS menu bar** — Settings, section navigation, Docker Hub sign-in, update checks, and help links are available from the native menu bar.
-
-## [Unreleased]
-
-### Added
-
 - **Open at login** — optional setting in Settings to start Calf automatically when you sign in.
 
 ## [0.8.0] - 2026-07-08
