@@ -30,8 +30,9 @@ type dockerConfig struct {
 
 func StatusFor(socket string, managed bool) (Status, error) {
 	status := Status{
-		Managed: managed,
-		Socket:  socket,
+		Managed:        managed,
+		Socket:         socket,
+		CurrentContext: readCurrentContext(),
 	}
 
 	if _, err := exec.LookPath("docker"); err != nil {
@@ -39,7 +40,6 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	}
 
 	status.Available = true
-	status.CurrentContext = readCurrentContext()
 	status.CalfActive = status.CurrentContext == ContextName
 
 	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout)
