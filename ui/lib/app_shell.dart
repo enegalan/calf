@@ -1,11 +1,21 @@
-import 'package:flutter/material.dart' show ThemeMode;
+import 'dart:async';
+
+import 'package:flutter/material.dart' show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/platform/macos_menu.dart';
+import 'package:ui/platform/launch_at_login.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/containers_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/resources_screen.dart';
+import 'package:ui/storage/sidebar_preferences.dart';
+import 'package:ui/storage/update_preferences.dart';
+import 'package:ui/updates/update_checker.dart';
+import 'package:ui/updates/update_dialog.dart';
+import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
 
@@ -32,12 +42,39 @@ class _AppShellState extends State<AppShell> {
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
   String _appVersion = '';
+  UpdateCheckResult? _updateCheckResult;
+  bool _updateDialogShown = false;
+  late final UpdateChecker _updateChecker = UpdateChecker();
+
+  bool _isCollapsed = false;
+  bool _isHoveringSidebar = false;
+  bool _isHoveringToggle = false;
+  bool? _lastWidthWasSmall;
+  bool _sidebarPrefLoaded = false;
+
+  bool get _showSidebarToggle => _isHoveringSidebar || _isHoveringToggle;
+
+  @override
+  void dispose() {
+    _updateChecker.close();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _loadSidebarPreference();
     loadRegistryStatus();
     loadAppVersion();
+  }
+
+  Future<void> _loadSidebarPreference() async {
+    final collapsed = await SidebarPreferences.loadCollapsed();
+    if (!mounted) return;
+    setState(() {
+      _isCollapsed = collapsed;
+      _sidebarPrefLoaded = true;
+    });
   }
 
   Future<void> loadAppVersion() async {
@@ -45,7 +82,58 @@ class _AppShellState extends State<AppShell> {
       final status = await widget.apiClient.fetchStatus();
       if (!mounted) return;
       setState(() => _appVersion = status.version);
-    } catch (_) {}
+      await checkForUpdates(force: false);
+    } on ApiException catch (error) {
+      debugPrint('Failed to load app version from daemon: ${error.message}');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    } on TimeoutException catch (error) {
+      debugPrint('Timed out loading app version: $error');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    } on FormatException catch (error) {
+      debugPrint('Failed to parse app version response: $error');
+      if (!mounted) return;
+      setState(() => _appVersion = 'unavailable');
+    }
+  }
+
+  Future<void> checkForUpdates({required bool force}) async {
+    if (_appVersion.isEmpty) {
+      return;
+    }
+
+    final result = await _updateChecker.check(
+      currentVersion: _appVersion,
+      force: force,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _updateCheckResult = result);
+
+    if (!force && !_updateDialogShown && result.hasUpdate && result.latest != null) {
+      _updateDialogShown = true;
+      await showUpdateAvailableDialog(
+        context: context,
+        update: result.latest!,
+        currentVersion: result.currentVersion,
+        onDownload: () => openExternalUrl(result.latest!.downloadUrl),
+        onSkip: () async {
+          await UpdatePreferences.saveSkippedVersion(result.latest!.version);
+          if (!mounted) {
+            return;
+          }
+          setState(
+            () => _updateCheckResult = UpdateCheckResult.upToDate(
+              currentVersion: result.currentVersion,
+              checkedAt: result.checkedAt,
+            ),
+          );
+        },
+      );
+    }
   }
 
   Future<void> loadRegistryStatus() async {
@@ -109,6 +197,34 @@ class _AppShellState extends State<AppShell> {
     } catch (_) {}
   }
 
+  void openSettings() {
+    setState(() => _showSettings = true);
+  }
+
+  void navigateToSection(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _showSettings = false;
+    });
+  }
+
+  void toggleSidebar() {
+    setState(() {
+      _isCollapsed = !_isCollapsed;
+      SidebarPreferences.saveCollapsed(_isCollapsed);
+    });
+  }
+
+  Future<void> openAccountSettings() async {
+    final username = _registryStatus?.username ?? '';
+    if (username.isEmpty) {
+      return;
+    }
+    await openExternalUrl(
+      'https://app.docker.com/accounts/$username/settings/account-information',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -120,70 +236,175 @@ class _AppShellState extends State<AppShell> {
       (label: 'Builds', icon: LucideIcons.wrench),
     ];
 
-    return Column(
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 1024;
+
+    if (_lastWidthWasSmall == null) {
+      _lastWidthWasSmall = isSmallScreen;
+      if (!_sidebarPrefLoaded) {
+        _isCollapsed = isSmallScreen;
+      }
+    } else if (_lastWidthWasSmall != isSmallScreen) {
+      _lastWidthWasSmall = isSmallScreen;
+      _isCollapsed = isSmallScreen;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        SidebarPreferences.saveCollapsed(_isCollapsed);
+      });
+    }
+
+    final shell = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppTopBar(
           registryStatus: _registryStatus,
           registryLoading: _registryLoading,
           signInPending: _registryBrowserLoginPending,
-          onOpenSettings: () => setState(() => _showSettings = true),
+          updateAvailable: _updateCheckResult?.hasUpdate == true,
+          onOpenSettings: openSettings,
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
         ),
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 220,
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: theme.colorScheme.border),
-                  ),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var index = 0; index < navItems.length; index++) ...[
-                      if (index > 0) const SizedBox(height: 8),
-                      _NavItem(
-                        label: navItems[index].label,
-                        icon: navItems[index].icon,
-                        selected: !_showSettings && _selectedIndex == index,
-                        onTap: () => setState(() {
-                          _selectedIndex = index;
-                          _showSettings = false;
-                        }),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  MouseRegion(
+                    onEnter: (_) => setState(() => _isHoveringSidebar = true),
+                    onExit: (_) => setState(() => _isHoveringSidebar = false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      width: _isCollapsed ? 72 : 220,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(color: theme.colorScheme.border),
+                        ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: _showSettings
-                      ? SettingsScreen(
-                          apiClient: widget.apiClient,
-                          themeMode: widget.themeMode,
-                          onThemeModeChanged: widget.onThemeModeChanged,
-                        )
-                      : switch (_selectedIndex) {
-                          0 => ContainersScreen(apiClient: widget.apiClient),
-                          1 => ImagesScreen(apiClient: widget.apiClient),
-                          2 => VolumesScreen(apiClient: widget.apiClient),
-                          3 => NetworksScreen(apiClient: widget.apiClient),
-                          _ => BuildsScreen(apiClient: widget.apiClient),
+                      padding: const EdgeInsets.all(16),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCurrentlyCollapsed = constraints.maxWidth < 150;
+                          return Column(
+                            crossAxisAlignment: isCurrentlyCollapsed
+                                ? CrossAxisAlignment.center
+                                : CrossAxisAlignment.start,
+                            children: [
+                              for (var index = 0; index < navItems.length; index++) ...[
+                                if (index > 0) const SizedBox(height: 8),
+                                _NavItem(
+                                  label: navItems[index].label,
+                                  icon: navItems[index].icon,
+                                  selected: !_showSettings && _selectedIndex == index,
+                                  collapsed: isCurrentlyCollapsed,
+                                  onTap: () => setState(() {
+                                    _selectedIndex = index;
+                                    _showSettings = false;
+                                  }),
+                                ),
+                              ],
+                            ],
+                          );
                         },
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _showSettings
+                          ? SettingsScreen(
+                              apiClient: widget.apiClient,
+                              appVersion: _appVersion,
+                              themeMode: widget.themeMode,
+                              onThemeModeChanged: widget.onThemeModeChanged,
+                              initialUpdateCheckResult: _updateCheckResult,
+                              onCheckForUpdates: () => checkForUpdates(force: true),
+                              onUpdateCheckResultChanged: (result) {
+                                setState(() => _updateCheckResult = result);
+                              },
+                            )
+                          : switch (_selectedIndex) {
+                              0 => ContainersScreen(apiClient: widget.apiClient),
+                              1 => ImagesScreen(apiClient: widget.apiClient),
+                              2 => VolumesScreen(apiClient: widget.apiClient),
+                              3 => NetworksScreen(apiClient: widget.apiClient),
+                              _ => BuildsScreen(apiClient: widget.apiClient),
+                            },
+                    ),
+                  ),
+                ],
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                top: 16,
+                left: (_isCollapsed ? 72 : 220) - 18,
+                child: MouseRegion(
+                  hitTestBehavior: HitTestBehavior.opaque,
+                  onEnter: (_) => setState(() => _isHoveringToggle = true),
+                  onExit: (_) => setState(() => _isHoveringToggle = false),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: AnimatedOpacity(
+                      opacity: _showSidebarToggle ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: IconButton(
+                        onPressed: _showSidebarToggle
+                            ? () {
+                                setState(() {
+                                  _isCollapsed = !_isCollapsed;
+                                  SidebarPreferences.saveCollapsed(_isCollapsed);
+                                });
+                              }
+                            : null,
+                        icon: Icon(
+                          LucideIcons.panelLeft,
+                          size: 14,
+                          color: theme.colorScheme.foreground,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: theme.colorScheme.background,
+                          foregroundColor: theme.colorScheme.foreground,
+                          side: BorderSide(color: theme.colorScheme.border),
+                          padding: const EdgeInsets.all(6),
+                          minimumSize: const Size(28, 28),
+                          fixedSize: const Size(28, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          elevation: 2,
+                          shadowColor: theme.colorScheme.popoverForeground.withValues(alpha: 0.15),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ],
+    );
+
+    return MacosMenuScope(
+      appVersion: _appVersion,
+      loggedIn: _registryStatus?.loggedIn == true,
+      signInPending: _registryBrowserLoginPending,
+      onOpenSettings: openSettings,
+      onCheckForUpdates: () => checkForUpdates(force: true),
+      onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
+      onSignIn: startRegistryBrowserLogin,
+      onSignOut: logoutRegistry,
+      onOpenAccountSettings: openAccountSettings,
+      onNavigateToSection: navigateToSection,
+      onToggleSidebar: toggleSidebar,
+      onReportIssue: () => openExternalUrl(calfReportIssueUrl),
+      onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
+      child: shell,
     );
   }
 }
@@ -194,35 +415,45 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.collapsed = false,
   });
 
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final bool collapsed;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final color = selected ? theme.colorScheme.accentForeground : theme.colorScheme.foreground;
+    final effectivePadding = collapsed
+        ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
 
     return CalfButton.ghost(
       width: double.infinity,
       onPressed: onTap,
       backgroundColor: selected ? theme.colorScheme.accent : null,
+      padding: effectivePadding,
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: collapsed ? Alignment.center : Alignment.centerLeft,
         child: Row(
+          mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+          mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
           children: [
             Icon(icon, size: 18, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.small.copyWith(color: color),
-                overflow: TextOverflow.ellipsis,
+            if (!collapsed) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.small.copyWith(color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -234,13 +465,21 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     required this.apiClient,
+    required this.appVersion,
     required this.themeMode,
     this.onThemeModeChanged,
+    this.initialUpdateCheckResult,
+    this.onCheckForUpdates,
+    this.onUpdateCheckResultChanged,
   });
 
   final CalfClient apiClient;
+  final String appVersion;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final UpdateCheckResult? initialUpdateCheckResult;
+  final Future<void> Function()? onCheckForUpdates;
+  final ValueChanged<UpdateCheckResult>? onUpdateCheckResultChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -264,6 +503,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   MigrationStatus? _migrationStatus;
   bool _dockerContextManaged = true;
   bool _dockerContextSaving = false;
+  bool? _launchAtLoginEnabled;
+  bool _launchAtLoginLoading = true;
+  bool _launchAtLoginSaving = false;
+  String? _launchAtLoginError;
+  UpdateCheckResult? _updateCheckResult;
+  bool _updateChecking = false;
 
   bool get _dirty => _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
@@ -284,7 +529,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _updateCheckResult = widget.initialUpdateCheckResult;
     loadConfig();
+    loadLaunchAtLogin();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialUpdateCheckResult != oldWidget.initialUpdateCheckResult) {
+      _updateCheckResult = widget.initialUpdateCheckResult;
+    }
+  }
+
+  Future<void> checkForUpdates() async {
+    if (widget.appVersion.isEmpty || widget.onCheckForUpdates == null) {
+      return;
+    }
+
+    setState(() => _updateChecking = true);
+
+    try {
+      await widget.onCheckForUpdates!();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _updateCheckResult = widget.initialUpdateCheckResult;
+        _updateChecking = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _updateChecking = false);
+    }
+  }
+
+  Future<void> downloadUpdate(UpdateInfo update) async {
+    await openExternalUrl(update.downloadUrl);
+  }
+
+  Future<void> skipUpdateVersion(UpdateInfo update) async {
+    await UpdatePreferences.saveSkippedVersion(update.version);
+    if (!mounted) {
+      return;
+    }
+
+    final result = UpdateCheckResult.upToDate(
+      currentVersion: widget.appVersion,
+      checkedAt: _updateCheckResult?.checkedAt,
+    );
+    setState(() => _updateCheckResult = result);
+    widget.onUpdateCheckResultChanged?.call(result);
   }
 
   Future<void> loadConfig() async {
@@ -425,6 +722,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> loadLaunchAtLogin() async {
+    setState(() {
+      _launchAtLoginLoading = true;
+      _launchAtLoginError = null;
+    });
+
+    try {
+      final enabled = await LaunchAtLogin.isEnabled();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = enabled;
+        _launchAtLoginLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = false;
+        _launchAtLoginLoading = false;
+      });
+    }
+  }
+
+  Future<void> setLaunchAtLoginEnabled(bool value) async {
+    setState(() {
+      _launchAtLoginSaving = true;
+      _launchAtLoginError = null;
+    });
+
+    try {
+      final ok = await LaunchAtLogin.setEnabled(value);
+      if (!mounted) {
+        return;
+      }
+      if (!ok) {
+        setState(() {
+          _launchAtLoginSaving = false;
+          _launchAtLoginError = 'Could not update startup setting.';
+        });
+        return;
+      }
+
+      final enabled = await LaunchAtLogin.isEnabled();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = enabled;
+        _launchAtLoginSaving = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginSaving = false;
+        _launchAtLoginError = 'Could not update startup setting.';
+      });
+    }
+  }
+
   Future<void> setDockerContextManaged(bool value) async {
     final current = _config;
     if (current == null) return;
@@ -484,6 +845,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
           const SizedBox(height: 16),
+          _settingRow(
+            'Open at login',
+            ShadSwitch(
+              value: _launchAtLoginEnabled ?? false,
+              onChanged: _launchAtLoginLoading || _launchAtLoginSaving ? null : setLaunchAtLoginEnabled,
+            ),
+          ),
+          if (_launchAtLoginError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _launchAtLoginError!,
+              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+            ),
+          ],
+          const SizedBox(height: 16),
           Text('Theme', style: theme.textTheme.large),
           const SizedBox(height: 8),
           Row(
@@ -495,6 +871,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _themeCheckbox(ThemeMode.system, 'System'),
             ],
           ),
+          const SizedBox(height: 24),
+          _sectionHeader('Updates', theme),
+          const SizedBox(height: 12),
+          Text(
+            widget.appVersion.isEmpty ? 'Loading version...' : 'Current version: ${widget.appVersion}',
+            style: theme.textTheme.muted,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CalfButton(
+                onPressed: _updateChecking || widget.appVersion.isEmpty ? null : checkForUpdates,
+                enabled: !_updateChecking && widget.appVersion.isNotEmpty,
+                child: Text(_updateChecking ? 'Checking...' : 'Check for updates'),
+              ),
+              if (_updateCheckResult?.hasUpdate == true && _updateCheckResult!.latest != null) ...[
+                const SizedBox(width: 12),
+                CalfButton(
+                  onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
+                  child: Text('Download ${_updateCheckResult!.latest!.version}'),
+                ),
+              ],
+            ],
+          ),
+          if (_updateCheckResult != null) ...[
+            const SizedBox(height: 12),
+            if (_updateCheckResult!.error != null)
+              Text(
+                _updateCheckResult!.error!,
+                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              )
+            else if (_updateCheckResult!.hasUpdate && _updateCheckResult!.latest != null) ...[
+              Text(
+                'Version ${_updateCheckResult!.latest!.version} is available.',
+                style: theme.textTheme.large,
+              ),
+              if (_updateCheckResult!.latest!.releaseNotes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _updateCheckResult!.latest!.releaseNotes,
+                  style: theme.textTheme.muted,
+                ),
+              ],
+              const SizedBox(height: 8),
+              CalfButton.outline(
+                onPressed: () => skipUpdateVersion(_updateCheckResult!.latest!),
+                child: const Text('Skip this version'),
+              ),
+            ] else
+              Text(
+                'You are up to date.',
+                style: theme.textTheme.muted,
+              ),
+          ],
           const SizedBox(height: 24),
           _sectionHeader('Migration', theme),
           const SizedBox(height: 12),

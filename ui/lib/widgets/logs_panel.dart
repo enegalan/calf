@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart' show SelectableText, SelectionArea, Tooltip;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -48,6 +50,7 @@ Color logsPanelBackground(ShadThemeData theme) {
 }
 
 const double _logTimestampColumnWidth = 184;
+const double _logRowMinContentWidth = 40;
 
 String formatLogTimestamp(DateTime receivedAt) {
   final local = receivedAt.toLocal();
@@ -946,14 +949,35 @@ class _LogTextView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (wrapLines) {
-      return SelectionArea(
-        child: ListView.builder(
-          controller: scrollController,
-          shrinkWrap: scrollController == null,
-          physics: scrollController == null ? const NeverScrollableScrollPhysics() : null,
-          itemCount: logLines.length,
-          itemBuilder: (context, index) => _buildLineRow(index),
-        ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final viewportWidth = constraints.maxWidth;
+          final listWidth = showTimestamp
+              ? math.max(viewportWidth, _logTimestampColumnWidth + _logRowMinContentWidth)
+              : viewportWidth;
+
+          final listView = ListView.builder(
+            controller: scrollController,
+            shrinkWrap: scrollController == null,
+            physics: scrollController == null ? const NeverScrollableScrollPhysics() : null,
+            itemCount: logLines.length,
+            itemBuilder: (context, index) => _buildLineRow(index),
+          );
+
+          if (!showTimestamp || listWidth <= viewportWidth) {
+            return SelectionArea(child: listView);
+          }
+
+          return SelectionArea(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: listWidth,
+                child: listView,
+              ),
+            ),
+          );
+        },
       );
     }
 

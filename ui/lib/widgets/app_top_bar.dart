@@ -23,11 +23,13 @@ class AppTopBar extends StatelessWidget {
     required this.onSignIn,
     required this.onSignOut,
     required this.onOpenWhatsNew,
+    this.updateAvailable = false,
   });
 
   final RegistryLoginStatus? registryStatus;
   final bool registryLoading;
   final bool signInPending;
+  final bool updateAvailable;
   final VoidCallback onOpenSettings;
   final VoidCallback onSignIn;
   final Future<void> Function() onSignOut;
@@ -69,7 +71,26 @@ class AppTopBar extends StatelessWidget {
             height: 36,
             padding: EdgeInsets.zero,
             onPressed: onOpenSettings,
-            child: Icon(LucideIcons.settings, size: 18, color: theme.colorScheme.foreground),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(LucideIcons.settings, size: 18, color: theme.colorScheme.foreground),
+                if (updateAvailable)
+                  Positioned(
+                    top: -2,
+                    right: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: theme.colorScheme.background, width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(width: 8),
           if (registryLoading)

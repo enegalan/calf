@@ -117,11 +117,19 @@ calf/
 │   │   ├── api/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
 │   │   ├── platform/
+│   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
+│   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
 │   │   │   └── open_url.dart                  Platform-specific URL opener (Docker Hub sign-in)
 │   │   ├── storage/
 │   │   │   ├── calf_ui_storage.dart            Shared JSON file read/write helper (~/.config/calf/ui/*.json)
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
-│   │   │   └── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
+│   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
+│   │   │   ├── sidebar_preferences.dart         Persists sidebar expanded/collapsed state
+│   │   │   └── update_preferences.dart          Persists update-check cache and skipped versions
+│   │   ├── updates/
+│   │   │   ├── update_checker.dart              GitHub Releases check + platform asset selection
+│   │   │   ├── update_dialog.dart               Update-available dialog
+│   │   │   └── update_info.dart                 Update check result models
 │   │   ├── screens/
 │   │   │   ├── containers_screen.dart          List/search/filter/group-by-compose, Timer-based polling
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
@@ -132,6 +140,7 @@ calf/
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   └── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   └── widgets/
+│   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive)
 │   │       ├── files_panel.dart                Lazy-loaded directory tree (LoadDirectoryCallback)
@@ -224,14 +233,23 @@ Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings sc
 ### `api/client.dart`
 Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL: `http://127.0.0.1:8765`.
 
-### `platform/open_url.dart`
-Platform-specific "open URL" helper used for Docker Hub sign-in.
+### `platform/`
+- `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
+- `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
+- `open_url.dart` — platform-specific "open URL" helper used for Docker Hub sign-in.
 
 ### `storage/`
 Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s application-support dir as fallback).
 - `calf_ui_storage.dart` — shared file read/write helper.
 - `container_groups.dart` — persists expanded/collapsed UI groups.
 - `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles; exposes a `LogViewerPreferencesMixin` for screens to mix in.
+- `sidebar_preferences.dart` — persists sidebar expanded/collapsed state.
+- `update_preferences.dart` — persists update-check cache and skipped versions.
+
+### `updates/`
+- `update_checker.dart` — queries GitHub Releases for the latest version and picks the platform installer asset.
+- `update_dialog.dart` — update-available dialog shown on launch when a newer release exists.
+- `update_info.dart` — update check result models.
 
 ### `screens/`
 - `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`.
@@ -244,6 +262,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 
 ### `widgets/`
+- `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`).
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
