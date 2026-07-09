@@ -1,17 +1,24 @@
-package dockercli
+package dockercli_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/enegalan/calf/backend/internal/dockercli"
 )
 
 func TestReadCurrentContextMissingFile(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
-	if got := readCurrentContext(); got != "" {
-		t.Fatalf("expected empty context, got %q", got)
+	status, err := dockercli.StatusFor("", false)
+	if err != nil {
+		t.Fatalf("StatusFor() error: %v", err)
+	}
+
+	if status.CurrentContext != "" {
+		t.Fatalf("expected empty context, got %q", status.CurrentContext)
 	}
 }
 
@@ -29,7 +36,12 @@ func TestReadCurrentContextFromConfig(t *testing.T) {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	if got := readCurrentContext(); got != "calf" {
-		t.Fatalf("expected calf, got %q", got)
+	status, err := dockercli.StatusFor("", false)
+	if err != nil {
+		t.Fatalf("StatusFor() error: %v", err)
+	}
+
+	if status.CurrentContext != "calf" {
+		t.Fatalf("expected calf, got %q", status.CurrentContext)
 	}
 }

@@ -1,9 +1,11 @@
-package runtime
+package runtime_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 func TestNormalizeDockerfilePathUsesExistingRelativePath(t *testing.T) {
@@ -13,7 +15,7 @@ func TestNormalizeDockerfilePathUsesExistingRelativePath(t *testing.T) {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	got := NormalizeDockerfilePath(dir, "examples/hello-world/Dockerfile")
+	got := runtime.NormalizeDockerfilePath(dir, "examples/hello-world/Dockerfile")
 	if got != "Dockerfile" {
 		t.Fatalf("expected Dockerfile, got %q", got)
 	}
@@ -23,7 +25,7 @@ func TestParseImageRefFromBuildLog(t *testing.T) {
 	rawLog := `#5 naming to docker.io/library/calf-sync-test:latest done
 #6 naming to docker.io/library/toth-api:latest 0.0s done`
 
-	got := ParseImageRefFromBuildLog(rawLog)
+	got := runtime.ParseImageRefFromBuildLog(rawLog)
 	if got != "toth-api:latest" {
 		t.Fatalf("expected toth-api:latest, got %q", got)
 	}
