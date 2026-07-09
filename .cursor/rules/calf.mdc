@@ -121,7 +121,8 @@ calf/
 │   │   ├── storage/
 │   │   │   ├── calf_ui_storage.dart            Shared JSON file read/write helper (~/.config/calf/ui/*.json)
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
-│   │   │   └── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
+│   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
+│   │   │   └── sidebar_preferences.dart         Persists sidebar expanded/collapsed state
 │   │   ├── screens/
 │   │   │   ├── containers_screen.dart          List/search/filter/group-by-compose, Timer-based polling
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
@@ -232,6 +233,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `calf_ui_storage.dart` — shared file read/write helper.
 - `container_groups.dart` — persists expanded/collapsed UI groups.
 - `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles; exposes a `LogViewerPreferencesMixin` for screens to mix in.
+- `sidebar_preferences.dart` — persists sidebar expanded/collapsed state.
 
 ### `screens/`
 - `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`.

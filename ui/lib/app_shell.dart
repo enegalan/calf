@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart' show ThemeMode;
+import 'package:flutter/material.dart' show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -6,6 +6,7 @@ import 'package:ui/api/client.dart';
 import 'package:ui/screens/containers_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/resources_screen.dart';
+import 'package:ui/storage/sidebar_preferences.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
 
@@ -33,11 +34,29 @@ class _AppShellState extends State<AppShell> {
   bool _registryBrowserLoginPending = false;
   String _appVersion = '';
 
+  bool _isCollapsed = false;
+  bool _isHoveringSidebar = false;
+  bool _isHoveringToggle = false;
+  bool? _lastWidthWasSmall;
+  bool _sidebarPrefLoaded = false;
+
+  bool get _showSidebarToggle => _isHoveringSidebar || _isHoveringToggle;
+
   @override
   void initState() {
     super.initState();
+    _loadSidebarPreference();
     loadRegistryStatus();
     loadAppVersion();
+  }
+
+  Future<void> _loadSidebarPreference() async {
+    final collapsed = await SidebarPreferences.loadCollapsed();
+    if (!mounted) return;
+    setState(() {
+      _isCollapsed = collapsed;
+      _sidebarPrefLoaded = true;
+    });
   }
 
   Future<void> loadAppVersion() async {
@@ -120,6 +139,20 @@ class _AppShellState extends State<AppShell> {
       (label: 'Builds', icon: LucideIcons.wrench),
     ];
 
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isSmallScreen = screenWidth < 1024;
+
+    if (_lastWidthWasSmall == null) {
+      _lastWidthWasSmall = isSmallScreen;
+      if (!_sidebarPrefLoaded) {
+        _isCollapsed = isSmallScreen;
+      }
+    } else if (_lastWidthWasSmall != isSmallScreen) {
+      _lastWidthWasSmall = isSmallScreen;
+      _isCollapsed = isSmallScreen;
+      SidebarPreferences.saveCollapsed(_isCollapsed);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -133,51 +166,116 @@ class _AppShellState extends State<AppShell> {
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
         ),
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          child: Stack(
+            clipBehavior: Clip.none,
             children: [
-              Container(
-                width: 220,
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: theme.colorScheme.border),
-                  ),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var index = 0; index < navItems.length; index++) ...[
-                      if (index > 0) const SizedBox(height: 8),
-                      _NavItem(
-                        label: navItems[index].label,
-                        icon: navItems[index].icon,
-                        selected: !_showSettings && _selectedIndex == index,
-                        onTap: () => setState(() {
-                          _selectedIndex = index;
-                          _showSettings = false;
-                        }),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  MouseRegion(
+                    onEnter: (_) => setState(() => _isHoveringSidebar = true),
+                    onExit: (_) => setState(() => _isHoveringSidebar = false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      width: _isCollapsed ? 72 : 220,
+                      decoration: BoxDecoration(
+                        border: Border(
+                          right: BorderSide(color: theme.colorScheme.border),
+                        ),
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: _showSettings
-                      ? SettingsScreen(
-                          apiClient: widget.apiClient,
-                          themeMode: widget.themeMode,
-                          onThemeModeChanged: widget.onThemeModeChanged,
-                        )
-                      : switch (_selectedIndex) {
-                          0 => ContainersScreen(apiClient: widget.apiClient),
-                          1 => ImagesScreen(apiClient: widget.apiClient),
-                          2 => VolumesScreen(apiClient: widget.apiClient),
-                          3 => NetworksScreen(apiClient: widget.apiClient),
-                          _ => BuildsScreen(apiClient: widget.apiClient),
+                      padding: const EdgeInsets.all(16),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isCurrentlyCollapsed = constraints.maxWidth < 150;
+                          return Column(
+                            crossAxisAlignment: isCurrentlyCollapsed
+                                ? CrossAxisAlignment.center
+                                : CrossAxisAlignment.start,
+                            children: [
+                              for (var index = 0; index < navItems.length; index++) ...[
+                                if (index > 0) const SizedBox(height: 8),
+                                _NavItem(
+                                  label: navItems[index].label,
+                                  icon: navItems[index].icon,
+                                  selected: !_showSettings && _selectedIndex == index,
+                                  collapsed: isCurrentlyCollapsed,
+                                  onTap: () => setState(() {
+                                    _selectedIndex = index;
+                                    _showSettings = false;
+                                  }),
+                                ),
+                              ],
+                            ],
+                          );
                         },
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: _showSettings
+                          ? SettingsScreen(
+                              apiClient: widget.apiClient,
+                              themeMode: widget.themeMode,
+                              onThemeModeChanged: widget.onThemeModeChanged,
+                            )
+                          : switch (_selectedIndex) {
+                              0 => ContainersScreen(apiClient: widget.apiClient),
+                              1 => ImagesScreen(apiClient: widget.apiClient),
+                              2 => VolumesScreen(apiClient: widget.apiClient),
+                              3 => NetworksScreen(apiClient: widget.apiClient),
+                              _ => BuildsScreen(apiClient: widget.apiClient),
+                            },
+                    ),
+                  ),
+                ],
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeInOut,
+                top: 16,
+                left: (_isCollapsed ? 72 : 220) - 18,
+                child: MouseRegion(
+                  hitTestBehavior: HitTestBehavior.opaque,
+                  onEnter: (_) => setState(() => _isHoveringToggle = true),
+                  onExit: (_) => setState(() => _isHoveringToggle = false),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: AnimatedOpacity(
+                      opacity: _showSidebarToggle ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: IconButton(
+                        onPressed: _showSidebarToggle
+                            ? () {
+                                setState(() {
+                                  _isCollapsed = !_isCollapsed;
+                                  SidebarPreferences.saveCollapsed(_isCollapsed);
+                                });
+                              }
+                            : null,
+                        icon: Icon(
+                          LucideIcons.panelLeft,
+                          size: 14,
+                          color: theme.colorScheme.foreground,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: theme.colorScheme.background,
+                          foregroundColor: theme.colorScheme.foreground,
+                          side: BorderSide(color: theme.colorScheme.border),
+                          padding: const EdgeInsets.all(6),
+                          minimumSize: const Size(28, 28),
+                          fixedSize: const Size(28, 28),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                          elevation: 2,
+                          shadowColor: theme.colorScheme.popoverForeground.withValues(alpha: 0.15),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -194,35 +292,45 @@ class _NavItem extends StatelessWidget {
     required this.icon,
     required this.selected,
     required this.onTap,
+    this.collapsed = false,
   });
 
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final bool collapsed;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final color = selected ? theme.colorScheme.accentForeground : theme.colorScheme.foreground;
+    final effectivePadding = collapsed
+        ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
 
     return CalfButton.ghost(
       width: double.infinity,
       onPressed: onTap,
       backgroundColor: selected ? theme.colorScheme.accent : null,
+      padding: effectivePadding,
       child: Align(
-        alignment: Alignment.centerLeft,
+        alignment: collapsed ? Alignment.center : Alignment.centerLeft,
         child: Row(
+          mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+          mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
           children: [
             Icon(icon, size: 18, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.small.copyWith(color: color),
-                overflow: TextOverflow.ellipsis,
+            if (!collapsed) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.small.copyWith(color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
