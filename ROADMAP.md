@@ -14,7 +14,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 | Extensions marketplace                 | Not a priority       |
 | Docker Scout / AI / Cloud              | Out of scope         |
 | Advanced BuildKit (SBOM, attestations) | Phase 4+             |
-| Windows support                        | Phase 3; macOS first |
+| Windows support                        | Done (v0.7.0+)       |
 
 ## Target architecture
 
@@ -59,7 +59,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 1 — Container engine *(mostly complete — v0.3.0)*
+## Phase 1 — Container engine *(complete — v0.3.0+)*
 
 **Goal:** `docker run hello-world` works with Calf as the backend.
 
@@ -69,6 +69,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Install and manage `containerd` + `nerdctl` inside the VM
 - [x] Automatic VM start/stop with the daemon
 - [x] Linux: native runtime without a VM
+- [x] Windows: Lima VM runtime (v0.7.0)
 
 ### 1.2 Docker CLI compatibility
 
@@ -83,7 +84,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
   | `docker pull` / `push`       | Done                    |
   | `docker build`               | Done                    |
   | `docker exec` / `logs`       | Done                    |
-  | `docker network *`           | Engine-level; no UI yet |
+  | `docker network *`           | Done                    |
   | `docker volume *`            | Done                    |
   | `docker compose`             | Done                    |
 
@@ -100,7 +101,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 2 — Compose and development workflows *(in progress)*
+## Phase 2 — Compose and development workflows *(complete — v0.8.0)*
 
 **Goal:** `docker compose up` works friction-free on real projects.
 
@@ -124,7 +125,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Compose groups in container list + compose group detail screen
 - [x] Integrated terminal (`docker exec` via WebSocket, xterm)
 - [x] Basic metrics (CPU, RAM, network per container)
-- [x] Volumes list, detail, file browser, clone, and remove
+- [x] Volumes list, detail, file browser, clone, remove, and export (quick + scheduled)
 - [x] Image layers, run, and push actions
 - [x] Builds list (history persisted to disk)
 - [x] Docker Hub registry login (device flow)
@@ -135,30 +136,34 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 3 — Product experience and cross-platform
+## Phase 3 — Product experience and polish *(in progress — v0.9.x)*
 
-**Goal:** polished installer, background startup, and Windows support.
+**Goal:** Improve product in-app UX, and native platform polish.
 
 ### 3.1 Installation and lifecycle
 
-- [ ] macOS installer (.dmg / .pkg) with signing and notarization
-- [x] Daemon embedded in .app bundle, spawned by Flutter app on launch, killed on close
-- [ ] In-app updates
-- [ ] Windows installer (WSL2 + integration)
-- [ ] Linux installer (.deb / .rpm / AppImage)
+- [x] macOS `.dmg` / `.pkg` installers (v0.8.0; unsigned during development)
+- [ ] Apple signing and notarization (scheduled for future releases)
+- [x] Homebrew cask (`brew install --cask enegalan/calf-homebrew/calf`)
+- [x] Daemon embedded in app bundle, spawned by Flutter app on launch, killed on close
+- [x] In-app update check and download links (GitHub Releases; auto-install pending signing)
+- [x] Windows `.exe` installer (v0.8.0; Lima VM runtime, same as macOS)
+- [x] Linux `.deb` / `.rpm` / `.AppImage` installers (v0.8.0)
+- [x] Auto-start on sign-in in to computer (optional)
 
 ### 3.2 Settings
 
 - [x] CPU/RAM/disk limits for the VM
 - [x] HTTP/HTTPS proxy
-- [x] Auto-start on login (optional)
+- [x] Docker context management (`docker context use calf`)
 
 ### 3.3 Full UI
 
 - [x] Volume management
 - [x] Network management
 - [x] Consistent light/dark theme (shadcn_ui)
-- [ ] MacOS MenuActions (topbar actions exist; native menu integration pending)
+- [x] Collapsible sidebar with persisted state and auto-collapse on narrow windows
+- [x] macOS native menu bar actions (Settings, navigation, Docker Hub, updates, help)
 
 **Exit criteria:** a new developer installs Calf in < 5 minutes and works a full day without Docker Desktop.
 
@@ -194,13 +199,14 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ## Success metrics
 
-| Metric                                 | Target              | Current (approx.)                |
-|----------------------------------------|---------------------|----------------------------------|
-| Cold start time                        | < 5 s               | Not benchmarked                  |
-| Idle RAM (macOS)                       | < 1 GB              | Not benchmarked                  |
-| Reference compose projects             | 3/3 without changes | In validation                    |
-| Docker CLI compatibility               | 100%                | ~100% (`make verify-docker-cli`) |
-| Install to first container             | < 5 min             | Dev setup ~5 min                 |
+| Metric                                 | Target                | Current (approx.)                |
+|----------------------------------------|-----------------------|----------------------------------|
+| Cold start time                        | < 5 s                 | Not benchmarked                  |
+| Idle RAM                               | < 1 GB                | Not benchmarked                  |
+| Reference compose projects             | 3/3 without changes   | In validation                    |
+| Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
+| Install to first container             | < 5 min               | ~5 min                           |
+| Supported platforms                    | macOS, Linux, Windows | macOS, Linux, Windows            |
 
 ---
 

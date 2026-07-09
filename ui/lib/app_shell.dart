@@ -3,10 +3,17 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/platform/macos_menu.dart';
+import 'package:ui/platform/launch_at_login.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/containers_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/resources_screen.dart';
 import 'package:ui/storage/sidebar_preferences.dart';
+import 'package:ui/storage/update_preferences.dart';
+import 'package:ui/updates/update_checker.dart';
+import 'package:ui/updates/update_dialog.dart';
+import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
 
@@ -33,6 +40,9 @@ class _AppShellState extends State<AppShell> {
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
   String _appVersion = '';
+  UpdateCheckResult? _updateCheckResult;
+  bool _updateDialogShown = false;
+  late final UpdateChecker _updateChecker = UpdateChecker();
 
   bool _isCollapsed = false;
   bool _isHoveringSidebar = false;
@@ -41,6 +51,12 @@ class _AppShellState extends State<AppShell> {
   bool _sidebarPrefLoaded = false;
 
   bool get _showSidebarToggle => _isHoveringSidebar || _isHoveringToggle;
+
+  @override
+  void dispose() {
+    _updateChecker.close();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -64,7 +80,46 @@ class _AppShellState extends State<AppShell> {
       final status = await widget.apiClient.fetchStatus();
       if (!mounted) return;
       setState(() => _appVersion = status.version);
+      await checkForUpdates(force: false);
     } catch (_) {}
+  }
+
+  Future<void> checkForUpdates({required bool force}) async {
+    if (_appVersion.isEmpty) {
+      return;
+    }
+
+    final result = await _updateChecker.check(
+      currentVersion: _appVersion,
+      force: force,
+    );
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _updateCheckResult = result);
+
+    if (!force && !_updateDialogShown && result.hasUpdate && result.latest != null) {
+      _updateDialogShown = true;
+      await showUpdateAvailableDialog(
+        context: context,
+        update: result.latest!,
+        currentVersion: result.currentVersion,
+        onDownload: () => openExternalUrl(result.latest!.downloadUrl),
+        onSkip: () async {
+          await UpdatePreferences.saveSkippedVersion(result.latest!.version);
+          if (!mounted) {
+            return;
+          }
+          setState(
+            () => _updateCheckResult = UpdateCheckResult.upToDate(
+              currentVersion: result.currentVersion,
+              checkedAt: result.checkedAt,
+            ),
+          );
+        },
+      );
+    }
   }
 
   Future<void> loadRegistryStatus() async {
@@ -128,6 +183,34 @@ class _AppShellState extends State<AppShell> {
     } catch (_) {}
   }
 
+  void openSettings() {
+    setState(() => _showSettings = true);
+  }
+
+  void navigateToSection(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _showSettings = false;
+    });
+  }
+
+  void toggleSidebar() {
+    setState(() {
+      _isCollapsed = !_isCollapsed;
+      SidebarPreferences.saveCollapsed(_isCollapsed);
+    });
+  }
+
+  Future<void> openAccountSettings() async {
+    final username = _registryStatus?.username ?? '';
+    if (username.isEmpty) {
+      return;
+    }
+    await openExternalUrl(
+      'https://app.docker.com/accounts/$username/settings/account-information',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -153,14 +236,15 @@ class _AppShellState extends State<AppShell> {
       SidebarPreferences.saveCollapsed(_isCollapsed);
     }
 
-    return Column(
+    final shell = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppTopBar(
           registryStatus: _registryStatus,
           registryLoading: _registryLoading,
           signInPending: _registryBrowserLoginPending,
-          onOpenSettings: () => setState(() => _showSettings = true),
+          updateAvailable: _updateCheckResult?.hasUpdate == true,
+          onOpenSettings: openSettings,
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
@@ -218,8 +302,14 @@ class _AppShellState extends State<AppShell> {
                       child: _showSettings
                           ? SettingsScreen(
                               apiClient: widget.apiClient,
+                              appVersion: _appVersion,
                               themeMode: widget.themeMode,
                               onThemeModeChanged: widget.onThemeModeChanged,
+                              initialUpdateCheckResult: _updateCheckResult,
+                              onCheckForUpdates: () => checkForUpdates(force: true),
+                              onUpdateCheckResultChanged: (result) {
+                                setState(() => _updateCheckResult = result);
+                              },
                             )
                           : switch (_selectedIndex) {
                               0 => ContainersScreen(apiClient: widget.apiClient),
@@ -283,6 +373,23 @@ class _AppShellState extends State<AppShell> {
         ),
       ],
     );
+
+    return MacosMenuScope(
+      appVersion: _appVersion,
+      loggedIn: _registryStatus?.loggedIn == true,
+      signInPending: _registryBrowserLoginPending,
+      onOpenSettings: openSettings,
+      onCheckForUpdates: () => checkForUpdates(force: true),
+      onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
+      onSignIn: startRegistryBrowserLogin,
+      onSignOut: logoutRegistry,
+      onOpenAccountSettings: openAccountSettings,
+      onNavigateToSection: navigateToSection,
+      onToggleSidebar: toggleSidebar,
+      onReportIssue: () => openExternalUrl(calfReportIssueUrl),
+      onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
+      child: shell,
+    );
   }
 }
 
@@ -342,13 +449,21 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     required this.apiClient,
+    required this.appVersion,
     required this.themeMode,
     this.onThemeModeChanged,
+    this.initialUpdateCheckResult,
+    this.onCheckForUpdates,
+    this.onUpdateCheckResultChanged,
   });
 
   final CalfClient apiClient;
+  final String appVersion;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+  final UpdateCheckResult? initialUpdateCheckResult;
+  final Future<void> Function()? onCheckForUpdates;
+  final ValueChanged<UpdateCheckResult>? onUpdateCheckResultChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -372,6 +487,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   MigrationStatus? _migrationStatus;
   bool _dockerContextManaged = true;
   bool _dockerContextSaving = false;
+  bool? _launchAtLoginEnabled;
+  bool _launchAtLoginLoading = true;
+  bool _launchAtLoginSaving = false;
+  String? _launchAtLoginError;
+  UpdateCheckResult? _updateCheckResult;
+  bool _updateChecking = false;
 
   bool get _dirty => _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
@@ -392,7 +513,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _updateCheckResult = widget.initialUpdateCheckResult;
     loadConfig();
+    loadLaunchAtLogin();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialUpdateCheckResult != oldWidget.initialUpdateCheckResult) {
+      _updateCheckResult = widget.initialUpdateCheckResult;
+    }
+  }
+
+  Future<void> checkForUpdates() async {
+    if (widget.appVersion.isEmpty || widget.onCheckForUpdates == null) {
+      return;
+    }
+
+    setState(() => _updateChecking = true);
+
+    try {
+      await widget.onCheckForUpdates!();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _updateCheckResult = widget.initialUpdateCheckResult;
+        _updateChecking = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _updateChecking = false);
+    }
+  }
+
+  Future<void> downloadUpdate(UpdateInfo update) async {
+    await openExternalUrl(update.downloadUrl);
+  }
+
+  Future<void> skipUpdateVersion(UpdateInfo update) async {
+    await UpdatePreferences.saveSkippedVersion(update.version);
+    if (!mounted) {
+      return;
+    }
+
+    final result = UpdateCheckResult.upToDate(
+      currentVersion: widget.appVersion,
+      checkedAt: _updateCheckResult?.checkedAt,
+    );
+    setState(() => _updateCheckResult = result);
+    widget.onUpdateCheckResultChanged?.call(result);
   }
 
   Future<void> loadConfig() async {
@@ -533,6 +706,70 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> loadLaunchAtLogin() async {
+    setState(() {
+      _launchAtLoginLoading = true;
+      _launchAtLoginError = null;
+    });
+
+    try {
+      final enabled = await LaunchAtLogin.isEnabled();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = enabled;
+        _launchAtLoginLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = false;
+        _launchAtLoginLoading = false;
+      });
+    }
+  }
+
+  Future<void> setLaunchAtLoginEnabled(bool value) async {
+    setState(() {
+      _launchAtLoginSaving = true;
+      _launchAtLoginError = null;
+    });
+
+    try {
+      final ok = await LaunchAtLogin.setEnabled(value);
+      if (!mounted) {
+        return;
+      }
+      if (!ok) {
+        setState(() {
+          _launchAtLoginSaving = false;
+          _launchAtLoginError = 'Could not update startup setting.';
+        });
+        return;
+      }
+
+      final enabled = await LaunchAtLogin.isEnabled();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginEnabled = enabled;
+        _launchAtLoginSaving = false;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _launchAtLoginSaving = false;
+        _launchAtLoginError = 'Could not update startup setting.';
+      });
+    }
+  }
+
   Future<void> setDockerContextManaged(bool value) async {
     final current = _config;
     if (current == null) return;
@@ -592,6 +829,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
           const SizedBox(height: 16),
+          _settingRow(
+            'Open at login',
+            ShadSwitch(
+              value: _launchAtLoginEnabled ?? false,
+              onChanged: _launchAtLoginLoading || _launchAtLoginSaving ? null : setLaunchAtLoginEnabled,
+            ),
+          ),
+          if (_launchAtLoginError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _launchAtLoginError!,
+              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+            ),
+          ],
+          const SizedBox(height: 16),
           Text('Theme', style: theme.textTheme.large),
           const SizedBox(height: 8),
           Row(
@@ -603,6 +855,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _themeCheckbox(ThemeMode.system, 'System'),
             ],
           ),
+          const SizedBox(height: 24),
+          _sectionHeader('Updates', theme),
+          const SizedBox(height: 12),
+          Text(
+            widget.appVersion.isEmpty ? 'Loading version...' : 'Current version: ${widget.appVersion}',
+            style: theme.textTheme.muted,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CalfButton(
+                onPressed: _updateChecking || widget.appVersion.isEmpty ? null : checkForUpdates,
+                enabled: !_updateChecking && widget.appVersion.isNotEmpty,
+                child: Text(_updateChecking ? 'Checking...' : 'Check for updates'),
+              ),
+              if (_updateCheckResult?.hasUpdate == true && _updateCheckResult!.latest != null) ...[
+                const SizedBox(width: 12),
+                CalfButton(
+                  onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
+                  child: Text('Download ${_updateCheckResult!.latest!.version}'),
+                ),
+              ],
+            ],
+          ),
+          if (_updateCheckResult != null) ...[
+            const SizedBox(height: 12),
+            if (_updateCheckResult!.error != null)
+              Text(
+                _updateCheckResult!.error!,
+                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              )
+            else if (_updateCheckResult!.hasUpdate && _updateCheckResult!.latest != null) ...[
+              Text(
+                'Version ${_updateCheckResult!.latest!.version} is available.',
+                style: theme.textTheme.large,
+              ),
+              if (_updateCheckResult!.latest!.releaseNotes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _updateCheckResult!.latest!.releaseNotes,
+                  style: theme.textTheme.muted,
+                ),
+              ],
+              const SizedBox(height: 8),
+              CalfButton.outline(
+                onPressed: () => skipUpdateVersion(_updateCheckResult!.latest!),
+                child: const Text('Skip this version'),
+              ),
+            ] else
+              Text(
+                'You are up to date.',
+                style: theme.textTheme.muted,
+              ),
+          ],
           const SizedBox(height: 24),
           _sectionHeader('Migration', theme),
           const SizedBox(height: 12),
