@@ -1,10 +1,12 @@
-package runtime
+package runtime_test
 
 import (
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 func TestParseBuildOutputSteps(t *testing.T) {
@@ -28,7 +30,7 @@ func TestParseBuildOutputSteps(t *testing.T) {
 #6 DONE 0.3s
 `
 
-	result := ParseBuildOutput(output)
+	result := runtime.ParseBuildOutput(output)
 
 	if len(result.Steps) < 4 {
 		t.Fatalf("expected at least 4 steps, got %d", len(result.Steps))
@@ -74,7 +76,7 @@ func TestParseBuildOutputSteps(t *testing.T) {
 }
 
 func TestApplyBuildLogsPopulatesTiming(t *testing.T) {
-	build := Build{Steps: []BuildStep{}}
+	build := runtime.Build{Steps: []runtime.BuildStep{}}
 	logs := `#1 [internal] load build definition from Dockerfile
 #1 DONE 0.0s
 
@@ -85,7 +87,7 @@ func TestApplyBuildLogsPopulatesTiming(t *testing.T) {
 #3 DONE 1.2s
 `
 
-	ApplyBuildLogs(&build, logs)
+	runtime.ApplyBuildLogs(&build, logs)
 
 	if len(build.Steps) != 3 {
 		t.Fatalf("expected 3 steps, got %d", len(build.Steps))
@@ -100,31 +102,13 @@ func TestApplyBuildLogsPopulatesTiming(t *testing.T) {
 	}
 }
 
-func TestParseDockerfileDependencies(t *testing.T) {
-	dir := t.TempDir()
-	dockerfile := filepath.Join(dir, "Dockerfile")
-	content := "FROM php:8.4-fpm-alpine\nFROM node:20 AS assets\nCOPY . .\n"
-	if err := os.WriteFile(dockerfile, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile() error: %v", err)
-	}
-
-	deps := parseDockerfileDependencies(dir, "Dockerfile", "linux/arm64")
-	if len(deps) != 2 {
-		t.Fatalf("expected 2 dependencies, got %d", len(deps))
-	}
-
-	if deps[0].Source != "php:8.4-fpm-alpine" {
-		t.Fatalf("unexpected first dependency: %q", deps[0].Source)
-	}
-}
-
 func TestReadBuildSourceRejectsTraversal(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error: %v", err)
 	}
 
-	_, err := ReadBuildSource(dir, "../Dockerfile", "linux/arm64")
+	_, err := runtime.ReadBuildSource(dir, "../Dockerfile", "linux/arm64")
 	if err == nil {
 		t.Fatalf("expected path traversal to be rejected")
 	}

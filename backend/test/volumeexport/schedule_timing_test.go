@@ -1,23 +1,25 @@
-package volumeexport
+package volumeexport_test
 
 import (
 	"testing"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
 func TestComputeNextRunCronSameDay(t *testing.T) {
 	loc := time.Local
 	now := time.Date(2026, 7, 5, 10, 0, 0, 0, loc)
 
-	schedule := Schedule{
+	schedule := volumeexport.Schedule{
 		Enabled:    true,
 		DaysOfWeek: []int{int(now.Weekday())},
 		Times:      []string{"15:04", "18:30"},
-		Type:       TypeLocalFile,
+		Type:       volumeexport.TypeLocalFile,
 		Folder:     "/tmp",
 	}
 
-	next, err := ComputeNextRun(schedule, now)
+	next, err := volumeexport.ComputeNextRun(schedule, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRun() error: %v", err)
 	}
@@ -32,15 +34,15 @@ func TestComputeNextRunCronRollsToNextSelectedDay(t *testing.T) {
 	loc := time.Local
 	now := time.Date(2026, 7, 5, 20, 0, 0, 0, loc)
 
-	schedule := Schedule{
+	schedule := volumeexport.Schedule{
 		Enabled:    true,
 		DaysOfWeek: []int{int(time.Monday)},
 		Times:      []string{"09:30"},
-		Type:       TypeLocalFile,
+		Type:       volumeexport.TypeLocalFile,
 		Folder:     "/tmp",
 	}
 
-	next, err := ComputeNextRun(schedule, now)
+	next, err := volumeexport.ComputeNextRun(schedule, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRun() error: %v", err)
 	}
@@ -54,7 +56,7 @@ func TestComputeNextRunCronRollsToNextSelectedDay(t *testing.T) {
 func TestComputeNextRunDisabledReturnsZero(t *testing.T) {
 	now := time.Now()
 
-	next, err := ComputeNextRun(Schedule{Enabled: false}, now)
+	next, err := volumeexport.ComputeNextRun(volumeexport.Schedule{Enabled: false}, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRun() error: %v", err)
 	}
@@ -65,12 +67,12 @@ func TestComputeNextRunDisabledReturnsZero(t *testing.T) {
 }
 
 func TestNormalizeScheduleLegacyDaily(t *testing.T) {
-	schedule := Schedule{
-		Frequency: FrequencyDaily,
+	schedule := volumeexport.Schedule{
+		Frequency: volumeexport.FrequencyDaily,
 		TimeOfDay: "03:00",
 	}
 
-	NormalizeSchedule(&schedule)
+	volumeexport.NormalizeSchedule(&schedule)
 
 	if len(schedule.DayTimes) != 7 {
 		t.Fatalf("expected 7 day entries, got %d", len(schedule.DayTimes))
@@ -87,17 +89,17 @@ func TestComputeNextRunPerDayDifferentTimes(t *testing.T) {
 	loc := time.Local
 	now := time.Date(2026, 7, 5, 10, 0, 0, 0, loc)
 
-	schedule := Schedule{
+	schedule := volumeexport.Schedule{
 		Enabled: true,
-		DayTimes: []DayTimeSchedule{
+		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(time.Monday), Times: []string{"15:04", "18:30"}},
 			{Day: int(time.Tuesday), Times: []string{"09:30"}},
 		},
-		Type:   TypeLocalFile,
+		Type:   volumeexport.TypeLocalFile,
 		Folder: "/tmp",
 	}
 
-	next, err := ComputeNextRun(schedule, now)
+	next, err := volumeexport.ComputeNextRun(schedule, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRun() error: %v", err)
 	}
@@ -112,16 +114,16 @@ func TestComputeNextRunIncludesCurrentMinuteSlot(t *testing.T) {
 	loc := time.Local
 	now := time.Date(2026, 7, 5, 17, 11, 30, 0, loc)
 
-	schedule := Schedule{
+	schedule := volumeexport.Schedule{
 		Enabled: true,
-		DayTimes: []DayTimeSchedule{
+		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(now.Weekday()), Times: []string{"17:11", "17:20"}},
 		},
-		Type:   TypeLocalFile,
+		Type:   volumeexport.TypeLocalFile,
 		Folder: "/tmp",
 	}
 
-	next, err := ComputeNextRun(schedule, now)
+	next, err := volumeexport.ComputeNextRun(schedule, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRun() error: %v", err)
 	}
@@ -136,16 +138,16 @@ func TestComputeNextRunAfterRunSkipsCurrentSlot(t *testing.T) {
 	loc := time.Local
 	now := time.Date(2026, 7, 5, 17, 11, 30, 0, loc)
 
-	schedule := Schedule{
+	schedule := volumeexport.Schedule{
 		Enabled: true,
-		DayTimes: []DayTimeSchedule{
+		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(now.Weekday()), Times: []string{"17:11", "17:20"}},
 		},
-		Type:   TypeLocalFile,
+		Type:   volumeexport.TypeLocalFile,
 		Folder: "/tmp",
 	}
 
-	next, err := ComputeNextRunAfterRun(schedule, now)
+	next, err := volumeexport.ComputeNextRunAfterRun(schedule, now)
 	if err != nil {
 		t.Fatalf("ComputeNextRunAfterRun() error: %v", err)
 	}
@@ -160,19 +162,19 @@ func TestScheduleDueWithinGraceWindow(t *testing.T) {
 	loc := time.Local
 	nextRun := time.Date(2026, 7, 5, 17, 11, 0, 0, loc).UTC().Format(time.RFC3339)
 
-	if !ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 11, 45, 0, loc)) {
+	if !volumeexport.ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 11, 45, 0, loc)) {
 		t.Fatalf("expected schedule to be due inside grace window")
 	}
 
-	if !ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 12, 0, 0, loc)) {
+	if !volumeexport.ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 12, 0, 0, loc)) {
 		t.Fatalf("expected schedule to be due at grace boundary")
 	}
 
-	if ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 10, 59, 0, loc)) {
+	if volumeexport.ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 10, 59, 0, loc)) {
 		t.Fatalf("expected schedule not to be due before scheduled minute")
 	}
 
-	if ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 12, 1, 0, loc)) {
+	if volumeexport.ScheduleDue(nextRun, time.Date(2026, 7, 5, 17, 12, 1, 0, loc)) {
 		t.Fatalf("expected schedule not to be due after grace window")
 	}
 }

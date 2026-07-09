@@ -104,8 +104,13 @@ calf/
 │   │       └── open.go                        Cross-platform "open URL" helper (open/xdg-open/rundll32)
 │   ├── test/                                External test packages (see Testing Conventions)
 │   │   ├── api/api_test.go
+│   │   ├── buildhistory/history_test.go
+│   │   ├── buildstore/buildstore_test.go
 │   │   ├── config/config_test.go
-│   │   └── runtime/                            command_error, image_history, localhost_proxy, nerdctl, registry, volume_detail tests
+│   │   ├── dockercli/context_test.go
+│   │   ├── dockerhub/device_test.go
+│   │   ├── runtime/                            build_enrich, build_parser, command_error, image_history, localhost_proxy, nerdctl, network, registry, volume_detail tests
+│   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
 ├── ui/                                      Flutter application
