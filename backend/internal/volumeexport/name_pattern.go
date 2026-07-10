@@ -55,7 +55,7 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 
 	expanded := replacer.Replace(pattern)
 	if forFileExport {
-		return sanitizeExportFileName(expanded)
+		return SanitizeExportFileName(expanded)
 	}
 
 	return strings.ToLower(strings.TrimSpace(expanded))
@@ -89,7 +89,7 @@ func sanitizeVolumeToken(value string) string {
 	return replacer.Replace(strings.TrimSpace(value))
 }
 
-func sanitizeExportFileName(value string) string {
+func SanitizeExportFileName(value string) string {
 	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "-")
 	return replacer.Replace(strings.TrimSpace(value))
 }

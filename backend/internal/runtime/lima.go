@@ -451,8 +451,7 @@ func (l *Lima) PushImage(ctx context.Context, ref string) error {
 		return err
 	}
 
-	_, err := l.runInVM(ctx, "nerdctl", "push", ref)
-	return err
+	return pushImage(ctx, l.runInVM, ref)
 }
 
 func (l *Lima) RunImage(ctx context.Context, ref string) (string, error) {

@@ -5,18 +5,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 const networkActionTimeout = 30 * time.Second
-
-func (s *Server) writeRuntimeOrInternalError(w http.ResponseWriter, err error) bool {
-	if writeRuntimeError(w, err) {
-		return true
-	}
-
-	writeError(w, http.StatusInternalServerError, err.Error())
-	return false
-}
 
 func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
@@ -31,7 +24,7 @@ func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 
 		networks, err := s.runtime.ListNetworks(ctx)
 		if err != nil {
-			s.writeRuntimeOrInternalError(w, err)
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
@@ -61,7 +54,7 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 
 		detail, err := s.runtime.InspectNetwork(ctx, name)
 		if err != nil {
-			s.writeRuntimeOrInternalError(w, err)
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
@@ -71,11 +64,11 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 		defer cancel()
 
 		if err := s.runtime.RemoveNetwork(ctx, name); err != nil {
-			s.writeRuntimeOrInternalError(w, err)
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	default:
 		methodNotAllowed(w, r)
 	}

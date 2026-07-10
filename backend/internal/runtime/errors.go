@@ -8,56 +8,37 @@ import (
 var ErrRuntimeNotRunning = errors.New("runtime is not running")
 var ErrNetworkNotFound = errors.New("network not found")
 
-func emptyContainersIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Container, error)) ([]Container, error) {
+func emptyIfStopped[T any](
+	ctx context.Context,
+	statusFn func(context.Context) (Status, error),
+	listFn func(context.Context) ([]T, error),
+) ([]T, error) {
 	status, err := statusFn(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if status.State != StateRunning {
-		return []Container{}, nil
+		return []T{}, nil
 	}
 
 	return listFn(ctx)
+}
+
+func emptyContainersIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Container, error)) ([]Container, error) {
+	return emptyIfStopped(ctx, statusFn, listFn)
 }
 
 func emptyImagesIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Image, error)) ([]Image, error) {
-	status, err := statusFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if status.State != StateRunning {
-		return []Image{}, nil
-	}
-
-	return listFn(ctx)
+	return emptyIfStopped(ctx, statusFn, listFn)
 }
 
 func emptyVolumesIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Volume, error)) ([]Volume, error) {
-	status, err := statusFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if status.State != StateRunning {
-		return []Volume{}, nil
-	}
-
-	return listFn(ctx)
+	return emptyIfStopped(ctx, statusFn, listFn)
 }
 
 func emptyNetworksIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Network, error)) ([]Network, error) {
-	status, err := statusFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if status.State != StateRunning {
-		return []Network{}, nil
-	}
-
-	return listFn(ctx)
+	return emptyIfStopped(ctx, statusFn, listFn)
 }
 
 func requireRunning(ctx context.Context, statusFn func(context.Context) (Status, error)) error {

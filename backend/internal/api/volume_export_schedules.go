@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/utils"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
@@ -202,7 +203,7 @@ func (s *Server) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	utils.WriteOK(w)
 }
 
 func (s *Server) buildScheduleFromPayload(

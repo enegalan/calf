@@ -1,12 +1,11 @@
 package api
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 func (s *Server) handleContainers(w http.ResponseWriter, r *http.Request) {
@@ -22,11 +21,7 @@ func (s *Server) handleContainers(w http.ResponseWriter, r *http.Request) {
 
 	containers, err := s.runtime.ListContainers(r.Context())
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -98,15 +93,11 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	utils.WriteOK(w)
 }
 
 func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, id string) {
@@ -117,11 +108,7 @@ func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, 
 
 	inspect, err := s.runtime.InspectContainer(r.Context(), id)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -147,11 +134,7 @@ func (s *Server) handleContainerMounts(w http.ResponseWriter, r *http.Request, i
 
 	mounts, err := s.runtime.ContainerMounts(r.Context(), id)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -167,11 +150,7 @@ func (s *Server) handleContainerFiles(w http.ResponseWriter, r *http.Request, id
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
 	files, err := s.runtime.ListContainerFiles(r.Context(), id, path)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -183,15 +162,9 @@ type containerExecRequest struct {
 }
 
 func (s *Server) handleContainerExecOnce(w http.ResponseWriter, r *http.Request, id string) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-
 	var request containerExecRequest
-	if err := json.Unmarshal(body, &request); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+	if err := jsonDecode(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -205,11 +178,7 @@ func (s *Server) handleContainerExecOnce(w http.ResponseWriter, r *http.Request,
 			return
 		}
 
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -224,11 +193,7 @@ func (s *Server) handleContainerStats(w http.ResponseWriter, r *http.Request, id
 
 	stats, err := s.runtime.ContainerStats(r.Context(), id)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 

@@ -6,6 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 
 enum _BuildDetailTab { info, source, logs, history }
@@ -212,23 +214,9 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Builds', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                detail?.tag ?? widget.buildId,
-                style: theme.textTheme.muted,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Builds', detail?.tag ?? widget.buildId],
+          onBack: widget.onBack,
         ),
         const SizedBox(height: 12),
         if (_detailLoading)
@@ -267,7 +255,13 @@ class _BuildDetailViewState extends State<BuildDetailView> {
             ],
           ),
           const SizedBox(height: 16),
-          _BuildTabBar(theme: theme, selected: _tab, onSelected: _selectTab),
+          CalfTabBar(
+            theme: theme,
+            labels: const ['Info', 'Source', 'Logs', 'History'],
+            selectedIndex: _tab.index,
+            labelStyle: theme.textTheme.large,
+            onSelected: (index) => _selectTab(_BuildDetailTab.values[index]),
+          ),
           const SizedBox(height: 16),
           Expanded(child: _buildTabContent(theme, detail)),
         ],
@@ -356,82 +350,6 @@ class _SummaryColumn extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _BuildTabBar extends StatelessWidget {
-  const _BuildTabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _BuildDetailTab selected;
-  final ValueChanged<_BuildDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _BuildDetailTab.values;
-    const labels = ['Info', 'Source', 'Logs', 'History'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _BuildTabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _BuildTabButton extends StatelessWidget {
-  const _BuildTabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.large.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
     );
   }
 }

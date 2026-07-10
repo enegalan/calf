@@ -75,7 +75,7 @@ func (s *Server) handleVolumeExportCreate(w http.ResponseWriter, r *http.Request
 
 	if exportType == volumeexport.TypeLocalFile {
 		if fileName == "" {
-			fileName = sanitizeExportFileName(volumeName)
+			fileName = volumeexport.SanitizeExportFileName(volumeName) + ".tar.gz"
 		}
 
 		if folder == "" {
@@ -160,25 +160,4 @@ func (s *Server) handleVolumeExportDownload(w http.ResponseWriter, r *http.Reque
 	if _, err := io.Copy(w, file); err != nil {
 		s.logger.Error("volume export download failed", "volume", volumeName, "export", exportID, "error", err)
 	}
-}
-
-func sanitizeExportFileName(volumeName string) string {
-	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
-	return replacer.Replace(strings.TrimSpace(volumeName)) + ".tar.gz"
-}
-
-func formatExportSize(bytes int64) string {
-	if bytes < 1024 {
-		return fmt.Sprintf("%d B", bytes)
-	}
-
-	if bytes < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	}
-
-	if bytes < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
-	}
-
-	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
 }

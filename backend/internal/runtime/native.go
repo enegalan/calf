@@ -256,8 +256,7 @@ func (n *Native) PushImage(ctx context.Context, ref string) error {
 		return err
 	}
 
-	_, err := n.runLocal(ctx, "nerdctl", "push", ref)
-	return err
+	return pushImage(ctx, n.runLocal, ref)
 }
 
 func (n *Native) RunImage(ctx context.Context, ref string) (string, error) {

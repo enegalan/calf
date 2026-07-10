@@ -20,3 +20,11 @@ func writeRuntimeError(w http.ResponseWriter, err error) bool {
 
 	return false
 }
+
+func writeRuntimeOrFail(w http.ResponseWriter, err error) {
+	if writeRuntimeError(w, err) {
+		return
+	}
+
+	writeError(w, http.StatusInternalServerError, err.Error())
+}

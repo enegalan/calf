@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -46,4 +47,17 @@ func (s *Server) ensureRuntimeRunning(ctx context.Context) error {
 	}
 
 	return fmt.Errorf("Calf runtime did not start in time")
+}
+
+func (s *Server) ensureRuntimeOrFail(w http.ResponseWriter, ctx context.Context) bool {
+	if err := s.ensureRuntimeRunning(ctx); err != nil {
+		if writeRuntimeError(w, err) {
+			return false
+		}
+
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return false
+	}
+
+	return true
 }

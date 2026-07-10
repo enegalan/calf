@@ -39,7 +39,7 @@ func (s *Server) executeVolumeExport(ctx context.Context, volumeName string, req
 	}
 
 	if exportType == volumeexport.TypeLocalFile && export.FileName == "" {
-		export.FileName = sanitizeExportFileName(volumeName)
+		export.FileName = volumeexport.SanitizeExportFileName(volumeName) + ".tar.gz"
 	}
 
 	if _, err := store.EnsureExportDir(volumeName, exportID); err != nil {
@@ -74,12 +74,12 @@ func (s *Server) executeVolumeExport(ctx context.Context, volumeName string, req
 	case volumeexport.TypeLocalFile:
 		export.FilePath = resultPath
 		if info, statErr := os.Stat(archivePath); statErr == nil {
-			export.Size = formatExportSize(info.Size())
+			export.Size = runtime.FormatBytes(info.Size())
 		}
 	case volumeexport.TypeLocalImage, volumeexport.TypeNewImage, volumeexport.TypeRegistry:
 		export.ImageRef = resultPath
 		if info, statErr := os.Stat(archivePath); statErr == nil {
-			export.Size = formatExportSize(info.Size())
+			export.Size = runtime.FormatBytes(info.Size())
 		}
 	}
 

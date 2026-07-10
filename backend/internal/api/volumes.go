@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
@@ -15,11 +17,7 @@ func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		volumes, err := s.runtime.ListVolumes(r.Context())
 		if err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
@@ -35,15 +33,11 @@ func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.runtime.CreateVolume(r.Context(), payload.Name); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -109,15 +103,11 @@ func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.runtime.RemoveVolume(r.Context(), name); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -136,11 +126,7 @@ func (s *Server) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name
 
 	detail, err := s.runtime.InspectVolume(r.Context(), name)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -161,11 +147,7 @@ func (s *Server) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name 
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
 	files, err := s.runtime.ListVolumeFiles(r.Context(), name, path)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -185,11 +167,7 @@ func (s *Server) handleVolumeContainers(w http.ResponseWriter, r *http.Request, 
 
 	containers, err := s.runtime.VolumeContainers(r.Context(), name)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -222,11 +200,7 @@ func (s *Server) handleVolumeClone(w http.ResponseWriter, r *http.Request, name 
 	}
 
 	if err := s.runtime.CloneVolume(r.Context(), name, payload.Name); err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 

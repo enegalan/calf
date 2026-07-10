@@ -15,6 +15,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 type Options struct {
@@ -696,16 +697,9 @@ func listImageRefs(ctx context.Context, socket string) ([]string, error) {
 		return nil, err
 	}
 
-	refs := make([]string, 0)
-	for _, line := range strings.Split(string(output), "\n") {
-		ref := strings.TrimSpace(line)
-		if ref == "" || strings.HasPrefix(ref, "<none>") {
-			continue
-		}
-		refs = append(refs, ref)
-	}
-
-	return refs, nil
+	return utils.ParseLines(output, func(ref string) bool {
+		return !strings.HasPrefix(ref, "<none>")
+	}), nil
 }
 
 func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
@@ -714,15 +708,7 @@ func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
 		return nil, err
 	}
 
-	names := make([]string, 0)
-	for _, line := range strings.Split(string(output), "\n") {
-		name := strings.TrimSpace(line)
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-
-	return names, nil
+	return utils.ParseLines(output, nil), nil
 }
 
 func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
@@ -731,15 +717,7 @@ func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
 		return nil, err
 	}
 
-	ids := make([]string, 0)
-	for _, line := range strings.Split(string(output), "\n") {
-		id := strings.TrimSpace(line)
-		if id != "" {
-			ids = append(ids, id)
-		}
-	}
-
-	return ids, nil
+	return utils.ParseLines(output, nil), nil
 }
 
 func inspectContainer(ctx context.Context, socket, id string) (containerInspect, bool, error) {

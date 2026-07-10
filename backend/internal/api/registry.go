@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
@@ -14,11 +16,7 @@ func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		status, err := s.runtime.RegistryStatus(r.Context())
 		if err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
@@ -35,47 +33,29 @@ func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if err := s.ensureRuntimeRunning(r.Context()); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusServiceUnavailable, err.Error())
+		if !s.ensureRuntimeOrFail(w, r.Context()) {
 			return
 		}
 
 		if err := s.runtime.RegistryLogin(r.Context(), payload.Server, payload.Username, payload.Password); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	case http.MethodDelete:
 		server := r.URL.Query().Get("server")
 
-		if err := s.ensureRuntimeRunning(r.Context()); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusServiceUnavailable, err.Error())
+		if !s.ensureRuntimeOrFail(w, r.Context()) {
 			return
 		}
 
 		if err := s.runtime.RegistryLogout(r.Context(), server); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	default:
 		methodNotAllowed(w, r)
 	}

@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
@@ -15,11 +17,7 @@ func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		images, err := s.runtime.ListImages(r.Context())
 		if err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
@@ -40,15 +38,11 @@ func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := s.runtime.PullImage(r.Context(), payload.Reference); err != nil {
-			if writeRuntimeError(w, err) {
-				return
-			}
-
-			writeError(w, http.StatusInternalServerError, err.Error())
+			writeRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		utils.WriteOK(w)
 	default:
 		methodNotAllowed(w, r)
 	}
@@ -84,15 +78,11 @@ func (s *Server) handleImageDelete(w http.ResponseWriter, r *http.Request, ref s
 	}
 
 	if err := s.runtime.RemoveImage(r.Context(), ref); err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	utils.WriteOK(w)
 }
 
 func (s *Server) handleImageLayers(w http.ResponseWriter, r *http.Request) {
@@ -114,11 +104,7 @@ func (s *Server) handleImageLayers(w http.ResponseWriter, r *http.Request) {
 
 	layers, err := s.runtime.ImageHistory(r.Context(), ref)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -152,11 +138,7 @@ func (s *Server) handleImageRun(w http.ResponseWriter, r *http.Request) {
 
 	containerID, err := s.runtime.RunImage(r.Context(), payload.Reference)
 	if err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
@@ -192,13 +174,9 @@ func (s *Server) handleImagePush(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.runtime.PushImage(r.Context(), payload.Reference); err != nil {
-		if writeRuntimeError(w, err) {
-			return
-		}
-
-		writeError(w, http.StatusInternalServerError, err.Error())
+		writeRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	utils.WriteOK(w)
 }
