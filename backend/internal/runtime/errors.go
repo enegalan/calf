@@ -25,22 +25,6 @@ func emptyIfStopped[T any](
 	return listFn(ctx)
 }
 
-func emptyContainersIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Container, error)) ([]Container, error) {
-	return emptyIfStopped(ctx, statusFn, listFn)
-}
-
-func emptyImagesIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Image, error)) ([]Image, error) {
-	return emptyIfStopped(ctx, statusFn, listFn)
-}
-
-func emptyVolumesIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Volume, error)) ([]Volume, error) {
-	return emptyIfStopped(ctx, statusFn, listFn)
-}
-
-func emptyNetworksIfStopped(ctx context.Context, statusFn func(context.Context) (Status, error), listFn func(context.Context) ([]Network, error)) ([]Network, error) {
-	return emptyIfStopped(ctx, statusFn, listFn)
-}
-
 func requireRunning(ctx context.Context, statusFn func(context.Context) (Status, error)) error {
 	status, err := statusFn(ctx)
 	if err != nil {

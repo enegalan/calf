@@ -8,58 +8,16 @@ import (
 )
 
 func NormalizeSchedule(schedule *Schedule) {
-	if len(schedule.DayTimes) == 0 && len(schedule.DaysOfWeek) > 0 && len(schedule.Times) > 0 {
-		schedule.DayTimes = make([]DayTimeSchedule, 0, len(schedule.DaysOfWeek))
-		for _, day := range schedule.DaysOfWeek {
-			times := append([]string(nil), schedule.Times...)
-			sort.Strings(times)
-			schedule.DayTimes = append(schedule.DayTimes, DayTimeSchedule{
-				Day:   day,
-				Times: times,
-			})
-		}
-	}
-
 	if len(schedule.DayTimes) == 0 {
-		times := make([]string, 0, 1)
-		if strings.TrimSpace(schedule.TimeOfDay) != "" {
-			times = append(times, strings.TrimSpace(schedule.TimeOfDay))
-		}
-
-		days := make([]int, 0)
-		switch strings.TrimSpace(schedule.Frequency) {
-		case FrequencyWeekly:
-			days = append(days, schedule.DayOfWeek)
-		case FrequencyMonthly:
-			// Legacy monthly schedules have no cron equivalent; leave days empty.
-		default:
-			days = []int{0, 1, 2, 3, 4, 5, 6}
-		}
-
-		if len(days) > 0 && len(times) > 0 {
-			schedule.DayTimes = make([]DayTimeSchedule, 0, len(days))
-			for _, day := range days {
-				dayTimes := append([]string(nil), times...)
-				sort.Strings(dayTimes)
-				schedule.DayTimes = append(schedule.DayTimes, DayTimeSchedule{
-					Day:   day,
-					Times: dayTimes,
-				})
-			}
-		}
+		return
 	}
 
-	if len(schedule.DayTimes) > 0 {
-		sort.Slice(schedule.DayTimes, func(i, j int) bool {
-			return schedule.DayTimes[i].Day < schedule.DayTimes[j].Day
-		})
+	sort.Slice(schedule.DayTimes, func(i, j int) bool {
+		return schedule.DayTimes[i].Day < schedule.DayTimes[j].Day
+	})
 
-		for index := range schedule.DayTimes {
-			sort.Strings(schedule.DayTimes[index].Times)
-		}
-
-		schedule.DaysOfWeek = uniqueDaysFromDayTimes(schedule.DayTimes)
-		schedule.Times = unionTimesFromDayTimes(schedule.DayTimes)
+	for index := range schedule.DayTimes {
+		sort.Strings(schedule.DayTimes[index].Times)
 	}
 }
 
@@ -226,45 +184,4 @@ func timesForDay(dayTimes []DayTimeSchedule, day int) []string {
 	}
 
 	return nil
-}
-
-func uniqueDaysFromDayTimes(dayTimes []DayTimeSchedule) []int {
-	days := make([]int, 0, len(dayTimes))
-	for _, entry := range dayTimes {
-		days = append(days, entry.Day)
-	}
-
-	sort.Ints(days)
-
-	unique := make([]int, 0, len(days))
-	for _, day := range days {
-		if len(unique) == 0 || unique[len(unique)-1] != day {
-			unique = append(unique, day)
-		}
-	}
-
-	return unique
-}
-
-func unionTimesFromDayTimes(dayTimes []DayTimeSchedule) []string {
-	seen := make(map[string]struct{})
-	times := make([]string, 0)
-	for _, entry := range dayTimes {
-		for _, value := range entry.Times {
-			key := strings.TrimSpace(value)
-			if key == "" {
-				continue
-			}
-
-			if _, ok := seen[key]; ok {
-				continue
-			}
-
-			seen[key] = struct{}{}
-			times = append(times, key)
-		}
-	}
-
-	sort.Strings(times)
-	return times
 }

@@ -1,12 +1,10 @@
-import 'package:file_selector/file_selector.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
-
-enum VolumeQuickExportType { localFile, localImage, newImage, registry }
+import 'package:ui/widgets/detail_breadcrumb.dart';
+import 'package:ui/widgets/volume_export_form.dart';
 
 class VolumeQuickExportView extends StatefulWidget {
   const VolumeQuickExportView({
@@ -59,7 +57,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     });
 
     try {
-      final images = await widget.apiClient.fetchImages();
+      final images = await loadVolumeExportImages(widget.apiClient);
       if (!mounted) {
         return;
       }
@@ -96,7 +94,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
 
   Future<void> _browseFolder() async {
     try {
-      final location = await getDirectoryPath(confirmButtonText: 'Select');
+      final location = await browseVolumeExportFolder();
       if (location == null || !mounted) {
         return;
       }
@@ -105,19 +103,11 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
         _folderController.text = location;
         _error = null;
       });
-    } on MissingPluginException {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = 'Folder picker unavailable. Restart the app and try again. '
-            '(hot reload cannot load native plugins).';
-      });
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => _error = folderPickerErrorMessage(error));
     }
   }
 
@@ -128,16 +118,9 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     });
 
     try {
-      final type = switch (_type) {
-        VolumeQuickExportType.localFile => 'local_file',
-        VolumeQuickExportType.localImage => 'local_image',
-        VolumeQuickExportType.newImage => 'new_image',
-        VolumeQuickExportType.registry => 'registry',
-      };
-
       await widget.apiClient.createVolumeExport(
         name: widget.volumeName,
-        type: type,
+        type: volumeQuickExportTypeToApi(_type),
         fileName: _fileNameController.text.trim(),
         folder: _folderController.text.trim(),
         imageRef: _imageRefController.text.trim(),
@@ -166,19 +149,9 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Volumes', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Text(widget.volumeName, style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Text('Quick export', style: theme.textTheme.muted),
-          ],
+        DetailBreadcrumb(
+          segments: ['Volumes', widget.volumeName, 'Quick export'],
+          onBack: widget.onBack,
         ),
         const SizedBox(height: 16),
         Text('Quick export', style: theme.textTheme.h3),
@@ -201,7 +174,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                 children: [
                   Text('Location', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 16),
-                  _ExportOptionTile(
+                  VolumeExportOptionTile(
                     theme: theme,
                     title: 'Local file',
                     description:
@@ -240,7 +213,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         : null,
                   ),
                   const SizedBox(height: 16),
-                  _ExportOptionTile(
+                  VolumeExportOptionTile(
                     theme: theme,
                     title: 'Local image',
                     description: 'Copy the volume content to an existing image in the /volume-data directory.',
@@ -251,29 +224,9 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0x33F59E0B),
-                                  border: Border.all(color: const Color(0x66F59E0B)),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(LucideIcons.triangleAlert, size: 16, color: const Color(0xFFF59E0B)),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'This overwrites the existing image with the volume contents and deletes the previous image.',
-                                        style: theme.textTheme.small,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              VolumeExportLocalImageWarning(theme: theme),
                               const SizedBox(height: 12),
-                              _ImageRefField(
+                              VolumeExportImageRefField(
                                 theme: theme,
                                 controller: _imageRefController,
                                 images: _images,
@@ -286,7 +239,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         : null,
                   ),
                   const SizedBox(height: 16),
-                  _ExportOptionTile(
+                  VolumeExportOptionTile(
                     theme: theme,
                     title: 'New image',
                     description: 'Create a new image and copy the volume contents into it.',
@@ -304,7 +257,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         : null,
                   ),
                   const SizedBox(height: 16),
-                  _ExportOptionTile(
+                  VolumeExportOptionTile(
                     theme: theme,
                     title: 'Registry',
                     description: 'Push the volume content to Docker Hub.',
@@ -315,26 +268,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SizedBox(height: 12),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(LucideIcons.info, size: 16, color: theme.colorScheme.primary),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        'This might make any data in the volume publicly accessible on Docker Hub.',
-                                        style: theme.textTheme.small,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                              VolumeExportRegistryNotice(theme: theme),
                               const SizedBox(height: 12),
                               ShadInput(
                                 controller: _imageRefController,
@@ -359,7 +293,6 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             CalfButton.outline(
-              enabled: !_busy,
               onPressed: widget.onBack,
               child: const Text('Cancel'),
             ),
@@ -372,131 +305,6 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _ExportOptionTile extends StatelessWidget {
-  const _ExportOptionTile({
-    required this.theme,
-    required this.title,
-    required this.description,
-    required this.selected,
-    required this.onSelect,
-    this.child,
-  });
-
-  final ShadThemeData theme;
-  final String title;
-  final String description;
-  final bool selected;
-  final VoidCallback onSelect;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: selected ? theme.colorScheme.primary : theme.colorScheme.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          GestureDetector(
-            onTap: onSelect,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  selected ? LucideIcons.circleDot : LucideIcons.circle,
-                  size: 18,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.mutedForeground,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text(description, style: theme.textTheme.muted),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ?child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ImageRefField extends StatelessWidget {
-  const _ImageRefField({
-    required this.theme,
-    required this.controller,
-    required this.images,
-    required this.imagesLoading,
-    required this.imagesError,
-    required this.onChanged,
-  });
-
-  final ShadThemeData theme;
-  final TextEditingController controller;
-  final List<ImageItem> images;
-  final bool imagesLoading;
-  final String? imagesError;
-  final VoidCallback onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imagesLoading) {
-      return Text('Loading images...', style: theme.textTheme.muted);
-    }
-
-    if (imagesError != null) {
-      return ShadInput(
-        controller: controller,
-        placeholder: const Text('Image name'),
-        onChanged: (_) => onChanged(),
-      );
-    }
-
-    if (images.isEmpty) {
-      return ShadInput(
-        controller: controller,
-        placeholder: const Text('Image name'),
-        onChanged: (_) => onChanged(),
-      );
-    }
-
-    final references = images.map((image) => image.reference).toSet().toList()..sort();
-    final selected = references.contains(controller.text) ? controller.text : null;
-
-    return ShadSelect<String>(
-      placeholder: const Text('Image name'),
-      initialValue: selected,
-      options: references
-          .map(
-            (reference) => ShadOption(
-              value: reference,
-              child: Text(reference),
-            ),
-          )
-          .toList(),
-      selectedOptionBuilder: (context, value) => Text(value),
-      onChanged: (value) {
-        if (value == null) {
-          return;
-        }
-        controller.text = value;
-        onChanged();
-      },
     );
   }
 }

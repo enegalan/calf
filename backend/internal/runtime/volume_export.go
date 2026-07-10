@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-)
 
-const volumeExportAlpineImage = "alpine:3.20"
+	"github.com/enegalan/calf/backend/internal/constants"
+)
 
 type VolumeExportOptions struct {
 	VolumeName string
@@ -42,7 +42,7 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 		"run", "--rm",
 		"-v", volumeName + ":/from:ro",
 		"-v", vmStagingDir + ":/to",
-		volumeExportAlpineImage,
+		constants.AlpineSmokeImage,
 		"tar", "czf", "/to/" + archiveName, "-C", "/from", ".",
 	}
 	if _, err := run(ctx, "nerdctl", args...); err != nil {
@@ -72,7 +72,7 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 	}
 
 	containerName := fmt.Sprintf("calf-vol-export-%s", filepath.Base(filepath.Dir(archivePath)))
-	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, volumeExportAlpineImage, "sleep", "3600")
+	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, constants.AlpineSmokeImage, "sleep", "3600")
 	if err != nil {
 		return fmt.Errorf("start export container: %w", err)
 	}

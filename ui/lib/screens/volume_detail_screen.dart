@@ -5,9 +5,12 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/screens/volume_quick_export_screen.dart';
 import 'package:ui/screens/volume_schedule_export_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 
 enum _VolumeDetailTab { storedData, containersInUse, exports }
@@ -343,23 +346,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Volumes', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                widget.volumeName,
-                style: theme.textTheme.muted,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Volumes', widget.volumeName],
+          onBack: widget.onBack,
         ),
         const SizedBox(height: 12),
         Row(
@@ -394,7 +383,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: detail.inUse ? const Color(0xFF22C55E) : theme.colorScheme.mutedForeground,
+                            color: detail.inUse ? CalfColors.success : theme.colorScheme.mutedForeground,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -422,10 +411,11 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
           ],
         ),
         const SizedBox(height: 16),
-        _VolumeTabBar(
+        CalfTabBar(
           theme: theme,
-          selected: _tab,
-          onSelected: _selectTab,
+          labels: const ['Stored data', 'Container in-use', 'Exports'],
+          selectedIndex: _tab.index,
+          onSelected: (index) => _selectTab(_VolumeDetailTab.values[index]),
         ),
         const SizedBox(height: 16),
         Expanded(
@@ -460,82 +450,6 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
           },
         ),
       ],
-    );
-  }
-}
-
-class _VolumeTabBar extends StatelessWidget {
-  const _VolumeTabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _VolumeDetailTab selected;
-  final ValueChanged<_VolumeDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _VolumeDetailTab.values;
-    const labels = ['Stored data', 'Container in-use', 'Exports'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _VolumeTabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _VolumeTabButton extends StatelessWidget {
-  const _VolumeTabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
-        ),
-      ),
     );
   }
 }
@@ -758,9 +672,9 @@ class _ScheduleHistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = schedule.enabled;
-    final enabledColor = enabled ? const Color(0xFF22C55E) : theme.colorScheme.mutedForeground;
+    final enabledColor = enabled ? CalfColors.success : theme.colorScheme.mutedForeground;
     final lastStatusColor = schedule.lastStatus == 'completed'
-        ? const Color(0xFF22C55E)
+        ? CalfColors.success
         : schedule.lastStatus == 'failed'
             ? theme.colorScheme.destructive
             : theme.colorScheme.mutedForeground;
@@ -817,36 +731,6 @@ class _ScheduleHistoryRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                   ],
-                ] else ...[
-                  if (schedule.daysOfWeek.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final day in schedule.daysOfWeek)
-                          _ScheduleMiniChip(
-                            theme: theme,
-                            label: VolumeExportScheduleItem.weekdayShort(day),
-                            emphasized: enabled,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (schedule.times.isNotEmpty)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final time in schedule.times)
-                          _ScheduleMiniChip(
-                            theme: theme,
-                            label: time,
-                            icon: LucideIcons.clock,
-                            emphasized: enabled,
-                          ),
-                      ],
-                    ),
                 ],
                 if (schedule.destinationSummary.isNotEmpty) ...[
                   const SizedBox(height: 10),
@@ -1020,7 +904,7 @@ class _ExportHistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (export.status) {
-      'completed' => const Color(0xFF22C55E),
+      'completed' => CalfColors.success,
       'failed' => theme.colorScheme.destructive,
       _ => theme.colorScheme.mutedForeground,
     };

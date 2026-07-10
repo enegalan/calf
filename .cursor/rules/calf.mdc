@@ -3,21 +3,24 @@ description: Calf project conventions, stack, layout, and hard rules
 alwaysApply: true
 ---
 
-# Cursor Rules — calf
+# CLAUDE.md
 
-## Project
+This file provides guidance to AI assistants when working with code in this repository. It must stay equivalent to `.cursor/rules/calf.mdc` — update both in the same change.
 
-Calf is a lightweight, open-source alternative to Docker Desktop:
-- `backend/` — Go daemon managing containers via `containerd`/`nerdctl`, inside a Lima VM (macOS/Windows) or natively (Linux). Exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`) plus a REST + WebSocket API on `127.0.0.1:8765`.
-- `ui/` — native Flutter GUI that drives the daemon over that API.
+## Project Overview
+
+**Calf** is a lightweight, open-source alternative to Docker Desktop. It consists of:
+
+- A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **Lima** VM on macOS/Windows, or talking directly to the host runtime on Linux.
+- A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
 The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
 
-The real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
+The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
 
-Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features (see `ROADMAP.md`).
+Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features.
 
-## Tech stack
+## Tech Stack
 
 ### Backend (`backend/`)
 - **Language:** Go 1.22.1
@@ -47,7 +50,7 @@ Non-goals: no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud 
   - `/v1/containers/{id}/exec` — bidirectional PTY stream, with JSON control messages (e.g. `{"type":"resize","rows":...,"cols":...}`) multiplexed into the binary stream.
 - All other endpoints are plain HTTP request/response.
 
-## Project layout
+## Project Structure
 
 ```
 calf/
@@ -75,7 +78,7 @@ calf/
 │   │   │   ├── registry.go                      Registry login/logout
 │   │   │   └── registry_login.go                Docker Hub OAuth device-flow browser login
 │   │   ├── config/
-│   │   │   ├── config.go                      Config struct, YAML load/save, defaults, legacy migration
+│   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
 │   │   ├── runtime/
 │   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native/Lima
@@ -100,6 +103,11 @@ calf/
 │   │   │   ├── compose_migration.go             Groups containers by compose project, stages/patches compose YAML
 │   │   │   ├── disk.go                          Free-disk-space check before migrating
 │   │   │   └── status.go                        Phase/Status/Summary types
+│   │   ├── utils/
+│   │   │   ├── http_response.go               WriteOK HTTP helper
+│   │   │   └── lines.go                       ParseLines for command output
+│   │   ├── constants/
+│   │   │   └── constants.go                   Shared timeouts, defaults, log tail count, alpine smoke image
 │   │   ├── oauth/dockerhub/
 │   │   │   └── device.go                      Docker Hub OAuth2 device-code flow client, PAT generation
 │   │   └── browser/
@@ -117,10 +125,12 @@ calf/
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
 ├── ui/                                      Flutter application
 │   ├── lib/
-│   │   ├── main.dart                          App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
+│   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
 │   │   ├── app_shell.dart                     Sidebar nav, top bar, SettingsScreen (resources, migration, theme)
 │   │   ├── api/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
+│   │   ├── constants/
+│   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
@@ -139,7 +149,10 @@ calf/
 │   │   │   ├── containers_screen.dart          List/search/filter/group-by-compose, Timer-based polling
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
-│   │   │   ├── resources_screen.dart           Images/Volumes/Builds screens
+│   │   │   ├── images_screen.dart              Image list and detail
+│   │   │   ├── volumes_screen.dart             Volume list (on-demand refresh)
+│   │   │   ├── builds_screen.dart              Build list and polling
+│   │   │   ├── build_detail_screen.dart        Build detail tabs
 │   │   │   ├── networks_screen.dart            Network list and detail screens
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
@@ -148,9 +161,18 @@ calf/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive)
+│   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
+│   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
+│   │       ├── detail_breadcrumb.dart          Detail view back navigation header
+│   │       ├── error_text.dart                 Formatted API error text
 │   │       ├── files_panel.dart                Lazy-loaded directory tree (LoadDirectoryCallback)
 │   │       ├── hover_list_row.dart             Hover-state row wrapper
-│   │       └── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
+│   │       ├── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
+│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic polling mixin
+│   │       ├── resource_list_scaffold.dart     List screen layout helper
+│   │       ├── running_filter_switch.dart      "Show only running" filter switch
+│   │       ├── status_dot.dart                 Running/in-use status indicator dot
+│   │       └── volume_export_form.dart         Shared volume export form widgets
 │   ├── test/widget_test.dart                  Flutter widget test
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
 │   └── analysis_options.yaml                  flutter_lints, no custom overrides
@@ -173,13 +195,13 @@ calf/
 └── LICENSE                                  MIT
 ```
 
-## Backend file reference (`backend/`)
+## Backend File Reference (`backend/`)
 
 ### `cmd/calf/main.go`
 Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts.
 
 ### `internal/config/`
-- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml`, a `withDefaults` backfill step, and `migrateLegacyDefaults` (rewrites the old `:8080` port to `:8765`).
+- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
 - `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
 
 ### `internal/api/`
@@ -192,11 +214,18 @@ HTTP server built on `net/http.ServeMux`. Every handler follows the same shape: 
 - `ws_writer.go` — mutex-guarded WebSocket writer with a write deadline.
 - `log_broadcaster.go` — multiplexes one `nerdctl` log stream to N WebSocket subscribers, keeps a 500-line history ring buffer, tears the stream down when the last subscriber disconnects.
 - `runtime_ready.go` — blocks until the runtime is running (3-minute timeout); used before registry login.
-- `runtime_errors.go` — maps `ErrRuntimeNotRunning` to `503`.
+- `runtime_errors.go` — maps runtime errors to HTTP status codes; `writeRuntimeOrFail` for handlers.
 - `builds.go` — in-memory build history; `POST` triggers `RunBuild`.
 - `containers.go` / `exec.go` / `images.go` / `logs.go` / `volumes.go` / `networks.go` — CRUD plus subresources (logs, inspect, mounts, files, exec, stats). Exec/logs use WebSocket; other operations use one-shot HTTP.
 - `migrate.go` — orchestrates the Docker Desktop migration in a background goroutine, exposes status polling.
 - `registry.go` / `registry_login.go` — basic registry login/logout plus Docker Hub OAuth device-flow browser login with session polling.
+
+### `internal/utils/`
+- `http_response.go` — `WriteOK`.
+- `lines.go` — `ParseLines` for newline-delimited command output.
+
+### `internal/constants/`
+- `constants.go` — shared defaults (`DefaultListenAddr`, `DefaultPollIntervalMS`), `DefaultActionTimeout`, `LogTailLineCount`, `AlpineSmokeImage`.
 
 ### `internal/browser/open.go`
 Cross-platform URL opener (`open` / `xdg-open` / `rundll32`).
@@ -227,16 +256,19 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `errors.go` — `ErrRuntimeNotRunning` sentinel and `requireRunning`/`emptyXIfStopped` guard helpers.
 - `command_error.go` — shell output cleanup (strips ANSI escapes, extracts `nerdctl` fatal messages), transient-error classification for retry, and an auth-failure hint wrapper for push errors.
 
-## UI file reference (`ui/lib/`)
+## UI File Reference (`ui/lib/`)
 
 ### `main.dart`
-Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
+App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with brand primary color from `CalfColors.primary`. Light/dark `ShadThemeData` instances are built once as top-level finals.
 
 ### `app_shell.dart`
 Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, and a top bar showing Docker Hub registry sign-in status. `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
 
 ### `api/client.dart`
-Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL: `http://127.0.0.1:8765`.
+Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
+
+### `constants/calf_constants.dart`
+Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (base URL, poll interval, HTTP timeouts), `CalfStorageFiles` (JSON preference filenames), `CalfGitHub` (repository slug).
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
@@ -260,7 +292,10 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`.
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
-- `resources_screen.dart` — Images/Volumes/Builds screens.
+- `images_screen.dart` — image list, detail, polling.
+- `volumes_screen.dart` — volume list with on-demand refresh (no polling).
+- `builds_screen.dart` — build list with polling.
+- `build_detail_screen.dart` — build detail tabs (info, source, logs, history).
 - `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options).
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
@@ -273,13 +308,19 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
+- `error_text.dart` — formatted API error text.
+- `detail_breadcrumb.dart`, `calf_tab_bar.dart` — shared detail view chrome.
+- `poll_interval_mixin.dart` — shared list-screen polling lifecycle.
+- `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
+- `confirm_dialog.dart` — confirm dialog helper.
+- `status_dot.dart`, `volume_export_form.dart` — status indicator and volume export shared UI.
 
-## Testing conventions
+## Testing Conventions
 
-- **Backend:** tests live in `backend/test/<pkg>/` as external test packages (e.g. `package api_test`), **not** as `*_test.go` files alongside the source. Tests spin up a real server via `httptest.NewServer(api.New(cfg, logger, runtime.NewMock()).Handler())` and assert on raw HTTP responses.
+- **Backend:** tests live in `backend/test/<pkg>/` as external test packages (e.g. `package api_test`), **not** as `*_test.go` files alongside the source. This was a deliberate convention change (see `CHANGELOG.md`, v0.3.0: "Go tests moved to `backend/test/`"). Tests spin up a real server via `httptest.NewServer(api.New(cfg, logger, runtime.NewMock()).Handler())` and assert on raw HTTP responses.
 - **UI:** standard Flutter widget tests under `ui/test/`.
 
-## Build & dev commands
+## Build & Dev Commands
 
 ```
 make dev-backend        # cd backend && CGO_ENABLED=0 go run ./cmd/calf
@@ -310,26 +351,22 @@ Release (`.github/workflows/release.yml`):
 - Each runner builds the platform release bundle and packages it into native installers (macOS `.dmg`/`.pkg`, Windows `.exe`, Linux `.deb`/`.rpm`/`.AppImage`).
 - Artifacts are collected and published as a draft GitHub release with an auto-generated tag `v<version>`.
 
-## Hard rules
+## Conventions
 
-1. **English only, everywhere.** All code, identifiers, UI copy, comments, commit messages, and docs must be in English. Never mix in another language.
-2. **Comments only when the *why* isn't obvious.** No restating what the code already says.
-3. **Fix root causes, never patch symptoms.** When you hit a bug or design flaw, find the actual underlying cause and eliminate or replace it. Do not:
-   - silently swallow or ignore errors
-   - add retries/timeouts around a call that's fundamentally broken
-   - special-case a symptom instead of fixing the source
-   - leave a workaround "for now" without removing the root problem
-4. **No premature abstraction.** The runtime layer has exactly three implementations (`Native`, `Lima`, `Mock`) behind one `Runtime` interface — mirror that discipline; don't add new abstraction layers for hypothetical needs.
-5. **Backend errors are translated, never leaked.** Handlers must go through `writeRuntimeError`/`writeJSON`; map `ErrRuntimeNotRunning` to `503`, everything else appropriately — never return raw internal error strings to the client.
-6. **No generic catch-alls.** Never write a generic `try/catch` (or a generic error check that just forwards `err` without identifying what failed). Handle each *specific* error case individually — if that requires 3, 5, or 10 separate specific handlers, write all of them. Whoever reads the error (logs, UI, API response) must be able to tell exactly which operation failed and why — never just "something went wrong".
-7. **UI stays on `StatefulWidget` + `setState`.** Don't introduce a new state-management library without explicit discussion.
-8. **Tests follow existing conventions.** Backend tests go in `backend/test/<pkg>/` as external test packages (`package xxx_test`), built against `runtime.NewMock()` — not `*_test.go` next to the source. UI tests go in `ui/test/`.
-9. **Commit messages:** conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`), optionally scoped (`feat(runtime): ...`, `fix(ui): ...`).
-10. **Concurrency and resource lifecycle (Go).** Thread `context.Context` with explicit timeout/cancellation from every HTTP handler into the runtime layer — never use bare `context.Background()` for a blocking call inside a handler. Every long-lived goroutine (log broadcasting, migration, polling) must observe cancellation/a stop signal and be stopped on server shutdown — no fire-and-forget goroutines. Release resources with `defer` right next to acquisition (`defer f.Close()`, `defer mu.Unlock()`, `defer cancel()`).
-11. **Versioning and living docs.** Bump `backend/version/version.go` and `ui/pubspec.yaml` together for every release. Add a `CHANGELOG.md` entry for every user-visible change. Whenever a file is added/removed/renamed under `backend/` or `ui/lib/`, update the Project layout tree and file reference sections in both `CLAUDE.md` and `.cursor/rules/calf.mdc` in the same change — keep both files equivalent and in sync with the codebase.
-12. **CHANGELOG in user language.** CHANGELOG entries must describe changes from the user's perspective — no implementation details, library names, file paths, or protocol jargon. Write what users see and feel, not how it was built.
-
-## Before making changes
-
-- Check `ROADMAP.md` before adding scope — respect the explicit non-goals.
-- Run `make dev-backend` / `make dev-ui-macos` (or `make dev-ui-linux` / `make dev-ui-windows`) to exercise changes locally.
+- **Language: English only.** All code, identifiers, UI strings, comments, commit messages, and documentation must be written in English — no exceptions.
+- **Comments:** English only, and only where the *why* isn't obvious from the code itself. Do not restate what the code already says.
+- **Fix root causes, not symptoms.** When you encounter a bug or a design problem, find and eliminate or replace the underlying cause. Do not apply superficial patches, workarounds, or defensive band-aids that mask the real issue — this includes silently swallowing errors, adding retries around a fundamentally broken call, or special-casing a symptom instead of fixing the source.
+- **Commit style:** conventional-commit-like prefixes (`feat:`, `fix:`, `refactor:`, `chore:`), occasionally scoped (`fix(ui):`, `feat(runtime):`).
+- **CHANGELOG:** entries must describe changes in user-facing terms — no implementation details, library names, file paths, or protocol jargon. Write what changed from the user's perspective, not how it was built.
+- **Error handling (backend):** handlers never leak raw internal errors to clients; they go through `writeRuntimeError`/`writeJSON` and map to appropriate HTTP status codes.
+- **No generic catch-alls.** Never write a generic `try/catch` (or, in Go, a generic error check that just forwards `err` without identifying what failed). Catch/handle each *specific* error case individually — if that means 3, 5, or 10 separate specific handlers, write all of them. The point is that whoever reads the error (logs, UI, API response) can tell exactly which operation failed and why, not just that "something went wrong".
+- **No premature abstraction:** the runtime layer has exactly three implementations (`Native`, `Lima`, `Mock`) behind one interface — follow that pattern rather than introducing new abstraction layers for hypothetical future runtimes.
+- **UI state:** keep using `StatefulWidget` + `setState` and `Timer.periodic` polling for consistency with the rest of the screens; do not introduce a new state-management library without discussing it first.
+- **Concurrency and resource lifecycle (Go):**
+  - Thread a `context.Context` with an explicit timeout or cancellation through every call from an HTTP handler down into the runtime layer — never call a long-running or blocking runtime operation with a bare `context.Background()` inside a handler.
+  - Every goroutine started for a long-lived task (log broadcasting, migration, background polling) must be stoppable: it must observe context cancellation or an explicit stop signal, and the code that starts it must ensure it is stopped during server shutdown. Do not fire-and-forget goroutines that outlive the request or the server's lifecycle.
+  - Always release resources with `defer` immediately after acquiring them — `defer f.Close()`, `defer mu.Unlock()`, `defer cancel()` — placed right next to the acquisition, not at the bottom of the function.
+- **Versioning and living documentation:**
+  - `backend/version/version.go` and the version in `ui/pubspec.yaml` must be bumped together — they must always refer to the same release.
+  - Any user-visible change (new feature, fix, breaking change) must get an entry in `CHANGELOG.md`, following the existing Keep a Changelog + SemVer format.
+  - `CLAUDE.md` and `.cursor/rules/calf.mdc` must stay equivalent: whenever a file is added, removed, or renamed under `backend/` or `ui/lib/`, update the Project Structure tree and file-reference sections in both files in the same change.

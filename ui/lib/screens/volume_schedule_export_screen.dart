@@ -1,12 +1,12 @@
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/export_name_pattern.dart';
-import 'package:ui/screens/volume_quick_export_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
+import 'package:ui/widgets/volume_export_form.dart';
 
 class VolumeScheduleExportView extends StatefulWidget {
   const VolumeScheduleExportView({
@@ -57,7 +57,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     super.initState();
     final schedule = widget.existingSchedule;
     if (schedule != null) {
-      _type = _typeFromString(schedule.type);
+      _type = volumeQuickExportTypeFromApi(schedule.type);
       _fileNameController.text = schedule.fileName.isNotEmpty ? schedule.fileName : defaultExportFileNamePattern();
       _folderController.text = schedule.folder;
       _imageRefController.text = schedule.imageRef;
@@ -65,12 +65,6 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
       if (schedule.dayTimes.isNotEmpty) {
         for (final entry in schedule.dayTimes) {
           _dayTimes[entry.day] = entry.times.map(_parseExportTime).toList();
-        }
-      } else {
-        for (final day in schedule.daysOfWeek) {
-          _dayTimes[day] = schedule.times.isEmpty
-              ? [const TimeOfDay(hour: 3, minute: 0)]
-              : schedule.times.map(_parseExportTime).toList();
         }
       }
     } else {
@@ -87,19 +81,6 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     super.dispose();
   }
 
-  VolumeQuickExportType _typeFromString(String value) {
-    switch (value) {
-      case 'local_image':
-        return VolumeQuickExportType.localImage;
-      case 'new_image':
-        return VolumeQuickExportType.newImage;
-      case 'registry':
-        return VolumeQuickExportType.registry;
-      default:
-        return VolumeQuickExportType.localFile;
-    }
-  }
-
   Future<void> _loadImages() async {
     setState(() {
       _imagesLoading = true;
@@ -107,7 +88,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     });
 
     try {
-      final images = await widget.apiClient.fetchImages();
+      final images = await loadVolumeExportImages(widget.apiClient);
       if (!mounted) {
         return;
       }
@@ -257,7 +238,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
 
   Future<void> _browseFolder() async {
     try {
-      final location = await getDirectoryPath(confirmButtonText: 'Select');
+      final location = await browseVolumeExportFolder();
       if (location == null || !mounted) {
         return;
       }
@@ -266,29 +247,16 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
         _folderController.text = location;
         _error = null;
       });
-    } on MissingPluginException {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _error = 'Folder picker unavailable. Restart the app and try again. '
-            '(hot reload cannot load native plugins).';
-      });
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => _error = folderPickerErrorMessage(error));
     }
   }
 
   Map<String, dynamic> _scheduleFields() {
-    final type = switch (_type) {
-      VolumeQuickExportType.localFile => 'local_file',
-      VolumeQuickExportType.localImage => 'local_image',
-      VolumeQuickExportType.newImage => 'new_image',
-      VolumeQuickExportType.registry => 'registry',
-    };
+    final type = volumeQuickExportTypeToApi(_type);
 
     return {
       'type': type,
@@ -400,22 +368,12 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
       return;
     }
 
-    final confirmed = await showShadDialog<bool>(
-      context: context,
-      builder: (dialogContext) => ShadDialog(
-        title: const Text('Delete schedule'),
-        description: Text('Remove the scheduled export for "${widget.volumeName}"? This cannot be undone.'),
-        actions: [
-          CalfButton.outline(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          CalfButton.destructive(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Delete schedule',
+      description: 'Remove the scheduled export for "${widget.volumeName}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
     );
 
     if (confirmed != true || !mounted) {
@@ -452,19 +410,14 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: _busy ? null : widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Volumes', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Text(widget.volumeName, style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Text(widget.isEditing ? 'Edit schedule' : 'Schedule export', style: theme.textTheme.muted),
+        DetailBreadcrumb(
+          segments: [
+            'Volumes',
+            widget.volumeName,
+            widget.isEditing ? 'Edit schedule' : 'Schedule export',
           ],
+          onBack: widget.onBack,
+          onBackEnabled: !_busy,
         ),
         const SizedBox(height: 16),
         Text(
@@ -594,7 +547,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                     children: [
                       Text('Location', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
                         const SizedBox(height: 16),
-                        _ScheduleExportOptionTile(
+                        VolumeExportOptionTile(
                           theme: theme,
                           title: 'Local file',
                           description: 'Create a compressed file (.tar.gz) in a selected directory.',
@@ -639,7 +592,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-                        _ScheduleExportOptionTile(
+                        VolumeExportOptionTile(
                           theme: theme,
                           title: 'Local image',
                           description: 'Copy the volume content to an existing image.',
@@ -648,7 +601,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                           child: _type == VolumeQuickExportType.localImage
                               ? Padding(
                                   padding: const EdgeInsets.only(top: 12),
-                                  child: _ScheduleImageRefField(
+                                  child: VolumeExportImageRefField(
                                     theme: theme,
                                     controller: _imageRefController,
                                     images: _images,
@@ -660,7 +613,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-                        _ScheduleExportOptionTile(
+                        VolumeExportOptionTile(
                           theme: theme,
                           title: 'New image',
                           description: 'Create a new image and copy the volume contents into it.',
@@ -685,7 +638,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               : null,
                         ),
                         const SizedBox(height: 16),
-                        _ScheduleExportOptionTile(
+                        VolumeExportOptionTile(
                           theme: theme,
                           title: 'Registry',
                           description: 'Push the volume content to Docker Hub.',
@@ -1102,123 +1055,6 @@ class _DayChip extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _ScheduleExportOptionTile extends StatelessWidget {
-  const _ScheduleExportOptionTile({
-    required this.theme,
-    required this.title,
-    required this.description,
-    required this.selected,
-    required this.onSelect,
-    this.child,
-  });
-
-  final ShadThemeData theme;
-  final String title;
-  final String description;
-  final bool selected;
-  final VoidCallback? onSelect;
-  final Widget? child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: selected ? theme.colorScheme.primary : theme.colorScheme.border),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          GestureDetector(
-            onTap: onSelect,
-            behavior: HitTestBehavior.opaque,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  selected ? LucideIcons.circleDot : LucideIcons.circle,
-                  size: 18,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.mutedForeground,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 4),
-                      Text(description, style: theme.textTheme.muted),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          ?child,
-        ],
-      ),
-    );
-  }
-}
-
-class _ScheduleImageRefField extends StatelessWidget {
-  const _ScheduleImageRefField({
-    required this.theme,
-    required this.controller,
-    required this.images,
-    required this.imagesLoading,
-    required this.imagesError,
-    required this.onChanged,
-  });
-
-  final ShadThemeData theme;
-  final TextEditingController controller;
-  final List<ImageItem> images;
-  final bool imagesLoading;
-  final String? imagesError;
-  final VoidCallback onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    if (imagesLoading) {
-      return Text('Loading images...', style: theme.textTheme.muted);
-    }
-
-    if (imagesError != null || images.isEmpty) {
-      return ShadInput(
-        controller: controller,
-        placeholder: const Text('Image name'),
-        onChanged: (_) => onChanged(),
-      );
-    }
-
-    final references = images.map((image) => image.reference).toSet().toList()..sort();
-    final selected = references.contains(controller.text) ? controller.text : null;
-
-    return ShadSelect<String>(
-      placeholder: const Text('Image name'),
-      initialValue: selected,
-      options: references
-          .map(
-            (reference) => ShadOption(
-              value: reference,
-              child: Text(reference),
-            ),
-          )
-          .toList(),
-      selectedOptionBuilder: (context, value) => Text(value),
-      onChanged: (value) {
-        if (value == null) {
-          return;
-        }
-        controller.text = value;
-        onChanged();
-      },
     );
   }
 }

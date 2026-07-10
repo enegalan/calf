@@ -5,10 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
-
-const logHistoryLimit = 500
 
 type logBroadcaster struct {
 	mu      sync.Mutex
@@ -161,8 +160,8 @@ func (s *sharedLogStream) hasSubscribers() bool {
 func (s *sharedLogStream) publish(line string) {
 	s.mu.Lock()
 	s.history = append(s.history, line)
-	if len(s.history) > logHistoryLimit {
-		s.history = s.history[len(s.history)-logHistoryLimit:]
+	if len(s.history) > constants.LogTailLineCount {
+		s.history = s.history[len(s.history)-constants.LogTailLineCount:]
 	}
 
 	subscribers := make([]chan string, 0, len(s.subscribers))

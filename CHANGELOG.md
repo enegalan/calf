@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **macOS menu bar** — Settings, section navigation, Docker Hub sign-in, update checks, and help links are available from the native menu bar.
 - **Open at login** — optional setting in Settings to start Calf automatically when you sign in.
 
+### Fixed
+
+- **Image push errors** — pushing an image to a registry now shows a clearer message when authentication fails.
+- **Volume export file names** — quick exports and scheduled exports now sanitize file names the same way.
+
 ## [0.8.0] - 2026-07-08
 
 ### Added

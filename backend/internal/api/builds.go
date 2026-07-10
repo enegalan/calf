@@ -333,10 +333,6 @@ func (s *Server) addMigratedBuild(build runtime.Build) {
 	_ = s.persistBuildsLocked()
 }
 
-func hasLegacyBuildResults(results []runtime.BuildArtifact) bool {
-	return len(results) == 1 && results[0].Name == "application/vnd.docker.container.image.v1+json"
-}
-
 func (s *Server) enrichHistoryBuildIfNeeded(ctx context.Context, build runtime.Build) runtime.Build {
 	if build.HistoryRef == "" {
 		return build
@@ -346,7 +342,6 @@ func (s *Server) enrichHistoryBuildIfNeeded(ctx context.Context, build runtime.B
 		(build.RawLog == "" && len(build.Steps) == 0) ||
 		len(build.Dependencies) == 0 ||
 		len(build.Results) == 0 ||
-		hasLegacyBuildResults(build.Results) ||
 		len(build.Tags) == 0
 
 	if !needsEnrichment {
@@ -408,7 +403,7 @@ func applyBuildEnrichment(current, enriched runtime.Build) runtime.Build {
 	if len(enriched.Dependencies) > 0 && len(current.Dependencies) == 0 {
 		current.Dependencies = enriched.Dependencies
 	}
-	if len(enriched.Results) > 0 && (len(current.Results) == 0 || hasLegacyBuildResults(current.Results)) {
+	if len(enriched.Results) > 0 && len(current.Results) == 0 {
 		current.Results = enriched.Results
 	}
 	if len(enriched.Tags) > 0 && len(current.Tags) == 0 {

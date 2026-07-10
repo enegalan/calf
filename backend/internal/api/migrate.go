@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/migration"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
@@ -96,7 +97,7 @@ func (s *Server) runDockerDesktopMigration() {
 	s.cfgMu.RUnlock()
 
 	if status.Phase == migration.PhaseCompleted && managed {
-		activateCtx, cancel := context.WithTimeout(ctx, dockerContextTimeout)
+		activateCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
 		defer cancel()
 		if err := s.activateDockerContext(activateCtx); err != nil {
 			s.logger.Warn("failed to activate docker context after migration", "error", err)

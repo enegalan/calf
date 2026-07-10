@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 //go:embed config.yaml
@@ -79,7 +81,7 @@ func Load() (Config, error) {
 	}
 
 	cfg = withDefaults(cfg)
-	return migrateLegacyDefaults(cfg), nil
+	return cfg, nil
 }
 
 func Save(cfg Config) error {
@@ -106,7 +108,7 @@ func withDefaults(cfg Config) Config {
 	defaults := defaultFromYAML()
 
 	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = defaults.ListenAddr
+		cfg.ListenAddr = constants.DefaultListenAddr
 	}
 
 	if cfg.LogLevel == "" {
@@ -118,7 +120,7 @@ func withDefaults(cfg Config) Config {
 	}
 
 	if cfg.PollIntervalMs <= 0 {
-		cfg.PollIntervalMs = defaults.PollIntervalMs
+		cfg.PollIntervalMs = constants.DefaultPollIntervalMS
 	}
 
 	if cfg.CPUs <= 0 {
@@ -135,14 +137,6 @@ func withDefaults(cfg Config) Config {
 
 	if cfg.DiskGB <= 0 {
 		cfg.DiskGB = defaults.DiskGB
-	}
-
-	return cfg
-}
-
-func migrateLegacyDefaults(cfg Config) Config {
-	if cfg.ListenAddr == ":8080" {
-		cfg.ListenAddr = ":8765"
 	}
 
 	return cfg

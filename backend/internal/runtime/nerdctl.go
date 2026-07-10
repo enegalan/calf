@@ -9,16 +9,19 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 const NerdctlBin = "/usr/local/bin/nerdctl"
 
 const defaultExecTerm = "xterm-256color"
 
-const logTailLines = "500"
+var logTailLines = strconv.Itoa(constants.LogTailLineCount)
 
 func NerdctlVMArgs(args ...string) []string {
 	return append([]string{"sudo", NerdctlBin}, args...)

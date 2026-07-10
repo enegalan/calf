@@ -9,11 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 const ContextName = "calf"
-const cliTimeout = 30 * time.Second
 
 type Status struct {
 	Available      bool   `json:"available"`
@@ -42,7 +42,7 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	status.Available = true
 	status.CalfActive = status.CurrentContext == ContextName
 
-	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
 	defer cancel()
 	status.CalfExists = contextExists(ctx, ContextName)
 

@@ -224,7 +224,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 }
 
 func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
-	return emptyContainersIfStopped(ctx, l.Status, func(ctx context.Context) ([]Container, error) {
+	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Container, error) {
 		if !l.started.Load() {
 			return []Container{}, nil
 		}
@@ -243,7 +243,7 @@ func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
 }
 
 func (l *Lima) ListImages(ctx context.Context) ([]Image, error) {
-	return emptyImagesIfStopped(ctx, l.Status, func(ctx context.Context) ([]Image, error) {
+	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Image, error) {
 		return listImages(ctx, l.runInVM)
 	})
 }
@@ -257,7 +257,7 @@ func (l *Lima) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, erro
 }
 
 func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
-	return emptyVolumesIfStopped(ctx, l.Status, func(ctx context.Context) ([]Volume, error) {
+	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Volume, error) {
 		volumes, err := listVolumes(ctx, l.runInVM)
 		if err != nil {
 			return nil, err
@@ -268,7 +268,7 @@ func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
 }
 
 func (l *Lima) ListNetworks(ctx context.Context) ([]Network, error) {
-	return emptyNetworksIfStopped(ctx, l.Status, func(ctx context.Context) ([]Network, error) {
+	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Network, error) {
 		return listNetworks(ctx, l.runInVM)
 	})
 }

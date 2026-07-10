@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -546,7 +547,7 @@ class _TimingCharts extends StatelessWidget {
     final accumulatedSlices = realTime;
     final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
-      _TimingSlice('Cached steps', cachedSteps.toDouble(), const Color(0xFF22C55E)),
+      _TimingSlice('Cached steps', cachedSteps.toDouble(), CalfColors.success),
       _TimingSlice('Other steps', uncachedSteps.toDouble(), theme.colorScheme.mutedForeground),
     ];
     final idleMs = timing.idleMs.clamp(0, totalMs);
@@ -1197,7 +1198,7 @@ class _HistoryTab extends StatelessWidget {
                       LineChartBarData(
                         spots: _normalizedHistorySpots(totalSteps),
                         isCurved: items.length > 2,
-                        color: const Color(0xFF22C55E),
+                        color: CalfColors.success,
                         barWidth: 2,
                         dotData: FlDotData(show: items.length <= 3),
                       ),
@@ -1260,7 +1261,7 @@ String _statusLabel(String status) {
 Color _statusColor(String status, ShadThemeData theme) {
   switch (status) {
     case 'success':
-      return const Color(0xFF22C55E);
+      return CalfColors.success;
     case 'failed':
       return theme.colorScheme.destructive;
     case 'running':

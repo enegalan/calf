@@ -5,11 +5,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/dockercli"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
-
-const dockerContextTimeout = 30 * time.Second
 
 func (s *Server) StartDockerContextManager(ctx context.Context) {
 	interval := 5 * time.Second
@@ -51,7 +50,7 @@ func (s *Server) ensureDockerContext(ctx context.Context) {
 		return
 	}
 
-	activateCtx, cancel := context.WithTimeout(ctx, dockerContextTimeout)
+	activateCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
 	defer cancel()
 
 	if err := dockercli.EnsureAndActivate(activateCtx, socket); err != nil {

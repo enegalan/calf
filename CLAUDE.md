@@ -73,7 +73,7 @@ calf/
 │   │   │   ├── registry.go                      Registry login/logout
 │   │   │   └── registry_login.go                Docker Hub OAuth device-flow browser login
 │   │   ├── config/
-│   │   │   ├── config.go                      Config struct, YAML load/save, defaults, legacy migration
+│   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
 │   │   ├── runtime/
 │   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native/Lima
@@ -98,6 +98,11 @@ calf/
 │   │   │   ├── compose_migration.go             Groups containers by compose project, stages/patches compose YAML
 │   │   │   ├── disk.go                          Free-disk-space check before migrating
 │   │   │   └── status.go                        Phase/Status/Summary types
+│   │   ├── utils/
+│   │   │   ├── http_response.go               WriteOK HTTP helper
+│   │   │   └── lines.go                       ParseLines for command output
+│   │   ├── constants/
+│   │   │   └── constants.go                   Shared timeouts, defaults, log tail count, alpine smoke image
 │   │   ├── oauth/dockerhub/
 │   │   │   └── device.go                      Docker Hub OAuth2 device-code flow client, PAT generation
 │   │   └── browser/
@@ -119,6 +124,8 @@ calf/
 │   │   ├── app_shell.dart                     Sidebar nav, top bar, SettingsScreen (resources, migration, theme)
 │   │   ├── api/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
+│   │   ├── constants/
+│   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
@@ -137,7 +144,10 @@ calf/
 │   │   │   ├── containers_screen.dart          List/search/filter/group-by-compose, Timer-based polling
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
-│   │   │   ├── resources_screen.dart           Images/Volumes/Builds screens
+│   │   │   ├── images_screen.dart              Image list and detail
+│   │   │   ├── volumes_screen.dart             Volume list (on-demand refresh)
+│   │   │   ├── builds_screen.dart              Build list and polling
+│   │   │   ├── build_detail_screen.dart        Build detail tabs
 │   │   │   ├── networks_screen.dart            Network list and detail screens
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
@@ -146,9 +156,18 @@ calf/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive)
+│   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
+│   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
+│   │       ├── detail_breadcrumb.dart          Detail view back navigation header
+│   │       ├── error_text.dart                 Formatted API error text
 │   │       ├── files_panel.dart                Lazy-loaded directory tree (LoadDirectoryCallback)
 │   │       ├── hover_list_row.dart             Hover-state row wrapper
-│   │       └── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
+│   │       ├── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
+│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic polling mixin
+│   │       ├── resource_list_scaffold.dart     List screen layout helper
+│   │       ├── running_filter_switch.dart      "Show only running" filter switch
+│   │       ├── status_dot.dart                 Running/in-use status indicator dot
+│   │       └── volume_export_form.dart         Shared volume export form widgets
 │   ├── test/widget_test.dart                  Flutter widget test
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
 │   └── analysis_options.yaml                  flutter_lints, no custom overrides
@@ -177,7 +196,7 @@ calf/
 Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts.
 
 ### `internal/config/`
-- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml`, a `withDefaults` backfill step, and `migrateLegacyDefaults` (rewrites the old `:8080` port to `:8765`).
+- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
 - `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
 
 ### `internal/api/`
@@ -190,11 +209,18 @@ HTTP server built on `net/http.ServeMux`. Every handler follows the same shape: 
 - `ws_writer.go` — mutex-guarded WebSocket writer with a write deadline.
 - `log_broadcaster.go` — multiplexes one `nerdctl` log stream to N WebSocket subscribers, keeps a 500-line history ring buffer, tears the stream down when the last subscriber disconnects.
 - `runtime_ready.go` — blocks until the runtime is running (3-minute timeout); used before registry login.
-- `runtime_errors.go` — maps `ErrRuntimeNotRunning` to `503`.
+- `runtime_errors.go` — maps runtime errors to HTTP status codes; `writeRuntimeOrFail` for handlers.
 - `builds.go` — in-memory build history; `POST` triggers `RunBuild`.
 - `containers.go` / `exec.go` / `images.go` / `logs.go` / `volumes.go` / `networks.go` — CRUD plus subresources (logs, inspect, mounts, files, exec, stats). Exec/logs use WebSocket; other operations use one-shot HTTP.
 - `migrate.go` — orchestrates the Docker Desktop migration in a background goroutine, exposes status polling.
 - `registry.go` / `registry_login.go` — basic registry login/logout plus Docker Hub OAuth device-flow browser login with session polling.
+
+### `internal/utils/`
+- `http_response.go` — `WriteOK`.
+- `lines.go` — `ParseLines` for newline-delimited command output.
+
+### `internal/constants/`
+- `constants.go` — shared defaults (`DefaultListenAddr`, `DefaultPollIntervalMS`), `DefaultActionTimeout`, `LogTailLineCount`, `AlpineSmokeImage`.
 
 ### `internal/browser/open.go`
 Cross-platform URL opener (`open` / `xdg-open` / `rundll32`).
@@ -228,13 +254,16 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ## UI File Reference (`ui/lib/`)
 
 ### `main.dart`
-App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with a hardcoded brand primary color (`#2496ED`). Light/dark `ShadThemeData` instances are built once as top-level finals.
+App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with brand primary color from `CalfColors.primary`. Light/dark `ShadThemeData` instances are built once as top-level finals.
 
 ### `app_shell.dart`
 Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, and a top bar showing Docker Hub registry sign-in status. `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
 
 ### `api/client.dart`
-Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL: `http://127.0.0.1:8765`.
+Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
+
+### `constants/calf_constants.dart`
+Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (base URL, poll interval, HTTP timeouts), `CalfStorageFiles` (JSON preference filenames), `CalfGitHub` (repository slug).
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
@@ -258,7 +287,10 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`.
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
-- `resources_screen.dart` — Images/Volumes/Builds screens.
+- `images_screen.dart` — image list, detail, polling.
+- `volumes_screen.dart` — volume list with on-demand refresh (no polling).
+- `builds_screen.dart` — build list with polling.
+- `build_detail_screen.dart` — build detail tabs (info, source, logs, history).
 - `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options).
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
@@ -271,6 +303,12 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
+- `error_text.dart` — formatted API error text.
+- `detail_breadcrumb.dart`, `calf_tab_bar.dart` — shared detail view chrome.
+- `poll_interval_mixin.dart` — shared list-screen polling lifecycle.
+- `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
+- `confirm_dialog.dart` — confirm dialog helper.
+- `status_dot.dart`, `volume_export_form.dart` — status indicator and volume export shared UI.
 
 ## Testing Conventions
 

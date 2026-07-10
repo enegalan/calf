@@ -42,12 +42,7 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
               _AboutLink(
                 label: 'GitHub',
                 onPressed: () => _openExternalLink(dialogContext, calfRepositoryUrl),
-              ),
-              Text(' · ', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
-              _AboutLink(
-                label: 'Documentation',
-                onPressed: () => _openExternalLink(dialogContext, calfDocumentationUrl),
-              ),
+              )
             ],
           ),
           const SizedBox(height: 16),

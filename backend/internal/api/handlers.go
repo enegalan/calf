@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/version"
 )
@@ -150,7 +151,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if activateManaged {
-			activateCtx, cancel := context.WithTimeout(context.Background(), dockerContextTimeout)
+			activateCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
 			defer cancel()
 			if err := s.activateDockerContext(activateCtx); err != nil {
 				s.logger.Warn("failed to activate docker context", "error", err)

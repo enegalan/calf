@@ -69,13 +69,13 @@ func (n *Native) Status(ctx context.Context) (Status, error) {
 }
 
 func (n *Native) ListContainers(ctx context.Context) ([]Container, error) {
-	return emptyContainersIfStopped(ctx, n.Status, func(ctx context.Context) ([]Container, error) {
+	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Container, error) {
 		return listContainers(ctx, n.runLocal)
 	})
 }
 
 func (n *Native) ListImages(ctx context.Context) ([]Image, error) {
-	return emptyImagesIfStopped(ctx, n.Status, func(ctx context.Context) ([]Image, error) {
+	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Image, error) {
 		return listImages(ctx, n.runLocal)
 	})
 }
@@ -89,7 +89,7 @@ func (n *Native) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, er
 }
 
 func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
-	return emptyVolumesIfStopped(ctx, n.Status, func(ctx context.Context) ([]Volume, error) {
+	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Volume, error) {
 		volumes, err := listVolumes(ctx, n.runLocal)
 		if err != nil {
 			return nil, err
@@ -100,7 +100,7 @@ func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
 }
 
 func (n *Native) ListNetworks(ctx context.Context) ([]Network, error) {
-	return emptyNetworksIfStopped(ctx, n.Status, func(ctx context.Context) ([]Network, error) {
+	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Network, error) {
 		return listNetworks(ctx, n.runLocal)
 	})
 }

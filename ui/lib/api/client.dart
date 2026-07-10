@@ -4,11 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-const defaultBaseUrl = 'http://127.0.0.1:8765';
-const defaultRequestTimeout = Duration(seconds: 5);
-const imageActionTimeout = Duration(minutes: 10);
-const volumeActionTimeout = Duration(seconds: 30);
-const volumeExportTimeout = Duration(minutes: 30);
+import 'package:ui/constants/calf_constants.dart';
 
 class PortConflict {
   const PortConflict({
@@ -610,13 +606,7 @@ class VolumeExportScheduleItem {
     required this.volume,
     required this.enabled,
     required this.type,
-    List<VolumeExportDayTimes>? dayTimes,
-    this.daysOfWeek = const [],
-    this.times = const [],
-    this.frequency = '',
-    this.timeOfDay = '',
-    this.dayOfWeek = 0,
-    this.dayOfMonth = 1,
+    this.dayTimes = const [],
     this.fileName = '',
     this.folder = '',
     this.imageRef = '',
@@ -625,32 +615,12 @@ class VolumeExportScheduleItem {
     this.nextRunAt = '',
     this.lastStatus = '',
     this.lastError = '',
-  }) : _storedDayTimes = dayTimes;
-
-  final List<VolumeExportDayTimes>? _storedDayTimes;
-
-  List<VolumeExportDayTimes> get dayTimes {
-    final stored = _storedDayTimes;
-    if (stored != null && stored.isNotEmpty) {
-      return stored;
-    }
-
-    if (daysOfWeek.isNotEmpty && times.isNotEmpty) {
-      return daysOfWeek.map((day) => VolumeExportDayTimes(day: day, times: times)).toList();
-    }
-
-    return const [];
-  }
+  });
 
   final String id;
   final String volume;
   final bool enabled;
-  final List<int> daysOfWeek;
-  final List<String> times;
-  final String frequency;
-  final String timeOfDay;
-  final int dayOfWeek;
-  final int dayOfMonth;
+  final List<VolumeExportDayTimes> dayTimes;
   final String type;
   final String fileName;
   final String folder;
@@ -667,16 +637,7 @@ class VolumeExportScheduleItem {
     }
 
     if (dayTimes.isEmpty) {
-      if (daysOfWeek.isEmpty || times.isEmpty) {
-        return 'Not configured';
-      }
-
-      final dayLabels = daysOfWeek.map(weekdayShort).join(', ');
-      final timeLabels = times.join(', ');
-      final runCount = times.length;
-      final runLabel = runCount == 1 ? 'export' : 'exports';
-
-      return '$runCount $runLabel per day on $dayLabels at $timeLabels';
+      return 'Not configured';
     }
 
     return dayTimes
@@ -740,75 +701,26 @@ class VolumeExportScheduleItem {
     return order(left).compareTo(order(right));
   }
 
-  static List<int> _daysFromJson(Map<String, dynamic> json) {
-    final raw = json['days_of_week'];
-    if (raw is List) {
-      return raw.whereType<num>().map((value) => value.toInt()).toList()
-        ..sort(compareWeekdays);
-    }
-
-    final frequency = json['frequency'] as String? ?? '';
-    if (frequency == 'weekly') {
-      return [json['day_of_week'] as int? ?? 0];
-    }
-
-    if (frequency == 'daily') {
-      return [1, 2, 3, 4, 5, 6, 0];
-    }
-
-    return const [];
-  }
-
-  static List<String> _timesFromJson(Map<String, dynamic> json) {
-    final raw = json['times'];
-    if (raw is List) {
-      return raw.whereType<String>().where((value) => value.trim().isNotEmpty).toList();
-    }
-
-    final legacy = json['time_of_day'] as String? ?? '';
-    if (legacy.isNotEmpty) {
-      return [legacy];
-    }
-
-    return const [];
-  }
-
   static List<VolumeExportDayTimes> _dayTimesFromJson(Map<String, dynamic> json) {
     final raw = json['day_times'];
-    if (raw is List && raw.isNotEmpty) {
-      final entries = raw
-          .whereType<Map>()
-          .map((value) => VolumeExportDayTimes.fromJson(Map<String, dynamic>.from(value)))
-          .toList()
-        ..sort((left, right) => compareWeekdays(left.day, right.day));
-      return entries;
-    }
-
-    final days = _daysFromJson(json);
-    final times = _timesFromJson(json);
-    if (days.isEmpty || times.isEmpty) {
+    if (raw is! List || raw.isEmpty) {
       return const [];
     }
 
-    return days.map((day) => VolumeExportDayTimes(day: day, times: times)).toList();
+    final entries = raw
+        .whereType<Map>()
+        .map((value) => VolumeExportDayTimes.fromJson(Map<String, dynamic>.from(value)))
+        .toList()
+      ..sort((left, right) => compareWeekdays(left.day, right.day));
+    return entries;
   }
 
   factory VolumeExportScheduleItem.fromJson(Map<String, dynamic> json) {
-    final dayTimes = _dayTimesFromJson(json);
-
     return VolumeExportScheduleItem(
       id: json['id'] as String? ?? '',
       volume: json['volume'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? false,
-      dayTimes: dayTimes,
-      daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : _daysFromJson(json),
-      times: dayTimes.isNotEmpty
-          ? dayTimes.expand((entry) => entry.times).toSet().toList()
-          : _timesFromJson(json),
-      frequency: json['frequency'] as String? ?? '',
-      timeOfDay: json['time_of_day'] as String? ?? '',
-      dayOfWeek: json['day_of_week'] as int? ?? 0,
-      dayOfMonth: json['day_of_month'] as int? ?? 1,
+      dayTimes: _dayTimesFromJson(json),
       type: json['type'] as String? ?? '',
       fileName: json['file_name'] as String? ?? '',
       folder: json['folder'] as String? ?? '',
@@ -1194,8 +1106,6 @@ abstract class CalfClient implements StatusClient {
     required String type,
     bool enabled = false,
     List<VolumeExportDayTimes> dayTimes = const [],
-    List<int> daysOfWeek = const [],
-    List<String> times = const [],
     String fileName = '',
     String folder = '',
     String imageRef = '',
@@ -1205,8 +1115,6 @@ abstract class CalfClient implements StatusClient {
     required String scheduleId,
     bool? enabled,
     List<VolumeExportDayTimes>? dayTimes,
-    List<int>? daysOfWeek,
-    List<String>? times,
     String type = '',
     String fileName = '',
     String folder = '',
@@ -1255,9 +1163,9 @@ abstract class CalfClient implements StatusClient {
 
 class ApiClient implements CalfClient {
   ApiClient({
-    this.baseUrl = defaultBaseUrl,
+    this.baseUrl = CalfDefaults.defaultBaseUrl,
     http.Client? httpClient,
-    this.timeout = defaultRequestTimeout,
+    this.timeout = CalfDefaults.defaultRequestTimeout,
   }) : httpClient = httpClient ?? http.Client();
 
   final String baseUrl;
@@ -1293,7 +1201,7 @@ class ApiClient implements CalfClient {
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(volumeActionTimeout);
+    final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeItem.fromJson);
   }
 
@@ -1313,7 +1221,7 @@ class ApiClient implements CalfClient {
   Future<VolumeDetail> fetchVolumeDetail(String name) async {
     final json = await _getJson(
       '/v1/volumes/${Uri.encodeComponent(name)}',
-      timeout: volumeActionTimeout,
+      timeout: CalfDefaults.volumeActionTimeout,
     );
     return VolumeDetail.fromJson(json);
   }
@@ -1323,7 +1231,7 @@ class ApiClient implements CalfClient {
     final uri = Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files').replace(
       queryParameters: {'path': path},
     );
-    final response = await httpClient.get(uri).timeout(volumeActionTimeout);
+    final response = await httpClient.get(uri).timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
   }
 
@@ -1331,7 +1239,7 @@ class ApiClient implements CalfClient {
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/containers'))
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeContainerUsage.fromJson);
   }
 
@@ -1339,7 +1247,7 @@ class ApiClient implements CalfClient {
   Future<List<VolumeExportItem>> fetchVolumeExports(String name) async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/exports'))
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeExportItem.fromJson);
   }
 
@@ -1362,7 +1270,7 @@ class ApiClient implements CalfClient {
             if (imageRef.isNotEmpty) 'image_ref': imageRef,
           }),
         )
-        .timeout(volumeExportTimeout);
+        .timeout(CalfDefaults.volumeExportTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1384,7 +1292,7 @@ class ApiClient implements CalfClient {
             '$baseUrl/v1/volumes/${Uri.encodeComponent(volumeName)}/exports/${Uri.encodeComponent(exportId)}/download',
           ),
         )
-        .timeout(volumeExportTimeout);
+        .timeout(CalfDefaults.volumeExportTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1397,7 +1305,7 @@ class ApiClient implements CalfClient {
   Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'))
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeExportScheduleItem.fromJson);
   }
 
@@ -1407,8 +1315,6 @@ class ApiClient implements CalfClient {
     required String type,
     bool enabled = false,
     List<VolumeExportDayTimes> dayTimes = const [],
-    List<int> daysOfWeek = const [],
-    List<String> times = const [],
     String fileName = '',
     String folder = '',
     String imageRef = '',
@@ -1422,13 +1328,6 @@ class ApiClient implements CalfClient {
     };
     if (dayTimes.isNotEmpty) {
       body.addAll(_scheduleTimingBody(dayTimes));
-    } else {
-      if (daysOfWeek.isNotEmpty) {
-        body['days_of_week'] = daysOfWeek;
-      }
-      if (times.isNotEmpty) {
-        body['times'] = times;
-      }
     }
 
     final response = await httpClient
@@ -1437,7 +1336,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode(body),
         )
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1457,8 +1356,6 @@ class ApiClient implements CalfClient {
     required String scheduleId,
     bool? enabled,
     List<VolumeExportDayTimes>? dayTimes,
-    List<int>? daysOfWeek,
-    List<String>? times,
     String type = '',
     String fileName = '',
     String folder = '',
@@ -1470,12 +1367,6 @@ class ApiClient implements CalfClient {
     }
     if (dayTimes != null) {
       body.addAll(_scheduleTimingBody(dayTimes));
-    }
-    if (daysOfWeek != null) {
-      body['days_of_week'] = daysOfWeek;
-    }
-    if (times != null) {
-      body['times'] = times;
     }
     if (type.isNotEmpty) {
       body['type'] = type;
@@ -1498,7 +1389,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode(body),
         )
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1749,7 +1640,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({'reference': reference}),
         )
-        .timeout(imageActionTimeout);
+        .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1764,7 +1655,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({'reference': reference}),
         )
-        .timeout(imageActionTimeout);
+        .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1779,7 +1670,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({'reference': reference}),
         )
-        .timeout(imageActionTimeout);
+        .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1817,7 +1708,7 @@ class ApiClient implements CalfClient {
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode({'name': name}),
         )
-        .timeout(volumeActionTimeout);
+        .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
       throw ApiException(_errorMessage(response), statusCode: response.statusCode);
@@ -1980,12 +1871,8 @@ class ApiClient implements CalfClient {
       return const {};
     }
 
-    final times = entries.expand((entry) => entry.times).toSet().toList()..sort();
-
     return {
       'day_times': entries.map((entry) => entry.toJson()).toList(),
-      'days_of_week': entries.map((entry) => entry.day).toList(),
-      'times': times,
     };
   }
 }
@@ -2115,7 +2002,7 @@ class Config {
 
   factory Config.fromJson(Map<String, dynamic> json) {
     return Config(
-      pollIntervalMs: (json['poll_interval_ms'] as num?)?.toInt() ?? 3000,
+      pollIntervalMs: (json['poll_interval_ms'] as num?)?.toInt() ?? CalfDefaults.defaultPollIntervalMs,
       cpus: (json['cpus'] as num?)?.toInt() ?? 4,
       memoryGB: (json['memory_gb'] as num?)?.toInt() ?? 4,
       memorySwapGB: (json['memory_swap_gb'] as num?)?.toInt() ?? 1,

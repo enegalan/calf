@@ -1,7 +1,6 @@
-import 'dart:convert';
-
 import 'package:flutter/widgets.dart';
 
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/storage/calf_ui_storage.dart';
 
 class LogViewerPreferences {
@@ -19,38 +18,25 @@ class LogViewerPreferences {
   );
 
   static Future<LogViewerPreferences> load() async {
-    try {
-      final file = await CalfUiStorage.file('logs_viewer.json');
-      if (!file.existsSync()) {
-        return defaults;
-      }
-
-      final raw = jsonDecode(file.readAsStringSync());
-      if (raw is! Map<String, dynamic>) {
-        return defaults;
-      }
-
-      return LogViewerPreferences(
-        showTimestamp: raw['show_timestamp'] == true,
-        wrapLines: raw['wrap_lines'] != false,
-      );
-    } catch (_) {
+    final raw = await CalfUiStorage.readMap(CalfStorageFiles.logsViewer);
+    if (raw == null) {
       return defaults;
     }
+
+    return LogViewerPreferences(
+      showTimestamp: raw['show_timestamp'] == true,
+      wrapLines: raw['wrap_lines'] != false,
+    );
   }
 
   static Future<void> save({
     required bool showTimestamp,
     required bool wrapLines,
   }) async {
-    try {
-      final file = await CalfUiStorage.file('logs_viewer.json');
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(jsonEncode({
-        'show_timestamp': showTimestamp,
-        'wrap_lines': wrapLines,
-      }));
-    } catch (_) {}
+    await CalfUiStorage.writeMap(CalfStorageFiles.logsViewer, {
+      'show_timestamp': showTimestamp,
+      'wrap_lines': wrapLines,
+    });
   }
 }
 

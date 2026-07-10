@@ -12,11 +12,12 @@ func TestComputeNextRunCronSameDay(t *testing.T) {
 	now := time.Date(2026, 7, 5, 10, 0, 0, 0, loc)
 
 	schedule := volumeexport.Schedule{
-		Enabled:    true,
-		DaysOfWeek: []int{int(now.Weekday())},
-		Times:      []string{"15:04", "18:30"},
-		Type:       volumeexport.TypeLocalFile,
-		Folder:     "/tmp",
+		Enabled: true,
+		DayTimes: []volumeexport.DayTimeSchedule{
+			{Day: int(now.Weekday()), Times: []string{"15:04", "18:30"}},
+		},
+		Type:   volumeexport.TypeLocalFile,
+		Folder: "/tmp",
 	}
 
 	next, err := volumeexport.ComputeNextRun(schedule, now)
@@ -35,11 +36,12 @@ func TestComputeNextRunCronRollsToNextSelectedDay(t *testing.T) {
 	now := time.Date(2026, 7, 5, 20, 0, 0, 0, loc)
 
 	schedule := volumeexport.Schedule{
-		Enabled:    true,
-		DaysOfWeek: []int{int(time.Monday)},
-		Times:      []string{"09:30"},
-		Type:       volumeexport.TypeLocalFile,
-		Folder:     "/tmp",
+		Enabled: true,
+		DayTimes: []volumeexport.DayTimeSchedule{
+			{Day: int(time.Monday), Times: []string{"09:30"}},
+		},
+		Type:   volumeexport.TypeLocalFile,
+		Folder: "/tmp",
 	}
 
 	next, err := volumeexport.ComputeNextRun(schedule, now)
@@ -63,25 +65,6 @@ func TestComputeNextRunDisabledReturnsZero(t *testing.T) {
 
 	if !next.IsZero() {
 		t.Fatalf("expected zero time for disabled schedule, got %v", next)
-	}
-}
-
-func TestNormalizeScheduleLegacyDaily(t *testing.T) {
-	schedule := volumeexport.Schedule{
-		Frequency: volumeexport.FrequencyDaily,
-		TimeOfDay: "03:00",
-	}
-
-	volumeexport.NormalizeSchedule(&schedule)
-
-	if len(schedule.DayTimes) != 7 {
-		t.Fatalf("expected 7 day entries, got %d", len(schedule.DayTimes))
-	}
-
-	for _, entry := range schedule.DayTimes {
-		if len(entry.Times) != 1 || entry.Times[0] != "03:00" {
-			t.Fatalf("unexpected times for day %d: %#v", entry.Day, entry.Times)
-		}
 	}
 }
 

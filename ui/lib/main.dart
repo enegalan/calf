@@ -8,22 +8,21 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
-
-const _calfPrimary = Color(0xFF2496ED);
+import 'package:ui/constants/calf_constants.dart';
 
 final _lightShadTheme = ShadThemeData(
   brightness: Brightness.light,
   colorScheme: const ShadBlueColorScheme.light(
-    primary: _calfPrimary,
-    ring: _calfPrimary,
+    primary: CalfColors.primary,
+    ring: CalfColors.primary,
   ),
 );
 
 final _darkShadTheme = ShadThemeData(
   brightness: Brightness.dark,
   colorScheme: const ShadBlueColorScheme.dark(
-    primary: _calfPrimary,
-    ring: _calfPrimary,
+    primary: CalfColors.primary,
+    ring: CalfColors.primary,
   ),
 );
 
@@ -186,7 +185,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   }
 
   Future<void> _waitForDaemon() async {
-    final url = Uri.parse('$defaultBaseUrl/v1/status');
+    final url = Uri.parse('${CalfDefaults.defaultBaseUrl}/v1/status');
     const attempts = 120;
     final client = http.Client();
 

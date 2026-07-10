@@ -61,28 +61,3 @@ func TestLoadReadsExistingConfig(t *testing.T) {
 		t.Fatalf("expected log_level debug, got %q", cfg.LogLevel)
 	}
 }
-
-func TestLoadMigratesLegacyListenPort(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-
-	configDir := filepath.Join(dir, ".config", "calf")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll() error: %v", err)
-	}
-
-	path := filepath.Join(configDir, "config.yaml")
-	content := "listen_addr: \":8080\"\n"
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile() error: %v", err)
-	}
-
-	cfg, err := config.Load()
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
-	}
-
-	if cfg.ListenAddr != ":8765" {
-		t.Fatalf("expected migrated listen_addr :8765, got %q", cfg.ListenAddr)
-	}
-}

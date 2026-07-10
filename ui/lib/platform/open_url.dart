@@ -1,12 +1,10 @@
 import 'dart:io';
 
-const _githubRepo = 'enegalan/calf';
+import 'package:ui/constants/calf_constants.dart';
 
-String get calfDocumentationUrl => 'https://github.com/$_githubRepo/blob/main/DEVELOPMENT.md';
+String get calfReportIssueUrl => 'https://github.com/${CalfGitHub.repo}/issues/new';
 
-String get calfReportIssueUrl => 'https://github.com/$_githubRepo/issues/new';
-
-String get calfRepositoryUrl => 'https://github.com/$_githubRepo';
+String get calfRepositoryUrl => 'https://github.com/${CalfGitHub.repo}';
 
 void openPort(int port) {
   openExternalUrl('http://localhost:$port');

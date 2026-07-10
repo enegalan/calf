@@ -4,12 +4,10 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
-
-const networkActionTimeout = 30 * time.Second
 
 func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
@@ -19,7 +17,7 @@ func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		ctx, cancel := context.WithTimeout(r.Context(), networkActionTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
 		networks, err := s.runtime.ListNetworks(ctx)
@@ -49,7 +47,7 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		ctx, cancel := context.WithTimeout(r.Context(), networkActionTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
 		detail, err := s.runtime.InspectNetwork(ctx, name)
@@ -60,7 +58,7 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 
 		writeJSON(w, http.StatusOK, detail)
 	case http.MethodDelete:
-		ctx, cancel := context.WithTimeout(r.Context(), networkActionTimeout)
+		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
 		if err := s.runtime.RemoveNetwork(ctx, name); err != nil {

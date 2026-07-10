@@ -6,11 +6,14 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/storage/container_groups.dart';
 
 class ContainersScreen extends StatefulWidget {
@@ -22,7 +25,7 @@ class ContainersScreen extends StatefulWidget {
   State<ContainersScreen> createState() => _ContainersScreenState();
 }
 
-class _ContainersScreenState extends State<ContainersScreen> {
+class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMixin {
   List<ContainerItem> _containers = [];
   RuntimeStatus? _runtime;
   String? _error;
@@ -31,8 +34,6 @@ class _ContainersScreenState extends State<ContainersScreen> {
   ContainerItem? _detailContainer;
   String? _detailProject;
   List<ContainerItem>? _detailGroupContainers;
-  Timer? _timer;
-  int _pollIntervalMs = 3000;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   bool _runningOnly = false;
@@ -43,7 +44,7 @@ class _ContainersScreenState extends State<ContainersScreen> {
     super.initState();
     _loadGroupPreferences();
     _loadContainers();
-    _loadConfig();
+    startPollInterval(widget.apiClient, _loadContainers);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -51,25 +52,9 @@ class _ContainersScreenState extends State<ContainersScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    disposePollInterval();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadConfig() async {
-    try {
-      final config = await widget.apiClient.fetchConfig();
-      if (mounted) {
-        _pollIntervalMs = config.pollIntervalMs;
-        _timer?.cancel();
-        _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadContainers(silent: true));
-      }
-    } catch (_) {
-      if (mounted) {
-        _timer?.cancel();
-        _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadContainers(silent: true));
-      }
-    }
   }
 
   Future<void> _loadContainers({bool silent = false}) async {
@@ -300,15 +285,9 @@ class _ContainersScreenState extends State<ContainersScreen> {
           leading: Icon(LucideIcons.search, size: 16, color: theme.colorScheme.mutedForeground),
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            Text('Show only running', style: theme.textTheme.small),
-            const SizedBox(width: 8),
-            ShadSwitch(
-              value: _runningOnly,
-              onChanged: (value) => setState(() => _runningOnly = value),
-            ),
-          ],
+        RunningFilterSwitch(
+          value: _runningOnly,
+          onChanged: (value) => setState(() => _runningOnly = value),
         ),
         const SizedBox(height: 16),
         if (_runtime?.portConflicts.isNotEmpty == true)
@@ -666,10 +645,10 @@ class _StatusDotIcon extends StatelessWidget {
 
 Color? _containerStatusColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
-    return const Color(0xFF2DBE60);
+    return CalfColors.success;
   }
   if (container.state == 'created') {
-    return const Color(0xFFF0A500);
+    return CalfColors.warning;
   }
   return null;
 }
@@ -727,7 +706,7 @@ class _GroupStatusDot extends StatelessWidget {
       child: switch (state) {
         _GroupRunState.allRunning => Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF2DBE60),
+            color: CalfColors.success,
             shape: BoxShape.circle,
             border: Border.all(color: background, width: _borderWidth),
           ),

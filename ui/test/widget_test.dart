@@ -125,8 +125,6 @@ class FakeCalfClient implements CalfClient {
     required String type,
     bool enabled = false,
     List<VolumeExportDayTimes> dayTimes = const [],
-    List<int> daysOfWeek = const [],
-    List<String> times = const [],
     String fileName = '',
     String folder = '',
     String imageRef = '',
@@ -136,10 +134,6 @@ class FakeCalfClient implements CalfClient {
         volume: name,
         enabled: enabled,
         dayTimes: dayTimes,
-        daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : daysOfWeek,
-        times: dayTimes.isNotEmpty
-            ? dayTimes.expand((entry) => entry.times).toList()
-            : times,
         type: type,
         nextRunAt: enabled ? '2026-01-02T03:00:00Z' : '',
       );
@@ -150,8 +144,6 @@ class FakeCalfClient implements CalfClient {
     required String scheduleId,
     bool? enabled,
     List<VolumeExportDayTimes>? dayTimes,
-    List<int>? daysOfWeek,
-    List<String>? times,
     String type = '',
     String fileName = '',
     String folder = '',
@@ -162,11 +154,9 @@ class FakeCalfClient implements CalfClient {
         volume: volumeName,
         enabled: enabled ?? true,
         dayTimes: dayTimes ??
-            [
-              VolumeExportDayTimes(day: 1, times: times ?? const ['03:00']),
+            const [
+              VolumeExportDayTimes(day: 1, times: ['03:00']),
             ],
-        daysOfWeek: daysOfWeek ?? const [1, 3, 5],
-        times: times ?? const ['03:00'],
         type: type.isNotEmpty ? type : 'local_file',
       );
 
@@ -525,8 +515,6 @@ class _ErrorCalfClient implements CalfClient {
     required String type,
     bool enabled = false,
     List<VolumeExportDayTimes> dayTimes = const [],
-    List<int> daysOfWeek = const [],
-    List<String> times = const [],
     String fileName = '',
     String folder = '',
     String imageRef = '',
@@ -536,10 +524,6 @@ class _ErrorCalfClient implements CalfClient {
         volume: name,
         enabled: enabled,
         dayTimes: dayTimes,
-        daysOfWeek: dayTimes.isNotEmpty ? dayTimes.map((entry) => entry.day).toList() : daysOfWeek,
-        times: dayTimes.isNotEmpty
-            ? dayTimes.expand((entry) => entry.times).toList()
-            : times,
         type: type,
       );
 
@@ -549,8 +533,6 @@ class _ErrorCalfClient implements CalfClient {
     required String scheduleId,
     bool? enabled,
     List<VolumeExportDayTimes>? dayTimes,
-    List<int>? daysOfWeek,
-    List<String>? times,
     String type = '',
     String fileName = '',
     String folder = '',
@@ -561,11 +543,9 @@ class _ErrorCalfClient implements CalfClient {
         volume: volumeName,
         enabled: enabled ?? true,
         dayTimes: dayTimes ??
-            [
-              VolumeExportDayTimes(day: 1, times: times ?? const ['03:00']),
+            const [
+              VolumeExportDayTimes(day: 1, times: ['03:00']),
             ],
-        daysOfWeek: daysOfWeek ?? const [1],
-        times: times ?? const ['03:00'],
         type: type.isNotEmpty ? type : 'local_file',
       );
 

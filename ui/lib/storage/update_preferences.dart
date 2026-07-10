@@ -1,7 +1,4 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter/foundation.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/storage/calf_ui_storage.dart';
 import 'package:ui/updates/update_info.dart';
 
@@ -19,16 +16,10 @@ class UpdatePreferencesData {
 
 class UpdatePreferences {
   static Future<UpdatePreferencesData> load() async {
-    try {
-      final file = await CalfUiStorage.file('updates.json');
-      if (!file.existsSync()) {
-        return const UpdatePreferencesData();
-      }
-
-      final raw = jsonDecode(file.readAsStringSync());
-      if (raw is! Map<String, dynamic>) {
-        return const UpdatePreferencesData();
-      }
+    final raw = await CalfUiStorage.readMap(CalfStorageFiles.updates);
+    if (raw == null) {
+      return const UpdatePreferencesData();
+    }
 
       DateTime? lastCheckAt;
       final lastCheckRaw = raw['last_check_at'];
@@ -48,13 +39,6 @@ class UpdatePreferences {
         skippedVersion: skippedVersion is String ? skippedVersion : '',
         cachedUpdate: cachedUpdate,
       );
-    } on FileSystemException catch (error) {
-      debugPrint('Failed to read updates.json: $error');
-      return const UpdatePreferencesData();
-    } on FormatException catch (error) {
-      debugPrint('Failed to parse updates.json: $error');
-      return const UpdatePreferencesData();
-    }
   }
 
   static Future<void> saveCheckResult({
@@ -83,26 +67,20 @@ class UpdatePreferences {
   }
 
   static Future<void> _save(UpdatePreferencesData data) async {
-    try {
-      final file = await CalfUiStorage.file('updates.json');
-      file.parent.createSync(recursive: true);
-      file.writeAsStringSync(
-        jsonEncode({
-          if (data.lastCheckAt != null) 'last_check_at': data.lastCheckAt!.toIso8601String(),
-          if (data.skippedVersion.isNotEmpty) 'skipped_version': data.skippedVersion,
-          if (data.cachedUpdate != null)
-            'cached_update': {
-              'version': data.cachedUpdate!.version,
-              'release_notes': data.cachedUpdate!.releaseNotes,
-              'download_url': data.cachedUpdate!.downloadUrl,
-              'release_page_url': data.cachedUpdate!.releasePageUrl,
-            },
-        }),
-      );
-    } on FileSystemException catch (error) {
-      debugPrint('Failed to write updates.json: $error');
-      rethrow;
-    }
+    await CalfUiStorage.writeMap(
+      CalfStorageFiles.updates,
+      {
+        if (data.lastCheckAt != null) 'last_check_at': data.lastCheckAt!.toIso8601String(),
+        if (data.skippedVersion.isNotEmpty) 'skipped_version': data.skippedVersion,
+        if (data.cachedUpdate != null)
+          'cached_update': {
+            'version': data.cachedUpdate!.version,
+            'release_notes': data.cachedUpdate!.releaseNotes,
+            'download_url': data.cachedUpdate!.downloadUrl,
+            'release_page_url': data.cachedUpdate!.releasePageUrl,
+          },
+      },
+    );
   }
 
   static UpdateInfo? _parseCachedUpdate(Map<String, dynamic> raw) {

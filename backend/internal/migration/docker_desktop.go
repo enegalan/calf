@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
@@ -339,9 +340,9 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 	status.Message = "Migrating volumes"
 	emit(*status)
 
-	_, _ = runDocker(ctx, ddSocket, "pull", "alpine:3.20")
+	_, _ = runDocker(ctx, ddSocket, "pull", constants.AlpineSmokeImage)
 	if opts.RunNerdctl != nil {
-		_ = opts.RunNerdctl(ctx, "pull", "alpine:3.20")
+		_ = opts.RunNerdctl(ctx, "pull", constants.AlpineSmokeImage)
 	}
 
 	names, err := listVolumeNames(ctx, ddSocket)
@@ -365,7 +366,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 			"run", "--rm",
 			"-v", name + ":/from:ro",
 			"-v", staging + ":/to",
-			"alpine:3.20",
+			constants.AlpineSmokeImage,
 			"tar", "czf", "/to/" + tarName, "-C", "/from", ".",
 		}
 		if _, err := runDocker(ctx, ddSocket, exportArgs...); err != nil {
@@ -409,7 +410,7 @@ func importVolumeOnCalf(ctx context.Context, opts Options, name, vmTarPath, tarN
 		"run", "--rm",
 		"-v", name + ":/to",
 		"-v", "/mnt/calf/migrate:/from:ro",
-		"alpine:3.20",
+		constants.AlpineSmokeImage,
 		"sh", "-c", "cd /to && tar xzf /from/" + tarName,
 	}
 

@@ -12,10 +12,6 @@ import (
 )
 
 const (
-	FrequencyDaily   = "daily"
-	FrequencyWeekly  = "weekly"
-	FrequencyMonthly = "monthly"
-
 	// ScheduleRunGrace is how long after the scheduled minute a run slot stays open.
 	// It matches the scheduler tick interval so a once-per-minute poll cannot miss the slot.
 	ScheduleRunGrace = time.Minute
@@ -27,17 +23,11 @@ type DayTimeSchedule struct {
 }
 
 type Schedule struct {
-	ID         string             `json:"id"`
-	Volume     string             `json:"volume"`
-	Enabled    bool               `json:"enabled"`
-	DayTimes   []DayTimeSchedule  `json:"day_times,omitempty"`
-	DaysOfWeek []int              `json:"days_of_week,omitempty"`
-	Times      []string           `json:"times,omitempty"`
-	Frequency  string   `json:"frequency,omitempty"`
-	TimeOfDay  string   `json:"time_of_day,omitempty"`
-	DayOfWeek  int      `json:"day_of_week,omitempty"`
-	DayOfMonth int      `json:"day_of_month,omitempty"`
-	Type       string   `json:"type"`
+	ID         string            `json:"id"`
+	Volume     string            `json:"volume"`
+	Enabled    bool              `json:"enabled"`
+	DayTimes   []DayTimeSchedule `json:"day_times,omitempty"`
+	Type       string            `json:"type"`
 	FileName   string   `json:"file_name,omitempty"`
 	Folder     string   `json:"folder,omitempty"`
 	ImageRef   string   `json:"image_ref,omitempty"`

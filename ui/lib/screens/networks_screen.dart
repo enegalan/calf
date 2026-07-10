@@ -6,6 +6,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
 
 class NetworksScreen extends StatefulWidget {
   const NetworksScreen({super.key, required this.apiClient});
@@ -16,13 +18,11 @@ class NetworksScreen extends StatefulWidget {
   State<NetworksScreen> createState() => _NetworksScreenState();
 }
 
-class _NetworksScreenState extends State<NetworksScreen> {
+class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin {
   List<NetworkItem> _networks = [];
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
-  Timer? _timer;
-  int _pollIntervalMs = 3000;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedNetwork;
@@ -31,7 +31,7 @@ class _NetworksScreenState extends State<NetworksScreen> {
   void initState() {
     super.initState();
     _loadNetworks();
-    _loadConfig();
+    startPollInterval(widget.apiClient, _loadNetworks);
     _searchController.addListener(() {
       setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
     });
@@ -39,25 +39,9 @@ class _NetworksScreenState extends State<NetworksScreen> {
 
   @override
   void dispose() {
-    _timer?.cancel();
+    disposePollInterval();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadConfig() async {
-    try {
-      final config = await widget.apiClient.fetchConfig();
-      if (!mounted) {
-        return;
-      }
-      _pollIntervalMs = config.pollIntervalMs;
-      _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadNetworks(silent: true));
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadNetworks(silent: true));
-    }
   }
 
   Future<void> _loadNetworks({bool silent = false}) async {
@@ -140,74 +124,53 @@ class _NetworksScreenState extends State<NetworksScreen> {
       );
     }
 
-    final theme = ShadTheme.of(context);
     final filtered = _filteredNetworks();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Networks', style: theme.textTheme.h3),
-        const SizedBox(height: 16),
-        ShadInput(
-          controller: _searchController,
-          placeholder: const Text('Search'),
-        ),
-        const SizedBox(height: 16),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
-        else if (_error != null)
-          Text(
-            _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No networks match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                    ? 'No networks. Runtime is stopped.'
-                    : 'No networks.',
-            style: theme.textTheme.muted,
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final network = filtered[index];
+    return ResourceListScaffold(
+      title: 'Networks',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No networks match "$_searchQuery".'
+          : _runtime?.state == 'stopped'
+              ? 'No networks. Runtime is stopped.'
+              : 'No networks.',
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final network = filtered[index];
+        final theme = ShadTheme.of(context);
 
-                return HoverListRow(
-                  theme: theme,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  onTap: () => _openNetwork(network),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(network.name, style: theme.textTheme.large),
-                            if (network.subnet.isNotEmpty)
-                              Text(network.subnet, style: theme.textTheme.muted),
-                          ],
-                        ),
-                      ),
-                      CalfButton.ghost(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        onPressed: () => _removeNetwork(network),
-                        child: Icon(
-                          LucideIcons.trash2,
-                          size: 16,
-                          color: theme.colorScheme.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: () => _openNetwork(network),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(network.name, style: theme.textTheme.large),
+                    if (network.subnet.isNotEmpty)
+                      Text(network.subnet, style: theme.textTheme.muted),
+                  ],
+                ),
+              ),
+              CalfButton.ghost(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                onPressed: () => _removeNetwork(network),
+                child: Icon(
+                  LucideIcons.trash2,
+                  size: 16,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }

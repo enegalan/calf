@@ -15,11 +15,9 @@ type dayTimePayload struct {
 }
 
 type schedulePayload struct {
-	Enabled    *bool            `json:"enabled"`
-	DayTimes   []dayTimePayload   `json:"day_times"`
-	DaysOfWeek []int              `json:"days_of_week"`
-	Times      []string           `json:"times"`
-	Type       string             `json:"type"`
+	Enabled  *bool            `json:"enabled"`
+	DayTimes []dayTimePayload `json:"day_times"`
+	Type     string           `json:"type"`
 	FileName   string             `json:"file_name"`
 	Folder     string             `json:"folder"`
 	ImageRef   string             `json:"image_ref"`
@@ -131,28 +129,16 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 	volumeexport.NormalizeSchedule(&existing)
 
 	merged := schedulePayload{
-		Enabled:    &enabled,
-		DayTimes:   dayTimesToPayload(existing.DayTimes),
-		DaysOfWeek: append([]int(nil), existing.DaysOfWeek...),
-		Times:      append([]string(nil), existing.Times...),
-		Type:       existing.Type,
-		FileName:   existing.FileName,
-		Folder:     existing.Folder,
-		ImageRef:   existing.ImageRef,
+		Enabled:  &enabled,
+		DayTimes: dayTimesToPayload(existing.DayTimes),
+		Type:     existing.Type,
+		FileName: existing.FileName,
+		Folder:   existing.Folder,
+		ImageRef: existing.ImageRef,
 	}
 
 	if len(payload.DayTimes) > 0 {
 		merged.DayTimes = payload.DayTimes
-		merged.DaysOfWeek = nil
-		merged.Times = nil
-	}
-
-	if len(payload.DaysOfWeek) > 0 {
-		merged.DaysOfWeek = payload.DaysOfWeek
-	}
-
-	if len(payload.Times) > 0 {
-		merged.Times = payload.Times
 	}
 
 	if payload.Type != "" {
@@ -227,13 +213,11 @@ func (s *Server) buildScheduleFromPayload(
 	}
 
 	schedule := volumeexport.Schedule{
-		ID:         scheduleID,
-		Volume:     volumeName,
-		Enabled:    enabled,
-		DayTimes:   dayTimesFromPayload(payload),
-		DaysOfWeek: append([]int(nil), payload.DaysOfWeek...),
-		Times:      append([]string(nil), payload.Times...),
-		Type:       exportType,
+		ID:       scheduleID,
+		Volume:   volumeName,
+		Enabled:  enabled,
+		DayTimes: dayTimesFromPayload(payload),
+		Type:     exportType,
 		FileName:   fileName,
 		Folder:     folder,
 		ImageRef:   imageRef,

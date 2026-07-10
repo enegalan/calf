@@ -10,8 +10,11 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:xterm/xterm.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/logs_panel.dart';
 
@@ -315,23 +318,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Containers', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                _container.displayName,
-                style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Containers', _container.displayName],
+          onBack: widget.onBack,
         ),
         const SizedBox(height: 16),
         Row(
@@ -418,7 +407,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
         ],
         const SizedBox(height: 16),
-        _TabBar(theme: theme, selected: _tab, onSelected: _selectTab),
+        CalfTabBar(
+          theme: theme,
+          labels: const ['Logs', 'Inspect', 'Bind mounts', 'Exec', 'Files', 'Stats'],
+          selectedIndex: _tab.index,
+          onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
+        ),
         const SizedBox(height: 12),
         Expanded(child: _buildTabContent(theme)),
       ],
@@ -467,82 +461,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           history: _statsHistory,
         );
     }
-  }
-}
-
-class _TabBar extends StatelessWidget {
-  const _TabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _ContainerDetailTab selected;
-  final ValueChanged<_ContainerDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _ContainerDetailTab.values;
-    const labels = ['Logs', 'Inspect', 'Bind mounts', 'Exec', 'Files', 'Stats'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _TabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -1253,14 +1171,14 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
 
 Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
-    return const Color(0xFF2DBE60);
+    return CalfColors.success;
   }
   final state = container.state.toLowerCase();
   if (state == 'created' || state == 'restarting') {
-    return const Color(0xFFF0A500);
+    return CalfColors.warning;
   }
   if (container.status.toLowerCase().contains('restarting')) {
-    return const Color(0xFFF0A500);
+    return CalfColors.warning;
   }
   return theme.colorScheme.mutedForeground;
 }

@@ -4,10 +4,10 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/storage/update_preferences.dart';
 import 'package:ui/updates/update_info.dart';
 
-const _githubRepo = 'enegalan/calf';
 const _checkInterval = Duration(hours: 24);
 const _requestTimeout = Duration(seconds: 15);
 
@@ -112,7 +112,7 @@ class UpdateChecker {
     try {
       final response = await _client
           .get(
-            Uri.parse('https://api.github.com/repos/$_githubRepo/releases/latest'),
+            Uri.parse('https://api.github.com/repos/${CalfGitHub.repo}/releases/latest'),
             headers: const {
               'Accept': 'application/vnd.github+json',
               'User-Agent': 'Calf',
