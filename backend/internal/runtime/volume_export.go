@@ -21,6 +21,7 @@ type VolumeExportOptions struct {
 	ArchivePath string
 }
 
+// exportVolumeArchive tars a volume into a gzipped archive using a temporary Alpine container.
 func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, archivePath string) error {
 	if strings.TrimSpace(volumeName) == "" {
 		return fmt.Errorf("volume name is required")
@@ -52,6 +53,7 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 	return nil
 }
 
+// exportVolumeToImage exports a volume to a container image via archive staging and nerdctl commit.
 func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, imageRef, archivePath string, overwrite bool) error {
 	if strings.TrimSpace(imageRef) == "" {
 		return fmt.Errorf("image reference is required")
@@ -99,6 +101,7 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 	return nil
 }
 
+// exportVolumeToRegistry exports a volume as an image and pushes it to a registry.
 func exportVolumeToRegistry(ctx context.Context, run commandRunner, volumeName, imageRef, archivePath string) error {
 	if err := exportVolumeToImage(ctx, run, volumeName, imageRef, archivePath, true); err != nil {
 		return err
@@ -111,6 +114,7 @@ func exportVolumeToRegistry(ctx context.Context, run commandRunner, volumeName, 
 	return nil
 }
 
+// copyArchiveToFolder copies a volume export archive to a folder and returns the destination path.
 func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
 	if strings.TrimSpace(folder) == "" {
 		return "", fmt.Errorf("destination folder is required")
@@ -145,6 +149,7 @@ func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
 	return destPath, nil
 }
 
+// archiveSize returns a human-readable size string for a file, or empty if stat fails.
 func archiveSize(path string) string {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -167,6 +172,7 @@ func archiveSize(path string) string {
 	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
 }
 
+// mountsVMPath translates a host path under ~/.config/calf/mounts to the Lima VM mount path.
 func mountsVMPath(hostPath string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -182,6 +188,7 @@ func mountsVMPath(hostPath string) string {
 	return "/mnt/calf/" + filepath.ToSlash(rel)
 }
 
+// RunVolumeExport orchestrates a volume export according to opts.Type.
 func RunVolumeExport(ctx context.Context, run commandRunner, opts VolumeExportOptions) (string, error) {
 	switch opts.Type {
 	case "local_file":

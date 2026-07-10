@@ -9,11 +9,13 @@ mixin PollIntervalMixin<T extends StatefulWidget> on State<T> {
   Timer? pollTimer;
   int pollIntervalMs = CalfDefaults.defaultPollIntervalMs;
 
+  /// Cancels the active poll timer during widget disposal.
   void disposePollInterval() {
     pollTimer?.cancel();
     pollTimer = null;
   }
 
+  /// Fetches poll interval from config and starts periodic [reload] calls.
   Future<void> startPollInterval(
     CalfClient client,
     Future<void> Function({bool silent}) reload,

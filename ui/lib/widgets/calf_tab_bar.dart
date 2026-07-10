@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class CalfTabBar extends StatelessWidget {
+  /// Creates a horizontal tab bar for [labels] with [selectedIndex].
   const CalfTabBar({
     super.key,
     required this.theme,
@@ -17,6 +18,7 @@ class CalfTabBar extends StatelessWidget {
   final ValueChanged<int> onSelected;
   final TextStyle? labelStyle;
 
+  /// Builds the tab row with an underline on the selected tab.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -42,6 +44,7 @@ class CalfTabBar extends StatelessWidget {
 }
 
 class _CalfTabButton extends StatelessWidget {
+  /// Creates a single tab label with selection styling.
   const _CalfTabButton({
     required this.theme,
     required this.label,
@@ -56,6 +59,7 @@ class _CalfTabButton extends StatelessWidget {
   final VoidCallback onTap;
   final TextStyle? labelStyle;
 
+  /// Builds the tappable tab label with an active underline.
   @override
   Widget build(BuildContext context) {
     return GestureDetector(

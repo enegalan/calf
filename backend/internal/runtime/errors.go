@@ -8,6 +8,7 @@ import (
 var ErrRuntimeNotRunning = errors.New("runtime is not running")
 var ErrNetworkNotFound = errors.New("network not found")
 
+// emptyIfStopped runs listFn only when the runtime is running; otherwise returns an empty slice so list endpoints stay 200 while the VM is starting.
 func emptyIfStopped[T any](
 	ctx context.Context,
 	statusFn func(context.Context) (Status, error),
@@ -25,6 +26,7 @@ func emptyIfStopped[T any](
 	return listFn(ctx)
 }
 
+// requireRunning returns ErrRuntimeNotRunning when the runtime is not in the running state.
 func requireRunning(ctx context.Context, statusFn func(context.Context) (Status, error)) error {
 	status, err := statusFn(ctx)
 	if err != nil {

@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
 
+/// Shows a dialog prompting the user to download or skip an available update.
 Future<void> showUpdateAvailableDialog({
   required BuildContext context,
   required UpdateInfo update,

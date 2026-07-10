@@ -7,6 +7,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// handleImages serves GET /v1/images and POST /v1/images for listing and pulling images.
 func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -48,6 +49,7 @@ func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleImageSubpath routes /v1/images/ subpaths to layers, run, push, or delete handlers.
 func (s *Server) handleImageSubpath(w http.ResponseWriter, r *http.Request) {
 	subpath := strings.TrimPrefix(r.URL.Path, "/v1/images/")
 	subpath = strings.Trim(subpath, "/")
@@ -66,6 +68,7 @@ func (s *Server) handleImageSubpath(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleImageDelete serves DELETE /v1/images/{ref} to remove an image.
 func (s *Server) handleImageDelete(w http.ResponseWriter, r *http.Request, ref string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -85,6 +88,7 @@ func (s *Server) handleImageDelete(w http.ResponseWriter, r *http.Request, ref s
 	utils.WriteOK(w)
 }
 
+// handleImageLayers serves GET /v1/images/layers with build history for a reference query param.
 func (s *Server) handleImageLayers(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -111,6 +115,7 @@ func (s *Server) handleImageLayers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, layers)
 }
 
+// handleImageRun serves POST /v1/images/run to create and start a container from an image.
 func (s *Server) handleImageRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -148,6 +153,7 @@ func (s *Server) handleImageRun(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleImagePush serves POST /v1/images/push to push an image to a registry.
 func (s *Server) handleImagePush(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)

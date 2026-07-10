@@ -17,10 +17,12 @@ import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/storage/container_groups.dart';
 
 class ContainersScreen extends StatefulWidget {
+  /// Creates a [ContainersScreen] widget.
   const ContainersScreen({super.key, required this.apiClient});
 
   final CalfClient apiClient;
 
+  /// Creates the mutable state for [ContainersScreen].
   @override
   State<ContainersScreen> createState() => _ContainersScreenState();
 }
@@ -40,6 +42,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   bool _runningOnly = false;
   final Map<String, bool> _expandedGroups = {};
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -53,6 +56,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     disposePollInterval();
@@ -60,6 +64,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     super.dispose();
   }
 
+  /// Fetches runtime status and containers, optionally skipping the loading indicator.
   Future<void> _loadContainers({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -105,6 +110,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     }
   }
 
+  /// Runs the given async action and refreshes the list on success.
   Future<void> _runAction(Future<void> Function() action) async {
     try {
       await action();
@@ -120,6 +126,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     }
   }
 
+  /// Runs an action across the given containers, filtered by running state.
   Future<void> _runGroupAction(
     List<ContainerItem> containers,
     Future<void> Function(String id) action, {
@@ -148,6 +155,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     }
   }
 
+  /// Navigates to or opens the selected container.
   void _openContainer(ContainerItem container) {
     setState(() {
       _detailContainer = container;
@@ -155,6 +163,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Opens the compose project group detail view.
   void _openComposeGroup(String project, List<ContainerItem> containers) {
     setState(() {
       _detailProject = project;
@@ -164,6 +173,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeContainerDetail() {
     setState(() {
       _detailContainer = null;
@@ -171,6 +181,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeComposeGroup() {
     setState(() {
       _detailProject = null;
@@ -178,6 +189,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Loads persisted compose-group expand/collapse state.
   Future<void> _loadGroupPreferences() async {
     final saved = await ContainerGroupPreferences.loadExpanded();
     if (!mounted) {
@@ -186,8 +198,10 @@ class _ContainersScreenState extends State<ContainersScreen>
     setState(() => _expandedGroups.addAll(saved));
   }
 
+  /// Returns whether the compose group [project] is expanded in the list.
   bool _isGroupExpanded(String project) => _expandedGroups[project] ?? false;
 
+  /// Toggles the corresponding UI state.
   void _toggleGroup(String project) {
     setState(() {
       _expandedGroups[project] = !(_expandedGroups[project] ?? false);
@@ -195,6 +209,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     ContainerGroupPreferences.saveExpanded(_expandedGroups);
   }
 
+  /// Returns items matching the active search and filter criteria.
   List<ContainerItem> _filteredContainers() {
     var items = _containers;
 
@@ -218,6 +233,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     }).toList();
   }
 
+  /// Groups containers into compose projects and standalone rows.
   _ContainerLayout _buildLayout(List<ContainerItem> items) {
     final groups = <String, List<ContainerItem>>{};
     final standalone = <ContainerItem>[];
@@ -247,6 +263,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     );
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_detailContainer != null) {
@@ -284,6 +301,7 @@ class _ContainersScreenState extends State<ContainersScreen>
         Row(
           children: [
             Text('Containers', style: theme.textTheme.h3),
+            /// Creates a [_ContainersScreenState] widget.
             const SizedBox(width: 12),
             Text(
               '$runningCount running / ${_containers.length} total',
@@ -291,6 +309,7 @@ class _ContainersScreenState extends State<ContainersScreen>
             ),
           ],
         ),
+        /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
@@ -301,11 +320,13 @@ class _ContainersScreenState extends State<ContainersScreen>
             color: theme.colorScheme.mutedForeground,
           ),
         ),
+        /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 12),
         RunningFilterSwitch(
           value: _runningOnly,
           onChanged: (value) => setState(() => _runningOnly = value),
         ),
+        /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
         if (_runtime?.portConflicts.isNotEmpty == true)
           Padding(
@@ -404,6 +425,7 @@ class _ContainersScreenState extends State<ContainersScreen>
 }
 
 class _ContainerLayout {
+  /// Creates a [_ContainerLayout] widget.
   const _ContainerLayout({required this.groups, required this.standalone});
 
   final List<MapEntry<String, List<ContainerItem>>> groups;
@@ -411,6 +433,7 @@ class _ContainerLayout {
 }
 
 class _ComposeGroupTile extends StatelessWidget {
+  /// Creates a [_ComposeGroupTile] widget.
   const _ComposeGroupTile({
     required this.project,
     required this.containers,
@@ -443,6 +466,7 @@ class _ComposeGroupTile extends StatelessWidget {
   final void Function(ContainerItem container) onOpen;
   final void Function(int port) onOpenPort;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final running = containers.where((container) => container.isRunning).length;
@@ -466,6 +490,7 @@ class _ComposeGroupTile extends StatelessWidget {
                   size: 16,
                 ),
               ),
+              /// Creates a [_ComposeGroupTile] widget.
               const SizedBox(width: 4),
               Expanded(
                 child: GestureDetector(
@@ -474,6 +499,7 @@ class _ComposeGroupTile extends StatelessWidget {
                   child: Row(
                     children: [
                       _ComposeStackIcon(containers: containers, theme: theme),
+                      /// Creates a [_ComposeGroupTile] widget.
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -525,6 +551,7 @@ class _ComposeGroupTile extends StatelessWidget {
 }
 
 class _ContainerTile extends StatelessWidget {
+  /// Creates a [_ContainerTile] widget.
   const _ContainerTile({
     required this.container,
     required this.theme,
@@ -547,6 +574,7 @@ class _ContainerTile extends StatelessWidget {
   final VoidCallback onOpen;
   final void Function(int port) onOpenPort;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final port = container.primaryHostPort;
@@ -615,11 +643,13 @@ class _ContainerTile extends StatelessWidget {
 }
 
 class _ComposeStackIcon extends StatelessWidget {
+  /// Creates a [_ComposeStackIcon] widget.
   const _ComposeStackIcon({required this.containers, required this.theme});
 
   final List<ContainerItem> containers;
   final ShadThemeData theme;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -644,11 +674,13 @@ class _ComposeStackIcon extends StatelessWidget {
 }
 
 class _ContainerStatusIcon extends StatelessWidget {
+  /// Creates a [_ContainerStatusIcon] widget.
   const _ContainerStatusIcon({required this.container, required this.theme});
 
   final ContainerItem container;
   final ShadThemeData theme;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return _StatusDotIcon(
@@ -661,6 +693,7 @@ class _ContainerStatusIcon extends StatelessWidget {
 }
 
 class _StatusDotIcon extends StatelessWidget {
+  /// Creates a [_StatusDotIcon] widget.
   const _StatusDotIcon({
     required this.icon,
     required this.iconColor,
@@ -676,6 +709,7 @@ class _StatusDotIcon extends StatelessWidget {
   static const _dotSize = 9.0;
   static const _borderWidth = 1.5;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final borderColor = fillColor != null
@@ -708,6 +742,7 @@ class _StatusDotIcon extends StatelessWidget {
   }
 }
 
+/// Returns the status color for the given container.
 Color? _containerStatusColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
     return CalfColors.success;
@@ -720,6 +755,7 @@ Color? _containerStatusColor(ContainerItem container, ShadThemeData theme) {
 
 enum _GroupRunState { allRunning, partial, stopped }
 
+/// Returns whether the condition holds for the given input.
 bool _isTransitionalContainer(ContainerItem container) {
   final state = container.state.toLowerCase();
   if (state == 'created' || state == 'restarting') {
@@ -728,10 +764,12 @@ bool _isTransitionalContainer(ContainerItem container) {
   return container.status.toLowerCase().contains('restarting');
 }
 
+/// Returns whether the condition holds for the given input.
 bool _isStoppedContainer(ContainerItem container) {
   return !container.isRunning && !_isTransitionalContainer(container);
 }
 
+/// Derives the aggregate run state for a compose group.
 _GroupRunState _groupRunState(List<ContainerItem> containers) {
   final runningCount = containers
       .where((container) => container.isRunning)
@@ -751,6 +789,7 @@ _GroupRunState _groupRunState(List<ContainerItem> containers) {
 }
 
 class _GroupStatusDot extends StatelessWidget {
+  /// Creates a [_GroupStatusDot] widget.
   const _GroupStatusDot({required this.state, required this.theme});
 
   final _GroupRunState state;
@@ -759,6 +798,7 @@ class _GroupStatusDot extends StatelessWidget {
   static const _dotSize = 9.0;
   static const _borderWidth = 1.5;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final background = theme.colorScheme.background;
@@ -794,6 +834,7 @@ class _GroupStatusDot extends StatelessWidget {
 }
 
 class _HalfFilledCirclePainter extends CustomPainter {
+  /// Creates a [_HalfFilledCirclePainter] widget.
   const _HalfFilledCirclePainter({
     required this.fillColor,
     required this.borderColor,
@@ -804,6 +845,7 @@ class _HalfFilledCirclePainter extends CustomPainter {
   final Color borderColor;
   final double borderWidth;
 
+  /// Draws the custom painter content onto [canvas].
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -822,6 +864,7 @@ class _HalfFilledCirclePainter extends CustomPainter {
     canvas.drawCircle(center, radius, borderPaint);
   }
 
+  /// Returns whether this painter should repaint.
   @override
   bool shouldRepaint(covariant _HalfFilledCirclePainter oldDelegate) {
     return fillColor != oldDelegate.fillColor ||
@@ -831,6 +874,7 @@ class _HalfFilledCirclePainter extends CustomPainter {
 }
 
 class _ActionIcon extends StatelessWidget {
+  /// Creates a [_ActionIcon] widget.
   const _ActionIcon({
     required this.icon,
     required this.tooltip,
@@ -841,6 +885,7 @@ class _ActionIcon extends StatelessWidget {
   final String tooltip;
   final VoidCallback onPressed;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Tooltip(

@@ -13,6 +13,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// handleBuilds serves GET /v1/builds and POST /v1/builds for listing and starting image builds.
 func (s *Server) handleBuilds(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -68,6 +69,7 @@ func (s *Server) handleBuilds(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleBuildAction routes /v1/builds/{id} subpaths and serves GET for a single build record.
 func (s *Server) handleBuildAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -107,6 +109,7 @@ func (s *Server) handleBuildAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, build)
 }
 
+// handleBuildSource serves GET /v1/builds/{id}/source with Dockerfile content and context metadata.
 func (s *Server) handleBuildSource(w http.ResponseWriter, r *http.Request, buildID string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)
@@ -138,6 +141,7 @@ func (s *Server) handleBuildSource(w http.ResponseWriter, r *http.Request, build
 	writeJSON(w, http.StatusOK, source)
 }
 
+// handleBuildLogs serves GET /v1/builds/{id}/logs with raw log output and parsed build steps.
 func (s *Server) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildID string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)
@@ -163,6 +167,7 @@ func (s *Server) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildID
 	})
 }
 
+// resolveBuildSourcePaths returns the build context and Dockerfile path, falling back to buildkit history when needed.
 func (s *Server) resolveBuildSourcePaths(ctx context.Context, build runtime.Build) (string, string) {
 	contextPath := build.Context
 	dockerfile := build.Dockerfile
@@ -196,6 +201,7 @@ func (s *Server) resolveBuildSourcePaths(ctx context.Context, build runtime.Buil
 	return contextPath, dockerfile
 }
 
+// updateBuildSourcePaths persists resolved context and Dockerfile paths for a build record.
 func (s *Server) updateBuildSourcePaths(buildID, contextPath, dockerfile string) {
 	s.buildsMu.Lock()
 	defer s.buildsMu.Unlock()
@@ -214,6 +220,7 @@ func (s *Server) updateBuildSourcePaths(buildID, contextPath, dockerfile string)
 
 const buildJobTimeout = 2 * time.Hour
 
+// runBuildJob executes a build in the background and updates the in-memory build record on completion.
 func (s *Server) runBuildJob(buildID, contextPath, tag, dockerfile, platform string) {
 	started := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), buildJobTimeout)
@@ -278,6 +285,7 @@ func (s *Server) runBuildJob(buildID, contextPath, tag, dockerfile, platform str
 	}
 }
 
+// newBuild creates a build record, appends it to history, persists it, and returns the new entry.
 func (s *Server) newBuild(contextPath, tag, dockerfile, platform, status string) runtime.Build {
 	s.buildsMu.Lock()
 	defer s.buildsMu.Unlock()
@@ -307,6 +315,7 @@ func (s *Server) newBuild(contextPath, tag, dockerfile, platform, status string)
 	return build
 }
 
+// addMigratedBuild appends a build imported from Docker Desktop migration to persisted history.
 func (s *Server) addMigratedBuild(build runtime.Build) {
 	s.buildsMu.Lock()
 	defer s.buildsMu.Unlock()
@@ -333,6 +342,7 @@ func (s *Server) addMigratedBuild(build runtime.Build) {
 	_ = s.persistBuildsLocked()
 }
 
+// enrichHistoryBuildIfNeeded fills missing build fields from buildkit history and persists changes when found.
 func (s *Server) enrichHistoryBuildIfNeeded(ctx context.Context, build runtime.Build) runtime.Build {
 	if build.HistoryRef == "" {
 		return build
@@ -379,6 +389,7 @@ func (s *Server) enrichHistoryBuildIfNeeded(ctx context.Context, build runtime.B
 	return enriched
 }
 
+// applyBuildEnrichment merges enriched fields into current without overwriting already-populated values.
 func applyBuildEnrichment(current, enriched runtime.Build) runtime.Build {
 	if enriched.Context != "" && !runtime.IsResolvableBuildContext(current.Context) {
 		current.Context = enriched.Context
@@ -421,6 +432,7 @@ func applyBuildEnrichment(current, enriched runtime.Build) runtime.Build {
 	return current
 }
 
+// getBuild returns the build with the given ID from in-memory history.
 func (s *Server) getBuild(id string) (runtime.Build, bool) {
 	s.buildsMu.RLock()
 	defer s.buildsMu.RUnlock()
@@ -434,10 +446,12 @@ func (s *Server) getBuild(id string) (runtime.Build, bool) {
 	return runtime.Build{}, false
 }
 
+// persistBuildsLocked saves the current build list and sequence counter; caller must hold buildsMu.
 func (s *Server) persistBuildsLocked() error {
 	return buildstore.Save(s.builds, s.buildSeq)
 }
 
+// loadBuilds restores build history from disk into the server on startup.
 func (s *Server) loadBuilds() {
 	file, err := buildstore.Load()
 	if err != nil {
@@ -449,6 +463,7 @@ func (s *Server) loadBuilds() {
 	s.buildSeq = file.Seq
 }
 
+// defaultBuildPlatform returns the default linux/{GOARCH} platform string for new builds.
 func defaultBuildPlatform() string {
 	return fmt.Sprintf("linux/%s", goruntime.GOARCH)
 }

@@ -65,6 +65,7 @@ type nativeCNIIPAMRange struct {
 	Gateway string `json:"gateway"`
 }
 
+// isPseudoNetwork reports whether name is a built-in pseudo network (host, none, or null).
 func isPseudoNetwork(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "host", "none", "null":
@@ -79,6 +80,7 @@ func IsPseudoNetwork(name string) bool {
 	return isPseudoNetwork(name)
 }
 
+// listNetworks returns all user-defined networks, enriching list output with inspect metadata when available.
 func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 	networks, nerdctlErr := queryNerdctlNetworks(ctx, run)
 	if nerdctlErr != nil {
@@ -143,6 +145,7 @@ func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 	return networks, nil
 }
 
+// inspectNetwork returns detailed metadata for a single network by name.
 func inspectNetwork(ctx context.Context, run commandRunner, name string) (NetworkDetail, error) {
 	if isPseudoNetwork(name) {
 		return NetworkDetail{}, fmt.Errorf("built-in network %q cannot be inspected", name)
@@ -196,6 +199,7 @@ func inspectNetwork(ctx context.Context, run commandRunner, name string) (Networ
 	}, nil
 }
 
+// removeNetwork deletes a user-defined network via nerdctl, falling back to docker.
 func removeNetwork(ctx context.Context, run commandRunner, name string) error {
 	if isPseudoNetwork(name) {
 		return fmt.Errorf("built-in network %q cannot be removed", name)
@@ -216,6 +220,7 @@ type enrichedNetworkInspectRow struct {
 	NativeOptions map[string]string
 }
 
+// inspectNetworkMetadata fetches standard and native inspect data for one network.
 func inspectNetworkMetadata(ctx context.Context, run commandRunner, name string) (enrichedNetworkInspectRow, error) {
 	row := enrichedNetworkInspectRow{
 		NativeOptions: make(map[string]string),
@@ -252,6 +257,7 @@ func inspectNetworkMetadata(ctx context.Context, run commandRunner, name string)
 	return row, nil
 }
 
+// networkInspectMetadataBatch inspects multiple networks, skipping pseudo networks and individual failures.
 func networkInspectMetadataBatch(ctx context.Context, run commandRunner, names []string) (map[string]enrichedNetworkInspectRow, error) {
 	rows := make(map[string]enrichedNetworkInspectRow, len(names))
 	for _, name := range names {
@@ -271,6 +277,7 @@ func networkInspectMetadataBatch(ctx context.Context, run commandRunner, names [
 	return rows, nil
 }
 
+// networkDriverFromList looks up a network's driver from nerdctl or docker list output.
 func networkDriverFromList(ctx context.Context, run commandRunner, name string) (string, error) {
 	networks, err := queryNerdctlNetworks(ctx, run)
 	if err != nil {
@@ -297,6 +304,7 @@ func networkDriverFromList(ctx context.Context, run commandRunner, name string) 
 	return "", fmt.Errorf("network %s not found", name)
 }
 
+// applyNativeNetworkInspect merges CNI plugin details from native-mode inspect into row.
 func applyNativeNetworkInspect(row *enrichedNetworkInspectRow, output []byte) {
 	parsed, err := decodeInspectDocuments[nativeNetworkInspect](output)
 	if err != nil || len(parsed) == 0 {
@@ -345,6 +353,7 @@ func applyNativeNetworkInspect(row *enrichedNetworkInspectRow, output []byte) {
 	}
 }
 
+// ParseNetworkLines decodes newline-delimited JSON network list output into sorted Network values.
 func ParseNetworkLines(output []byte) ([]Network, error) {
 	networks := make([]Network, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -383,6 +392,7 @@ func ParseNetworkLines(output []byte) ([]Network, error) {
 	return networks, nil
 }
 
+// firstSubnet returns the first non-empty subnet from inspect IPAM config.
 func firstSubnet(row enrichedNetworkInspectRow) string {
 	for _, config := range row.IPAM.Config {
 		subnet := strings.TrimSpace(config.Subnet)
@@ -394,6 +404,7 @@ func firstSubnet(row enrichedNetworkInspectRow) string {
 	return ""
 }
 
+// firstGateway returns the first non-empty gateway from inspect IPAM config.
 func firstGateway(row enrichedNetworkInspectRow) string {
 	for _, config := range row.IPAM.Config {
 		gateway := strings.TrimSpace(config.Gateway)
@@ -405,10 +416,12 @@ func firstGateway(row enrichedNetworkInspectRow) string {
 	return ""
 }
 
+// defaultNetworkScope returns the scope used when inspect output omits one.
 func defaultNetworkScope() string {
 	return "local"
 }
 
+// firstNonEmpty returns the first non-blank string from values.
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -419,6 +432,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// shortNetworkID truncates a network ID to a 12-character display form.
 func shortNetworkID(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -432,6 +446,7 @@ func shortNetworkID(value string) string {
 	return value
 }
 
+// humanizeNetworkCreated formats a network creation timestamp for display.
 func humanizeNetworkCreated(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -441,6 +456,7 @@ func humanizeNetworkCreated(value string) string {
 	return humanizeTime(value)
 }
 
+// queryNerdctlNetworks lists networks via nerdctl JSON output.
 func queryNerdctlNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 	output, err := run(ctx, "nerdctl", "network", "ls", "--format", "{{json .}}")
 	if err != nil {
@@ -450,6 +466,7 @@ func queryNerdctlNetworks(ctx context.Context, run commandRunner) ([]Network, er
 	return ParseNetworkLines(output)
 }
 
+// queryDockerNetworks lists networks via docker CLI JSON output.
 func queryDockerNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 	output, err := run(ctx, "docker", "network", "ls", "--format", "{{json .}}")
 	if err != nil {
@@ -459,6 +476,7 @@ func queryDockerNetworks(ctx context.Context, run commandRunner) ([]Network, err
 	return ParseNetworkLines(output)
 }
 
+// mergeNetworksByName combines nerdctl and docker network lists, preferring nerdctl entries on name collision.
 func mergeNetworksByName(nerdctlNetworks, dockerNetworks []Network) []Network {
 	if len(dockerNetworks) == 0 {
 		return nerdctlNetworks

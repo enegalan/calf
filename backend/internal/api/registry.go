@@ -6,6 +6,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// handleRegistry serves GET, POST, and DELETE /v1/registry for registry auth status, login, and logout.
 func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)

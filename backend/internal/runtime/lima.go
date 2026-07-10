@@ -47,6 +47,7 @@ type Lima struct {
 	dockerProxy    *http.Server
 }
 
+// NewLima constructs a Lima VM runtime with resource limits and proxy settings.
 func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
 	if vmName == "" {
 		vmName = "calf"
@@ -71,10 +72,12 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 	return lima
 }
 
+// DockerSocket returns the path to the Docker-compatible socket on the host.
 func (l *Lima) DockerSocket() string {
 	return l.dockerSocket
 }
 
+// Start creates or boots the Lima VM, waits for nerdctl, and starts port proxies.
 func (l *Lima) Start(ctx context.Context) error {
 	if _, err := exec.LookPath("limactl"); err != nil {
 		return fmt.Errorf("limactl not found: install Lima first")
@@ -120,6 +123,7 @@ func (l *Lima) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop tears down proxies and stops the Lima VM instance.
 func (l *Lima) Stop(ctx context.Context) error {
 	if _, err := exec.LookPath("limactl"); err != nil {
 		return fmt.Errorf("limactl not found: install Lima first")
@@ -147,6 +151,7 @@ func (l *Lima) Stop(ctx context.Context) error {
 	return err
 }
 
+// Status reports VM mode, running state, socket health, and port conflicts.
 func (l *Lima) Status(ctx context.Context) (Status, error) {
 	status := Status{
 		Mode:         ModeVM,
@@ -223,6 +228,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 	return status, nil
 }
 
+// ListContainers returns all containers and syncs localhost port proxies.
 func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
 	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Container, error) {
 		if !l.started.Load() {
@@ -242,12 +248,14 @@ func (l *Lima) ListContainers(ctx context.Context) ([]Container, error) {
 	})
 }
 
+// ListImages returns all images, or none when the VM is stopped.
 func (l *Lima) ListImages(ctx context.Context) ([]Image, error) {
 	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Image, error) {
 		return listImages(ctx, l.runInVM)
 	})
 }
 
+// ImageHistory returns build layers for the given image reference.
 func (l *Lima) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil, err
@@ -256,6 +264,7 @@ func (l *Lima) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, erro
 	return imageHistory(ctx, l.runInVM, ref)
 }
 
+// ListVolumes returns all volumes with in-use enrichment, or none when stopped.
 func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
 	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Volume, error) {
 		volumes, err := listVolumes(ctx, l.runInVM)
@@ -267,12 +276,14 @@ func (l *Lima) ListVolumes(ctx context.Context) ([]Volume, error) {
 	})
 }
 
+// ListNetworks returns all networks, or none when the VM is stopped.
 func (l *Lima) ListNetworks(ctx context.Context) ([]Network, error) {
 	return emptyIfStopped(ctx, l.Status, func(ctx context.Context) ([]Network, error) {
 		return listNetworks(ctx, l.runInVM)
 	})
 }
 
+// InspectNetwork returns detailed metadata for a network by name.
 func (l *Lima) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return NetworkDetail{}, err
@@ -281,6 +292,7 @@ func (l *Lima) InspectNetwork(ctx context.Context, name string) (NetworkDetail, 
 	return inspectNetwork(ctx, l.runInVM, name)
 }
 
+// RemoveNetwork deletes a network by name inside the VM.
 func (l *Lima) RemoveNetwork(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -289,6 +301,7 @@ func (l *Lima) RemoveNetwork(ctx context.Context, name string) error {
 	return removeNetwork(ctx, l.runInVM, name)
 }
 
+// ApplyProxy stores proxy settings and applies them inside the VM when running.
 func (l *Lima) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	l.mu.Lock()
 	l.proxy = proxy
@@ -301,6 +314,7 @@ func (l *Lima) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	return applyProxyInVM(ctx, l.runInVM, proxy)
 }
 
+// watchPortProxies periodically resyncs localhost proxies with published container ports.
 func (l *Lima) watchPortProxies(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -330,6 +344,7 @@ func (l *Lima) watchPortProxies(ctx context.Context) {
 	}
 }
 
+// CreateVolume creates a named volume in the VM, or anonymous when name is empty.
 func (l *Lima) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -344,6 +359,7 @@ func (l *Lima) CreateVolume(ctx context.Context, name string) error {
 	return err
 }
 
+// CloneVolume copies data from source into a new dest volume in the VM.
 func (l *Lima) CloneVolume(ctx context.Context, source, dest string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -352,6 +368,7 @@ func (l *Lima) CloneVolume(ctx context.Context, source, dest string) error {
 	return cloneVolume(ctx, l.runInVM, source, dest)
 }
 
+// ExportVolume archives a volume to the destination described by opts.
 func (l *Lima) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return "", err
@@ -360,6 +377,7 @@ func (l *Lima) ExportVolume(ctx context.Context, opts VolumeExportOptions) (stri
 	return RunVolumeExport(ctx, l.runInVM, opts)
 }
 
+// RemoveVolume deletes a volume by name in the VM.
 func (l *Lima) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -369,6 +387,7 @@ func (l *Lima) RemoveVolume(ctx context.Context, name string) error {
 	return err
 }
 
+// InspectVolume returns detailed metadata for a volume by name.
 func (l *Lima) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return VolumeDetail{}, err
@@ -377,6 +396,7 @@ func (l *Lima) InspectVolume(ctx context.Context, name string) (VolumeDetail, er
 	return inspectVolume(ctx, l.runInVM, name)
 }
 
+// ListVolumeFiles lists directory entries inside a volume at path.
 func (l *Lima) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil, err
@@ -385,6 +405,7 @@ func (l *Lima) ListVolumeFiles(ctx context.Context, name, path string) ([]Contai
 	return listVolumeFiles(ctx, l.runInVM, name, path)
 }
 
+// VolumeContainers lists containers in the VM that mount the named volume.
 func (l *Lima) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil, err
@@ -393,6 +414,7 @@ func (l *Lima) VolumeContainers(ctx context.Context, name string) ([]VolumeConta
 	return volumeContainerUsages(ctx, l.runInVM, name)
 }
 
+// RunBuild builds an image inside the VM and returns parsed build output.
 func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return BuildResult{}, err
@@ -401,6 +423,7 @@ func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platf
 	return runBuild(ctx, l.runInVM, contextPath, tag, dockerfile, platform)
 }
 
+// StartContainer starts a stopped container by ID in the VM.
 func (l *Lima) StartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -410,6 +433,7 @@ func (l *Lima) StartContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// StopContainer stops a running container by ID in the VM.
 func (l *Lima) StopContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -419,6 +443,7 @@ func (l *Lima) StopContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// RemoveContainer force-removes a container by ID in the VM.
 func (l *Lima) RemoveContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -428,6 +453,7 @@ func (l *Lima) RemoveContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// RemoveImage deletes an image by reference in the VM.
 func (l *Lima) RemoveImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -437,6 +463,7 @@ func (l *Lima) RemoveImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// PullImage downloads an image from a registry into the VM.
 func (l *Lima) PullImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -446,6 +473,7 @@ func (l *Lima) PullImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// PushImage uploads an image from the VM to a registry.
 func (l *Lima) PushImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -454,6 +482,7 @@ func (l *Lima) PushImage(ctx context.Context, ref string) error {
 	return pushImage(ctx, l.runInVM, ref)
 }
 
+// RunImage starts a detached container from ref in the VM and returns its ID.
 func (l *Lima) RunImage(ctx context.Context, ref string) (string, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return "", err
@@ -462,6 +491,7 @@ func (l *Lima) RunImage(ctx context.Context, ref string) (string, error) {
 	return runImage(ctx, l.runInVM, ref)
 }
 
+// StreamLogs tails recent history then follows new log lines for a container.
 func (l *Lima) StreamLogs(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -475,6 +505,7 @@ func (l *Lima) StreamLogs(ctx context.Context, id string, output func(string)) e
 	return l.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
 
+// StreamLogsFollow streams only new log lines from the current time onward.
 func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -483,12 +514,14 @@ func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(stri
 	return l.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
 
+// streamLogsFollow runs nerdctl logs -f inside the VM and pipes lines to output.
 func (l *Lima) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", "logs", "-f", "--since", since, id)...)...)
 	command.Env = limaShellEnv()
 	return streamCommandLogs(ctx, command, output)
 }
 
+// InspectContainer returns raw nerdctl inspect JSON for a container in the VM.
 func (l *Lima) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil, err
@@ -497,6 +530,7 @@ func (l *Lima) InspectContainer(ctx context.Context, id string) (json.RawMessage
 	return inspectContainer(ctx, l.runInVM, id)
 }
 
+// ContainerMounts parses mount points from container inspect data.
 func (l *Lima) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
 	inspect, err := l.InspectContainer(ctx, id)
 	if err != nil {
@@ -506,6 +540,7 @@ func (l *Lima) ContainerMounts(ctx context.Context, id string) ([]ContainerMount
 	return parseContainerMounts(inspect)
 }
 
+// ListContainerFiles lists directory entries inside a container at path.
 func (l *Lima) ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return nil, err
@@ -518,6 +553,7 @@ func (l *Lima) ListContainerFiles(ctx context.Context, id, path string) ([]Conta
 	return listContainerFiles(ctx, l.runInVM, id, path)
 }
 
+// ExecContainer runs a one-shot command inside a container and returns stdout.
 func (l *Lima) ExecContainer(ctx context.Context, id, command string) (string, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return "", err
@@ -526,6 +562,7 @@ func (l *Lima) ExecContainer(ctx context.Context, id, command string) (string, e
 	return execInContainer(ctx, l.runInVM, id, command)
 }
 
+// AttachExec opens an interactive PTY session inside a container in the VM.
 func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -536,6 +573,7 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }
 
+// ContainerStats returns CPU and memory usage for a running container.
 func (l *Lima) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return ContainerStats{}, err
@@ -544,6 +582,7 @@ func (l *Lima) ContainerStats(ctx context.Context, id string) (ContainerStats, e
 	return containerStats(ctx, l.runInVM, id)
 }
 
+// RestartContainer stops and starts a container by ID in the VM.
 func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -552,16 +591,19 @@ func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 	return restartContainer(ctx, l.runInVM, id)
 }
 
+// runInVM executes a command inside the Lima VM via limactl shell.
 func (l *Lima) runInVM(ctx context.Context, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
 	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", "limactl", shellArgs...)
 }
 
+// runInVMWithStdin executes a command inside the VM with stdin via limactl shell.
 func (l *Lima) runInVMWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
 	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, "limactl", shellArgs...)
 }
 
+// RegistryStatus reports whether the VM root user is logged in to the default registry.
 func (l *Lima) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return RegistryStatus{Server: defaultRegistryServer}, nil
@@ -575,6 +617,7 @@ func (l *Lima) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	return RegistryStatusFromConfig(output), nil
 }
 
+// RegistryLogin authenticates to a container registry inside the VM.
 func (l *Lima) RegistryLogin(ctx context.Context, server, username, password string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -583,6 +626,7 @@ func (l *Lima) RegistryLogin(ctx context.Context, server, username, password str
 	return registryLogin(ctx, l.runInVM, l.runInVMWithStdin, server, username, password)
 }
 
+// RegistryLogout removes stored registry credentials inside the VM.
 func (l *Lima) RegistryLogout(ctx context.Context, server string) error {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return err
@@ -602,10 +646,12 @@ func vmCommand(command string, args ...string) []string {
 	return append([]string{command}, args...)
 }
 
+// limaShellEnv returns environment variables for limactl shell SSH sessions.
 func limaShellEnv() []string {
 	return append(os.Environ(), "SSH=ssh -o ControlMaster=no -o ControlPath=none")
 }
 
+// waitForNerdctl blocks until nerdctl info succeeds inside the VM or times out.
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	for time.Now().Before(deadline) {
@@ -624,6 +670,7 @@ func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	return fmt.Errorf("nerdctl not ready in VM %q", l.vmName)
 }
 
+// instanceExists reports whether the configured Lima VM instance already exists.
 func (l *Lima) instanceExists(ctx context.Context) (bool, error) {
 	output, err := runCommand(ctx, "limactl", "list", "--format", "{{.Name}}")
 	if err != nil {
@@ -639,6 +686,7 @@ func (l *Lima) instanceExists(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+// ensureTemplate writes the rendered lima.yaml template to the config directory.
 func (l *Lima) ensureTemplate() error {
 	path, err := l.templateFile()
 	if err != nil {
@@ -672,6 +720,7 @@ func (l *Lima) ensureTemplate() error {
 	return nil
 }
 
+// templateFile returns the path to the generated lima.yaml in the config dir.
 func (l *Lima) templateFile() (string, error) {
 	configDir, err := configDir()
 	if err != nil {
@@ -681,6 +730,7 @@ func (l *Lima) templateFile() (string, error) {
 	return filepath.Join(configDir, "lima.yaml"), nil
 }
 
+// configDir returns ~/.config/calf, creating the path components as needed.
 func configDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -690,6 +740,7 @@ func configDir() (string, error) {
 	return filepath.Join(home, ".config", "calf"), nil
 }
 
+// defaultDockerSocket returns the default Calf Docker socket path under ~/.config/calf.
 func defaultDockerSocket() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -699,6 +750,7 @@ func defaultDockerSocket() string {
 	return filepath.Join(home, ".config", "calf", "docker.sock")
 }
 
+// dockerCLISocketPath returns ~/.docker/run/docker.sock used by the Docker CLI.
 func dockerCLISocketPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -708,6 +760,7 @@ func dockerCLISocketPath() string {
 	return filepath.Join(home, ".docker", "run", "docker.sock")
 }
 
+// ensureDockerCLISocket listens on the Calf socket and symlinks the Docker CLI path.
 func (l *Lima) ensureDockerCLISocket() error {
 	if l.dockerSocket == "" {
 		return nil
@@ -743,6 +796,7 @@ func (l *Lima) ensureDockerCLISocket() error {
 	return nil
 }
 
+// serveTCPProxy forwards HTTP requests from the unix socket to the VM Docker API.
 func (l *Lima) serveTCPProxy() {
 	targetURL, err := url.Parse("http://127.0.0.1:2375")
 	if err != nil {
@@ -768,6 +822,7 @@ func (l *Lima) serveTCPProxy() {
 	}
 }
 
+// removeDockerCLISocket stops the proxy server and removes socket files.
 func (l *Lima) removeDockerCLISocket() {
 	l.mu.Lock()
 	server := l.dockerProxy

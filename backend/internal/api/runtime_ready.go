@@ -9,6 +9,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// ensureRuntimeRunning starts the runtime when stopped and waits until it reaches the running state.
 func (s *Server) ensureRuntimeRunning(ctx context.Context) error {
 	status, err := s.runtime.Status(ctx)
 	if err != nil {
@@ -49,6 +50,7 @@ func (s *Server) ensureRuntimeRunning(ctx context.Context) error {
 	return fmt.Errorf("Calf runtime did not start in time")
 }
 
+// ensureRuntimeOrFail ensures the runtime is running and writes an error response on failure.
 func (s *Server) ensureRuntimeOrFail(w http.ResponseWriter, ctx context.Context) bool {
 	if err := s.ensureRuntimeRunning(ctx); err != nil {
 		if writeRuntimeError(w, err) {

@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// NormalizeSchedule sorts day entries and times within each day for stable storage and comparison.
 func NormalizeSchedule(schedule *Schedule) {
 	if len(schedule.DayTimes) == 0 {
 		return
@@ -21,6 +22,7 @@ func NormalizeSchedule(schedule *Schedule) {
 	}
 }
 
+// ValidateScheduleInput checks that an enabled schedule has valid days, times, and export targets.
 func ValidateScheduleInput(schedule Schedule) error {
 	NormalizeSchedule(&schedule)
 
@@ -72,14 +74,18 @@ func ValidateScheduleInput(schedule Schedule) error {
 	return nil
 }
 
+// ComputeNextRun returns the earliest upcoming run time, including the current minute when still within grace.
 func ComputeNextRun(schedule Schedule, now time.Time) (time.Time, error) {
 	return computeNextRun(schedule, now, false)
 }
 
+// ComputeNextRunAfterRun returns the next run strictly after now, used after a schedule has just fired.
 func ComputeNextRunAfterRun(schedule Schedule, now time.Time) (time.Time, error) {
 	return computeNextRun(schedule, now, true)
 }
 
+// ScheduleDue reports whether a scheduled export should run on this tick.
+// The run window spans the scheduled minute plus ScheduleRunGrace so a once-per-minute scheduler cannot skip a slot.
 func ScheduleDue(nextRunAt string, now time.Time) bool {
 	if strings.TrimSpace(nextRunAt) == "" {
 		return false
@@ -99,10 +105,13 @@ func ScheduleDue(nextRunAt string, now time.Time) bool {
 	return slotStillRunnable(nextRun, now)
 }
 
+// slotStillRunnable reports whether now is still within the grace window after candidate.
 func slotStillRunnable(candidate, now time.Time) bool {
 	return !now.After(candidate.Add(ScheduleRunGrace))
 }
 
+// computeNextRun scans up to 14 days ahead for the earliest matching slot.
+// afterRun skips slots at or before now; the initial schedule uses slotStillRunnable so a missed minute can still run within grace.
 func computeNextRun(schedule Schedule, now time.Time, afterRun bool) (time.Time, error) {
 	NormalizeSchedule(&schedule)
 
@@ -162,6 +171,7 @@ func computeNextRun(schedule Schedule, now time.Time, afterRun bool) (time.Time,
 	return next, nil
 }
 
+// parseTimeOfDay parses an HH:MM export time string.
 func parseTimeOfDay(value string) (hour int, minute int, err error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -176,6 +186,7 @@ func parseTimeOfDay(value string) (hour int, minute int, err error) {
 	return parsed.Hour(), parsed.Minute(), nil
 }
 
+// timesForDay returns the configured export times for the given weekday, or nil when none are set.
 func timesForDay(dayTimes []DayTimeSchedule, day int) []string {
 	for _, entry := range dayTimes {
 		if entry.Day == day {

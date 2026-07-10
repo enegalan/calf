@@ -10,10 +10,12 @@ import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 
 class BuildsScreen extends StatefulWidget {
+  /// Creates a [BuildsScreen] widget.
   const BuildsScreen({super.key, required this.apiClient});
 
   final CalfClient apiClient;
 
+  /// Creates the mutable state for [BuildsScreen].
   @override
   State<BuildsScreen> createState() => _BuildsScreenState();
 }
@@ -27,6 +29,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   final _searchController = TextEditingController();
   String _searchQuery = '';
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -39,6 +42,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     });
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     disposePollInterval();
@@ -46,6 +50,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     super.dispose();
   }
 
+  /// Fetches builds from the API, optionally skipping the loading indicator.
   Future<void> _loadBuilds({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -78,14 +83,17 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     }
   }
 
+  /// Navigates to or opens the selected build.
   void _openBuild(BuildItem build) {
     setState(() => _selectedBuildId = build.id);
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeBuild() {
     setState(() => _selectedBuildId = null);
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_selectedBuildId != null) {
@@ -113,11 +121,13 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Builds', style: theme.textTheme.h3),
+        /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+        /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
@@ -161,6 +171,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                           shape: BoxShape.circle,
                         ),
                       ),
+                      /// Creates a [_BuildsScreenState] widget.
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -195,6 +206,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   }
 }
 
+/// Returns the list-dot color for a build status.
 Color _buildStatusColor(String status, ShadThemeData theme) {
   switch (status) {
     case 'success':
@@ -208,6 +220,7 @@ Color _buildStatusColor(String status, ShadThemeData theme) {
   }
 }
 
+/// Formats the value for display.
 String _formatBuildDuration(int durationMs) {
   if (durationMs <= 0) {
     return '';

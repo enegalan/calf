@@ -23,6 +23,7 @@ enum _ContainerDetailTab { logs, inspect, mounts, exec, files, stats }
 const _maxLogLines = 2000;
 
 class ContainerDetailView extends StatefulWidget {
+  /// Creates a [ContainerDetailView] widget.
   const ContainerDetailView({
     super.key,
     required this.container,
@@ -36,6 +37,7 @@ class ContainerDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onChanged;
 
+  /// Creates the mutable state for [ContainerDetailView].
   @override
   State<ContainerDetailView> createState() => _ContainerDetailViewState();
 }
@@ -67,6 +69,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   Timer? _statsTimer;
   final _statsHistory = _StatsHistory();
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -74,6 +77,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _loadTabData();
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _logsSubscription?.cancel();
@@ -82,6 +86,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     super.dispose();
   }
 
+  /// Runs the given async action and refreshes the list on success.
   Future<void> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
@@ -120,6 +125,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Switches the active tab and loads tab-specific data.
   void _selectTab(_ContainerDetailTab tab) {
     if (_tab == tab) {
       return;
@@ -128,6 +134,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _loadTabData();
   }
 
+  /// Stops background polling or streaming work.
   void _stopTabBackgroundWork() {
     _logsSubscription?.cancel();
     _logsSubscription = null;
@@ -135,6 +142,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _statsTimer = null;
   }
 
+  /// Fetches TabData from the API and updates state.
   void _loadTabData() {
     _stopTabBackgroundWork();
 
@@ -154,6 +162,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Starts background polling or streaming for the active tab.
   void _startLogs() {
     setState(() {
       _logLines.clear();
@@ -191,6 +200,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         );
   }
 
+  /// Fetches Inspect from the API and updates state.
   Future<void> _loadInspect() async {
     setState(() {
       _inspectLoading = true;
@@ -218,6 +228,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Fetches Mounts from the API and updates state.
   Future<void> _loadMounts() async {
     _statsTimer?.cancel();
     setState(() {
@@ -245,16 +256,19 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Starts background polling or streaming for the active tab.
   void _startStats() {
     _logsSubscription?.cancel();
     _statsTimer?.cancel();
     _refreshStats();
     _statsTimer = Timer.periodic(
+      /// Creates a [_ContainerDetailViewState] widget.
       const Duration(seconds: 2),
       (_) => _refreshStats(),
     );
   }
 
+  /// Refreshes the latest data from the API.
   Future<void> _refreshStats() async {
     if (!_container.isRunning) {
       if (!mounted) {
@@ -294,6 +308,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Decodes raw API payload into a structured map.
   Map<String, dynamic>? _decodeInspectMap(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -304,6 +319,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     return null;
   }
 
+  /// Whether or what value backs the `inspectText` UI state.
   String get _inspectText {
     final raw = _inspectRaw;
     if (raw == null || raw.isEmpty) {
@@ -317,6 +333,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -329,6 +346,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           segments: ['Containers', _container.displayName],
           onBack: widget.onBack,
         ),
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,12 +356,14 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               size: 28,
               color: _containerIconColor(_container, theme),
             ),
+            /// Creates a [_ContainerDetailViewState] widget.
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_container.displayName, style: theme.textTheme.h3),
+                  /// Creates a [_ContainerDetailViewState] widget.
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 12,
@@ -385,6 +405,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                   ),
                 ),
                 Text(_container.status, style: theme.textTheme.small),
+                /// Creates a [_ContainerDetailViewState] widget.
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -403,6 +424,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.foreground,
                       ),
                     ),
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy && !_container.isRunning,
@@ -420,6 +442,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.primaryForeground,
                       ),
                     ),
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy,
@@ -433,6 +456,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.primaryForeground,
                       ),
                     ),
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton.destructive(
                       enabled: !_busy,
@@ -458,6 +482,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           ],
         ),
         if (_error != null) ...[
+          /// Creates a [_ContainerDetailViewState] widget.
           const SizedBox(height: 12),
           Text(
             _error!,
@@ -466,6 +491,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             ),
           ),
         ],
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
         CalfTabBar(
           theme: theme,
@@ -480,12 +506,14 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
         ),
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 12),
         Expanded(child: _buildTabContent(theme)),
       ],
     );
   }
 
+  /// Builds the widget for the currently selected tab.
   Widget _buildTabContent(ShadThemeData theme) {
     switch (_tab) {
       case _ContainerDetailTab.logs:
@@ -538,11 +566,13 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
 }
 
 class _Panel extends StatelessWidget {
+  /// Creates a [_Panel] widget.
   const _Panel({required this.theme, required this.child});
 
   final ShadThemeData theme;
   final Widget child;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -558,6 +588,7 @@ class _Panel extends StatelessWidget {
 }
 
 class _InspectTab extends StatelessWidget {
+  /// Creates a [_InspectTab] widget.
   const _InspectTab({
     required this.theme,
     required this.loading,
@@ -576,6 +607,7 @@ class _InspectTab extends StatelessWidget {
   final bool rawJson;
   final ValueChanged<bool> onToggleRaw;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -583,12 +615,15 @@ class _InspectTab extends StatelessWidget {
       children: [
         Row(
           children: [
+            /// Creates a [_InspectTab] widget.
             const Spacer(),
             Text('Raw JSON', style: theme.textTheme.small),
+            /// Creates a [_InspectTab] widget.
             const SizedBox(width: 8),
             ShadSwitch(value: rawJson, onChanged: onToggleRaw),
           ],
         ),
+        /// Creates a [_InspectTab] widget.
         const SizedBox(height: 8),
         Expanded(
           child: _Panel(
@@ -620,11 +655,13 @@ class _InspectTab extends StatelessWidget {
 }
 
 class _InspectFormattedView extends StatelessWidget {
+  /// Creates a [_InspectFormattedView] widget.
   const _InspectFormattedView({required this.theme, required this.inspect});
 
   final ShadThemeData theme;
   final Map<String, dynamic>? inspect;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (inspect == null) {
@@ -653,6 +690,7 @@ class _InspectFormattedView extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            /// Creates a [_InspectFormattedView] widget.
             const SizedBox(height: 12),
             for (
               var rowIndex = 0;
@@ -661,12 +699,14 @@ class _InspectFormattedView extends StatelessWidget {
             ) ...[
               if (rowIndex > 0)
                 Divider(color: theme.colorScheme.border, height: 1),
+              /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
               _InspectRow(
                 theme: theme,
                 label: section.rows[rowIndex].label,
                 value: section.rows[rowIndex].value,
               ),
+              /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
             ],
           ],
@@ -675,6 +715,7 @@ class _InspectFormattedView extends StatelessWidget {
     );
   }
 
+  /// Extracts labeled inspect sections from raw JSON.
   List<_InspectSection> _buildInspectSections(Map<String, dynamic> payload) {
     final sections = <_InspectSection>[];
 
@@ -746,6 +787,7 @@ class _InspectFormattedView extends StatelessWidget {
 }
 
 class _InspectSection {
+  /// Creates a [_InspectSection] widget.
   const _InspectSection({required this.title, required this.rows});
 
   final String title;
@@ -753,6 +795,7 @@ class _InspectSection {
 }
 
 class _InspectRowData {
+  /// Creates a [_InspectRowData] widget.
   const _InspectRowData({required this.label, required this.value});
 
   final String label;
@@ -760,6 +803,7 @@ class _InspectRowData {
 }
 
 class _InspectRow extends StatelessWidget {
+  /// Creates a [_InspectRow] widget.
   const _InspectRow({
     required this.theme,
     required this.label,
@@ -770,6 +814,7 @@ class _InspectRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -801,6 +846,7 @@ class _InspectRow extends StatelessWidget {
 }
 
 class _MountsTab extends StatelessWidget {
+  /// Creates a [_MountsTab] widget.
   const _MountsTab({
     required this.theme,
     required this.loading,
@@ -813,6 +859,7 @@ class _MountsTab extends StatelessWidget {
   final String? error;
   final List<ContainerMount> mounts;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -863,9 +910,11 @@ class _MountsTab extends StatelessWidget {
               ),
             ],
           ),
+          /// Creates a [_MountsTab] widget.
           const SizedBox(height: 8),
           Divider(color: theme.colorScheme.border, height: 1),
           for (final mount in mounts) ...[
+            /// Creates a [_MountsTab] widget.
             const SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -891,6 +940,7 @@ class _MountsTab extends StatelessWidget {
 }
 
 class _ExecTab extends StatefulWidget {
+  /// Creates a [_ExecTab] widget.
   const _ExecTab({
     required this.theme,
     required this.containerId,
@@ -903,6 +953,7 @@ class _ExecTab extends StatefulWidget {
   final CalfClient apiClient;
   final bool isRunning;
 
+  /// Creates the mutable state for [_ExecTab].
   @override
   State<_ExecTab> createState() => _ExecTabState();
 }
@@ -912,6 +963,7 @@ class _ExecTabState extends State<_ExecTab> {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -921,6 +973,7 @@ class _ExecTabState extends State<_ExecTab> {
     }
   }
 
+  /// Refreshes local state when the parent widget changes.
   @override
   void didUpdateWidget(covariant _ExecTab oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -932,6 +985,7 @@ class _ExecTabState extends State<_ExecTab> {
     }
   }
 
+  /// Opens the interactive exec WebSocket session.
   void _connect() {
     _disconnect();
     final uri = widget.apiClient.containerExecWebSocketUri(widget.containerId);
@@ -966,6 +1020,7 @@ class _ExecTabState extends State<_ExecTab> {
     );
   }
 
+  /// Closes the interactive exec WebSocket session.
   void _disconnect() {
     _subscription?.cancel();
     _subscription = null;
@@ -973,12 +1028,14 @@ class _ExecTabState extends State<_ExecTab> {
     _channel = null;
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _disconnect();
     super.dispose();
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (!widget.isRunning) {
@@ -1002,6 +1059,7 @@ class _ExecTabState extends State<_ExecTab> {
 }
 
 class _StatsTab extends StatelessWidget {
+  /// Creates a [_StatsTab] widget.
   const _StatsTab({
     required this.theme,
     required this.loading,
@@ -1016,6 +1074,7 @@ class _StatsTab extends StatelessWidget {
   final ContainerStats? stats;
   final _StatsHistory history;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading && stats == null) {
@@ -1112,6 +1171,7 @@ class _StatsTab extends StatelessWidget {
 }
 
 class _ChartSeries {
+  /// Creates a [_ChartSeries] widget.
   const _ChartSeries({
     required this.label,
     required this.color,
@@ -1124,6 +1184,7 @@ class _ChartSeries {
 }
 
 class _StatsChartCard extends StatelessWidget {
+  /// Creates a [_StatsChartCard] widget.
   const _StatsChartCard({
     required this.theme,
     required this.title,
@@ -1136,6 +1197,7 @@ class _StatsChartCard extends StatelessWidget {
   final List<_ChartSeries> series;
   final String Function(double value) formatY;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final maxValue = series
@@ -1151,6 +1213,7 @@ class _StatsChartCard extends StatelessWidget {
             title,
             style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
           ),
+          /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 12),
           Expanded(
             child: LineChart(
@@ -1201,6 +1264,7 @@ class _StatsChartCard extends StatelessWidget {
               ),
             ),
           ),
+          /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -1210,6 +1274,7 @@ class _StatsChartCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(width: 10, height: 10, color: item.color),
+                    /// Creates a [_StatsChartCard] widget.
                     const SizedBox(width: 6),
                     Text(item.label, style: theme.textTheme.muted),
                   ],
@@ -1232,6 +1297,7 @@ class _StatsHistory {
   final netRx = <double>[];
   final netTx = <double>[];
 
+  /// Records a stats sample in the rolling history buffers.
   void add(ContainerStats stats) {
     _append(cpu, _parsePercent(stats.cpuPercent));
     _append(memUsed, _parsePair(stats.memUsage).$1);
@@ -1243,6 +1309,7 @@ class _StatsHistory {
     _append(netTx, net.$2);
   }
 
+  /// Appends a value to the rolling history buffer.
   void _append(List<double> target, double value) {
     target.add(value);
     if (target.length > _maxPoints) {
@@ -1251,6 +1318,7 @@ class _StatsHistory {
   }
 }
 
+/// Parse pair.
 (double, double) _parsePair(String value) {
   final parts = value.split('/');
   if (parts.length != 2) {
@@ -1259,10 +1327,12 @@ class _StatsHistory {
   return (_parseDataSize(parts[0]), _parseDataSize(parts[1]));
 }
 
+/// Parses the input string into a typed value.
 double _parsePercent(String value) {
   return double.tryParse(value.replaceAll('%', '').trim()) ?? 0;
 }
 
+/// Parses the input string into a typed value.
 double _parseDataSize(String value) {
   final normalized = value.trim().toUpperCase();
   final match = RegExp(r'^([\d.]+)\s*([A-Z]+)?$').firstMatch(normalized);
@@ -1289,6 +1359,7 @@ double _parseDataSize(String value) {
   }
 }
 
+/// Formats the value for display.
 String _formatBytes(double value) {
   if (value >= 1024 * 1024 * 1024) {
     return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
@@ -1302,6 +1373,7 @@ String _formatBytes(double value) {
   return '${value.toStringAsFixed(0)}B';
 }
 
+/// Returns the themed background color for detail panels.
 Color _panelBackgroundColor(ShadThemeData theme) {
   return Color.alphaBlend(
     theme.colorScheme.muted.withValues(alpha: 0.2),
@@ -1335,6 +1407,7 @@ const _lightTerminalTheme = TerminalTheme(
   searchHitForeground: Color(0xFF111827),
 );
 
+/// Builds a terminal color theme from the app theme.
 TerminalTheme _terminalThemeFor(ShadThemeData theme) {
   final background = _panelBackgroundColor(theme);
   final foreground = theme.colorScheme.foreground;
@@ -1370,6 +1443,7 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
   );
 }
 
+/// Returns the status color for the given container.
 Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
     return CalfColors.success;

@@ -15,6 +15,7 @@ type InspectDetail struct {
 	Labels     map[string]string
 }
 
+// Inspect fetches build context, Dockerfile path, and labels for a buildx history entry.
 func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
@@ -38,6 +39,7 @@ func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, erro
 	return parseInspectDetail(string(output))
 }
 
+// parseInspectDetail decodes buildx history inspect JSON into InspectDetail fields.
 func parseInspectDetail(output string) (InspectDetail, error) {
 	detail := InspectDetail{Dockerfile: "Dockerfile", Labels: make(map[string]string)}
 
@@ -79,6 +81,7 @@ func parseInspectDetail(output string) (InspectDetail, error) {
 	return detail, nil
 }
 
+// resolveContextFromLabels infers a build context path from compose-related container labels.
 func resolveContextFromLabels(labels map[string]string) string {
 	if workingDir, ok := labels["com.docker.compose.project.working_dir"]; ok && workingDir != "" {
 		if _, err := os.Stat(workingDir); err == nil {
@@ -101,6 +104,7 @@ func resolveContextFromLabels(labels map[string]string) string {
 	return ""
 }
 
+// stripLastComponent returns the parent directory of a filesystem path.
 func stripLastComponent(p string) string {
 	return path.Dir(p)
 }

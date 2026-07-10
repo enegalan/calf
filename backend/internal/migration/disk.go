@@ -10,6 +10,7 @@ import (
 
 const migrationHeadroomBytes = 2 * 1024 * 1024 * 1024
 
+// checkMigrationDiskSpace verifies the Lima VM has enough free space for the estimated migration size.
 func checkMigrationDiskSpace(ctx context.Context, vmName, ddSocket string) error {
 	if vmName == "" {
 		vmName = "calf"
@@ -39,6 +40,7 @@ func checkMigrationDiskSpace(ctx context.Context, vmName, ddSocket string) error
 	)
 }
 
+// estimateMigrationBytes sums Docker Desktop image, volume, and container usage plus migration headroom.
 func estimateMigrationBytes(ctx context.Context, ddSocket string) (int64, error) {
 	output, err := runDocker(ctx, ddSocket, "system", "df", "--format", "{{.Type}}\t{{.Size}}")
 	if err != nil {
@@ -65,6 +67,7 @@ func estimateMigrationBytes(ctx context.Context, ddSocket string) (int64, error)
 	return total + migrationHeadroomBytes, nil
 }
 
+// vmFreeBytes reads available root filesystem bytes inside the Lima VM.
 func vmFreeBytes(ctx context.Context, vmName string) (int64, error) {
 	output, err := runInVM(ctx, vmName, "df", "-B1", "--output=avail", "/")
 	if err != nil {
@@ -74,6 +77,7 @@ func vmFreeBytes(ctx context.Context, vmName string) (int64, error) {
 	return parseAvailBytes(output)
 }
 
+// parseAvailBytes extracts the numeric Avail column from df output.
 func parseAvailBytes(output []byte) (int64, error) {
 	for _, line := range strings.Split(string(output), "\n") {
 		line = strings.TrimSpace(line)
@@ -90,6 +94,7 @@ func parseAvailBytes(output []byte) (int64, error) {
 	return 0, fmt.Errorf("parse df output: %q", strings.TrimSpace(string(output)))
 }
 
+// runInVM executes a command inside the named Lima VM via limactl shell.
 func runInVM(ctx context.Context, vmName string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", vmName, "--"}, args...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
@@ -110,6 +115,7 @@ func runInVM(ctx context.Context, vmName string, args ...string) ([]byte, error)
 	return []byte(stdout.String()), nil
 }
 
+// parseHumanSize converts Docker CLI human-readable size strings such as "1.2GB" to bytes.
 func parseHumanSize(value string) (int64, error) {
 	value = strings.TrimSpace(value)
 	if value == "" || value == "0" || value == "0B" {
@@ -141,6 +147,7 @@ func parseHumanSize(value string) (int64, error) {
 	return 0, fmt.Errorf("unknown size format %q", value)
 }
 
+// formatBytes renders a byte count as a short GB or MB string for error messages.
 func formatBytes(bytes int64) string {
 	const gib = 1024 * 1024 * 1024
 	if bytes >= gib {
@@ -151,6 +158,7 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%.0f MB", float64(bytes)/float64(mib))
 }
 
+// bytesToGiB rounds a byte count up to the next whole gibibyte.
 func bytesToGiB(bytes int64) int {
 	const gib = 1024 * 1024 * 1024
 	return int((bytes + gib - 1) / gib)

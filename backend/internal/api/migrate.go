@@ -14,6 +14,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// handleDockerDesktopMigration serves GET and POST /v1/migrate/docker-desktop for status and starting migration.
 func (s *Server) handleDockerDesktopMigration(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -56,6 +57,7 @@ func (s *Server) handleDockerDesktopMigration(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// runDockerDesktopMigration executes the Docker Desktop migration workflow in a background goroutine.
 func (s *Server) runDockerDesktopMigration() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
@@ -105,6 +107,7 @@ func (s *Server) runDockerDesktopMigration() {
 	}
 }
 
+// runNerdctl runs nerdctl inside the Lima VM via limactl shell for migration operations.
 func (s *Server) runNerdctl(ctx context.Context, args ...string) error {
 	vmName := s.cfg.VMName
 	if vmName == "" {

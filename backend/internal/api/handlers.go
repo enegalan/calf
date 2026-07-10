@@ -19,10 +19,12 @@ import (
 	"github.com/enegalan/calf/backend/version"
 )
 
+// hostCPUs returns the number of logical CPUs on the host.
 func hostCPUs() int {
 	return goruntime.NumCPU()
 }
 
+// hostMemoryGB returns total host memory in gigabytes, defaulting to 8 when sysctl is unavailable.
 func hostMemoryGB() int {
 	out, err := exec.Command("sysctl", "-n", "hw.memsize").Output()
 	if err != nil {
@@ -77,6 +79,7 @@ type configUpdateRequest struct {
 	NoProxy              *string `json:"no_proxy,omitempty"`
 }
 
+// handleConfig serves GET /v1/config and PUT /v1/config for reading and updating daemon settings.
 func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -163,6 +166,7 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleHealth serves GET /v1/health with a simple ok status.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -177,6 +181,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, healthResponse{Status: "ok"})
 }
 
+// handleStatus serves GET /v1/status with version, uptime, and runtime state.
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -203,6 +208,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// validateProxyUpdate checks http_proxy, https_proxy, and no_proxy fields in a config update request.
 func validateProxyUpdate(req configUpdateRequest) error {
 	if req.HTTPProxy != nil {
 		v := strings.TrimSpace(*req.HTTPProxy)
@@ -236,6 +242,7 @@ func validateProxyUpdate(req configUpdateRequest) error {
 	return nil
 }
 
+// validateProxyURL ensures raw is a well-formed proxy URL with an allowed scheme and host.
 func validateProxyURL(raw string, allowedSchemes ...string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -264,6 +271,7 @@ func validateProxyURL(raw string, allowedSchemes ...string) error {
 	return nil
 }
 
+// validateNoProxyEntry ensures a single no_proxy entry is a valid hostname or IP without a path.
 func validateNoProxyEntry(entry string) error {
 	if strings.Contains(entry, "/") {
 		return fmt.Errorf("invalid no_proxy entry %q: must not contain a path", entry)
@@ -292,6 +300,7 @@ func validateNoProxyEntry(entry string) error {
 	return fmt.Errorf("invalid no_proxy entry %q: must be a valid hostname or IP address", entry)
 }
 
+// isValidDomain reports whether host is a syntactically valid DNS hostname.
 func isValidDomain(host string) bool {
 	if host == "" || len(host) > 253 {
 		return false
@@ -318,6 +327,7 @@ func isValidDomain(host string) bool {
 	return true
 }
 
+// configResponse builds the JSON payload for GET /v1/config including host capacity and Docker CLI status.
 func (s *Server) configResponse() configResponse {
 	cliStatus, _ := s.dockerCLIStatus()
 

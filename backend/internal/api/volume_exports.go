@@ -13,15 +13,18 @@ import (
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
+// volumeExportStore opens the on-disk store for volume export metadata.
 func (s *Server) volumeExportStore() (*volumeexport.Store, error) {
 	return volumeexport.NewStore()
 }
 
+// writeVolumeStoreError logs err and writes a generic 500 JSON error response.
 func (s *Server) writeVolumeStoreError(w http.ResponseWriter, message string, err error) {
 	s.logger.Error(message, "error", err)
 	writeError(w, http.StatusInternalServerError, message)
 }
 
+// handleVolumeExports routes GET and POST /v1/volumes/{name}/exports.
 func (s *Server) handleVolumeExports(w http.ResponseWriter, r *http.Request, volumeName string) {
 	switch r.Method {
 	case http.MethodGet:
@@ -35,6 +38,7 @@ func (s *Server) handleVolumeExports(w http.ResponseWriter, r *http.Request, vol
 
 const volumeExportTimeout = 30 * time.Minute
 
+// handleVolumeExportsList serves GET /v1/volumes/{name}/exports with past export records.
 func (s *Server) handleVolumeExportsList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := s.volumeExportStore()
 	if err != nil {
@@ -50,6 +54,7 @@ func (s *Server) handleVolumeExportsList(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, exports)
 }
 
+// handleVolumeExportCreate serves POST /v1/volumes/{name}/exports to run a new volume export.
 func (s *Server) handleVolumeExportCreate(w http.ResponseWriter, r *http.Request, volumeName string) {
 	var payload struct {
 		Type     string `json:"type"`
@@ -109,6 +114,7 @@ func (s *Server) handleVolumeExportCreate(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, export)
 }
 
+// handleVolumeExportDownload serves GET /v1/volumes/{name}/exports/{id}/download as a gzip attachment.
 func (s *Server) handleVolumeExportDownload(w http.ResponseWriter, r *http.Request, volumeName, exportID string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)

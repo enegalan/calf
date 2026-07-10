@@ -11,14 +11,17 @@ import (
 const defaultCommandRetries = 4
 const defaultCommandRetryDelay = 200 * time.Millisecond
 
+// runCommand executes a subprocess and returns combined stdout/stderr.
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return runCommandOnce(ctx, "", name, args...)
 }
 
+// runCommandWithStdin executes a subprocess with the given stdin payload.
 func runCommandWithStdin(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
 	return runCommandOnce(ctx, stdin, name, args...)
 }
 
+// runCommandWithRetry re-executes the command on transient failures with exponential backoff.
 func runCommandWithRetry(ctx context.Context, retries int, delay time.Duration, stdin, name string, args ...string) ([]byte, error) {
 	if retries < 0 {
 		retries = 0
@@ -50,6 +53,7 @@ func runCommandWithRetry(ctx context.Context, retries int, delay time.Duration, 
 	return nil, lastErr
 }
 
+// runCommandOnce runs the subprocess once without retries.
 func runCommandOnce(ctx context.Context, stdin, name string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, name, args...)
 	if stdin != "" {

@@ -10,6 +10,8 @@ import (
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
+// exportSchedulerInterval must match volumeexport.ScheduleRunGrace so a
+// once-per-minute tick cannot miss a scheduled export slot.
 const exportSchedulerInterval = time.Minute
 
 type exportScheduler struct {
@@ -23,6 +25,7 @@ type exportScheduler struct {
 	stopOnce  sync.Once
 }
 
+// newExportScheduler creates a background scheduler bound to server for recurring volume exports.
 func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &exportScheduler{
@@ -35,12 +38,14 @@ func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
 	}
 }
 
+// Start launches the export scheduler goroutine exactly once.
 func (s *exportScheduler) Start() {
 	s.startOnce.Do(func() {
 		go s.run()
 	})
 }
 
+// Stop cancels the scheduler and waits for its goroutine to exit.
 func (s *exportScheduler) Stop() {
 	s.stopOnce.Do(func() {
 		s.cancel()
@@ -49,6 +54,7 @@ func (s *exportScheduler) Stop() {
 	})
 }
 
+// run ticks once per minute, checking for due export schedules until stopped.
 func (s *exportScheduler) run() {
 	defer close(s.done)
 
@@ -67,6 +73,7 @@ func (s *exportScheduler) run() {
 	}
 }
 
+// tick evaluates all enabled schedules and runs any that are due.
 func (s *exportScheduler) tick() {
 	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
@@ -108,6 +115,7 @@ func (s *exportScheduler) tick() {
 	}
 }
 
+// runSchedule executes one scheduled export and updates last-run metadata and next run time.
 func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedule volumeexport.Schedule, tickNow time.Time) {
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Minute)
 	defer cancel()

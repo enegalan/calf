@@ -7,6 +7,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// handleVolumes serves GET /v1/volumes and POST /v1/volumes for listing and creating volumes.
 func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -43,6 +44,7 @@ func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleVolumeAction routes /v1/volumes/{name} and subresource paths to the appropriate handler.
 func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -113,6 +115,7 @@ func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleVolumeDetail serves GET /v1/volumes/{name} with volume inspect data.
 func (s *Server) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -133,6 +136,7 @@ func (s *Server) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name
 	writeJSON(w, http.StatusOK, detail)
 }
 
+// handleVolumeFiles serves GET /v1/volumes/{name}/files for directory listing inside the volume.
 func (s *Server) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -154,6 +158,7 @@ func (s *Server) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name 
 	writeJSON(w, http.StatusOK, files)
 }
 
+// handleVolumeContainers serves GET /v1/volumes/{name}/containers listing containers using the volume.
 func (s *Server) handleVolumeContainers(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -174,6 +179,7 @@ func (s *Server) handleVolumeContainers(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, containers)
 }
 
+// handleVolumeClone serves POST /v1/volumes/{name}/clone to duplicate a volume.
 func (s *Server) handleVolumeClone(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)

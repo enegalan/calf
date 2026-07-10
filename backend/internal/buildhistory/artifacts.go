@@ -25,6 +25,7 @@ type ociManifest struct {
 	} `json:"config"`
 }
 
+// BuildArtifacts lists OCI manifest and provenance attachments for a buildx history entry.
 func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]runtime.BuildArtifact, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
@@ -67,6 +68,7 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 	return orderBuildArtifacts(artifacts), nil
 }
 
+// listAttachments queries buildx history inspect for attachment metadata rows.
 func listAttachments(ctx context.Context, socket, historyID string) ([]attachmentRow, error) {
 	output, err := runDocker(
 		ctx,
@@ -85,6 +87,7 @@ func listAttachments(ctx context.Context, socket, historyID string) ([]attachmen
 	return parseAttachmentRows(string(output)), nil
 }
 
+// parseAttachmentRows parses buildx attachment format lines into structured rows.
 func parseAttachmentRows(output string) []attachmentRow {
 	rows := make([]attachmentRow, 0)
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
@@ -115,6 +118,7 @@ func parseAttachmentRows(output string) []attachmentRow {
 	return rows
 }
 
+// manifestArtifacts builds artifact entries from an OCI image manifest attachment body.
 func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform string) ([]runtime.BuildArtifact, error) {
 	output, err := attachmentBody(ctx, socket, historyID, digest)
 	if err != nil {
@@ -140,6 +144,7 @@ func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform 
 	}, nil
 }
 
+// attachmentArtifact builds a single artifact entry from a non-manifest history attachment.
 func attachmentArtifact(
 	ctx context.Context,
 	socket, historyID string,
@@ -161,6 +166,7 @@ func attachmentArtifact(
 	}, nil
 }
 
+// attachmentBody fetches the raw bytes of a buildx history attachment by digest.
 func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]byte, error) {
 	output, err := runDocker(ctx, socket, "buildx", "history", "inspect", "attachment", historyID, digest)
 	if err != nil {
@@ -170,6 +176,7 @@ func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]by
 	return bytesTrim(output), nil
 }
 
+// digestForBytes returns a sha256 content digest prefixed for OCI-style artifact display.
 func digestForBytes(data []byte) string {
 	if len(data) == 0 {
 		return ""
@@ -179,6 +186,7 @@ func digestForBytes(data []byte) string {
 	return "sha256:" + hex.EncodeToString(hash[:])
 }
 
+// orderBuildArtifacts returns artifacts with config and provenance entries first.
 func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtifact {
 	byName := make(map[string]runtime.BuildArtifact, len(artifacts))
 	for _, artifact := range artifacts {
@@ -211,6 +219,7 @@ func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtif
 	return ordered
 }
 
+// platformArch extracts the architecture segment from a docker platform string.
 func platformArch(platform string) string {
 	if platform == "" {
 		return ""
@@ -228,6 +237,7 @@ func platformArch(platform string) string {
 	return platform
 }
 
+// bytesTrim returns command output with surrounding whitespace removed.
 func bytesTrim(output []byte) []byte {
 	return []byte(strings.TrimSpace(string(output)))
 }

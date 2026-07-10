@@ -7,6 +7,7 @@ import 'package:ui/api/client.dart';
 
 enum VolumeQuickExportType { localFile, localImage, newImage, registry }
 
+/// Maps a [VolumeQuickExportType] to its API string value.
 String volumeQuickExportTypeToApi(VolumeQuickExportType type) {
   return switch (type) {
     VolumeQuickExportType.localFile => 'local_file',
@@ -16,6 +17,7 @@ String volumeQuickExportTypeToApi(VolumeQuickExportType type) {
   };
 }
 
+/// Parses an API export type string into a [VolumeQuickExportType].
 VolumeQuickExportType volumeQuickExportTypeFromApi(String value) {
   switch (value) {
     case 'local_image':
@@ -29,14 +31,17 @@ VolumeQuickExportType volumeQuickExportTypeFromApi(String value) {
   }
 }
 
+/// Fetches the image list used by volume export destination pickers.
 Future<List<ImageItem>> loadVolumeExportImages(CalfClient apiClient) {
   return apiClient.fetchImages();
 }
 
+/// Opens a native folder picker for choosing a volume export destination.
 Future<String?> browseVolumeExportFolder() {
   return getDirectoryPath(confirmButtonText: 'Select');
 }
 
+/// Returns a user-friendly message when the folder picker fails.
 String? folderPickerErrorMessage(Object error) {
   if (error is MissingPluginException) {
     return 'Folder picker unavailable. Restart the app and try again. '
@@ -47,6 +52,7 @@ String? folderPickerErrorMessage(Object error) {
 }
 
 class VolumeExportOptionTile extends StatelessWidget {
+  /// Renders a selectable radio-style tile for a volume export option.
   const VolumeExportOptionTile({
     super.key,
     required this.theme,
@@ -64,6 +70,7 @@ class VolumeExportOptionTile extends StatelessWidget {
   final VoidCallback? onSelect;
   final Widget? child;
 
+  /// Builds the selectable export option tile.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -119,6 +126,7 @@ class VolumeExportOptionTile extends StatelessWidget {
 }
 
 class VolumeExportImageRefField extends StatelessWidget {
+  /// Renders an image reference field with dropdown or free-text fallback.
   const VolumeExportImageRefField({
     super.key,
     required this.theme,
@@ -136,6 +144,7 @@ class VolumeExportImageRefField extends StatelessWidget {
   final String? imagesError;
   final VoidCallback onChanged;
 
+  /// Builds the image reference input or dropdown.
   @override
   Widget build(BuildContext context) {
     if (imagesLoading) {
@@ -177,10 +186,12 @@ class VolumeExportImageRefField extends StatelessWidget {
 }
 
 class VolumeExportRegistryNotice extends StatelessWidget {
+  /// Shows a notice that registry export may expose volume data publicly.
   const VolumeExportRegistryNotice({super.key, required this.theme});
 
   final ShadThemeData theme;
 
+  /// Builds the registry export privacy notice.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -207,10 +218,12 @@ class VolumeExportRegistryNotice extends StatelessWidget {
 }
 
 class VolumeExportLocalImageWarning extends StatelessWidget {
+  /// Warns that exporting to a local image overwrites the existing image.
   const VolumeExportLocalImageWarning({super.key, required this.theme});
 
   final ShadThemeData theme;
 
+  /// Builds the local image overwrite warning banner.
   @override
   Widget build(BuildContext context) {
     return Container(

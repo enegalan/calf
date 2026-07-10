@@ -150,6 +150,7 @@ type Runtime interface {
 	ApplyProxy(ctx context.Context, proxy ProxyConfig) error
 }
 
+// New returns the platform-appropriate Runtime implementation.
 func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, proxy)

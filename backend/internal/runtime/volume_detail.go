@@ -20,6 +20,7 @@ type volumeInspectRow struct {
 
 var hostPortPattern = regexp.MustCompile(`:(\d+)->`)
 
+// volumeInspectMetadata returns inspect metadata for a single volume.
 func volumeInspectMetadata(ctx context.Context, run commandRunner, name string) (volumeInspectRow, error) {
 	rows, err := volumeInspectMetadataBatch(ctx, run, []string{name})
 	if err != nil {
@@ -34,6 +35,7 @@ func volumeInspectMetadata(ctx context.Context, run commandRunner, name string) 
 	return row, nil
 }
 
+// volumeInspectMetadataBatch returns inspect metadata for multiple volumes in one nerdctl call.
 func volumeInspectMetadataBatch(ctx context.Context, run commandRunner, names []string) (map[string]volumeInspectRow, error) {
 	rows := make(map[string]volumeInspectRow, len(names))
 	if len(names) == 0 {
@@ -62,6 +64,7 @@ func volumeInspectMetadataBatch(ctx context.Context, run commandRunner, names []
 	return rows, nil
 }
 
+// volumeSizesAtPaths runs du -sh on paths and maps each path to a human-readable size.
 func volumeSizesAtPaths(ctx context.Context, run commandRunner, paths []string) map[string]string {
 	sizes := make(map[string]string, len(paths))
 	if len(paths) == 0 {
@@ -101,6 +104,7 @@ func volumeSizesAtPaths(ctx context.Context, run commandRunner, paths []string) 
 	return sizes
 }
 
+// inspectVolume builds a VolumeDetail from inspect metadata and container usages.
 func inspectVolume(ctx context.Context, run commandRunner, name string) (VolumeDetail, error) {
 	row, err := volumeInspectMetadata(ctx, run, name)
 	if err != nil {
@@ -121,6 +125,7 @@ func inspectVolume(ctx context.Context, run commandRunner, name string) (VolumeD
 	}, nil
 }
 
+// listVolumeFiles lists files inside a volume at the given logical path.
 func listVolumeFiles(ctx context.Context, run commandRunner, name, path string) ([]ContainerFileEntry, error) {
 	if !isValidContainerPath(path) {
 		return nil, fmt.Errorf("invalid path")
@@ -144,6 +149,7 @@ func listVolumeFiles(ctx context.Context, run commandRunner, name, path string) 
 	return ListFilesAtPath(ctx, run, hostPath, logicalPath)
 }
 
+// volumeHostPath maps a volume mountpoint plus logical path to a host filesystem path.
 func volumeHostPath(mountpoint, logicalPath string) string {
 	if logicalPath == "" || logicalPath == "/" {
 		return mountpoint
@@ -152,6 +158,7 @@ func volumeHostPath(mountpoint, logicalPath string) string {
 	return filepath.Join(mountpoint, strings.TrimPrefix(logicalPath, "/"))
 }
 
+// ListFilesAtPath lists directory entries at hostPath, presenting paths relative to logicalPath.
 func ListFilesAtPath(ctx context.Context, run commandRunner, hostPath, logicalPath string) ([]ContainerFileEntry, error) {
 	if logicalPath == "" {
 		logicalPath = "/"
@@ -168,6 +175,7 @@ func ListFilesAtPath(ctx context.Context, run commandRunner, hostPath, logicalPa
 	return parseLsOutput(logicalPath, output), nil
 }
 
+// cloneVolume copies all data from source into a newly created dest volume.
 func cloneVolume(ctx context.Context, run commandRunner, source, dest string) error {
 	source = strings.TrimSpace(source)
 	dest = strings.TrimSpace(dest)
@@ -208,6 +216,7 @@ func cloneVolume(ctx context.Context, run commandRunner, source, dest string) er
 	return nil
 }
 
+// volumeContainerUsages returns containers that mount the named volume.
 func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName string) ([]VolumeContainerUsage, error) {
 	containers, err := listContainers(ctx, run)
 	if err != nil {
@@ -244,6 +253,7 @@ func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName st
 	return usages, nil
 }
 
+// volumeNamesInUse collects volume names referenced by any container.
 func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct{}, error) {
 	containers, err := listContainers(ctx, run)
 	if err != nil {
@@ -294,6 +304,7 @@ func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct
 	return inUse, nil
 }
 
+// volumeMountName returns the volume name from a mount, falling back to Source.
 func volumeMountName(mount ContainerMount) string {
 	if mount.Name != "" {
 		return mount.Name
@@ -302,6 +313,7 @@ func volumeMountName(mount ContainerMount) string {
 	return mount.Source
 }
 
+// enrichVolumesInUse fills InUse, Created, and Size on volume entries and sorts by name.
 func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume) ([]Volume, error) {
 	inUse, err := volumeNamesInUse(ctx, run)
 	if err != nil {
@@ -359,6 +371,7 @@ func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume
 	return volumes, nil
 }
 
+// extractHostPort parses the first host port from a nerdctl ports string.
 func extractHostPort(ports string) string {
 	match := hostPortPattern.FindStringSubmatch(ports)
 	if len(match) < 2 {
@@ -368,6 +381,7 @@ func extractHostPort(ports string) string {
 	return match[1]
 }
 
+// humanizeTime parses an RFC3339 timestamp and returns a relative phrase.
 func humanizeTime(value string) string {
 	if value == "" {
 		return ""
@@ -384,6 +398,7 @@ func humanizeTime(value string) string {
 	return humanizeDuration(time.Since(parsed))
 }
 
+// humanizeDuration formats a duration as a relative past-time phrase.
 func humanizeDuration(duration time.Duration) string {
 	if duration < time.Minute {
 		return "just now"

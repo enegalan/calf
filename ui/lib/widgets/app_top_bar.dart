@@ -15,6 +15,7 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class AppTopBar extends StatelessWidget {
+  /// Renders the app header with branding, settings, and registry sign-in.
   const AppTopBar({
     super.key,
     required this.registryStatus,
@@ -36,10 +37,13 @@ class AppTopBar extends StatelessWidget {
   final Future<void> Function() onSignOut;
   final VoidCallback onOpenWhatsNew;
 
+  /// Whether the user is signed in to Docker Hub.
   bool get _loggedIn => registryStatus?.loggedIn == true;
 
+  /// The signed-in Docker Hub username, if any.
   String get _username => registryStatus?.username ?? '';
 
+  /// The first letter of the username for the avatar, or "?".
   String get _initial {
     final name = _username.trim();
     if (name.isEmpty) {
@@ -48,9 +52,11 @@ class AppTopBar extends StatelessWidget {
     return name[0].toUpperCase();
   }
 
+  /// URL to the Docker Hub account settings page for the signed-in user.
   String get _accountSettingsUrl =>
       'https://app.docker.com/accounts/$_username/settings/account-information';
 
+  /// Builds the top bar with settings and registry controls.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -129,10 +135,12 @@ class AppTopBar extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
+  /// Renders the Calf logo and wordmark.
   const _BrandMark({required this.theme});
 
   final ShadThemeData theme;
 
+  /// Builds the logo and wordmark row.
   @override
   Widget build(BuildContext context) {
     final logoAsset = theme.brightness == Brightness.dark
@@ -160,6 +168,7 @@ class _BrandMark extends StatelessWidget {
 }
 
 class _AccountMenuButton extends StatefulWidget {
+  /// Button that opens the signed-in account popup menu.
   const _AccountMenuButton({
     required this.initial,
     required this.username,
@@ -176,6 +185,7 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback onOpenWhatsNew;
   final Future<void> Function() onSignOut;
 
+  /// Creates the state for the account menu button.
   @override
   State<_AccountMenuButton> createState() => _AccountMenuButtonState();
 }
@@ -183,6 +193,7 @@ class _AccountMenuButton extends StatefulWidget {
 class _AccountMenuButtonState extends State<_AccountMenuButton> {
   final _buttonKey = GlobalKey();
 
+  /// Opens the account popup menu and handles the selected action.
   Future<void> _openMenu() async {
     final buttonContext = _buttonKey.currentContext;
     if (buttonContext == null || !buttonContext.mounted) {
@@ -293,6 +304,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     }
   }
 
+  /// Builds the avatar button that opens the account menu.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -318,6 +330,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
 }
 
 class _AccountMenuRow extends StatelessWidget {
+  /// Renders one icon-and-label row inside the account popup menu.
   const _AccountMenuRow({
     required this.icon,
     required this.label,
@@ -330,6 +343,7 @@ class _AccountMenuRow extends StatelessWidget {
   final Color color;
   final Widget? trailing;
 
+  /// Builds the menu row with icon, label, and optional trailing widget.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -355,6 +369,7 @@ class _AccountMenuRow extends StatelessWidget {
 }
 
 class _UserAvatar extends StatelessWidget {
+  /// Renders a circular avatar showing the user's initial.
   const _UserAvatar({
     required this.initial,
     required this.size,
@@ -365,6 +380,7 @@ class _UserAvatar extends StatelessWidget {
   final double size;
   final ShadThemeData theme;
 
+  /// Builds the circular user initial avatar.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -387,6 +403,7 @@ class _UserAvatar extends StatelessWidget {
   }
 }
 
+/// Shows a modal dialog that polls until Docker Hub browser login completes.
 Future<void> showRegistryLoginDialog({
   required BuildContext context,
   required CalfClient apiClient,
@@ -407,6 +424,7 @@ Future<void> showRegistryLoginDialog({
 }
 
 class _RegistryLoginDialog extends StatefulWidget {
+  /// Dialog that guides the user through Docker Hub browser login.
   const _RegistryLoginDialog({
     required this.apiClient,
     required this.start,
@@ -419,6 +437,7 @@ class _RegistryLoginDialog extends StatefulWidget {
   final ValueChanged<String?> onComplete;
   final ValueChanged<String> onFailed;
 
+  /// Creates the state for the registry login dialog.
   @override
   State<_RegistryLoginDialog> createState() => _RegistryLoginDialogState();
 }
@@ -426,6 +445,7 @@ class _RegistryLoginDialog extends StatefulWidget {
 class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   String? _error;
 
+  /// Opens the verification URL and starts polling for login completion.
   @override
   void initState() {
     super.initState();
@@ -433,6 +453,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     _poll();
   }
 
+  /// Polls the backend until browser login succeeds or fails.
   Future<void> _poll() async {
     while (mounted) {
       await Future<void>.delayed(const Duration(seconds: 2));
@@ -473,14 +494,17 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     }
   }
 
+  /// Reopens the Docker Hub verification page in the browser.
   Future<void> _openLoginPage() async {
     await openExternalUrl(widget.start.verificationUrl);
   }
 
+  /// Copies the device login confirmation code to the clipboard.
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.start.userCode));
   }
 
+  /// Builds the browser login waiting dialog with confirmation code.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -602,6 +626,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   }
 }
 
+/// Shows a dialog listing recent Calf release highlights.
 void showWhatsNewDialog(BuildContext context, String appVersion) {
   final theme = ShadTheme.of(context);
 
@@ -658,6 +683,7 @@ void showWhatsNewDialog(BuildContext context, String appVersion) {
 }
 
 class _ReleaseNote extends StatelessWidget {
+  /// Renders one icon, title, and description row in the What's New dialog.
   const _ReleaseNote({
     required this.theme,
     required this.icon,
@@ -670,6 +696,7 @@ class _ReleaseNote extends StatelessWidget {
   final String title;
   final String description;
 
+  /// Builds one release highlight row with icon and text.
   @override
   Widget build(BuildContext context) {
     return Padding(

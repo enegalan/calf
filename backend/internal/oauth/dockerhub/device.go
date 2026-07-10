@@ -31,6 +31,7 @@ type Client struct {
 	HubURL    string
 }
 
+// NewClient returns a Docker Hub OAuth device-flow client with default endpoints and user agent.
 func NewClient() *Client {
 	return &Client{
 		HTTP:      http.DefaultClient,
@@ -40,6 +41,7 @@ func NewClient() *Client {
 	}
 }
 
+// tenantURL returns the configured OAuth tenant base URL, falling back to the package default.
 func (c *Client) tenantURL() string {
 	if c.TenantURL != "" {
 		return c.TenantURL
@@ -47,6 +49,7 @@ func (c *Client) tenantURL() string {
 	return TenantURL
 }
 
+// hubURL returns the configured Docker Hub API base URL, falling back to the package default.
 func (c *Client) hubURL() string {
 	if c.HubURL != "" {
 		return c.HubURL
@@ -84,6 +87,7 @@ type patGenerateResponse struct {
 	} `json:"data"`
 }
 
+// StartDeviceLogin requests a device authorization code for browser-based Docker Hub sign-in.
 func (c *Client) StartDeviceLogin(ctx context.Context) (DeviceCode, error) {
 	data := url.Values{
 		"client_id": {ClientID},
@@ -113,6 +117,7 @@ func (c *Client) StartDeviceLogin(ctx context.Context) (DeviceCode, error) {
 	return state, nil
 }
 
+// WaitForDeviceToken polls until the user completes browser login or the device code expires.
 func (c *Client) WaitForDeviceToken(ctx context.Context, state DeviceCode) (string, error) {
 	interval := time.Duration(state.Interval) * time.Second
 	if interval <= 0 {
@@ -145,6 +150,7 @@ func (c *Client) WaitForDeviceToken(ctx context.Context, state DeviceCode) (stri
 	}
 }
 
+// pollDeviceToken exchanges a device code for an access token, returning pending when authorization is not finished.
 func (c *Client) pollDeviceToken(ctx context.Context, deviceCode string) (string, bool, error) {
 	data := url.Values{
 		"client_id":   {ClientID},
@@ -180,6 +186,7 @@ func (c *Client) pollDeviceToken(ctx context.Context, deviceCode string) (string
 	return res.AccessToken, false, nil
 }
 
+// GeneratePAT creates a Docker Hub personal access token from a completed OAuth access token.
 func (c *Client) GeneratePAT(ctx context.Context, accessToken string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.hubURL()+"/v2/access-tokens/desktop-generate", nil)
 	if err != nil {
@@ -212,6 +219,7 @@ func (c *Client) GeneratePAT(ctx context.Context, accessToken string) (string, e
 	return response.Data.Token, nil
 }
 
+// UsernameFromAccessToken extracts the Docker Hub username from a JWT access token payload.
 func UsernameFromAccessToken(accessToken string) (string, error) {
 	parts := strings.Split(accessToken, ".")
 	if len(parts) < 2 {
@@ -235,6 +243,7 @@ func UsernameFromAccessToken(accessToken string) (string, error) {
 	return "", errors.New("username not found in access token")
 }
 
+// postForm sends an application/x-www-form-urlencoded POST request.
 func (c *Client) postForm(ctx context.Context, reqURL, body string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(body))
 	if err != nil {
@@ -247,6 +256,7 @@ func (c *Client) postForm(ctx context.Context, reqURL, body string) (*http.Respo
 	return c.HTTP.Do(req)
 }
 
+// decodeOAuthError turns a failed OAuth HTTP response into a user-facing error message.
 func decodeOAuthError(resp *http.Response) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -266,6 +276,7 @@ func decodeOAuthError(resp *http.Response) error {
 	return fmt.Errorf("oauth request failed: %s", resp.Status)
 }
 
+// resetTimer stops and restarts a timer with a new interval, draining a pending tick when needed.
 func resetTimer(t *time.Timer, d time.Duration) {
 	if !t.Stop() {
 		select {

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class RunningFilterSwitch extends StatelessWidget {
+  /// Creates a labeled switch for filtering to running resources only.
   const RunningFilterSwitch({
     super.key,
     required this.value,
@@ -13,6 +14,7 @@ class RunningFilterSwitch extends StatelessWidget {
   final ValueChanged<bool> onChanged;
   final String label;
 
+  /// Builds the switch and [label] in a horizontal row.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);

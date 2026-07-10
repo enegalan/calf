@@ -10,10 +10,12 @@ import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/widgets/status_dot.dart';
 
 class VolumesScreen extends StatefulWidget {
+  /// Creates a screen that lists Docker volumes and supports search and actions.
   const VolumesScreen({super.key, required this.apiClient});
 
   final CalfClient apiClient;
 
+  /// Creates the mutable state for [VolumesScreen].
   @override
   State<VolumesScreen> createState() => _VolumesScreenState();
 }
@@ -29,6 +31,8 @@ class _VolumesScreenState extends State<VolumesScreen> {
   bool _runningOnly = false;
   String? _selectedVolume;
 
+  /// Loads volumes and wires the search field to filter updates.
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -40,12 +44,15 @@ class _VolumesScreenState extends State<VolumesScreen> {
     });
   }
 
+  /// Disposes the search controller.
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
   }
 
+  /// Returns whether two volume lists differ in any displayed field.
   bool _volumesChanged(List<VolumeItem> current, List<VolumeItem> next) {
     if (current.length != next.length) {
       return true;
@@ -66,11 +73,13 @@ class _VolumesScreenState extends State<VolumesScreen> {
     return false;
   }
 
+  /// Returns a copy of [volumes] sorted alphabetically by name.
   List<VolumeItem> _sortedVolumes(List<VolumeItem> volumes) {
     return List<VolumeItem>.from(volumes)
       ..sort((a, b) => a.name.compareTo(b.name));
   }
 
+  /// Fetches runtime status and volumes, optionally skipping the loading indicator.
   Future<void> _loadVolumes({bool silent = false}) async {
     if (_refreshInFlight) {
       return;
@@ -115,14 +124,17 @@ class _VolumesScreenState extends State<VolumesScreen> {
     }
   }
 
+  /// Navigates to the detail view for [volume].
   void _openVolume(VolumeItem volume) {
     setState(() => _selectedVolume = volume.name);
   }
 
+  /// Returns from the volume detail view to the list.
   void _closeVolume() {
     setState(() => _selectedVolume = null);
   }
 
+  /// Returns volumes matching the search query and running-only filter.
   List<VolumeItem> _filteredVolumes() {
     var items = _volumes;
 
@@ -143,6 +155,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
         .toList();
   }
 
+  /// Prompts for a destination name and clones [volume] via the API.
   Future<void> _cloneVolume(VolumeItem volume) async {
     final nameController = TextEditingController(text: '${volume.name}-copy');
     final theme = ShadTheme.of(context);
@@ -172,6 +185,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                 color: theme.colorScheme.mutedForeground,
               ),
             ),
+            /// Creates a [_VolumesScreenState] widget.
             const SizedBox(height: 8),
             ShadInput(
               controller: nameController,
@@ -203,6 +217,8 @@ class _VolumesScreenState extends State<VolumesScreen> {
     }
   }
 
+  /// Builds the volume list or the selected volume detail view.
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_selectedVolume != null) {
@@ -221,16 +237,19 @@ class _VolumesScreenState extends State<VolumesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Volumes', style: theme.textTheme.h3),
+        /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+        /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 12),
         RunningFilterSwitch(
           value: _runningOnly,
           onChanged: (value) => setState(() => _runningOnly = value),
         ),
+        /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
@@ -269,6 +288,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                   child: Row(
                     children: [
                       StatusDot(active: volume.inUse, hollow: !volume.inUse),
+                      /// Creates a [_VolumesScreenState] widget.
                       const SizedBox(width: 10),
                       Expanded(
                         child: Column(
@@ -295,6 +315,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                           ),
                         ),
                       ),
+                      /// Creates a [_VolumesScreenState] widget.
                       const SizedBox(width: 8),
                       CalfButton.outline(
                         onPressed: () async {

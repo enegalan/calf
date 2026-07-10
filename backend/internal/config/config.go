@@ -30,16 +30,19 @@ type Config struct {
 	NoProxy              string `yaml:"no_proxy"`
 }
 
+// Default returns the embedded config.yaml values without reading disk.
 func Default() Config {
 	return defaultFromYAML()
 }
 
+// defaultFromYAML unmarshals the embedded config.yaml template.
 func defaultFromYAML() Config {
 	var cfg Config
 	_ = yaml.Unmarshal(defaultConfigYAML, &cfg)
 	return cfg
 }
 
+// Path returns the absolute path to ~/.config/calf/config.yaml.
 func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -49,6 +52,7 @@ func Path() (string, error) {
 	return filepath.Join(home, ".config", "calf", "config.yaml"), nil
 }
 
+// Load reads config from disk, writing defaults on first run, and backfills zero values.
 func Load() (Config, error) {
 	cfg := Default()
 
@@ -84,6 +88,7 @@ func Load() (Config, error) {
 	return cfg, nil
 }
 
+// Save writes cfg to disk after applying defaults to empty fields.
 func Save(cfg Config) error {
 	path, err := Path()
 	if err != nil {
@@ -104,6 +109,7 @@ func Save(cfg Config) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// withDefaults fills zero or negative fields from embedded defaults so callers never see empty config.
 func withDefaults(cfg Config) Config {
 	defaults := defaultFromYAML()
 

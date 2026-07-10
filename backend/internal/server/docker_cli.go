@@ -10,6 +10,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// StartDockerContextManager periodically ensures the Calf Docker CLI context is active while managed mode is on.
 func (s *Server) StartDockerContextManager(ctx context.Context) {
 	interval := 5 * time.Second
 	ticker := time.NewTicker(interval)
@@ -27,6 +28,7 @@ func (s *Server) StartDockerContextManager(ctx context.Context) {
 	}
 }
 
+// ensureDockerContext activates the Calf docker context when managed mode is enabled and the runtime is ready.
 func (s *Server) ensureDockerContext(ctx context.Context) {
 	s.cfgMu.RLock()
 	managed := s.cfg.DockerContextManaged
@@ -58,6 +60,7 @@ func (s *Server) ensureDockerContext(ctx context.Context) {
 	}
 }
 
+// dockerCLIStatus returns whether the docker CLI is available and using the Calf context.
 func (s *Server) dockerCLIStatus() (dockercli.Status, error) {
 	s.cfgMu.RLock()
 	managed := s.cfg.DockerContextManaged
@@ -66,6 +69,7 @@ func (s *Server) dockerCLIStatus() (dockercli.Status, error) {
 	return dockercli.StatusFor(s.runtime.DockerSocket(), managed)
 }
 
+// activateDockerContext creates or switches to the Calf docker CLI context for the runtime socket.
 func (s *Server) activateDockerContext(ctx context.Context) error {
 	socket := s.runtime.DockerSocket()
 	if socket == "" {

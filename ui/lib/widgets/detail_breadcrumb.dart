@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class DetailBreadcrumb extends StatelessWidget {
+  /// Creates a back button and slash-separated [segments] breadcrumb trail.
   const DetailBreadcrumb({
     super.key,
     required this.segments,
@@ -17,6 +18,7 @@ class DetailBreadcrumb extends StatelessWidget {
   final bool onBackEnabled;
   final Widget? trailing;
 
+  /// Builds the breadcrumb row with optional [trailing] actions.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);

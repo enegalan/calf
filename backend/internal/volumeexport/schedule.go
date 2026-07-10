@@ -42,6 +42,7 @@ type ScheduleStore struct {
 	root string
 }
 
+// NewScheduleStore creates a ScheduleStore rooted at ~/.config/calf/mounts/volume-export-schedules.
 func NewScheduleStore() (*ScheduleStore, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -56,6 +57,7 @@ func NewScheduleStore() (*ScheduleStore, error) {
 	return &ScheduleStore{root: root}, nil
 }
 
+// List returns all export schedules for volumeName, sorted newest first.
 func (s *ScheduleStore) List(volumeName string) ([]Schedule, error) {
 	path := s.volumePath(volumeName)
 	payload, err := os.ReadFile(path)
@@ -83,6 +85,7 @@ func (s *ScheduleStore) List(volumeName string) ([]Schedule, error) {
 	return schedules, nil
 }
 
+// ListAll returns export schedules from every volume file, skipping unreadable entries.
 func (s *ScheduleStore) ListAll() ([]Schedule, error) {
 	entries, err := os.ReadDir(s.root)
 	if err != nil {
@@ -123,6 +126,7 @@ func (s *ScheduleStore) ListAll() ([]Schedule, error) {
 	return schedules, errors.Join(skipped...)
 }
 
+// Get returns the export schedule with id for volumeName.
 func (s *ScheduleStore) Get(volumeName, id string) (Schedule, error) {
 	schedules, err := s.List(volumeName)
 	if err != nil {
@@ -138,6 +142,7 @@ func (s *ScheduleStore) Get(volumeName, id string) (Schedule, error) {
 	return Schedule{}, fmt.Errorf("schedule %s not found", id)
 }
 
+// Save inserts or updates an export schedule and persists it to disk.
 func (s *ScheduleStore) Save(schedule Schedule) error {
 	if strings.TrimSpace(schedule.Volume) == "" {
 		return fmt.Errorf("volume is required")
@@ -170,6 +175,7 @@ func (s *ScheduleStore) Save(schedule Schedule) error {
 	return s.writeVolume(schedule.Volume, schedules)
 }
 
+// Delete removes the export schedule with id from volumeName.
 func (s *ScheduleStore) Delete(volumeName, id string) error {
 	schedules, err := s.List(volumeName)
 	if err != nil {
@@ -198,10 +204,12 @@ func (s *ScheduleStore) Delete(volumeName, id string) error {
 	return s.writeVolume(volumeName, filtered)
 }
 
+// NewID generates a unique schedule identifier for volumeName.
 func (s *ScheduleStore) NewID(volumeName string) string {
 	return fmt.Sprintf("schedule-%s-%d", sanitizeName(volumeName), time.Now().UnixNano())
 }
 
+// writeVolume persists the schedule list for volumeName as JSON.
 func (s *ScheduleStore) writeVolume(volumeName string, schedules []Schedule) error {
 	path := s.volumePath(volumeName)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -220,6 +228,7 @@ func (s *ScheduleStore) writeVolume(volumeName string, schedules []Schedule) err
 	return nil
 }
 
+// volumePath returns the on-disk JSON path for volumeName's schedules.
 func (s *ScheduleStore) volumePath(volumeName string) string {
 	return filepath.Join(s.root, sanitizeName(volumeName)+".json")
 }

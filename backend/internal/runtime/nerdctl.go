@@ -23,10 +23,12 @@ const defaultExecTerm = "xterm-256color"
 
 var logTailLines = strconv.Itoa(constants.LogTailLineCount)
 
+// NerdctlVMArgs prefixes nerdctl arguments with sudo and the VM binary path.
 func NerdctlVMArgs(args ...string) []string {
 	return append([]string{"sudo", NerdctlBin}, args...)
 }
 
+// interactiveExecArgs builds nerdctl exec flags for an interactive shell session.
 func interactiveExecArgs(id string) []string {
 	return []string{
 		"exec",
@@ -57,6 +59,7 @@ type commandRunner func(ctx context.Context, command string, args ...string) ([]
 
 type stdinCommandRunner func(ctx context.Context, stdin, command string, args ...string) ([]byte, error)
 
+// listContainers runs nerdctl ps and parses JSON lines into Container values.
 func listContainers(ctx context.Context, run commandRunner) ([]Container, error) {
 	output, err := run(ctx, "nerdctl", "ps", "-a", "--format", "{{json .}}")
 	if err != nil {
@@ -66,6 +69,7 @@ func listContainers(ctx context.Context, run commandRunner) ([]Container, error)
 	return ParseContainerLines(output)
 }
 
+// listImages runs nerdctl images and parses JSON lines into Image values.
 func listImages(ctx context.Context, run commandRunner) ([]Image, error) {
 	output, err := run(ctx, "nerdctl", "images", "--format", "{{json .}}")
 	if err != nil {
@@ -75,6 +79,7 @@ func listImages(ctx context.Context, run commandRunner) ([]Image, error) {
 	return ParseImageLines(output)
 }
 
+// listVolumes runs nerdctl volume ls and parses JSON lines into Volume values.
 func listVolumes(ctx context.Context, run commandRunner) ([]Volume, error) {
 	output, err := run(ctx, "nerdctl", "volume", "ls", "--format", "{{json .}}")
 	if err != nil {
@@ -84,6 +89,7 @@ func listVolumes(ctx context.Context, run commandRunner) ([]Volume, error) {
 	return ParseVolumeLines(output)
 }
 
+// runBuild runs nerdctl build and enriches the parsed output with image metadata.
 func runBuild(ctx context.Context, run commandRunner, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	args := []string{"build", "--progress=plain", "-t", tag}
 	if dockerfile != "" {
@@ -103,6 +109,7 @@ func runBuild(ctx context.Context, run commandRunner, contextPath, tag, dockerfi
 	return enrichBuildResult(ctx, run, contextPath, dockerfile, tag, platform, result), nil
 }
 
+// runImage starts a detached container from ref and returns its ID.
 func runImage(ctx context.Context, run commandRunner, ref string) (string, error) {
 	output, err := run(ctx, "nerdctl", "run", "-d", ref)
 	if err != nil {
@@ -112,6 +119,7 @@ func runImage(ctx context.Context, run commandRunner, ref string) (string, error
 	return strings.TrimSpace(string(output)), nil
 }
 
+// pushImage runs nerdctl push and wraps auth failures with a helpful hint.
 func pushImage(ctx context.Context, run commandRunner, ref string) error {
 	_, err := run(ctx, "nerdctl", "push", ref)
 	if err != nil {
@@ -121,6 +129,7 @@ func pushImage(ctx context.Context, run commandRunner, ref string) error {
 	return nil
 }
 
+// ParseContainerLines decodes newline-delimited nerdctl ps JSON into containers.
 func ParseContainerLines(output []byte) ([]Container, error) {
 	containers := make([]Container, 0)
 	seen := make(map[string]struct{})
@@ -223,6 +232,7 @@ func parseLabels(raw json.RawMessage) map[string]string {
 	return labels
 }
 
+// ParseImageLines decodes newline-delimited nerdctl images JSON into images.
 func ParseImageLines(output []byte) ([]Image, error) {
 	images := make([]Image, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -260,6 +270,7 @@ type historyLine struct {
 	Size         string `json:"Size"`
 }
 
+// imageHistory runs nerdctl history for ref and returns ordered layers.
 func imageHistory(ctx context.Context, run commandRunner, ref string) ([]ImageLayer, error) {
 	output, err := run(ctx, "nerdctl", "history", "--no-trunc", "--format", "{{json .}}", ref)
 	if err != nil {
@@ -269,6 +280,7 @@ func imageHistory(ctx context.Context, run commandRunner, ref string) ([]ImageLa
 	return ParseImageHistoryLines(output)
 }
 
+// ParseImageHistoryLines decodes nerdctl history JSON into base-to-top layers.
 func ParseImageHistoryLines(output []byte) ([]ImageLayer, error) {
 	entries := make([]historyLine, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -308,6 +320,7 @@ func ParseImageHistoryLines(output []byte) ([]ImageLayer, error) {
 	return layers, nil
 }
 
+// formatLayerCommand normalizes Dockerfile history command text for display.
 func formatLayerCommand(createdBy string) string {
 	createdBy = strings.TrimSpace(createdBy)
 	createdBy = strings.TrimPrefix(createdBy, "/bin/sh -c ")
@@ -325,6 +338,7 @@ type volumeLine struct {
 	Size   string `json:"Size"`
 }
 
+// ParseVolumeLines decodes newline-delimited nerdctl volume ls JSON into volumes.
 func ParseVolumeLines(output []byte) ([]Volume, error) {
 	volumes := make([]Volume, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -356,6 +370,7 @@ func ParseVolumeLines(output []byte) ([]Volume, error) {
 
 var composeNamePattern = regexp.MustCompile(`^(.+)-([^-]+)-(\d+)$`)
 
+// composeFields extracts compose project and service from labels or container name.
 func composeFields(name string, labels map[string]string) (string, string) {
 	if labels != nil {
 		project := labels["com.docker.compose.project"]
@@ -372,6 +387,7 @@ func composeFields(name string, labels map[string]string) (string, string) {
 	return "", ""
 }
 
+// inferComposeProjects fills missing compose metadata using name and image heuristics.
 func inferComposeProjects(containers []Container) {
 	names := make(map[string]struct{}, len(containers))
 	for _, container := range containers {
@@ -414,6 +430,7 @@ func inferComposeProjects(containers []Container) {
 	inferComposeProjectsFromImages(containers)
 }
 
+// sharedNamePrefix finds the longest shared dash-separated prefix among container names.
 func sharedNamePrefix(name string, names map[string]struct{}) string {
 	parts := strings.Split(name, "-")
 	if len(parts) < 2 {
@@ -440,6 +457,7 @@ func sharedNamePrefix(name string, names map[string]struct{}) string {
 	return project
 }
 
+// inferComposeProjectsFromImages assigns compose groups when multiple containers share an image prefix.
 func inferComposeProjectsFromImages(containers []Container) {
 	projectCounts := make(map[string]int)
 	for _, container := range containers {
@@ -468,6 +486,7 @@ func inferComposeProjectsFromImages(containers []Container) {
 	}
 }
 
+// imageComposeFields splits an image repository name into project and service parts.
 func imageComposeFields(image string) (string, string) {
 	repository := imageRepositoryName(image)
 	lastDash := strings.LastIndex(repository, "-")
@@ -478,6 +497,7 @@ func imageComposeFields(image string) (string, string) {
 	return repository[:lastDash], repository[lastDash+1:]
 }
 
+// longestComposePrefix returns the longest name prefix that names another container in the set.
 func longestComposePrefix(name string, names map[string]struct{}) string {
 	var project string
 
@@ -496,6 +516,7 @@ func longestComposePrefix(name string, names map[string]struct{}) string {
 	return project
 }
 
+// composeServiceName derives the compose service name from a container name and project.
 func composeServiceName(name, project string) string {
 	service := strings.TrimPrefix(name, project+"-")
 	if service == "" {
@@ -505,6 +526,7 @@ func composeServiceName(name, project string) string {
 	return service
 }
 
+// containerState normalizes nerdctl State and Status fields into a single state string.
 func containerState(status, state string) string {
 	if state != "" {
 		return strings.ToLower(state)
@@ -525,6 +547,7 @@ func containerState(status, state string) string {
 	}
 }
 
+// streamCommandLogs runs command and streams stdout lines to output until it exits.
 func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(string)) error {
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -561,10 +584,12 @@ func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(strin
 	return waitErr
 }
 
+// logsFollowSince returns an RFC3339Nano timestamp for nerdctl logs --since.
 func logsFollowSince() string {
 	return time.Now().UTC().Format(time.RFC3339Nano)
 }
 
+// emitLogLines sends buffered log text to output, skipping known noise lines.
 func emitLogLines(output func(string), data []byte) {
 	if len(data) == 0 {
 		return
@@ -583,11 +608,13 @@ func emitLogLines(output func(string), data []byte) {
 	}
 }
 
+// streamLogs tails and follows container logs via a local nerdctl subprocess.
 func streamLogs(ctx context.Context, run commandRunner, id string, output func(string)) error {
 	command := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("nerdctl logs -f --tail %s %q", logTailLines, id))
 	return streamCommandLogs(ctx, command, output)
 }
 
+// pipeLines reads reader line by line and forwards non-noise lines to output.
 func pipeLines(reader io.Reader, output func(string)) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
@@ -599,6 +626,7 @@ func pipeLines(reader io.Reader, output func(string)) {
 	}
 }
 
+// isNoiseLogLine reports whether a log line should be filtered from the stream.
 func isNoiseLogLine(line string) bool {
 	switch {
 	case strings.Contains(line, "tail: inotify cannot be used"):

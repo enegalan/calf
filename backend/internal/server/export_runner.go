@@ -16,6 +16,7 @@ type volumeExportRequest struct {
 	ImageRef string
 }
 
+// executeVolumeExport runs a volume export through the runtime and persists the resulting export record.
 func (s *Server) executeVolumeExport(ctx context.Context, volumeName string, request volumeExportRequest) (volumeexport.Export, error) {
 	store, err := s.volumeExportStore()
 	if err != nil {

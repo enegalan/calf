@@ -20,6 +20,7 @@ const _mixedLogColors = [
 ];
 
 class ComposeGroupDetailView extends StatefulWidget {
+  /// Creates a [ComposeGroupDetailView] widget.
   const ComposeGroupDetailView({
     super.key,
     required this.project,
@@ -37,6 +38,7 @@ class ComposeGroupDetailView extends StatefulWidget {
   final Future<void> Function() onChanged;
   final void Function(ContainerItem container) onOpenContainer;
 
+  /// Creates the mutable state for [ComposeGroupDetailView].
   @override
   State<ComposeGroupDetailView> createState() => _ComposeGroupDetailViewState();
 }
@@ -51,6 +53,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   String? _error;
   bool _busy = false;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -60,6 +63,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     _syncMixedLogs();
   }
 
+  /// Refreshes local state when the parent widget changes.
   @override
   void didUpdateWidget(covariant ComposeGroupDetailView oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -80,6 +84,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _stopMixedLogs();
@@ -87,6 +92,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     super.dispose();
   }
 
+  /// Assigns display colors to child containers.
   void _assignColors() {
     _containerColors.clear();
     for (var index = 0; index < _containers.length; index++) {
@@ -95,6 +101,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
+  /// Stops background polling or streaming work.
   void _stopMixedLogs() {
     for (final subscription in _logSubscriptions.values) {
       subscription.cancel();
@@ -103,6 +110,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     _subscribedContainerIds.clear();
   }
 
+  /// Synchronizes subscriptions with currently running containers.
   void _syncMixedLogs() {
     final running = _containers
         .where((container) => container.isRunning)
@@ -138,6 +146,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
+  /// Appends a value to the rolling history buffer.
   void _appendLogLine(ContainerItem container, Color color, String line) {
     if (!mounted) {
       return;
@@ -173,6 +182,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
   }
 
+  /// Runs the given async action and refreshes the list on success.
   Future<bool> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
@@ -199,6 +209,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
+  /// Runs an action across compose group containers, filtered by running state.
   Future<bool> _runGroupAction(
     Future<void> Function(String id) action, {
     bool runningOnly = false,
@@ -217,6 +228,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -237,6 +249,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Containers', style: theme.textTheme.muted),
             Text(' / ', style: theme.textTheme.muted),
@@ -245,6 +258,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               size: 20,
               color: theme.colorScheme.primary,
             ),
+            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -275,6 +289,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton(
               enabled: !_busy && running < _containers.length,
@@ -291,6 +306,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.primaryForeground,
               ),
             ),
+            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton.destructive(
               enabled: !_busy,
@@ -312,6 +328,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
           ],
         ),
         if (_error != null) ...[
+          /// Creates a [_ComposeGroupDetailViewState] widget.
           const SizedBox(height: 12),
           Text(
             _error!,
@@ -320,6 +337,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             ),
           ),
         ],
+        /// Creates a [_ComposeGroupDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
           child: Row(
@@ -342,6 +360,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   busy: _busy,
                 ),
               ),
+              /// Creates a [_ComposeGroupDetailViewState] widget.
               const SizedBox(width: 16),
               Expanded(
                 child: MixedLogsPanel(
@@ -360,6 +379,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
 }
 
 class _ComposeContainerList extends StatelessWidget {
+  /// Creates a [_ComposeContainerList] widget.
   const _ComposeContainerList({
     required this.theme,
     required this.containers,
@@ -382,6 +402,7 @@ class _ComposeContainerList extends StatelessWidget {
   final void Function(int port) onOpenPort;
   final bool busy;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -412,6 +433,7 @@ class _ComposeContainerList extends StatelessWidget {
 }
 
 class _ComposeContainerRow extends StatelessWidget {
+  /// Creates a [_ComposeContainerRow] widget.
   const _ComposeContainerRow({
     required this.theme,
     required this.container,
@@ -434,6 +456,7 @@ class _ComposeContainerRow extends StatelessWidget {
   final void Function(int port) onOpenPort;
   final bool busy;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final port = container.primaryHostPort;
@@ -458,12 +481,14 @@ class _ComposeContainerRow extends StatelessWidget {
                   : Border.all(color: theme.colorScheme.mutedForeground),
             ),
           ),
+          /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Icon(
             LucideIcons.box,
             size: 18,
             color: theme.colorScheme.mutedForeground,
           ),
+          /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Expanded(
             child: GestureDetector(
@@ -485,6 +510,7 @@ class _ComposeContainerRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (port != null) ...[
+                    /// Creates a [_ComposeContainerRow] widget.
                     const SizedBox(height: 4),
                     GestureDetector(
                       onTap: () => onOpenPort(port),
@@ -527,6 +553,7 @@ class _ComposeContainerRow extends StatelessWidget {
 }
 
 class _ComposeActionIcon extends StatelessWidget {
+  /// Creates a [_ComposeActionIcon] widget.
   const _ComposeActionIcon({
     required this.icon,
     required this.tooltip,
@@ -539,6 +566,7 @@ class _ComposeActionIcon extends StatelessWidget {
   final VoidCallback onPressed;
   final bool enabled;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Tooltip(

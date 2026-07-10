@@ -3,6 +3,7 @@ import 'package:ui/storage/calf_ui_storage.dart';
 import 'package:ui/updates/update_info.dart';
 
 class UpdatePreferencesData {
+  /// Creates cached update-check preference data.
   const UpdatePreferencesData({
     this.lastCheckAt,
     this.skippedVersion = '',
@@ -15,6 +16,7 @@ class UpdatePreferencesData {
 }
 
 class UpdatePreferences {
+  /// Loads update-check cache and skipped-version preferences from disk.
   static Future<UpdatePreferencesData> load() async {
     final raw = await CalfUiStorage.readMap(CalfStorageFiles.updates);
     if (raw == null) {
@@ -41,6 +43,7 @@ class UpdatePreferences {
     );
   }
 
+  /// Persists the result of an update check at [checkedAt].
   static Future<void> saveCheckResult({
     required DateTime checkedAt,
     required UpdateInfo? latest,
@@ -55,6 +58,7 @@ class UpdatePreferences {
     );
   }
 
+  /// Records [version] as skipped so update prompts are suppressed.
   static Future<void> saveSkippedVersion(String version) async {
     final current = await load();
     await _save(
@@ -66,6 +70,7 @@ class UpdatePreferences {
     );
   }
 
+  /// Writes [data] to the updates preference file.
   static Future<void> _save(UpdatePreferencesData data) async {
     await CalfUiStorage.writeMap(CalfStorageFiles.updates, {
       if (data.lastCheckAt != null)
@@ -82,6 +87,7 @@ class UpdatePreferences {
     });
   }
 
+  /// Parses a cached [UpdateInfo] from stored JSON, or null when invalid.
   static UpdateInfo? _parseCachedUpdate(Map<String, dynamic> raw) {
     final version = raw['version'];
     final downloadUrl = raw['download_url'];

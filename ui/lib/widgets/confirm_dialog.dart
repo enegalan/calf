@@ -3,6 +3,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/widgets/calf_button.dart';
 
+/// Shows a confirmation dialog and returns true when the user confirms.
 Future<bool> confirmDialog(
   BuildContext context, {
   required String title,

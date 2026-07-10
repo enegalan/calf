@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/widgets/error_text.dart';
 
 class ResourceListScaffold extends StatelessWidget {
+  /// Lays out a searchable resource list with loading, error, and empty states.
   const ResourceListScaffold({
     super.key,
     required this.title,
@@ -33,6 +34,7 @@ class ResourceListScaffold extends StatelessWidget {
   final Widget? headerActions;
   final bool errorAllowsList;
 
+  /// Builds the list scaffold with search, filter, and content area.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);

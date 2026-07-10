@@ -349,7 +349,7 @@ Release (`.github/workflows/release.yml`):
 ## Conventions
 
 - **Language: English only.** All code, identifiers, UI strings, comments, commit messages, and documentation must be written in English — no exceptions.
-- **Comments:** English only, and only where the *why* isn't obvious from the code itself. Do not restate what the code already says.
+- **Comments:** English only. Every function and method must have a doc comment (Go: `//` immediately above the declaration; Dart: `///`). State what it does; add the *why* when it is not obvious from the signature or body. A single line is enough for small helpers — omitting comments on functions is not allowed. Do not restate parameter names or types that are already clear from the signature.
 - **Fix root causes, not symptoms.** When you encounter a bug or a design problem, find and eliminate or replace the underlying cause. Do not apply superficial patches, workarounds, or defensive band-aids that mask the real issue — this includes silently swallowing errors, adding retries around a fundamentally broken call, or special-casing a symptom instead of fixing the source.
 - **Commit style:** conventional-commit-like prefixes (`feat:`, `fix:`, `refactor:`, `chore:`), occasionally scoped (`fix(ui):`, `feat(runtime):`).
 - **CHANGELOG:** entries must describe changes in user-facing terms — no implementation details, library names, file paths, or protocol jargon. Write what changed from the user's perspective, not how it was built.

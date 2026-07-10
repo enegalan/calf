@@ -16,6 +16,7 @@ type File struct {
 	Seq    int             `json:"seq"`
 }
 
+// Path returns the on-disk location of the persisted build history file.
 func Path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -25,6 +26,7 @@ func Path() (string, error) {
 	return filepath.Join(home, ".config", "calf", "builds.json"), nil
 }
 
+// Load reads the build history file, returning an empty file when it does not exist.
 func Load() (File, error) {
 	path, err := Path()
 	if err != nil {
@@ -52,6 +54,7 @@ func Load() (File, error) {
 	return file, nil
 }
 
+// Save atomically writes the build list and sequence counter to disk.
 func Save(builds []runtime.Build, seq int) error {
 	path, err := Path()
 	if err != nil {

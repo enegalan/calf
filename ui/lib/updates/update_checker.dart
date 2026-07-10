@@ -12,10 +12,12 @@ const _checkInterval = Duration(hours: 24);
 const _requestTimeout = Duration(seconds: 15);
 
 class UpdateChecker {
+  /// Creates a checker that queries GitHub for the latest Calf release.
   UpdateChecker({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
 
+  /// Compares two semantic version strings; returns negative if [left] is older.
   static int compareVersions(String left, String right) {
     final leftParts = _parseVersionParts(left);
     final rightParts = _parseVersionParts(right);
@@ -31,6 +33,7 @@ class UpdateChecker {
     return 0;
   }
 
+  /// Strips a leading "v" from a Git tag name.
   static String normalizeTagName(String tagName) {
     final trimmed = tagName.trim();
     if (trimmed.startsWith('v') || trimmed.startsWith('V')) {
@@ -39,6 +42,7 @@ class UpdateChecker {
     return trimmed;
   }
 
+  /// Returns platform-specific installer asset filenames for [version].
   static List<String> preferredAssetNames(String version) {
     if (Platform.isMacOS) {
       return ['Calf-$version.dmg', 'Calf-$version.pkg'];
@@ -59,6 +63,7 @@ class UpdateChecker {
     return const [];
   }
 
+  /// Parses a GitHub release JSON object into [UpdateInfo], or null if invalid.
   static UpdateInfo? parseReleaseJson(Map<String, dynamic> json) {
     final tagName = json['tag_name'];
     if (tagName is! String || tagName.isEmpty) {
@@ -90,6 +95,7 @@ class UpdateChecker {
     );
   }
 
+  /// Checks GitHub for a newer release, using cached results when recent.
   Future<UpdateCheckResult> check({
     required String currentVersion,
     bool force = false,
@@ -183,12 +189,14 @@ class UpdateChecker {
     }
   }
 
+  /// Closes the underlying HTTP client.
   void close() {
     _client.close();
   }
 
   static final RegExp _versionPrefixPattern = RegExp(r'^\d+');
 
+  /// Splits [version] into up to three numeric parts for comparison.
   static List<int> _parseVersionParts(String version) {
     final normalized = normalizeTagName(version);
     final parts = normalized.split('.');
@@ -209,6 +217,7 @@ class UpdateChecker {
     return values;
   }
 
+  /// Builds an [UpdateCheckResult] from cached release data and skip state.
   static UpdateCheckResult _resultFromCache({
     required String currentVersion,
     required UpdateInfo latest,
@@ -236,6 +245,7 @@ class UpdateChecker {
     );
   }
 
+  /// Picks the first matching platform installer URL from [assets].
   static String? _selectDownloadUrl(String version, List<dynamic> assets) {
     final preferredNames = preferredAssetNames(version);
     final assetByName = <String, String>{};

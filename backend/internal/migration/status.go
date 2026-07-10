@@ -30,6 +30,7 @@ type Status struct {
 	Summary  Summary `json:"summary"`
 }
 
+// IdleStatus returns the default migration status shown before a run starts.
 func IdleStatus() Status {
 	return Status{Phase: PhaseIdle, Step: "idle", Message: "Ready to migrate"}
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// Logs fetches the build log text for a buildx history entry.
 func Logs(ctx context.Context, socket, historyID string) (string, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {

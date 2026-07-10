@@ -21,6 +21,7 @@ import 'package:ui/widgets/hover_list_row.dart';
 enum _BuildDetailTab { info, source, logs, history }
 
 class BuildDetailView extends StatefulWidget {
+  /// Creates a [BuildDetailView] widget.
   const BuildDetailView({
     super.key,
     required this.buildId,
@@ -34,6 +35,7 @@ class BuildDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<String>? onOpenBuild;
 
+  /// Creates the mutable state for [BuildDetailView].
   @override
   State<BuildDetailView> createState() => _BuildDetailViewState();
 }
@@ -56,12 +58,14 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   final Set<int> _expandedSteps = {};
   bool _plainLogs = false;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
     _loadDetail();
   }
 
+  /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
     setState(() {
       _detailLoading = true;
@@ -94,6 +98,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches Source from the API and updates state.
   Future<void> _loadSource() async {
     setState(() {
       _sourceLoading = true;
@@ -120,6 +125,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches build history for the current tag from the API.
   Future<void> _loadHistory({String? tagOverride}) async {
     final tag = tagOverride ?? _detail?.tag;
     if (tag == null || tag.isEmpty) {
@@ -156,6 +162,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches Logs from the API and updates state.
   Future<void> _loadLogs() async {
     final detail = _detail;
     if (detail != null &&
@@ -194,6 +201,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Switches the active tab and loads tab-specific data.
   void _selectTab(_BuildDetailTab tab) {
     if (_tab == tab) {
       return;
@@ -211,10 +219,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Copies [value] to the system clipboard.
   Future<void> _copyText(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -227,6 +237,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
           segments: ['Builds', detail?.tag ?? widget.buildId],
           onBack: widget.onBack,
         ),
+        /// Creates a [_BuildDetailViewState] widget.
         const SizedBox(height: 12),
         if (_detailLoading)
           Text('Loading...', style: theme.textTheme.muted)
@@ -246,10 +257,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(detail.tag, style: theme.textTheme.h3),
+                    /// Creates a [_BuildDetailViewState] widget.
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Text(detail.id, style: theme.textTheme.muted),
+                        /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
                         CalfButton.ghost(
                           padding: const EdgeInsets.all(4),
@@ -271,12 +284,14 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                 value: _statusLabel(detail.status),
                 color: _statusColor(detail.status, theme),
               ),
+              /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
               _SummaryColumn(
                 theme: theme,
                 label: 'Duration',
                 value: _formatDuration(detail.durationMs),
               ),
+              /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
               _SummaryColumn(
                 theme: theme,
@@ -286,6 +301,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
               ),
             ],
           ),
+          /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
           CalfTabBar(
             theme: theme,
@@ -294,6 +310,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
             labelStyle: theme.textTheme.large,
             onSelected: (index) => _selectTab(_BuildDetailTab.values[index]),
           ),
+          /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
           Expanded(child: _buildTabContent(theme, detail)),
         ],
@@ -301,6 +318,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     );
   }
 
+  /// Builds the widget for the currently selected tab.
   Widget _buildTabContent(ShadThemeData theme, BuildDetail detail) {
     switch (_tab) {
       case _BuildDetailTab.info:
@@ -354,6 +372,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
 }
 
 class _SummaryColumn extends StatelessWidget {
+  /// Creates a [_SummaryColumn] widget.
   const _SummaryColumn({
     required this.theme,
     required this.label,
@@ -368,6 +387,7 @@ class _SummaryColumn extends StatelessWidget {
   final Color? color;
   final bool link;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -379,6 +399,7 @@ class _SummaryColumn extends StatelessWidget {
             color: theme.colorScheme.mutedForeground,
           ),
         ),
+        /// Creates a [_SummaryColumn] widget.
         const SizedBox(height: 4),
         Text(
           value,
@@ -396,6 +417,7 @@ class _SummaryColumn extends StatelessWidget {
 }
 
 class _InfoTab extends StatelessWidget {
+  /// Creates a [_InfoTab] widget.
   const _InfoTab({
     required this.theme,
     required this.detail,
@@ -410,6 +432,7 @@ class _InfoTab extends StatelessWidget {
   final ValueChanged<String> onPlatformChanged;
   final Future<void> Function(String value) onCopy;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final platforms = <String>{
@@ -459,8 +482,10 @@ class _InfoTab extends StatelessWidget {
         ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
         _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 12),
         _TimingCharts(
           theme: theme,
@@ -469,6 +494,7 @@ class _InfoTab extends StatelessWidget {
           cachedSteps: detail.cachedSteps,
           totalSteps: detail.totalSteps,
         ),
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Dependencies'),
         _DataTable(
@@ -479,6 +505,7 @@ class _InfoTab extends StatelessWidget {
               .toList(),
           onCopy: onCopy,
         ),
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build results'),
         _DataTable(
@@ -490,6 +517,7 @@ class _InfoTab extends StatelessWidget {
               .toList(),
           onCopy: onCopy,
         ),
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Tags'),
         _DataTable(
@@ -504,6 +532,7 @@ class _InfoTab extends StatelessWidget {
 }
 
 class _PlatformFilter extends StatelessWidget {
+  /// Creates a [_PlatformFilter] widget.
   const _PlatformFilter({
     required this.theme,
     required this.value,
@@ -516,12 +545,14 @@ class _PlatformFilter extends StatelessWidget {
   final List<String> options;
   final ValueChanged<String> onChanged;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('Filter by platform', style: theme.textTheme.small),
+        /// Creates a [_PlatformFilter] widget.
         const SizedBox(width: 8),
         CalfButton.outline(
           onPressed: () async {
@@ -556,6 +587,7 @@ class _PlatformFilter extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(value, style: theme.textTheme.small),
+              /// Creates a [_PlatformFilter] widget.
               const SizedBox(width: 4),
               Icon(
                 LucideIcons.chevronDown,
@@ -571,6 +603,7 @@ class _PlatformFilter extends StatelessWidget {
 }
 
 class _TimingCharts extends StatelessWidget {
+  /// Creates a [_TimingCharts] widget.
   const _TimingCharts({
     required this.theme,
     required this.timing,
@@ -585,6 +618,7 @@ class _TimingCharts extends StatelessWidget {
   final int cachedSteps;
   final int totalSteps;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final realTime = _timingSlices(timing);
@@ -641,6 +675,7 @@ class _TimingCharts extends StatelessWidget {
             _TimingSlice(
               'Active',
               activeMs > 0 ? activeMs.toDouble() : 1,
+              /// Creates a [_TimingCharts] widget.
               const Color(0xFF3B82F6),
             ),
             _TimingSlice(
@@ -655,31 +690,37 @@ class _TimingCharts extends StatelessWidget {
     );
   }
 
+  /// Builds timing slices for the build-duration chart.
   List<_TimingSlice> _timingSlices(BuildTiming timing) {
     return [
       _TimingSlice(
         'Local file transfers',
         timing.localTransfersMs.toDouble(),
+        /// Creates a [_TimingCharts] widget.
         const Color(0xFF166534),
       ),
       _TimingSlice(
         'Image pulls',
         timing.imagePullsMs.toDouble(),
+        /// Creates a [_TimingCharts] widget.
         const Color(0xFF4ADE80),
       ),
       _TimingSlice(
         'Executions',
         timing.executionsMs.toDouble(),
+        /// Creates a [_TimingCharts] widget.
         const Color(0xFF3B82F6),
       ),
       _TimingSlice(
         'File operations',
         timing.fileOperationsMs.toDouble(),
+        /// Creates a [_TimingCharts] widget.
         const Color(0xFFEF4444),
       ),
       _TimingSlice(
         'Result exports',
         timing.resultExportsMs.toDouble(),
+        /// Creates a [_TimingCharts] widget.
         const Color(0xFFA855F7),
       ),
       _TimingSlice(
@@ -692,6 +733,7 @@ class _TimingCharts extends StatelessWidget {
 }
 
 class _TimingSlice {
+  /// Creates a [_TimingSlice] widget.
   const _TimingSlice(this.label, this.value, this.color);
 
   final String label;
@@ -700,6 +742,7 @@ class _TimingSlice {
 }
 
 class _TimingChartCard extends StatefulWidget {
+  /// Creates a [_TimingChartCard] widget.
   const _TimingChartCard({
     required this.theme,
     required this.title,
@@ -712,6 +755,7 @@ class _TimingChartCard extends StatefulWidget {
   final List<_TimingSlice> slices;
   final String Function(double value) formatValue;
 
+  /// Creates the mutable state for [_TimingChartCard].
   @override
   State<_TimingChartCard> createState() => _TimingChartCardState();
 }
@@ -719,6 +763,7 @@ class _TimingChartCard extends StatefulWidget {
 class _TimingChartCardState extends State<_TimingChartCard> {
   int? _touchedIndex;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final total = widget.slices.fold<double>(
@@ -750,6 +795,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
               fontWeight: FontWeight.w600,
             ),
           ),
+          /// Creates a [_TimingChartCardState] widget.
           const SizedBox(height: 8),
           Expanded(
             child: total <= 0
@@ -829,6 +875,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                                /// Creates a [_TimingChartCardState] widget.
                                 const SizedBox(height: 2),
                                 Text(
                                   '${widget.formatValue(touchedSlice.value)} ($touchedPercent%)',
@@ -848,6 +895,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
 }
 
 class _SectionHeader extends StatelessWidget {
+  /// Creates a [_SectionHeader] widget.
   const _SectionHeader({
     required this.theme,
     required this.title,
@@ -858,6 +906,7 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -880,6 +929,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
+  /// Creates a [_InfoRow] widget.
   const _InfoRow({
     required this.theme,
     required this.label,
@@ -892,6 +942,7 @@ class _InfoRow extends StatelessWidget {
   final String value;
   final bool link;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (value.isEmpty) {
@@ -922,6 +973,7 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _DataTable extends StatelessWidget {
+  /// Creates a [_DataTable] widget.
   const _DataTable({
     required this.theme,
     required this.columns,
@@ -936,6 +988,7 @@ class _DataTable extends StatelessWidget {
   final Future<void> Function(String value) onCopy;
   final int? copyColumnIndex;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
@@ -956,9 +1009,11 @@ class _DataTable extends StatelessWidget {
                 ),
               ),
             ],
+            /// Creates a [_DataTable] widget.
             const SizedBox(width: 32),
           ],
         ),
+        /// Creates a [_DataTable] widget.
         const SizedBox(height: 8),
         for (final row in rows)
           Padding(
@@ -1005,6 +1060,7 @@ class _DataTable extends StatelessWidget {
 }
 
 class _SourceTab extends StatelessWidget {
+  /// Creates a [_SourceTab] widget.
   const _SourceTab({
     required this.theme,
     required this.loading,
@@ -1019,6 +1075,7 @@ class _SourceTab extends StatelessWidget {
   final BuildSource? source;
   final BuildDetail detail;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -1044,15 +1101,18 @@ class _SourceTab extends StatelessWidget {
               size: 16,
               color: theme.colorScheme.foreground,
             ),
+            /// Creates a [_SourceTab] widget.
             const SizedBox(width: 8),
             Text(
               source?.filename ?? detail.dockerfile,
               style: theme.textTheme.large,
             ),
+            /// Creates a [_SourceTab] widget.
             const SizedBox(width: 12),
             Text(_platformArch(detail.platform), style: theme.textTheme.muted),
           ],
         ),
+        /// Creates a [_SourceTab] widget.
         const SizedBox(height: 12),
         Expanded(
           child: Container(
@@ -1080,6 +1140,7 @@ class _SourceTab extends StatelessWidget {
 }
 
 class _LogsTab extends StatelessWidget {
+  /// Creates a [_LogsTab] widget.
   const _LogsTab({
     required this.theme,
     required this.detail,
@@ -1104,6 +1165,7 @@ class _LogsTab extends StatelessWidget {
   final ValueChanged<bool> onTogglePlain;
   final ValueChanged<int> onToggleStep;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -1136,6 +1198,7 @@ class _LogsTab extends StatelessWidget {
             onPressed: () => onTogglePlain(false),
             child: Text('Step view', style: theme.textTheme.small),
           ),
+          /// Creates a [_LogsTab] widget.
           const SizedBox(height: 8),
           Expanded(
             child: Container(
@@ -1174,6 +1237,7 @@ class _LogsTab extends StatelessWidget {
             ),
           ],
         ),
+        /// Creates a [_LogsTab] widget.
         const SizedBox(height: 8),
         Expanded(
           child: ListView.builder(
@@ -1201,6 +1265,7 @@ class _LogsTab extends StatelessWidget {
                       child: Row(
                         children: [
                           _StepBadge(theme: theme, label: badge),
+                          /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -1229,6 +1294,7 @@ class _LogsTab extends StatelessWidget {
                                 ),
                               ),
                             ),
+                          /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Text(
                             _formatDuration(step.durationMs),
@@ -1288,11 +1354,13 @@ class _LogsTab extends StatelessWidget {
 }
 
 class _StepBadge extends StatelessWidget {
+  /// Creates a [_StepBadge] widget.
   const _StepBadge({required this.theme, required this.label});
 
   final ShadThemeData theme;
   final String label;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1307,6 +1375,7 @@ class _StepBadge extends StatelessWidget {
 }
 
 class _HistoryTab extends StatelessWidget {
+  /// Creates a [_HistoryTab] widget.
   const _HistoryTab({
     required this.theme,
     required this.loading,
@@ -1323,6 +1392,7 @@ class _HistoryTab extends StatelessWidget {
   final String currentId;
   final ValueChanged<String>? onOpenBuild;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -1350,11 +1420,13 @@ class _HistoryTab extends StatelessWidget {
           'Build history',
           style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
         ),
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
           style: theme.textTheme.muted,
         ),
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         SizedBox(
           height: 220,
@@ -1440,11 +1512,13 @@ class _HistoryTab extends StatelessWidget {
                   ),
                 ),
         ),
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 24),
         Text(
           'Past builds',
           style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
         ),
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         if (history.isEmpty)
           Text('No builds found for this image.', style: theme.textTheme.muted)
@@ -1467,21 +1541,25 @@ class _HistoryTab extends StatelessWidget {
                     ),
                   ),
                   Text(item.builder, style: theme.textTheme.muted),
+                  /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _platformArch(item.platform),
                     style: theme.textTheme.muted,
                   ),
+                  /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     '${item.cachedSteps}/${item.totalSteps}',
                     style: theme.textTheme.muted,
                   ),
+                  /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _formatDuration(item.durationMs),
                     style: theme.textTheme.muted,
                   ),
+                  /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(item.createdAt, style: theme.textTheme.muted),
                 ],
@@ -1492,6 +1570,7 @@ class _HistoryTab extends StatelessWidget {
   }
 }
 
+/// Returns the display label or color for a status value.
 String _statusLabel(String status) {
   switch (status) {
     case 'success':
@@ -1505,6 +1584,7 @@ String _statusLabel(String status) {
   }
 }
 
+/// Returns the display label or color for a status value.
 Color _statusColor(String status, ShadThemeData theme) {
   switch (status) {
     case 'success':
@@ -1518,6 +1598,7 @@ Color _statusColor(String status, ShadThemeData theme) {
   }
 }
 
+/// Formats the value for display.
 String _formatDuration(int durationMs) {
   if (durationMs <= 0) {
     return '0.0s';
@@ -1533,6 +1614,7 @@ String _formatDuration(int durationMs) {
   return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }
 
+/// Extracts the architecture portion from a platform string.
 String _platformArch(String platform) {
   final parts = platform.split('/');
   if (parts.length == 2) {
@@ -1542,6 +1624,7 @@ String _platformArch(String platform) {
   return platform;
 }
 
+/// Normalizes values for chart rendering.
 List<FlSpot> _normalizedHistorySpots(List<double> values) {
   if (values.isEmpty) {
     return const [];
@@ -1558,6 +1641,7 @@ List<FlSpot> _normalizedHistorySpots(List<double> values) {
   return _historySpots(normalized);
 }
 
+/// Converts history values into chart data points.
 List<FlSpot> _historySpots(List<double> values) {
   if (values.isEmpty) {
     return const [];

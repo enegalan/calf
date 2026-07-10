@@ -11,10 +11,12 @@ import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 
 class ImagesScreen extends StatefulWidget {
+  /// Creates a [ImagesScreen] widget.
   const ImagesScreen({super.key, required this.apiClient});
 
   final CalfClient apiClient;
 
+  /// Creates the mutable state for [ImagesScreen].
   @override
   State<ImagesScreen> createState() => _ImagesScreenState();
 }
@@ -31,6 +33,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   bool _layersLoading = false;
   String? _layersError;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -43,6 +46,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     });
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     disposePollInterval();
@@ -50,6 +54,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     super.dispose();
   }
 
+  /// Fetches images from the API, optionally skipping the loading indicator.
   Future<void> _loadImages({bool silent = false}) async {
     if (!silent) {
       setState(() {
@@ -82,6 +87,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     }
   }
 
+  /// Navigates to or opens the selected image.
   Future<void> _openImage(ImageItem image) async {
     setState(() {
       _selectedImage = image;
@@ -110,6 +116,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     }
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeImage() {
     setState(() {
       _selectedImage = null;
@@ -119,6 +126,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     });
   }
 
+  /// Removes the selected resource via the API.
   Future<void> _removeImage(ImageItem image) async {
     await widget.apiClient.removeImage(image.reference);
     if (_selectedImage?.id == image.id) {
@@ -127,11 +135,13 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     await _loadImages();
   }
 
+  /// Runs the given async action and refreshes the list on success.
   Future<void> _runImage(ImageItem image) async {
     await widget.apiClient.runImage(image.reference);
     await _loadImages();
   }
 
+  /// Pulls the image from its registry via the API.
   Future<void> _pullImage(ImageItem image) async {
     await widget.apiClient.pullImage(image.reference);
     await _loadImages();
@@ -140,10 +150,12 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     }
   }
 
+  /// Pushes the image to Docker Hub via the API.
   Future<void> _pushImage(ImageItem image) async {
     await widget.apiClient.pushImage(image.reference);
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_selectedImage != null) {
@@ -176,11 +188,13 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Images', style: theme.textTheme.h3),
+        /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+        /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
@@ -241,6 +255,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
 }
 
 class _ImageDetailView extends StatefulWidget {
+  /// Creates a [_ImageDetailView] widget.
   const _ImageDetailView({
     required this.image,
     required this.layers,
@@ -263,6 +278,7 @@ class _ImageDetailView extends StatefulWidget {
   final Future<void> Function() onPush;
   final VoidCallback onRemove;
 
+  /// Creates the mutable state for [_ImageDetailView].
   @override
   State<_ImageDetailView> createState() => _ImageDetailViewState();
 }
@@ -273,6 +289,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
   String? _actionMessage;
   String? _actionError;
 
+  /// Navigates to or opens the selected actionsmenu.
   Future<void> _openActionsMenu() async {
     if (_busy) {
       return;
@@ -321,6 +338,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     }
   }
 
+  /// Runs an image action and shows a success or error message.
   Future<void> _runAction(
     Future<void> Function() action,
     String successMessage,
@@ -351,6 +369,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -372,6 +391,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+            /// Creates a [_ImageDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Images', style: theme.textTheme.muted),
             Text(' / ', style: theme.textTheme.muted),
@@ -384,6 +404,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
             ),
           ],
         ),
+        /// Creates a [_ImageDetailViewState] widget.
         const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -397,9 +418,11 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     style: theme.textTheme.h3,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 8),
                   Text(image.shortId, style: theme.textTheme.muted),
                   if (image.created.isNotEmpty) ...[
+                    /// Creates a [_ImageDetailViewState] widget.
                     const SizedBox(height: 12),
                     Text(
                       'CREATED',
@@ -409,6 +432,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     ),
                     Text(image.created, style: theme.textTheme.large),
                   ],
+                  /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 12),
                   Text(
                     'SIZE',
@@ -440,6 +464,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     color: theme.colorScheme.foreground,
                   ),
                 ),
+                /// Creates a [_ImageDetailViewState] widget.
                 const SizedBox(width: 8),
                 CalfButton.destructive(
                   enabled: !_busy,
@@ -455,6 +480,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
             ),
           ],
         ),
+        /// Creates a [_ImageDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
           child: CustomScrollView(
@@ -489,6 +515,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   style: theme.textTheme.large,
                 ),
               ),
+              /// Creates a [_ImageDetailViewState] widget.
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
               _buildLayersSliver(theme, layers, layersLoading, layersError),
             ],
@@ -498,6 +525,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     );
   }
 
+  /// Builds the sliver that lists image layers or loading/error states.
   Widget _buildLayersSliver(
     ShadThemeData theme,
     List<ImageLayer>? layers,
@@ -552,6 +580,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              /// Creates a [_ImageDetailViewState] widget.
               const SizedBox(width: 16),
               SizedBox(
                 width: 88,

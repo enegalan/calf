@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 class HoverListRow extends StatefulWidget {
+  /// Creates a list row that highlights on hover and optional selection.
   const HoverListRow({
     super.key,
     required this.theme,
@@ -17,6 +18,7 @@ class HoverListRow extends StatefulWidget {
   final bool selected;
   final VoidCallback? onTap;
 
+  /// Creates state for the hoverable list row.
   @override
   State<HoverListRow> createState() => _HoverListRowState();
 }
@@ -24,6 +26,7 @@ class HoverListRow extends StatefulWidget {
 class _HoverListRowState extends State<HoverListRow> {
   bool _hovered = false;
 
+  /// Builds the row with hover and selection background styling.
   @override
   Widget build(BuildContext context) {
     Color? background;

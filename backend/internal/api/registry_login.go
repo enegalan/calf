@@ -37,6 +37,7 @@ type registryDeviceLoginStatusResponse struct {
 	Error    string `json:"error,omitempty"`
 }
 
+// registryLoginSessions returns the lazily initialized map of in-flight device-login sessions.
 func (s *Server) registryLoginSessions() *sync.Map {
 	if s.registrySessions == nil {
 		s.registrySessions = &sync.Map{}
@@ -44,6 +45,7 @@ func (s *Server) registryLoginSessions() *sync.Map {
 	return s.registrySessions
 }
 
+// handleRegistryLogin routes /v1/registry/login for starting and polling Docker Hub device-flow login.
 func (s *Server) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -70,6 +72,7 @@ func (s *Server) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
 	s.getRegistryDeviceLoginStatus(w, r, path)
 }
 
+// startRegistryDeviceLogin begins a Docker Hub OAuth device-code flow and returns session details to the client.
 func (s *Server) startRegistryDeviceLogin(w http.ResponseWriter, r *http.Request) {
 	client := dockerhub.NewClient()
 	state, err := client.StartDeviceLogin(r.Context())
@@ -104,6 +107,7 @@ func (s *Server) startRegistryDeviceLogin(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// getRegistryDeviceLoginStatus serves GET /v1/registry/login/{sessionID} with the current login progress.
 func (s *Server) getRegistryDeviceLoginStatus(w http.ResponseWriter, r *http.Request, sessionID string) {
 	value, ok := s.registryLoginSessions().Load(sessionID)
 	if !ok {
@@ -122,6 +126,7 @@ func (s *Server) getRegistryDeviceLoginStatus(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// completeRegistryDeviceLogin polls for a device token, generates a PAT, and stores registry credentials.
 func (s *Server) completeRegistryDeviceLogin(ctx context.Context, client *dockerhub.Client, session *registryLoginSession, state dockerhub.DeviceCode) {
 	defer session.cancel()
 
@@ -185,6 +190,7 @@ func (s *Server) completeRegistryDeviceLogin(ctx context.Context, client *docker
 	})
 }
 
+// newRegistrySessionID returns a random 32-character hex session identifier.
 func newRegistrySessionID() string {
 	var bytes [16]byte
 	_, _ = rand.Read(bytes[:])

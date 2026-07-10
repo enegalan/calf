@@ -32,6 +32,7 @@ Timer? _daemonRestartTimer;
 int _daemonRestartAttempts = 0;
 const _maxDaemonRestarts = 5;
 
+/// Spawns the embedded calf-daemon subprocess and wires restart on exit.
 Future<void> _startDaemon() async {
   if (_daemonShutdown) {
     return;
@@ -73,6 +74,7 @@ Future<void> _startDaemon() async {
         );
         return;
       }
+      // Back off between restarts so a crash loop does not hammer the port.
       final delay = Duration(seconds: _daemonRestartAttempts);
       _daemonRestartTimer = Timer(delay, _startDaemon);
     });
@@ -81,6 +83,7 @@ Future<void> _startDaemon() async {
   }
 }
 
+/// Locates the calf-daemon binary next to the app executable.
 String? _findDaemon() {
   final dir = File(Platform.resolvedExecutable).parent.path;
   final candidates = Platform.isWindows
@@ -95,6 +98,8 @@ String? _findDaemon() {
   return null;
 }
 
+// Homebrew paths are often missing from the GUI subprocess PATH on macOS.
+/// Returns Homebrew bin paths missing from the GUI subprocess PATH on macOS.
 String _extraPaths() {
   if (Platform.isMacOS) {
     final path = Platform.environment['PATH'] ?? '';
@@ -113,6 +118,7 @@ String _extraPaths() {
   return '';
 }
 
+/// Terminates the calf-daemon subprocess and cancels pending restarts.
 Future<void> _stopDaemon() async {
   _daemonShutdown = true;
   _daemonRestartTimer?.cancel();
@@ -130,11 +136,13 @@ Future<void> _stopDaemon() async {
   );
 }
 
+/// Application entry point; starts the daemon and runs the Flutter app.
 void main() {
   _startDaemon();
   runApp(const MainApp());
 }
 
+/// Builds a Material [ThemeData] bridged from a Shadcn theme.
 ThemeData _materialTheme(ShadThemeData shadTheme) {
   return ThemeData(
     fontFamily: shadTheme.textTheme.family,
@@ -160,10 +168,12 @@ ThemeData _materialTheme(ShadThemeData shadTheme) {
 }
 
 class MainApp extends StatefulWidget {
+  /// Creates a [MainApp] instance.
   const MainApp({super.key, this.apiClient});
 
   final CalfClient? apiClient;
 
+  /// Creates the state object for [MainApp].
   @override
   State<MainApp> createState() => _MainAppState();
 }
@@ -173,6 +183,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   bool _daemonReady = false;
   String? _error;
 
+  /// Initializes state and starts async loading.
   @override
   void initState() {
     super.initState();
@@ -184,6 +195,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Stops the daemon when the app is detached.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
@@ -191,6 +203,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Releases resources when the widget is removed.
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -198,6 +211,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Polls the daemon status endpoint until the runtime is running or times out.
   Future<void> _waitForDaemon() async {
     final url = Uri.parse('${CalfDefaults.defaultBaseUrl}/v1/status');
     const attempts = 120;
@@ -256,6 +270,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

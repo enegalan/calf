@@ -22,6 +22,7 @@ type imageInspectRow struct {
 	RepoTags []string `json:"RepoTags"`
 }
 
+// enrichBuildResult fills build dependencies, artifacts, and tags from the Dockerfile and built image.
 func enrichBuildResult(ctx context.Context, run commandRunner, contextPath, dockerfile, tag, platform string, result BuildResult) BuildResult {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -43,6 +44,7 @@ func enrichBuildResult(ctx context.Context, run commandRunner, contextPath, dock
 	return result
 }
 
+// parseDockerfileDependencies collects unique FROM image references declared in the Dockerfile.
 func parseDockerfileDependencies(contextPath, dockerfile, platform string) []BuildDependency {
 	path := filepath.Join(contextPath, dockerfile)
 	file, err := os.Open(path)
@@ -81,6 +83,7 @@ func parseDockerfileDependencies(contextPath, dockerfile, platform string) []Bui
 	return dependencies
 }
 
+// enrichDependenciesWithInspect adds digest and platform details to each dependency via image inspect.
 func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, result BuildResult, platform string) BuildResult {
 	for index, dependency := range result.Dependencies {
 		output, err := run(ctx, "nerdctl", "image", "inspect", dependency.Source, "--format", "{{json .}}")
@@ -107,6 +110,7 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 	return result
 }
 
+// inspectBuildImage returns build artifacts and tags for the image produced at tag.
 func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform string) ([]BuildArtifact, []BuildTag) {
 	output, err := run(ctx, "nerdctl", "image", "inspect", tag, "--format", "{{json .}}")
 	if err != nil {
@@ -147,6 +151,7 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 	return artifacts, tags
 }
 
+// IsResolvableBuildContext reports whether contextPath is an absolute local directory accessible on disk.
 func IsResolvableBuildContext(contextPath string) bool {
 	if contextPath == "" || contextPath == "docker-cli" {
 		return false
@@ -160,6 +165,7 @@ func IsResolvableBuildContext(contextPath string) bool {
 	return err == nil
 }
 
+// ReadBuildSource loads the Dockerfile content and metadata from a local build context.
 func ReadBuildSource(contextPath, dockerfile, platform string) (BuildSource, error) {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -194,6 +200,7 @@ func ReadBuildSource(contextPath, dockerfile, platform string) (BuildSource, err
 	}, nil
 }
 
+// CollectGitMetadata returns the short HEAD revision and origin remote URL when contextPath is a git repo.
 func CollectGitMetadata(contextPath string) (revision, remote string) {
 	gitDir := filepath.Join(contextPath, ".git")
 	if _, err := os.Stat(gitDir); err != nil {
@@ -211,6 +218,7 @@ func CollectGitMetadata(contextPath string) (revision, remote string) {
 	return revision, remote
 }
 
+// platformArch extracts the architecture component from an OCI platform string (e.g. linux/amd64 -> amd64).
 func platformArch(platform string) string {
 	if platform == "" {
 		return ""
@@ -224,6 +232,7 @@ func platformArch(platform string) string {
 	return platform
 }
 
+// formatBytes renders a byte count as a human-readable size string.
 func formatBytes(size int64) string {
 	if size <= 0 {
 		return "0 B"
@@ -245,14 +254,17 @@ func formatBytes(size int64) string {
 	return fmt.Sprintf("%.1f %s", value, suffix)
 }
 
+// FormatBytes is the exported alias for formatBytes.
 func FormatBytes(size int64) string {
 	return formatBytes(size)
 }
 
+// bytesTrim trims leading and trailing whitespace from command output bytes.
 func bytesTrim(output []byte) []byte {
 	return []byte(strings.TrimSpace(string(output)))
 }
 
+// NormalizeDockerfilePath picks the first existing Dockerfile candidate within contextPath.
 func NormalizeDockerfilePath(contextPath, dockerfile string) string {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -287,6 +299,7 @@ func NormalizeDockerfilePath(contextPath, dockerfile string) string {
 	return dockerfile
 }
 
+// ParseImageRefFromBuildLog extracts the last image name reported in a build log's "naming to" lines.
 func ParseImageRefFromBuildLog(rawLog string) string {
 	matches := buildImageNameRe.FindAllStringSubmatch(rawLog, -1)
 	for index := len(matches) - 1; index >= 0; index-- {
@@ -306,12 +319,14 @@ func ParseImageRefFromBuildLog(rawLog string) string {
 	return ""
 }
 
+// normalizeImageRef strips docker.io/library prefixes for consistent display.
 func normalizeImageRef(imageRef string) string {
 	imageRef = strings.TrimPrefix(imageRef, "docker.io/library/")
 	imageRef = strings.TrimPrefix(imageRef, "library/")
 	return imageRef
 }
 
+// EnrichSyncedBuild backfills missing build metadata from the local context and build log via the Docker CLI.
 func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 	if build == nil || socket == "" {
 		return
@@ -355,6 +370,7 @@ func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 	}
 }
 
+// dockerCLIRunner returns a commandRunner that invokes docker with DOCKER_HOST set to socket.
 func dockerCLIRunner(socket string) commandRunner {
 	return func(ctx context.Context, _ string, args ...string) ([]byte, error) {
 		command := exec.CommandContext(ctx, "docker", args...)

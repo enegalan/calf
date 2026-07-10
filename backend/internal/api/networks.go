@@ -9,6 +9,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// handleNetworks serves GET /v1/networks with the list of Docker networks.
 func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -32,6 +33,7 @@ func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleNetworkAction serves GET and DELETE /v1/networks/{name} for inspect and removal.
 func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)

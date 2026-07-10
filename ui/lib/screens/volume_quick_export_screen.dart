@@ -7,6 +7,7 @@ import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 
 class VolumeQuickExportView extends StatefulWidget {
+  /// Creates a [VolumeQuickExportView] widget.
   const VolumeQuickExportView({
     super.key,
     required this.volumeName,
@@ -20,6 +21,7 @@ class VolumeQuickExportView extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback onCompleted;
 
+  /// Creates the mutable state for [VolumeQuickExportView].
   @override
   State<VolumeQuickExportView> createState() => _VolumeQuickExportViewState();
 }
@@ -35,6 +37,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
   bool _busy = false;
   String? _error;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -42,6 +45,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     _loadImages();
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _fileNameController.dispose();
@@ -50,6 +54,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     super.dispose();
   }
 
+  /// Fetches Images from the API and updates state.
   Future<void> _loadImages() async {
     setState(() {
       _imagesLoading = true;
@@ -76,6 +81,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     }
   }
 
+  /// Whether or what value backs the `canSave` UI state.
   bool get _canSave {
     if (_busy) {
       return false;
@@ -93,6 +99,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     }
   }
 
+  /// Opens a folder picker and stores the selected path.
   Future<void> _browseFolder() async {
     try {
       final location = await browseVolumeExportFolder();
@@ -112,6 +119,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     }
   }
 
+  /// Submits the form and triggers the export via the API.
   Future<void> _save() async {
     setState(() {
       _busy = true;
@@ -143,6 +151,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -154,13 +163,16 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           segments: ['Volumes', widget.volumeName, 'Quick export'],
           onBack: widget.onBack,
         ),
+        /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 16),
         Text('Quick export', style: theme.textTheme.h3),
+        /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 8),
         Text(
           'Quick export data backup to a specified location.',
           style: theme.textTheme.muted,
         ),
+        /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 20),
         Expanded(
           child: SingleChildScrollView(
@@ -179,6 +191,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  /// Creates a [_VolumeQuickExportViewState] widget.
                   const SizedBox(height: 16),
                   VolumeExportOptionTile(
                     theme: theme,
@@ -192,12 +205,14 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               ShadInput(
                                 controller: _fileNameController,
                                 placeholder: const Text('File name'),
                                 onChanged: (_) => setState(() {}),
                               ),
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               Row(
                                 children: [
@@ -208,6 +223,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                                       onChanged: (_) => setState(() {}),
                                     ),
                                   ),
+                                  /// Creates a [_VolumeQuickExportViewState] widget.
                                   const SizedBox(width: 8),
                                   CalfButton.outline(
                                     onPressed: _browseFolder,
@@ -219,6 +235,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                           )
                         : null,
                   ),
+                  /// Creates a [_VolumeQuickExportViewState] widget.
                   const SizedBox(height: 16),
                   VolumeExportOptionTile(
                     theme: theme,
@@ -233,8 +250,10 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               VolumeExportLocalImageWarning(theme: theme),
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               VolumeExportImageRefField(
                                 theme: theme,
@@ -248,6 +267,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                           )
                         : null,
                   ),
+                  /// Creates a [_VolumeQuickExportViewState] widget.
                   const SizedBox(height: 16),
                   VolumeExportOptionTile(
                     theme: theme,
@@ -268,6 +288,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                           )
                         : null,
                   ),
+                  /// Creates a [_VolumeQuickExportViewState] widget.
                   const SizedBox(height: 16),
                   VolumeExportOptionTile(
                     theme: theme,
@@ -280,8 +301,10 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               VolumeExportRegistryNotice(theme: theme),
+                              /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
                               ShadInput(
                                 controller: _imageRefController,
@@ -300,6 +323,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           ),
         ),
         if (_error != null) ...[
+          /// Creates a [_VolumeQuickExportViewState] widget.
           const SizedBox(height: 12),
           Text(
             _error!,
@@ -308,6 +332,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
             ),
           ),
         ],
+        /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
@@ -316,6 +341,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
               onPressed: widget.onBack,
               child: const Text('Cancel'),
             ),
+            /// Creates a [_VolumeQuickExportViewState] widget.
             const SizedBox(width: 8),
             CalfButton(
               enabled: _canSave,

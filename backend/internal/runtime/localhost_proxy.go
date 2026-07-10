@@ -19,6 +19,9 @@ type localhostProxies struct {
 	reserved  map[int]struct{}
 }
 
+// newLocalhostProxies returns nil on non-macOS. Lima forwards container ports
+// to 127.0.0.1 inside the VM, but many clients bind [::1] on the host; the
+// proxy listens on ::1 and forwards to 127.0.0.1 so both addresses work.
 func newLocalhostProxies() *localhostProxies {
 	if goruntime.GOOS != "darwin" {
 		return nil
@@ -31,6 +34,7 @@ func newLocalhostProxies() *localhostProxies {
 	}
 }
 
+// ParseListenPort extracts the TCP port number from a host:port listen address.
 func ParseListenPort(addr string) int {
 	_, portValue, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -45,6 +49,7 @@ func ParseListenPort(addr string) int {
 	return port
 }
 
+// setReservedPorts marks ports that must not get a localhost proxy listener.
 func (p *localhostProxies) setReservedPorts(ports ...int) {
 	if p == nil {
 		return
@@ -61,6 +66,7 @@ func (p *localhostProxies) setReservedPorts(ports ...int) {
 	}
 }
 
+// conflictsSnapshot returns a copy of detected localhost port conflicts.
 func (p *localhostProxies) conflictsSnapshot() []PortConflict {
 	if p == nil {
 		return nil
@@ -81,6 +87,7 @@ func (p *localhostProxies) conflictsSnapshot() []PortConflict {
 	return items
 }
 
+// stopAll closes every proxy listener and clears conflict state.
 func (p *localhostProxies) stopAll() {
 	if p == nil {
 		return
@@ -97,6 +104,7 @@ func (p *localhostProxies) stopAll() {
 	p.conflicts = make(map[int]PortConflict)
 }
 
+// sync starts, stops, or rebuilds ::1 proxies to match the desired published ports.
 func (p *localhostProxies) sync(ports map[int]struct{}, force bool) {
 	if p == nil {
 		return
@@ -150,6 +158,7 @@ func (p *localhostProxies) sync(ports map[int]struct{}, force bool) {
 	}
 }
 
+// serve accepts connections on listener and forwards them to 127.0.0.1:port.
 func (p *localhostProxies) serve(listener net.Listener, port int) {
 	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
 
@@ -168,6 +177,7 @@ func (p *localhostProxies) serve(listener net.Listener, port int) {
 	}
 }
 
+// proxyTCPConnection bidirectionally copies bytes between client and target.
 func proxyTCPConnection(client net.Conn, target string) {
 	server, err := net.Dial("tcp", target)
 	if err != nil {
@@ -185,6 +195,7 @@ func proxyTCPConnection(client net.Conn, target string) {
 	_ = server.Close()
 }
 
+// publishedTCPPorts collects host TCP ports published by running containers.
 func publishedTCPPorts(containers []Container) map[int]struct{} {
 	ports := make(map[int]struct{})
 
@@ -201,6 +212,7 @@ func publishedTCPPorts(containers []Container) map[int]struct{} {
 	return ports
 }
 
+// containerIsRunning reports whether a container is in a running state.
 func containerIsRunning(container Container) bool {
 	state := strings.ToLower(strings.TrimSpace(container.State))
 	if state == "running" {
@@ -212,10 +224,12 @@ func containerIsRunning(container Container) bool {
 
 var publishedTCPPortPattern = regexp.MustCompile(`:(\d+)->\d+/tcp`)
 
+// ParsePublishedTCPPorts parses nerdctl port mappings into host TCP port numbers.
 func ParsePublishedTCPPorts(value string) map[int]struct{} {
 	return parsePublishedTCPPorts(value)
 }
 
+// parsePublishedTCPPorts extracts host TCP ports from a nerdctl Ports string.
 func parsePublishedTCPPorts(value string) map[int]struct{} {
 	ports := make(map[int]struct{})
 
@@ -231,6 +245,7 @@ func parsePublishedTCPPorts(value string) map[int]struct{} {
 	return ports
 }
 
+// localhostPortConflict builds a PortConflict for a port that cannot be proxied.
 func localhostPortConflict(port int) PortConflict {
 	process := findLocalhostPortBlocker(port)
 	hint := fmt.Sprintf("localhost:%d is used by %s; stop that process or container so Calf can forward the port.", port, process)
@@ -242,6 +257,7 @@ func localhostPortConflict(port int) PortConflict {
 	}
 }
 
+// findLocalhostPortBlocker identifies the process listening on a host port via lsof.
 func findLocalhostPortBlocker(port int) string {
 	output, err := exec.Command("lsof", "-nP", "-iTCP:"+strconv.Itoa(port), "-sTCP:LISTEN").Output()
 	if err != nil {

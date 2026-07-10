@@ -84,6 +84,7 @@ type buildHistoryRow struct {
 	CreatedAt string `json:"CreatedAt"`
 }
 
+// DockerDesktopSocket returns the first existing Docker Desktop unix socket path on the host.
 func DockerDesktopSocket() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -104,6 +105,7 @@ func DockerDesktopSocket() string {
 	return ""
 }
 
+// StagingDir returns the host directory used for temporary migration tar exports.
 func StagingDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -118,6 +120,7 @@ func StagingDir() (string, error) {
 	return dir, nil
 }
 
+// VMPath maps a host path under ~/.config/calf/mounts to its Lima VM mount equivalent.
 func VMPath(hostPath string) string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -133,6 +136,7 @@ func VMPath(hostPath string) string {
 	return "/mnt/calf/" + filepath.ToSlash(rel)
 }
 
+// RunFromDockerDesktop migrates images, volumes, containers, config, and build history from Docker Desktop to Calf.
 func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 	if opts.Logger != nil {
 		opts.Logger.Info("starting docker desktop migration")
@@ -246,6 +250,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 	return status
 }
 
+// formatCompletionMessage summarizes migration results, noting partial failures when counts differ.
 func formatCompletionMessage(summary Summary) string {
 	if summary.ImagesOK < summary.ImagesTotal ||
 		summary.VolumesOK < summary.VolumesTotal ||
@@ -262,6 +267,7 @@ func formatCompletionMessage(summary Summary) string {
 	return "Migration completed"
 }
 
+// migrateConfig copies Docker Desktop CPU and memory settings into the Calf config when available.
 func migrateConfig(ctx context.Context, _ string, opts Options, status *Status, emit func(Status)) error {
 	status.Step = "config"
 	status.Progress = 5
@@ -287,6 +293,7 @@ func migrateConfig(ctx context.Context, _ string, opts Options, status *Status, 
 	return nil
 }
 
+// migrateImages exports each Docker Desktop image to a tar and loads it into Calf.
 func migrateImages(ctx context.Context, ddSocket string, opts Options, staging string, status *Status, emit func(Status)) error {
 	status.Step = "images"
 	status.Message = "Migrating images"
@@ -326,6 +333,7 @@ func migrateImages(ctx context.Context, ddSocket string, opts Options, staging s
 	return nil
 }
 
+// loadImageOnCalf imports a saved image tar into the Calf runtime via nerdctl or docker.
 func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	if opts.RunNerdctl != nil {
 		return opts.RunNerdctl(ctx, "load", "-i", VMPath(tarPath))
@@ -334,6 +342,7 @@ func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	return runDockerError(ctx, opts.CalfSocket, "load", "-i", tarPath)
 }
 
+// migrateVolumes exports each Docker Desktop volume and recreates it on Calf.
 func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging string, status *Status, emit func(Status)) error {
 	status.Step = "volumes"
 	status.Progress = 50
@@ -397,6 +406,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 	return nil
 }
 
+// createVolumeOnCalf creates a named volume in the Calf runtime.
 func createVolumeOnCalf(ctx context.Context, opts Options, name string) error {
 	if opts.RunNerdctl != nil {
 		return opts.RunNerdctl(ctx, "volume", "create", name)
@@ -405,6 +415,7 @@ func createVolumeOnCalf(ctx context.Context, opts Options, name string) error {
 	return runDockerError(ctx, opts.CalfSocket, "volume", "create", name)
 }
 
+// importVolumeOnCalf restores a staged volume tar archive into a Calf volume.
 func importVolumeOnCalf(ctx context.Context, opts Options, name, vmTarPath, tarName string) error {
 	importArgs := []string{
 		"run", "--rm",
@@ -421,6 +432,7 @@ func importVolumeOnCalf(ctx context.Context, opts Options, name, vmTarPath, tarN
 	return runDockerError(ctx, opts.CalfSocket, importArgs...)
 }
 
+// migrateContainers recreates standalone and compose-group containers on Calf, preserving run state.
 func migrateContainers(ctx context.Context, ddSocket string, opts Options, status *Status, emit func(Status)) error {
 	status.Step = "containers"
 	status.Progress = 75
@@ -544,6 +556,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 	return nil
 }
 
+// composeMountsRoot returns the host mounts root directory, creating it when missing.
 func composeMountsRoot() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -558,6 +571,7 @@ func composeMountsRoot() (string, error) {
 	return root, nil
 }
 
+// migrateComposeProject stages a compose project and runs compose up on Calf.
 func migrateComposeProject(ctx context.Context, opts Options, group composeProjectGroup, mountsRoot string) error {
 	vmDir, vmComposePath, err := stageComposeProject(group, mountsRoot)
 	if err != nil {
@@ -595,6 +609,7 @@ func migrateComposeProject(ctx context.Context, opts Options, group composeProje
 	return nil
 }
 
+// migrateBuilds imports Docker Desktop buildx history entries into the in-memory build store.
 func migrateBuilds(ctx context.Context, ddSocket string, opts Options, status *Status, emit func(Status)) {
 	status.Step = "builds"
 	status.Progress = 95
@@ -645,6 +660,7 @@ func migrateBuilds(ctx context.Context, ddSocket string, opts Options, status *S
 	emit(*status)
 }
 
+// readDockerDesktopSettings loads CPU and memory limits from Docker Desktop settings files on macOS.
 func readDockerDesktopSettings() (parsedSettings, bool) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -692,6 +708,7 @@ func readDockerDesktopSettings() (parsedSettings, bool) {
 	return parsedSettings{}, false
 }
 
+// listImageRefs returns repository:tag refs from Docker Desktop, excluding dangling entries.
 func listImageRefs(ctx context.Context, socket string) ([]string, error) {
 	output, err := runDocker(ctx, socket, "images", "--format", "{{.Repository}}:{{.Tag}}")
 	if err != nil {
@@ -703,6 +720,7 @@ func listImageRefs(ctx context.Context, socket string) ([]string, error) {
 	}), nil
 }
 
+// listVolumeNames returns volume names from the given docker socket.
 func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
 	output, err := runDocker(ctx, socket, "volume", "ls", "--format", "{{.Name}}")
 	if err != nil {
@@ -712,6 +730,7 @@ func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
 	return utils.ParseLines(output, nil), nil
 }
 
+// listContainerIDs returns all container IDs from the given docker socket.
 func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
 	output, err := runDocker(ctx, socket, "ps", "-a", "--format", "{{.ID}}")
 	if err != nil {
@@ -721,6 +740,7 @@ func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
 	return utils.ParseLines(output, nil), nil
 }
 
+// inspectContainer fetches inspect JSON for one container and whether it was running.
 func inspectContainer(ctx context.Context, socket, id string) (containerInspect, bool, error) {
 	output, err := runDocker(ctx, socket, "inspect", id)
 	if err != nil {
@@ -736,6 +756,7 @@ func inspectContainer(ctx context.Context, socket, id string) (containerInspect,
 	return rows[0], wasRunning, nil
 }
 
+// createContainerOnCalf recreates a single container on Calf from a Docker inspect payload.
 func createContainerOnCalf(ctx context.Context, opts Options, inspect containerInspect) error {
 	name := strings.TrimPrefix(inspect.Name, "/")
 	args := []string{"create"}
@@ -811,6 +832,7 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 	return runDockerError(ctx, opts.CalfSocket, args...)
 }
 
+// containerBindMounts returns -v mount specs from HostConfig.Binds or Mounts when binds are absent.
 func containerBindMounts(inspect containerInspect) []string {
 	if len(inspect.HostConfig.Binds) > 0 {
 		return inspect.HostConfig.Binds
@@ -856,6 +878,7 @@ func containerBindMounts(inspect containerInspect) []string {
 	return binds
 }
 
+// parseBuildHistory decodes newline-delimited or plain-text buildx history list output.
 func parseBuildHistory(output []byte) []buildHistoryRow {
 	rows := make([]buildHistoryRow, 0)
 	scanner := bufio.NewScanner(bytes.NewReader(output))
@@ -884,6 +907,7 @@ func parseBuildHistory(output []byte) []buildHistoryRow {
 	return rows
 }
 
+// runDocker executes docker against the given unix socket and returns combined output.
 func runDocker(ctx context.Context, socket string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, "docker", args...)
 	command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
@@ -895,16 +919,19 @@ func runDocker(ctx context.Context, socket string, args ...string) ([]byte, erro
 	return output, nil
 }
 
+// runDockerError runs docker and discards output, returning only the error.
 func runDockerError(ctx context.Context, socket string, args ...string) error {
 	_, err := runDocker(ctx, socket, args...)
 	return err
 }
 
+// sanitizeFileName replaces path separators in a name so it is safe for staging file paths.
 func sanitizeFileName(name string) string {
 	replacer := strings.NewReplacer("/", "_", ":", "_", "\\", "_")
 	return replacer.Replace(name)
 }
 
+// max returns the larger of two integers.
 func max(a, b int) int {
 	if a > b {
 		return a

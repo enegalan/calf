@@ -14,6 +14,7 @@ type ExecResize struct {
 	Cols uint16
 }
 
+// attachContainerExec runs command in a PTY, forwarding stdin, stdout, and terminal resize events until the process exits.
 func attachContainerExec(ctx context.Context, command *exec.Cmd, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	ptmx, err := pty.Start(command)
 	if err != nil {

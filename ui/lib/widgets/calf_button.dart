@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 enum _CalfButtonVariant { primary, outline, ghost, destructive }
 
 class CalfButton extends StatelessWidget {
+  /// Creates a primary-themed action button.
   const CalfButton({
     super.key,
     this.child,
@@ -15,6 +16,7 @@ class CalfButton extends StatelessWidget {
     this.backgroundColor,
   }) : _variant = _CalfButtonVariant.primary;
 
+  /// Creates an outlined action button.
   const CalfButton.outline({
     super.key,
     this.child,
@@ -26,6 +28,7 @@ class CalfButton extends StatelessWidget {
     this.backgroundColor,
   }) : _variant = _CalfButtonVariant.outline;
 
+  /// Creates a low-emphasis ghost action button.
   const CalfButton.ghost({
     super.key,
     this.child,
@@ -37,6 +40,7 @@ class CalfButton extends StatelessWidget {
     this.backgroundColor,
   }) : _variant = _CalfButtonVariant.ghost;
 
+  /// Creates a destructive action button.
   const CalfButton.destructive({
     super.key,
     this.child,
@@ -57,6 +61,7 @@ class CalfButton extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
 
+  /// Builds the button for the configured variant and size constraints.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -100,6 +105,7 @@ class CalfButton extends StatelessWidget {
     return button;
   }
 
+  /// Returns the Material button style for the current variant and theme.
   ButtonStyle _buttonStyle(ShadThemeData theme) {
     final textStyle = theme.textTheme.small;
     final basePadding =

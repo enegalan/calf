@@ -28,6 +28,7 @@ type dockerConfig struct {
 	CurrentContext string `json:"currentContext"`
 }
 
+// StatusFor reports whether the docker CLI is available and how the calf context is configured.
 func StatusFor(socket string, managed bool) (Status, error) {
 	status := Status{
 		Managed:        managed,
@@ -49,6 +50,7 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	return status, nil
 }
 
+// readCurrentContext reads the active docker context name from ~/.docker/config.json.
 func readCurrentContext() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -68,6 +70,7 @@ func readCurrentContext() string {
 	return cfg.CurrentContext
 }
 
+// contextExists reports whether a named docker context is present.
 func contextExists(ctx context.Context, name string) bool {
 	command := exec.CommandContext(ctx, "docker", "context", "inspect", name, "--format", "{{.Name}}")
 	output, err := command.Output()
@@ -78,6 +81,7 @@ func contextExists(ctx context.Context, name string) bool {
 	return strings.TrimSpace(string(output)) == name
 }
 
+// EnsureContext creates or updates the calf docker context to point at the given socket.
 func EnsureContext(ctx context.Context, socket string) error {
 	if socket == "" {
 		return errors.New("docker socket path is empty")
@@ -106,6 +110,7 @@ func EnsureContext(ctx context.Context, socket string) error {
 	return nil
 }
 
+// updateContext changes the docker host endpoint for an existing calf context.
 func updateContext(ctx context.Context, host string) error {
 	command := exec.CommandContext(ctx, "docker", "context", "update", ContextName, "--docker", "host="+host)
 	output, err := command.CombinedOutput()
@@ -116,6 +121,7 @@ func updateContext(ctx context.Context, host string) error {
 	return nil
 }
 
+// ActivateContext switches the active docker CLI context to calf.
 func ActivateContext(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker CLI not found")
@@ -130,6 +136,7 @@ func ActivateContext(ctx context.Context) error {
 	return nil
 }
 
+// EnsureAndActivate creates or updates the calf context and selects it when another context is active.
 func EnsureAndActivate(ctx context.Context, socket string) error {
 	if err := EnsureContext(ctx, socket); err != nil {
 		return err

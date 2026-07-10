@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// handleContainerExec routes GET to the interactive WebSocket exec and POST to one-shot exec.
 func (s *Server) handleContainerExec(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -29,6 +30,7 @@ func (s *Server) handleContainerExec(w http.ResponseWriter, r *http.Request, id 
 	s.handleContainerExecOnce(w, r, id)
 }
 
+// handleContainerExecWebSocket upgrades to a WebSocket and attaches an interactive PTY exec session.
 func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Request, id string) {
 	conn, err := logsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -81,6 +83,7 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// parseExecResizeMessage decodes a JSON resize control message from the exec WebSocket client.
 func parseExecResizeMessage(payload []byte) (runtime.ExecResize, bool) {
 	var message struct {
 		Type string `json:"type"`

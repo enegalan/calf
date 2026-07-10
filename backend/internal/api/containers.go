@@ -8,6 +8,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// handleContainers serves GET /v1/containers with the list of containers.
 func (s *Server) handleContainers(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -28,6 +29,7 @@ func (s *Server) handleContainers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, containers)
 }
 
+// handleContainerAction routes /v1/containers/{id} and subresource paths to the appropriate handler.
 func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -100,6 +102,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	utils.WriteOK(w)
 }
 
+// handleContainerInspect serves GET /v1/containers/{id}/inspect, optionally filtered by section query param.
 func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)
@@ -126,6 +129,7 @@ func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, 
 	_, _ = w.Write(inspect)
 }
 
+// handleContainerMounts serves GET /v1/containers/{id}/mounts.
 func (s *Server) handleContainerMounts(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)
@@ -141,6 +145,7 @@ func (s *Server) handleContainerMounts(w http.ResponseWriter, r *http.Request, i
 	writeJSON(w, http.StatusOK, mounts)
 }
 
+// handleContainerFiles serves GET /v1/containers/{id}/files for directory listing inside the container.
 func (s *Server) handleContainerFiles(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)
@@ -161,6 +166,7 @@ type containerExecRequest struct {
 	Command string `json:"command"`
 }
 
+// handleContainerExecOnce serves POST /v1/containers/{id}/exec for a one-shot non-interactive command.
 func (s *Server) handleContainerExecOnce(w http.ResponseWriter, r *http.Request, id string) {
 	var request containerExecRequest
 	if err := jsonDecode(r, &request); err != nil {
@@ -185,6 +191,7 @@ func (s *Server) handleContainerExecOnce(w http.ResponseWriter, r *http.Request,
 	writeJSON(w, http.StatusOK, map[string]string{"output": output})
 }
 
+// handleContainerStats serves GET /v1/containers/{id}/stats with live resource usage.
 func (s *Server) handleContainerStats(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
 		methodNotAllowed(w, r)

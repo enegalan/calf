@@ -23,10 +23,12 @@ type schedulePayload struct {
 	ImageRef string           `json:"image_ref"`
 }
 
+// volumeScheduleStore opens the on-disk store for volume export schedules.
 func (s *Server) volumeScheduleStore() (*volumeexport.ScheduleStore, error) {
 	return volumeexport.NewScheduleStore()
 }
 
+// handleVolumeExportSchedules routes GET and POST /v1/volumes/{name}/export-schedules.
 func (s *Server) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Request, volumeName string) {
 	switch r.Method {
 	case http.MethodGet:
@@ -38,6 +40,7 @@ func (s *Server) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// handleVolumeExportSchedulesList serves GET /v1/volumes/{name}/export-schedules.
 func (s *Server) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
@@ -54,6 +57,7 @@ func (s *Server) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.
 	writeJSON(w, http.StatusOK, schedules)
 }
 
+// handleVolumeExportScheduleCreate serves POST /v1/volumes/{name}/export-schedules.
 func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http.Request, volumeName string) {
 	var payload schedulePayload
 
@@ -90,6 +94,7 @@ func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, schedule)
 }
 
+// handleVolumeExportScheduleItem routes PUT and DELETE for a single export schedule.
 func (s *Server) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	switch r.Method {
 	case http.MethodPut:
@@ -101,6 +106,7 @@ func (s *Server) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.R
 	}
 }
 
+// handleVolumeExportScheduleUpdate serves PUT /v1/volumes/{name}/export-schedules/{id}.
 func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
@@ -177,6 +183,7 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 	writeJSON(w, http.StatusOK, schedule)
 }
 
+// handleVolumeExportScheduleDelete serves DELETE /v1/volumes/{name}/export-schedules/{id}.
 func (s *Server) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	store, err := s.volumeScheduleStore()
 	if err != nil {
@@ -192,6 +199,7 @@ func (s *Server) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http
 	utils.WriteOK(w)
 }
 
+// buildScheduleFromPayload validates and constructs a Schedule from API input, computing NextRunAt when enabled.
 func (s *Server) buildScheduleFromPayload(
 	volumeName, scheduleID string,
 	enabled bool,
@@ -243,6 +251,7 @@ func (s *Server) buildScheduleFromPayload(
 	return schedule, nil
 }
 
+// dayTimesFromPayload converts API day/time entries into volumeexport.DayTimeSchedule values.
 func dayTimesFromPayload(payload schedulePayload) []volumeexport.DayTimeSchedule {
 	if len(payload.DayTimes) == 0 {
 		return nil
@@ -259,6 +268,7 @@ func dayTimesFromPayload(payload schedulePayload) []volumeexport.DayTimeSchedule
 	return entries
 }
 
+// dayTimesToPayload converts stored day/time schedules into API payload form.
 func dayTimesToPayload(entries []volumeexport.DayTimeSchedule) []dayTimePayload {
 	if len(entries) == 0 {
 		return nil

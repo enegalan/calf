@@ -4,10 +4,12 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 
+/// Loads directory entries for a path in the container file browser.
 typedef LoadDirectoryCallback =
     Future<List<ContainerFileEntry>> Function(String path);
 
 class FilesPanel extends StatefulWidget {
+  /// Displays a lazy-loaded directory tree for container files.
   const FilesPanel({
     super.key,
     required this.theme,
@@ -17,6 +19,7 @@ class FilesPanel extends StatefulWidget {
   final ShadThemeData theme;
   final LoadDirectoryCallback loadDirectory;
 
+  /// Creates the mutable state for this files panel.
   @override
   State<FilesPanel> createState() => _FilesPanelState();
 }
@@ -29,12 +32,14 @@ class _FilesPanelState extends State<FilesPanel> {
   bool _rootLoading = true;
   String? _rootError;
 
+  /// Loads the root directory when the panel is first shown.
   @override
   void initState() {
     super.initState();
     _loadDirectory('/');
   }
 
+  /// Loads directory entries for [path] and updates cache or error state.
   Future<void> _loadDirectory(String path) async {
     final isRoot = path == '/';
     setState(() {
@@ -76,6 +81,7 @@ class _FilesPanelState extends State<FilesPanel> {
     }
   }
 
+  /// Expands or collapses a directory and loads its contents on first expand.
   void _toggleDirectory(String path) {
     setState(() {
       if (_expanded.contains(path)) {
@@ -90,6 +96,7 @@ class _FilesPanelState extends State<FilesPanel> {
     }
   }
 
+  /// Sorts entries with directories first, then alphabetically by name.
   List<ContainerFileEntry> _sortedEntries(List<ContainerFileEntry> entries) {
     final sorted = List<ContainerFileEntry>.from(entries);
     sorted.sort((a, b) {
@@ -101,6 +108,7 @@ class _FilesPanelState extends State<FilesPanel> {
     return sorted;
   }
 
+  /// Builds the file tree or loading/error placeholder.
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -129,6 +137,7 @@ class _FilesPanelState extends State<FilesPanel> {
     );
   }
 
+  /// Builds nested row widgets for [path] at the given tree [depth].
   List<Widget> _buildDirectoryRows(String path, int depth) {
     final entries = _cache[path] ?? [];
     final rows = <Widget>[];
@@ -180,6 +189,7 @@ class _FilesPanelState extends State<FilesPanel> {
 }
 
 class FilesPanelContainer extends StatelessWidget {
+  /// Wraps files panel content in a bordered container.
   const FilesPanelContainer({
     super.key,
     required this.theme,
@@ -189,6 +199,7 @@ class FilesPanelContainer extends StatelessWidget {
   final ShadThemeData theme;
   final Widget child;
 
+  /// Builds the bordered panel container.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -204,10 +215,12 @@ class FilesPanelContainer extends StatelessWidget {
 }
 
 class FilesPanelHeader extends StatelessWidget {
+  /// Renders column headers for the files table.
   const FilesPanelHeader({super.key, required this.theme});
 
   final ShadThemeData theme;
 
+  /// Builds the column header row.
   @override
   Widget build(BuildContext context) {
     final labelStyle = theme.textTheme.small.copyWith(
@@ -233,6 +246,7 @@ class FilesPanelHeader extends StatelessWidget {
 }
 
 class FilesPanelRow extends StatelessWidget {
+  /// Renders a single file or directory row in the tree.
   const FilesPanelRow({
     super.key,
     required this.theme,
@@ -248,6 +262,7 @@ class FilesPanelRow extends StatelessWidget {
   final bool expanded;
   final VoidCallback? onToggle;
 
+  /// Builds one file or directory table row.
   @override
   Widget build(BuildContext context) {
     return HoverListRow(
@@ -317,6 +332,7 @@ class FilesPanelRow extends StatelessWidget {
 }
 
 class FilesPanelStatusRow extends StatelessWidget {
+  /// Renders a loading or error status line indented under a directory.
   const FilesPanelStatusRow({
     super.key,
     required this.theme,
@@ -330,6 +346,7 @@ class FilesPanelStatusRow extends StatelessWidget {
   final String message;
   final bool isError;
 
+  /// Builds an indented status message row.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -346,6 +363,7 @@ class FilesPanelStatusRow extends StatelessWidget {
   }
 }
 
+/// Returns the muted background color used by the files panel.
 Color filesPanelBackgroundColor(ShadThemeData theme) {
   return Color.alphaBlend(
     theme.colorScheme.muted.withValues(alpha: 0.2),
@@ -353,6 +371,7 @@ Color filesPanelBackgroundColor(ShadThemeData theme) {
   );
 }
 
+/// Formats a byte count as a human-readable size string.
 String formatFileSize(int bytes) {
   if (bytes < 1024) {
     return '$bytes B';

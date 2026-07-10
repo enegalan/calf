@@ -15,6 +15,7 @@ type Native struct {
 	proxy        ProxyConfig
 }
 
+// NewNative constructs a Runtime that talks directly to host nerdctl/docker.
 func NewNative(_ string, dockerSocket string, _, _, _, _ int, proxy ProxyConfig) *Native {
 	if dockerSocket == "" {
 		dockerSocket = "/var/run/docker.sock"
@@ -23,10 +24,12 @@ func NewNative(_ string, dockerSocket string, _, _, _, _ int, proxy ProxyConfig)
 	return &Native{dockerSocket: dockerSocket, proxy: proxy}
 }
 
+// DockerSocket returns the path to the Docker-compatible socket.
 func (n *Native) DockerSocket() string {
 	return n.dockerSocket
 }
 
+// Start verifies the docker socket and container runtime are available.
 func (n *Native) Start(ctx context.Context) error {
 	if _, err := os.Stat(n.dockerSocket); err != nil {
 		return fmt.Errorf("docker socket not found at %s: ensure containerd/docker is running", n.dockerSocket)
@@ -41,10 +44,12 @@ func (n *Native) Start(ctx context.Context) error {
 	return nil
 }
 
+// Stop is a no-op for the native runtime; the host daemon keeps running.
 func (n *Native) Stop(_ context.Context) error {
 	return nil
 }
 
+// Status reports native mode and whether the docker socket responds.
 func (n *Native) Status(ctx context.Context) (Status, error) {
 	status := Status{
 		Mode:         ModeNative,
@@ -68,18 +73,21 @@ func (n *Native) Status(ctx context.Context) (Status, error) {
 	return status, nil
 }
 
+// ListContainers returns all containers, or none when the runtime is stopped.
 func (n *Native) ListContainers(ctx context.Context) ([]Container, error) {
 	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Container, error) {
 		return listContainers(ctx, n.runLocal)
 	})
 }
 
+// ListImages returns all images, or none when the runtime is stopped.
 func (n *Native) ListImages(ctx context.Context) ([]Image, error) {
 	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Image, error) {
 		return listImages(ctx, n.runLocal)
 	})
 }
 
+// ImageHistory returns build layers for the given image reference.
 func (n *Native) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return nil, err
@@ -88,6 +96,7 @@ func (n *Native) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, er
 	return imageHistory(ctx, n.runLocal, ref)
 }
 
+// ListVolumes returns all volumes with in-use enrichment, or none when stopped.
 func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
 	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Volume, error) {
 		volumes, err := listVolumes(ctx, n.runLocal)
@@ -99,12 +108,14 @@ func (n *Native) ListVolumes(ctx context.Context) ([]Volume, error) {
 	})
 }
 
+// ListNetworks returns all networks, or none when the runtime is stopped.
 func (n *Native) ListNetworks(ctx context.Context) ([]Network, error) {
 	return emptyIfStopped(ctx, n.Status, func(ctx context.Context) ([]Network, error) {
 		return listNetworks(ctx, n.runLocal)
 	})
 }
 
+// InspectNetwork returns detailed metadata for a network by name.
 func (n *Native) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return NetworkDetail{}, err
@@ -113,6 +124,7 @@ func (n *Native) InspectNetwork(ctx context.Context, name string) (NetworkDetail
 	return inspectNetwork(ctx, n.runLocal, name)
 }
 
+// RemoveNetwork deletes a network by name.
 func (n *Native) RemoveNetwork(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -121,6 +133,7 @@ func (n *Native) RemoveNetwork(ctx context.Context, name string) error {
 	return removeNetwork(ctx, n.runLocal, name)
 }
 
+// ApplyProxy stores proxy settings and applies them when the runtime is running.
 func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	n.proxy = proxy
 
@@ -131,6 +144,7 @@ func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	return applyProxyInVM(ctx, n.runLocal, proxy)
 }
 
+// CreateVolume creates a named volume, or an anonymous one when name is empty.
 func (n *Native) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -145,6 +159,7 @@ func (n *Native) CreateVolume(ctx context.Context, name string) error {
 	return err
 }
 
+// CloneVolume copies data from source into a new dest volume.
 func (n *Native) CloneVolume(ctx context.Context, source, dest string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -153,6 +168,7 @@ func (n *Native) CloneVolume(ctx context.Context, source, dest string) error {
 	return cloneVolume(ctx, n.runLocal, source, dest)
 }
 
+// ExportVolume archives a volume to the destination described by opts.
 func (n *Native) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return "", err
@@ -161,6 +177,7 @@ func (n *Native) ExportVolume(ctx context.Context, opts VolumeExportOptions) (st
 	return RunVolumeExport(ctx, n.runLocal, opts)
 }
 
+// RemoveVolume deletes a volume by name.
 func (n *Native) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -170,6 +187,7 @@ func (n *Native) RemoveVolume(ctx context.Context, name string) error {
 	return err
 }
 
+// InspectVolume returns detailed metadata for a volume by name.
 func (n *Native) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return VolumeDetail{}, err
@@ -178,6 +196,7 @@ func (n *Native) InspectVolume(ctx context.Context, name string) (VolumeDetail, 
 	return inspectVolume(ctx, n.runLocal, name)
 }
 
+// ListVolumeFiles lists directory entries inside a volume at path.
 func (n *Native) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return nil, err
@@ -190,6 +209,7 @@ func (n *Native) ListVolumeFiles(ctx context.Context, name, path string) ([]Cont
 	return listVolumeFiles(ctx, n.runLocal, name, path)
 }
 
+// VolumeContainers lists containers that mount the named volume.
 func (n *Native) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return nil, err
@@ -198,6 +218,7 @@ func (n *Native) VolumeContainers(ctx context.Context, name string) ([]VolumeCon
 	return volumeContainerUsages(ctx, n.runLocal, name)
 }
 
+// RunBuild builds an image from contextPath and returns parsed build output.
 func (n *Native) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return BuildResult{}, err
@@ -206,6 +227,7 @@ func (n *Native) RunBuild(ctx context.Context, contextPath, tag, dockerfile, pla
 	return runBuild(ctx, n.runLocal, contextPath, tag, dockerfile, platform)
 }
 
+// StartContainer starts a stopped container by ID.
 func (n *Native) StartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -215,6 +237,7 @@ func (n *Native) StartContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// StopContainer stops a running container by ID.
 func (n *Native) StopContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -224,6 +247,7 @@ func (n *Native) StopContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// RemoveContainer force-removes a container by ID.
 func (n *Native) RemoveContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -233,6 +257,7 @@ func (n *Native) RemoveContainer(ctx context.Context, id string) error {
 	return err
 }
 
+// RemoveImage deletes an image by reference.
 func (n *Native) RemoveImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -242,6 +267,7 @@ func (n *Native) RemoveImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// PullImage downloads an image from a registry.
 func (n *Native) PullImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -251,6 +277,7 @@ func (n *Native) PullImage(ctx context.Context, ref string) error {
 	return err
 }
 
+// PushImage uploads an image to a registry.
 func (n *Native) PushImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -259,6 +286,7 @@ func (n *Native) PushImage(ctx context.Context, ref string) error {
 	return pushImage(ctx, n.runLocal, ref)
 }
 
+// RunImage starts a detached container from ref and returns its ID.
 func (n *Native) RunImage(ctx context.Context, ref string) (string, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return "", err
@@ -267,6 +295,7 @@ func (n *Native) RunImage(ctx context.Context, ref string) (string, error) {
 	return runImage(ctx, n.runLocal, ref)
 }
 
+// StreamLogs tails recent history then follows new log lines for a container.
 func (n *Native) StreamLogs(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -280,6 +309,7 @@ func (n *Native) StreamLogs(ctx context.Context, id string, output func(string))
 	return n.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
 
+// StreamLogsFollow streams only new log lines from the current time onward.
 func (n *Native) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -288,11 +318,13 @@ func (n *Native) StreamLogsFollow(ctx context.Context, id string, output func(st
 	return n.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
 
+// streamLogsFollow runs nerdctl logs -f and pipes lines to output.
 func (n *Native) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "nerdctl", "logs", "-f", "--since", since, id)
 	return streamCommandLogs(ctx, command, output)
 }
 
+// InspectContainer returns raw nerdctl inspect JSON for a container.
 func (n *Native) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return nil, err
@@ -301,6 +333,7 @@ func (n *Native) InspectContainer(ctx context.Context, id string) (json.RawMessa
 	return inspectContainer(ctx, n.runLocal, id)
 }
 
+// ContainerMounts parses mount points from container inspect data.
 func (n *Native) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
 	inspect, err := n.InspectContainer(ctx, id)
 	if err != nil {
@@ -310,6 +343,7 @@ func (n *Native) ContainerMounts(ctx context.Context, id string) ([]ContainerMou
 	return parseContainerMounts(inspect)
 }
 
+// ListContainerFiles lists directory entries inside a container at path.
 func (n *Native) ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return nil, err
@@ -322,6 +356,7 @@ func (n *Native) ListContainerFiles(ctx context.Context, id, path string) ([]Con
 	return listContainerFiles(ctx, n.runLocal, id, path)
 }
 
+// ExecContainer runs a one-shot command inside a container and returns stdout.
 func (n *Native) ExecContainer(ctx context.Context, id, command string) (string, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return "", err
@@ -330,6 +365,7 @@ func (n *Native) ExecContainer(ctx context.Context, id, command string) (string,
 	return execInContainer(ctx, n.runLocal, id, command)
 }
 
+// AttachExec opens an interactive PTY session inside a container.
 func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -339,6 +375,7 @@ func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onO
 	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
 }
 
+// ContainerStats returns CPU and memory usage for a running container.
 func (n *Native) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return ContainerStats{}, err
@@ -347,6 +384,7 @@ func (n *Native) ContainerStats(ctx context.Context, id string) (ContainerStats,
 	return containerStats(ctx, n.runLocal, id)
 }
 
+// RestartContainer stops and starts a container by ID.
 func (n *Native) RestartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -355,6 +393,7 @@ func (n *Native) RestartContainer(ctx context.Context, id string) error {
 	return restartContainer(ctx, n.runLocal, id)
 }
 
+// runLocal executes a host command, retrying transient nerdctl failures.
 func (n *Native) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", command, args...)
@@ -363,6 +402,7 @@ func (n *Native) runLocal(ctx context.Context, command string, args ...string) (
 	return runCommand(ctx, command, args...)
 }
 
+// runLocalWithStdin executes a host command with stdin, retrying nerdctl on transient errors.
 func (n *Native) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, command, args...)
@@ -371,6 +411,7 @@ func (n *Native) runLocalWithStdin(ctx context.Context, stdin, command string, a
 	return runCommandWithStdin(ctx, stdin, command, args...)
 }
 
+// registryConfigPaths returns Docker config.json paths checked for registry auth.
 func (n *Native) registryConfigPaths() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -383,6 +424,7 @@ func (n *Native) registryConfigPaths() []string {
 	}
 }
 
+// RegistryStatus reports whether the user is logged in to the default registry.
 func (n *Native) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return RegistryStatus{Server: defaultRegistryServer}, nil
@@ -391,6 +433,7 @@ func (n *Native) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	return registryStatus(ctx, n.runLocal, n.registryConfigPaths()...)
 }
 
+// RegistryLogin authenticates to a container registry with username and password.
 func (n *Native) RegistryLogin(ctx context.Context, server, username, password string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
@@ -399,6 +442,7 @@ func (n *Native) RegistryLogin(ctx context.Context, server, username, password s
 	return registryLogin(ctx, n.runLocal, n.runLocalWithStdin, server, username, password)
 }
 
+// RegistryLogout removes stored credentials for a registry server.
 func (n *Native) RegistryLogout(ctx context.Context, server string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err

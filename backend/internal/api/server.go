@@ -38,6 +38,7 @@ var logsUpgrader = websocket.Upgrader{
 	},
 }
 
+// New constructs a Server with the given config, logger, and runtime, starts the export scheduler, and loads persisted build history.
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 	server := &Server{
 		cfg:            cfg,
@@ -53,6 +54,7 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 	return server
 }
 
+// Handler returns the HTTP handler with all /v1 routes and middleware applied.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/health", s.handleHealth)
@@ -76,6 +78,7 @@ func (s *Server) Handler() http.Handler {
 	return withMiddleware(s.logger, mux)
 }
 
+// Run starts the HTTP server on the configured listen address.
 func (s *Server) Run() error {
 	s.httpServer = &http.Server{
 		Addr:              s.cfg.ListenAddr,
@@ -90,6 +93,7 @@ func (s *Server) Run() error {
 	return s.httpServer.ListenAndServe()
 }
 
+// Shutdown gracefully stops the export scheduler and HTTP server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.exportScheduler != nil {
 		s.exportScheduler.Stop()
@@ -102,16 +106,19 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// writeJSON encodes payload as JSON and writes it with the given HTTP status.
 func writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+// writeError writes a JSON error response with the given status and message.
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// methodNotAllowed responds with 204 for OPTIONS or 405 for other unsupported methods.
 func methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)

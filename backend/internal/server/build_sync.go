@@ -8,14 +8,13 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/buildhistory"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-const buildSyncInterval = 30 * time.Second
-const buildSyncEnrichTimeout = 2 * time.Minute
-
+// StartBuildSync periodically imports and enriches build history from the Docker socket until ctx is canceled.
 func (s *Server) StartBuildSync(ctx context.Context) {
-	interval := buildSyncInterval
+	interval := constants.DefaultBuildSyncInterval
 	s.cfgMu.RLock()
 	if s.cfg.PollIntervalMs > 0 {
 		interval = time.Duration(s.cfg.PollIntervalMs) * time.Millisecond
@@ -37,6 +36,7 @@ func (s *Server) StartBuildSync(ctx context.Context) {
 	}
 }
 
+// syncBuildHistory imports new buildkit rows and refreshes known history-linked builds in persisted storage.
 func (s *Server) syncBuildHistory(ctx context.Context) {
 	socket := s.runtime.DockerSocket()
 	if socket == "" {
@@ -62,7 +62,7 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 		return
 	}
 
-	enrichCtx, cancel := context.WithTimeout(ctx, buildSyncEnrichTimeout)
+	enrichCtx, cancel := context.WithTimeout(ctx, constants.BuildSyncEnrichTimeout)
 	defer cancel()
 
 	s.buildsMu.RLock()
@@ -126,6 +126,7 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 	}
 }
 
+// buildsEqual reports whether two builds have identical display-relevant fields.
 func buildsEqual(left, right runtime.Build) bool {
 	return left.Tag == right.Tag &&
 		left.Status == right.Status &&
@@ -144,6 +145,7 @@ func buildsEqual(left, right runtime.Build) bool {
 		timingEqual(left.Timing, right.Timing)
 }
 
+// timingEqual reports whether two BuildTiming values are identical.
 func timingEqual(left, right runtime.BuildTiming) bool {
 	return left.ImagePullsMs == right.ImagePullsMs &&
 		left.LocalTransfersMs == right.LocalTransfersMs &&
@@ -153,6 +155,7 @@ func timingEqual(left, right runtime.BuildTiming) bool {
 		left.IdleMs == right.IdleMs
 }
 
+// enrichHistoryBuild fills context, logs, and artifacts for a build linked to buildkit history.
 func (s *Server) enrichHistoryBuild(ctx context.Context, socket string, build runtime.Build) runtime.Build {
 	if build.HistoryRef == "" {
 		return build
@@ -189,6 +192,7 @@ func (s *Server) enrichHistoryBuild(ctx context.Context, socket string, build ru
 	return build
 }
 
+// isTerminalBuildStatus reports whether a build status indicates the build has finished.
 func isTerminalBuildStatus(status string) bool {
 	switch status {
 	case "success", "failed":
@@ -198,6 +202,7 @@ func isTerminalBuildStatus(status string) bool {
 	}
 }
 
+// baseBuildFromHistoryRow constructs a runtime.Build skeleton from a buildkit history row.
 func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 	createdAt := row.BuildCreatedAt()
 	if createdAt == "" {
@@ -224,6 +229,7 @@ func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 	}
 }
 
+// applyHistoryRow updates mutable build fields from a fresh buildkit history row.
 func applyHistoryRow(build runtime.Build, row buildhistory.Row) runtime.Build {
 	updated := build
 	updated.Tag = buildhistory.NormalizeTag(row.BuildName())

@@ -1,7 +1,10 @@
+/// Returns the default local-file export name pattern.
 String defaultExportFileNamePattern() => '{volume}-{timestamp}.tar.gz';
 
+/// Returns the default registry image reference export pattern.
 String defaultExportImageRefPattern() => '{volume}-backup:{timestamp}';
 
+/// Returns whether [pattern] includes tokens that make each export name unique.
 bool exportNamePatternHasUniqueToken(String pattern) {
   final normalized = pattern.trim().toLowerCase();
   if (normalized.contains('{timestamp}') || normalized.contains('{datetime}')) {
@@ -11,10 +14,12 @@ bool exportNamePatternHasUniqueToken(String pattern) {
   return normalized.contains('{date}') && normalized.contains('{time}');
 }
 
+/// Normalizes [value] for use as a volume token inside export name patterns.
 String sanitizeVolumeNameToken(String value) {
   return value.trim().replaceAll('/', '_').replaceAll('\\', '_');
 }
 
+/// Sanitizes [value] so it is safe to use as a local export file name.
 String sanitizeExportFileName(String value) {
   return value
       .trim()
@@ -23,6 +28,7 @@ String sanitizeExportFileName(String value) {
       .replaceAll(':', '-');
 }
 
+/// Expands [pattern] into a local export file name for [volumeName] at [runTime].
 String expandExportFileNamePattern(
   String pattern,
   String volumeName,
@@ -37,6 +43,7 @@ String expandExportFileNamePattern(
   );
 }
 
+/// Expands [pattern] into a registry image reference for [volumeName] at [runTime].
 String expandExportImageRefPattern(
   String pattern,
   String volumeName,
@@ -51,6 +58,7 @@ String expandExportImageRefPattern(
   );
 }
 
+/// Substitutes pattern tokens and applies file-specific sanitization when needed.
 String _expandNamePattern({
   required String pattern,
   required String volumeName,
@@ -86,6 +94,7 @@ String _expandNamePattern({
   return expanded.trim();
 }
 
+/// Formats [runTime] as a compact timestamp token for export name patterns.
 String _formatPatternTimestamp(DateTime runTime) {
   return '${runTime.year.toString().padLeft(4, '0')}'
       '${runTime.month.toString().padLeft(2, '0')}'

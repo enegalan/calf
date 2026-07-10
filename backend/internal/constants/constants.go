@@ -10,3 +10,5 @@ const (
 )
 
 const DefaultActionTimeout = 30 * time.Second
+const DefaultBuildSyncInterval = 30 * time.Second
+const BuildSyncEnrichTimeout = 2 * time.Minute

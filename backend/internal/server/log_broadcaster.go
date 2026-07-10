@@ -9,11 +9,14 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// logBroadcaster multiplexes one nerdctl log stream per container onto N
+// WebSocket subscribers and tears the stream down when the last one leaves.
 type logBroadcaster struct {
 	mu      sync.Mutex
 	streams map[string]*sharedLogStream
 }
 
+// newLogBroadcaster creates an empty logBroadcaster ready to multiplex container log streams.
 func newLogBroadcaster() *logBroadcaster {
 	return &logBroadcaster{
 		streams: make(map[string]*sharedLogStream),
@@ -29,6 +32,7 @@ type sharedLogStream struct {
 	history     []string
 }
 
+// isStopping reports whether the shared stream is being torn down after the last subscriber left.
 func (s *sharedLogStream) isStopping() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -36,6 +40,7 @@ func (s *sharedLogStream) isStopping() bool {
 	return s.stopping
 }
 
+// subscribe registers a log line channel for containerID and starts the nerdctl stream when needed.
 func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-chan string, func()) {
 	ch := make(chan string, 256)
 
@@ -78,6 +83,7 @@ func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-ch
 	return ch, unsubscribe
 }
 
+// release removes a subscriber and cancels the underlying log stream when the last one disconnects.
 func (b *logBroadcaster) release(containerID string, ch chan string) {
 	b.mu.Lock()
 	stream := b.streams[containerID]
@@ -103,6 +109,7 @@ func (b *logBroadcaster) release(containerID string, ch chan string) {
 	cancel()
 }
 
+// runStream tails container logs, replaying history once then following new lines until canceled.
 func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stream *sharedLogStream) {
 	defer b.cleanupStream(stream.containerID, stream)
 
@@ -137,6 +144,7 @@ func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stre
 	}
 }
 
+// cleanupStream removes a finished stream from the broadcaster map and resets its lifecycle state.
 func (b *logBroadcaster) cleanupStream(containerID string, stream *sharedLogStream) {
 	stream.mu.Lock()
 	stream.cancel = nil
@@ -150,6 +158,7 @@ func (b *logBroadcaster) cleanupStream(containerID string, stream *sharedLogStre
 	b.mu.Unlock()
 }
 
+// hasSubscribers reports whether the shared stream still has active WebSocket subscribers.
 func (s *sharedLogStream) hasSubscribers() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -157,6 +166,7 @@ func (s *sharedLogStream) hasSubscribers() bool {
 	return len(s.subscribers) > 0
 }
 
+// publish appends a log line to the ring buffer and fans it out to all current subscribers.
 func (s *sharedLogStream) publish(line string) {
 	s.mu.Lock()
 	s.history = append(s.history, line)
@@ -175,6 +185,7 @@ func (s *sharedLogStream) publish(line string) {
 	}
 }
 
+// trySendLogLine sends line to ch without blocking when the subscriber buffer is full.
 func trySendLogLine(ch chan string, line string) {
 	select {
 	case ch <- line:

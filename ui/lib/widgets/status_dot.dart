@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/constants/calf_constants.dart';
 
 class StatusDot extends StatelessWidget {
+  /// Creates a small circular status indicator.
   const StatusDot({
     super.key,
     required this.active,
@@ -17,6 +18,7 @@ class StatusDot extends StatelessWidget {
   final Color? activeColor;
   final bool hollow;
 
+  /// Renders a filled, hollow, or inactive status dot.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);

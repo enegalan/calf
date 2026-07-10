@@ -14,6 +14,7 @@ const (
 	logsWriteWait  = 10 * time.Second
 )
 
+// handleContainerLogs serves GET /v1/containers/{id}/logs by upgrading to a log-streaming WebSocket.
 func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -28,6 +29,7 @@ func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request, id 
 	s.handleContainerLogsWebSocket(w, r, id)
 }
 
+// handleContainerLogsWebSocket streams container log lines over a WebSocket with ping/pong keep-alive.
 func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Request, id string) {
 	conn, err := logsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
