@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart' show
-    CircularProgressIndicator,
-    PopupMenuDivider,
-    PopupMenuItem,
-    RelativeRect,
-    RoundedRectangleBorder,
-    showMenu;
+import 'package:flutter/material.dart'
+    show
+        CircularProgressIndicator,
+        PopupMenuDivider,
+        PopupMenuItem,
+        RelativeRect,
+        RoundedRectangleBorder,
+        showMenu;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -74,7 +75,11 @@ class AppTopBar extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(LucideIcons.settings, size: 18, color: theme.colorScheme.foreground),
+                Icon(
+                  LucideIcons.settings,
+                  size: 18,
+                  color: theme.colorScheme.foreground,
+                ),
                 if (updateAvailable)
                   Positioned(
                     top: -2,
@@ -85,7 +90,10 @@ class AppTopBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: theme.colorScheme.background, width: 1.5),
+                        border: Border.all(
+                          color: theme.colorScheme.background,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -142,7 +150,10 @@ class _BrandMark extends StatelessWidget {
           excludeFromSemantics: true,
         ),
         const SizedBox(width: 5),
-        Text('calf', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'calf',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }
@@ -179,7 +190,8 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     }
 
     final box = buttonContext.findRenderObject()! as RenderBox;
-    final overlayBox = Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
+    final overlayBox =
+        Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
     final offset = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     const menuWidth = 240.0;
     final theme = ShadTheme.of(buttonContext);
@@ -206,7 +218,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Row(
             children: [
-              _UserAvatar(initial: widget.initial, size: 32, theme: widget.theme),
+              _UserAvatar(
+                initial: widget.initial,
+                size: 32,
+                theme: widget.theme,
+              ),
               const SizedBox(width: 10),
               Flexible(
                 child: Column(
@@ -215,7 +231,9 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   children: [
                     Text(
                       widget.username,
-                      style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.large.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -359,10 +377,11 @@ class _UserAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: (size >= 32 ? theme.textTheme.large : theme.textTheme.small).copyWith(
-          color: theme.colorScheme.primaryForeground,
-          fontWeight: FontWeight.w600,
-        ),
+        style: (size >= 32 ? theme.textTheme.large : theme.textTheme.small)
+            .copyWith(
+              color: theme.colorScheme.primaryForeground,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }
@@ -419,7 +438,9 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
       await Future<void>.delayed(const Duration(seconds: 2));
 
       try {
-        final status = await widget.apiClient.fetchRegistryBrowserLogin(widget.start.sessionId);
+        final status = await widget.apiClient.fetchRegistryBrowserLogin(
+          widget.start.sessionId,
+        );
         if (!mounted) {
           return;
         }
@@ -469,7 +490,9 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
       constraints: const BoxConstraints(maxWidth: 420),
       gap: 16,
       title: const Text('Sign in to Docker Hub'),
-      description: const Text('Complete sign-in in your browser. This dialog closes when you are done.'),
+      description: const Text(
+        'Complete sign-in in your browser. This dialog closes when you are done.',
+      ),
       actions: [
         CalfButton.ghost(
           onPressed: () => Navigator.of(context).pop(),
@@ -480,87 +503,99 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.muted,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Waiting for browser sign-in...',
-                      style: theme.textTheme.small,
-                    ),
-                  ),
-                ],
-              ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.muted,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Confirmation code',
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.border),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.start.userCode,
-                      style: theme.textTheme.h4.copyWith(letterSpacing: 2),
-                    ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
                   ),
-                  CalfButton.ghost(
-                    onPressed: _copyCode,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.foreground),
-                        const SizedBox(width: 6),
-                        const Text('Copy'),
-                      ],
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Waiting for browser sign-in...',
+                    style: theme.textTheme.small,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Confirmation code',
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.border),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.start.userCode,
+                    style: theme.textTheme.h4.copyWith(letterSpacing: 2),
+                  ),
+                ),
+                CalfButton.ghost(
+                  onPressed: _copyCode,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.copy,
+                        size: 14,
+                        color: theme.colorScheme.foreground,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('Copy'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          CalfButton.outline(
+            onPressed: _openLoginPage,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.externalLink,
+                  size: 14,
+                  color: theme.colorScheme.foreground,
+                ),
+                const SizedBox(width: 8),
+                const Text('Open login page'),
+              ],
+            ),
+          ),
+          if (_error != null) ...[
             const SizedBox(height: 12),
-            CalfButton.outline(
-              onPressed: _openLoginPage,
-              width: double.infinity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.externalLink, size: 14, color: theme.colorScheme.foreground),
-                  const SizedBox(width: 8),
-                  const Text('Open login page'),
-                ],
+            Text(
+              _error!,
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.destructive,
               ),
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
-              ),
-            ],
+          ],
         ],
       ),
     );
@@ -588,27 +623,28 @@ void showWhatsNewDialog(BuildContext context, String appVersion) {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.logIn,
-              title: 'Docker Hub login',
-              description: 'Browser sign-in with Google, GitHub and SSO.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.layers,
-              title: 'Image management',
-              description: 'Layers, run, pull and push from the Images screen.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.globe,
-              title: 'localhost proxy',
-              description: 'Published container ports work on localhost, not just 127.0.0.1.',
-            ),
-            const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.logIn,
+            title: 'Docker Hub login',
+            description: 'Browser sign-in with Google, GitHub and SSO.',
+          ),
+          const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.layers,
+            title: 'Image management',
+            description: 'Layers, run, pull and push from the Images screen.',
+          ),
+          const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.globe,
+            title: 'localhost proxy',
+            description:
+                'Published container ports work on localhost, not just 127.0.0.1.',
+          ),
+          const SizedBox(height: 8),
           _ReleaseNote(
             theme: theme,
             icon: LucideIcons.download,
@@ -656,7 +692,12 @@ class _ReleaseNote extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: theme.textTheme.large.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(description, style: theme.textTheme.muted),
               ],

@@ -47,9 +47,9 @@ class RuntimeStatus {
     final conflictsJson = json['port_conflicts'];
     final conflicts = conflictsJson is List
         ? conflictsJson
-            .whereType<Map<String, dynamic>>()
-            .map(PortConflict.fromJson)
-            .toList()
+              .whereType<Map<String, dynamic>>()
+              .map(PortConflict.fromJson)
+              .toList()
         : const <PortConflict>[];
 
     return RuntimeStatus(
@@ -85,7 +85,9 @@ class DaemonStatus {
 
     final uptimeSeconds = json['uptime_seconds'];
     if (uptimeSeconds is! int) {
-      throw FormatException('expected int "uptime_seconds", got $uptimeSeconds');
+      throw FormatException(
+        'expected int "uptime_seconds", got $uptimeSeconds',
+      );
     }
 
     final listenAddr = json['listen_addr'];
@@ -143,8 +145,7 @@ class ContainerItem {
 
   String get shortId => id.length > 12 ? id.substring(0, 12) : id;
 
-  String get displayName =>
-      composeService.isNotEmpty ? composeService : name;
+  String get displayName => composeService.isNotEmpty ? composeService : name;
 
   String get subtitle {
     final image = displayImage;
@@ -283,10 +284,7 @@ class ContainerStats {
 }
 
 class ContainerExecResult {
-  const ContainerExecResult({
-    required this.output,
-    this.error,
-  });
+  const ContainerExecResult({required this.output, this.error});
 
   final String output;
   final String? error;
@@ -579,10 +577,7 @@ class VolumeExportItem {
 }
 
 class VolumeExportDayTimes {
-  const VolumeExportDayTimes({
-    required this.day,
-    required this.times,
-  });
+  const VolumeExportDayTimes({required this.day, required this.times});
 
   final int day;
   final List<String> times;
@@ -594,10 +589,7 @@ class VolumeExportDayTimes {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'day': day,
-        'times': times,
-      };
+  Map<String, dynamic> toJson() => {'day': day, 'times': times};
 }
 
 class VolumeExportScheduleItem {
@@ -641,7 +633,9 @@ class VolumeExportScheduleItem {
     }
 
     return dayTimes
-        .map((entry) => '${weekdayShort(entry.day)} at ${entry.times.join(', ')}')
+        .map(
+          (entry) => '${weekdayShort(entry.day)} at ${entry.times.join(', ')}',
+        )
         .join('; ');
   }
 
@@ -701,17 +695,24 @@ class VolumeExportScheduleItem {
     return order(left).compareTo(order(right));
   }
 
-  static List<VolumeExportDayTimes> _dayTimesFromJson(Map<String, dynamic> json) {
+  static List<VolumeExportDayTimes> _dayTimesFromJson(
+    Map<String, dynamic> json,
+  ) {
     final raw = json['day_times'];
     if (raw is! List || raw.isEmpty) {
       return const [];
     }
 
-    final entries = raw
-        .whereType<Map>()
-        .map((value) => VolumeExportDayTimes.fromJson(Map<String, dynamic>.from(value)))
-        .toList()
-      ..sort((left, right) => compareWeekdays(left.day, right.day));
+    final entries =
+        raw
+            .whereType<Map>()
+            .map(
+              (value) => VolumeExportDayTimes.fromJson(
+                Map<String, dynamic>.from(value),
+              ),
+            )
+            .toList()
+          ..sort((left, right) => compareWeekdays(left.day, right.day));
     return entries;
   }
 
@@ -851,10 +852,7 @@ class BuildArtifact {
 }
 
 class BuildTag {
-  const BuildTag({
-    required this.tag,
-    required this.digest,
-  });
+  const BuildTag({required this.tag, required this.digest});
 
   final String tag;
   final String digest;
@@ -948,10 +946,15 @@ class BuildDetail extends BuildItem {
       finishedAt: json['finished_at'] as String? ?? '',
       error: json['error'] as String? ?? '',
       steps: _decodeObjectList(json['steps'], BuildStep.fromJson),
-      dependencies: _decodeObjectList(json['dependencies'], BuildDependency.fromJson),
+      dependencies: _decodeObjectList(
+        json['dependencies'],
+        BuildDependency.fromJson,
+      ),
       results: _decodeObjectList(json['results'], BuildArtifact.fromJson),
       tags: _decodeObjectList(json['tags'], BuildTag.fromJson),
-      timing: BuildTiming.fromJson(json['timing'] as Map<String, dynamic>? ?? const {}),
+      timing: BuildTiming.fromJson(
+        json['timing'] as Map<String, dynamic>? ?? const {},
+      ),
       sourceRevision: json['source_revision'] as String? ?? '',
       remoteSource: json['remote_source'] as String? ?? '',
       rawLog: json['raw_log'] as String? ?? '',
@@ -960,10 +963,7 @@ class BuildDetail extends BuildItem {
 }
 
 class BuildLogs {
-  const BuildLogs({
-    this.rawLog = '',
-    this.steps = const [],
-  });
+  const BuildLogs({this.rawLog = '', this.steps = const []});
 
   final String rawLog;
   final List<BuildStep> steps;
@@ -999,7 +999,10 @@ class BuildSource {
   }
 }
 
-List<T> _decodeObjectList<T>(Object? value, T Function(Map<String, dynamic> json) mapper) {
+List<T> _decodeObjectList<T>(
+  Object? value,
+  T Function(Map<String, dynamic> json) mapper,
+) {
   if (value is! List) {
     return const [];
   }
@@ -1089,7 +1092,10 @@ abstract class CalfClient implements StatusClient {
   Future<List<NetworkItem>> fetchNetworks();
   Future<NetworkDetail> fetchNetworkDetail(String name);
   Future<VolumeDetail> fetchVolumeDetail(String name);
-  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'});
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(
+    String name, {
+    String path = '/',
+  });
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
   Future<List<VolumeExportItem>> fetchVolumeExports(String name);
   Future<VolumeExportItem> createVolumeExport({
@@ -1100,7 +1106,9 @@ abstract class CalfClient implements StatusClient {
     String imageRef = '',
   });
   Future<List<int>> downloadVolumeExport(String volumeName, String exportId);
-  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name);
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(
+    String name,
+  );
   Future<VolumeExportScheduleItem> createVolumeExportSchedule({
     required String name,
     required String type,
@@ -1131,7 +1139,10 @@ abstract class CalfClient implements StatusClient {
   Future<void> restartContainer(String id);
   Future<String> fetchContainerInspect(String id, {String? section});
   Future<List<ContainerMount>> fetchContainerMounts(String id);
-  Future<List<ContainerFileEntry>> fetchContainerFiles(String id, {String path = '/'});
+  Future<List<ContainerFileEntry>> fetchContainerFiles(
+    String id, {
+    String path = '/',
+  });
   Future<ContainerExecResult> execContainer(String id, String command);
   Future<ContainerStats> fetchContainerStats(String id);
   Future<void> pullImage(String reference);
@@ -1142,7 +1153,11 @@ abstract class CalfClient implements StatusClient {
   Future<void> cloneVolume(String source, String name);
   Future<void> removeVolume(String name);
   Future<void> removeNetwork(String name);
-  Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''});
+  Future<BuildItem> runBuild({
+    required String context,
+    required String tag,
+    String dockerfile = '',
+  });
   Stream<String> streamContainerLogs(String id);
   Uri containerLogsWebSocketUri(String id);
   Uri containerExecWebSocketUri(String id);
@@ -1152,7 +1167,9 @@ abstract class CalfClient implements StatusClient {
   Future<MigrationStatus> startDockerDesktopMigration();
   Future<RegistryLoginStatus> fetchRegistryStatus();
   Future<RegistryBrowserLoginStart> startRegistryBrowserLogin();
-  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(String sessionId);
+  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(
+    String sessionId,
+  );
   Future<void> loginRegistry({
     required String username,
     required String password,
@@ -1180,34 +1197,42 @@ class ApiClient implements CalfClient {
 
   @override
   Future<List<ContainerItem>> fetchContainers() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/containers')).timeout(timeout);
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/containers'))
+        .timeout(timeout);
     return _decodeList(response, ContainerItem.fromJson);
   }
 
   @override
   Future<List<ImageItem>> fetchImages() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/images')).timeout(timeout);
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/images'))
+        .timeout(timeout);
     return _decodeList(response, ImageItem.fromJson);
   }
 
   @override
   Future<List<ImageLayer>> fetchImageLayers(String reference) async {
-    final uri = Uri.parse('$baseUrl/v1/images/layers').replace(
-      queryParameters: {'reference': reference},
-    );
+    final uri = Uri.parse(
+      '$baseUrl/v1/images/layers',
+    ).replace(queryParameters: {'reference': reference});
     final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, ImageLayer.fromJson);
   }
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/volumes')).timeout(CalfDefaults.volumeActionTimeout);
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/volumes'))
+        .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeItem.fromJson);
   }
 
   @override
   Future<List<NetworkItem>> fetchNetworks() async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/networks')).timeout(timeout);
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/networks'))
+        .timeout(timeout);
     return _decodeList(response, NetworkItem.fromJson);
   }
 
@@ -1227,18 +1252,27 @@ class ApiClient implements CalfClient {
   }
 
   @override
-  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async {
-    final uri = Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files').replace(
-      queryParameters: {'path': path},
-    );
-    final response = await httpClient.get(uri).timeout(CalfDefaults.volumeActionTimeout);
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(
+    String name, {
+    String path = '/',
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files',
+    ).replace(queryParameters: {'path': path});
+    final response = await httpClient
+        .get(uri)
+        .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
   }
 
   @override
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async {
     final response = await httpClient
-        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/containers'))
+        .get(
+          Uri.parse(
+            '$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/containers',
+          ),
+        )
         .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeContainerUsage.fromJson);
   }
@@ -1246,7 +1280,9 @@ class ApiClient implements CalfClient {
   @override
   Future<List<VolumeExportItem>> fetchVolumeExports(String name) async {
     final response = await httpClient
-        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/exports'))
+        .get(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/exports'),
+        )
         .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeExportItem.fromJson);
   }
@@ -1273,19 +1309,28 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.volumeExportTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return VolumeExportItem.fromJson(json);
   }
 
   @override
-  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async {
+  Future<List<int>> downloadVolumeExport(
+    String volumeName,
+    String exportId,
+  ) async {
     final response = await httpClient
         .get(
           Uri.parse(
@@ -1295,16 +1340,25 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.volumeExportTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     return response.bodyBytes;
   }
 
   @override
-  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async {
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(
+    String name,
+  ) async {
     final response = await httpClient
-        .get(Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'))
+        .get(
+          Uri.parse(
+            '$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules',
+          ),
+        )
         .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, VolumeExportScheduleItem.fromJson);
   }
@@ -1332,19 +1386,27 @@ class ApiClient implements CalfClient {
 
     final response = await httpClient
         .post(
-          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules'),
+          Uri.parse(
+            '$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/export-schedules',
+          ),
           headers: const {'Content-Type': 'application/json'},
           body: jsonEncode(body),
         )
         .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return VolumeExportScheduleItem.fromJson(json);
@@ -1392,19 +1454,28 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return VolumeExportScheduleItem.fromJson(json);
   }
 
   @override
-  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {
+  Future<void> deleteVolumeExportSchedule(
+    String volumeName,
+    String scheduleId,
+  ) async {
     await _delete(
       '/v1/volumes/${Uri.encodeComponent(volumeName)}/export-schedules/${Uri.encodeComponent(scheduleId)}',
     );
@@ -1454,12 +1525,18 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return Config.fromJson(json);
@@ -1478,12 +1555,18 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200 && response.statusCode != 202) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return MigrationStatus.fromJson(json);
@@ -1502,19 +1585,27 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return RegistryBrowserLoginStart.fromJson(json);
   }
 
   @override
-  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(String sessionId) async {
+  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(
+    String sessionId,
+  ) async {
     final json = await _getJson('/v1/registry/login/$sessionId');
     return RegistryBrowserLoginStatus.fromJson(json);
   }
@@ -1538,19 +1629,25 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
   @override
   Future<void> logoutRegistry({String server = 'docker.io'}) async {
-    final uri = Uri.parse('$baseUrl/v1/registry').replace(
-      queryParameters: server.isNotEmpty ? {'server': server} : null,
-    );
+    final uri = Uri.parse(
+      '$baseUrl/v1/registry',
+    ).replace(queryParameters: server.isNotEmpty ? {'server': server} : null);
     final response = await httpClient.delete(uri).timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -1577,26 +1674,36 @@ class ApiClient implements CalfClient {
   @override
   Future<String> fetchContainerInspect(String id, {String? section}) async {
     final uri = Uri.parse('$baseUrl/v1/containers/$id/inspect').replace(
-      queryParameters: section == null || section.isEmpty ? null : {'section': section},
+      queryParameters: section == null || section.isEmpty
+          ? null
+          : {'section': section},
     );
     final response = await httpClient.get(uri).timeout(timeout);
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
     return response.body;
   }
 
   @override
   Future<List<ContainerMount>> fetchContainerMounts(String id) async {
-    final response = await httpClient.get(Uri.parse('$baseUrl/v1/containers/$id/mounts')).timeout(timeout);
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/containers/$id/mounts'))
+        .timeout(timeout);
     return _decodeList(response, ContainerMount.fromJson);
   }
 
   @override
-  Future<List<ContainerFileEntry>> fetchContainerFiles(String id, {String path = '/'}) async {
-    final uri = Uri.parse('$baseUrl/v1/containers/$id/files').replace(
-      queryParameters: {'path': path},
-    );
+  Future<List<ContainerFileEntry>> fetchContainerFiles(
+    String id, {
+    String path = '/',
+  }) async {
+    final uri = Uri.parse(
+      '$baseUrl/v1/containers/$id/files',
+    ).replace(queryParameters: {'path': path});
     final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
   }
@@ -1612,12 +1719,18 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return ContainerExecResult(
@@ -1643,7 +1756,10 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -1658,7 +1774,10 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -1673,7 +1792,10 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.imageActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1696,7 +1818,10 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -1711,7 +1836,10 @@ class ApiClient implements CalfClient {
         .timeout(CalfDefaults.volumeActionTimeout);
 
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -1726,7 +1854,11 @@ class ApiClient implements CalfClient {
   }
 
   @override
-  Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {
+  Future<BuildItem> runBuild({
+    required String context,
+    required String tag,
+    String dockerfile = '',
+  }) async {
     final response = await httpClient
         .post(
           Uri.parse('$baseUrl/v1/builds'),
@@ -1740,12 +1872,18 @@ class ApiClient implements CalfClient {
         .timeout(timeout);
 
     if (response.statusCode != 200 && response.statusCode != 202) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = jsonDecode(response.body);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return BuildItem.fromJson(json);
@@ -1777,10 +1915,12 @@ class ApiClient implements CalfClient {
   }
 
   @override
-  Uri containerLogsWebSocketUri(String id) => _webSocketUri('/v1/containers/$id/logs');
+  Uri containerLogsWebSocketUri(String id) =>
+      _webSocketUri('/v1/containers/$id/logs');
 
   @override
-  Uri containerExecWebSocketUri(String id) => _webSocketUri('/v1/containers/$id/exec');
+  Uri containerExecWebSocketUri(String id) =>
+      _webSocketUri('/v1/containers/$id/exec');
 
   Uri _webSocketUri(String path) {
     final uri = Uri.parse(baseUrl);
@@ -1793,12 +1933,20 @@ class ApiClient implements CalfClient {
     );
   }
 
-  Future<Map<String, dynamic>> _getJson(String path, {Duration? timeout}) async {
+  Future<Map<String, dynamic>> _getJson(
+    String path, {
+    Duration? timeout,
+  }) async {
     final requestTimeout = timeout ?? this.timeout;
     try {
-      final response = await httpClient.get(Uri.parse('$baseUrl$path')).timeout(requestTimeout);
+      final response = await httpClient
+          .get(Uri.parse('$baseUrl$path'))
+          .timeout(requestTimeout);
       if (response.statusCode != 200) {
-        throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+        throw ApiException(
+          _errorMessage(response),
+          statusCode: response.statusCode,
+        );
       }
 
       return _decodeObject(response);
@@ -1808,27 +1956,46 @@ class ApiClient implements CalfClient {
   }
 
   Future<void> _postEmpty(String path) async {
-    final response = await httpClient.post(Uri.parse('$baseUrl$path')).timeout(timeout);
+    final response = await httpClient
+        .post(Uri.parse('$baseUrl$path'))
+        .timeout(timeout);
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
   Future<void> _delete(String path) async {
-    final response = await httpClient.delete(Uri.parse('$baseUrl$path')).timeout(timeout);
+    final response = await httpClient
+        .delete(Uri.parse('$baseUrl$path'))
+        .timeout(timeout);
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
   }
 
-  List<T> _decodeList<T>(http.Response response, T Function(Map<String, dynamic>) mapper) {
+  List<T> _decodeList<T>(
+    http.Response response,
+    T Function(Map<String, dynamic>) mapper,
+  ) {
     if (response.statusCode != 200) {
-      throw ApiException(_errorMessage(response), statusCode: response.statusCode);
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
     }
 
     final json = _decodeJson(response);
     if (json is! List<dynamic>) {
-      throw ApiException('Invalid response: expected JSON array', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON array',
+        statusCode: response.statusCode,
+      );
     }
 
     return json.map((item) => mapper(item as Map<String, dynamic>)).toList();
@@ -1837,7 +2004,10 @@ class ApiClient implements CalfClient {
   Map<String, dynamic> _decodeObject(http.Response response) {
     final json = _decodeJson(response);
     if (json is! Map<String, dynamic>) {
-      throw ApiException('Invalid response: expected JSON object', statusCode: response.statusCode);
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
     }
 
     return json;
@@ -1865,15 +2035,15 @@ class ApiClient implements CalfClient {
     return 'Error: ${response.statusCode}';
   }
 
-  Map<String, dynamic> _scheduleTimingBody(List<VolumeExportDayTimes> dayTimes) {
+  Map<String, dynamic> _scheduleTimingBody(
+    List<VolumeExportDayTimes> dayTimes,
+  ) {
     final entries = dayTimes.where((entry) => entry.times.isNotEmpty).toList();
     if (entries.isEmpty) {
       return const {};
     }
 
-    return {
-      'day_times': entries.map((entry) => entry.toJson()).toList(),
-    };
+    return {'day_times': entries.map((entry) => entry.toJson()).toList()};
   }
 }
 
@@ -1991,18 +2161,20 @@ class Config {
   final String noProxy;
 
   Map<String, dynamic> toJson() => {
-        'cpus': cpus,
-        'memory_gb': memoryGB,
-        'memory_swap_gb': memorySwapGB,
-        'docker_context_managed': dockerContextManaged,
-        'http_proxy': httpProxy,
-        'https_proxy': httpsProxy,
-        'no_proxy': noProxy,
-      };
+    'cpus': cpus,
+    'memory_gb': memoryGB,
+    'memory_swap_gb': memorySwapGB,
+    'docker_context_managed': dockerContextManaged,
+    'http_proxy': httpProxy,
+    'https_proxy': httpsProxy,
+    'no_proxy': noProxy,
+  };
 
   factory Config.fromJson(Map<String, dynamic> json) {
     return Config(
-      pollIntervalMs: (json['poll_interval_ms'] as num?)?.toInt() ?? CalfDefaults.defaultPollIntervalMs,
+      pollIntervalMs:
+          (json['poll_interval_ms'] as num?)?.toInt() ??
+          CalfDefaults.defaultPollIntervalMs,
       cpus: (json['cpus'] as num?)?.toInt() ?? 4,
       memoryGB: (json['memory_gb'] as num?)?.toInt() ?? 4,
       memorySwapGB: (json['memory_swap_gb'] as num?)?.toInt() ?? 1,

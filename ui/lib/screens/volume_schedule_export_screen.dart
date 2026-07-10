@@ -27,7 +27,8 @@ class VolumeScheduleExportView extends StatefulWidget {
   bool get isEditing => existingSchedule != null;
 
   @override
-  State<VolumeScheduleExportView> createState() => _VolumeScheduleExportViewState();
+  State<VolumeScheduleExportView> createState() =>
+      _VolumeScheduleExportViewState();
 }
 
 class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
@@ -58,7 +59,9 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     final schedule = widget.existingSchedule;
     if (schedule != null) {
       _type = volumeQuickExportTypeFromApi(schedule.type);
-      _fileNameController.text = schedule.fileName.isNotEmpty ? schedule.fileName : defaultExportFileNamePattern();
+      _fileNameController.text = schedule.fileName.isNotEmpty
+          ? schedule.fileName
+          : defaultExportFileNamePattern();
       _folderController.text = schedule.folder;
       _imageRefController.text = schedule.imageRef;
 
@@ -108,7 +111,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   }
 
   List<VolumeExportDayTimes> get _normalizedDayTimes {
-    final days = _dayTimes.keys.toList()..sort(VolumeExportScheduleItem.compareWeekdays);
+    final days = _dayTimes.keys.toList()
+      ..sort(VolumeExportScheduleItem.compareWeekdays);
     return [
       for (final day in days)
         if (_dayTimes[day]!.isNotEmpty)
@@ -120,7 +124,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   }
 
   bool get _hasValidTimes =>
-      _dayTimes.isNotEmpty && _dayTimes.values.every((times) => times.isNotEmpty);
+      _dayTimes.isNotEmpty &&
+      _dayTimes.values.every((times) => times.isNotEmpty);
 
   TimeOfDay _parseExportTime(String value) {
     final parts = value.split(':');
@@ -130,7 +135,12 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
 
     final hour = int.tryParse(parts[0]);
     final minute = int.tryParse(parts[1]);
-    if (hour == null || minute == null || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
       return const TimeOfDay(hour: 3, minute: 0);
     }
 
@@ -148,7 +158,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   bool get _hasValidDestination {
     switch (_type) {
       case VolumeQuickExportType.localFile:
-        return _fileNameController.text.trim().isNotEmpty && _folderController.text.trim().isNotEmpty;
+        return _fileNameController.text.trim().isNotEmpty &&
+            _folderController.text.trim().isNotEmpty;
       case VolumeQuickExportType.localImage:
         return _imageRefController.text.trim().isNotEmpty;
       case VolumeQuickExportType.newImage:
@@ -161,10 +172,18 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     final sampleTime = DateTime.now();
     switch (_type) {
       case VolumeQuickExportType.localFile:
-        return expandExportFileNamePattern(_fileNameController.text, widget.volumeName, sampleTime);
+        return expandExportFileNamePattern(
+          _fileNameController.text,
+          widget.volumeName,
+          sampleTime,
+        );
       case VolumeQuickExportType.newImage:
       case VolumeQuickExportType.registry:
-        return expandExportImageRefPattern(_imageRefController.text, widget.volumeName, sampleTime);
+        return expandExportImageRefPattern(
+          _imageRefController.text,
+          widget.volumeName,
+          sampleTime,
+        );
       case VolumeQuickExportType.localImage:
         return _imageRefController.text.trim();
     }
@@ -177,7 +196,9 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     final end = selection.end >= 0 ? selection.end : text.length;
     final updated = text.replaceRange(start, end, token);
     controller.text = updated;
-    controller.selection = TextSelection.collapsed(offset: start + token.length);
+    controller.selection = TextSelection.collapsed(
+      offset: start + token.length,
+    );
     setState(() {});
   }
 
@@ -196,7 +217,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
       return '';
     }
 
-    final days = _dayTimes.keys.toList()..sort(VolumeExportScheduleItem.compareWeekdays);
+    final days = _dayTimes.keys.toList()
+      ..sort(VolumeExportScheduleItem.compareWeekdays);
     return days
         .map((day) {
           final times = _dayTimes[day]!.map(_formatExportTime).join(', ');
@@ -371,7 +393,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     final confirmed = await confirmDialog(
       context,
       title: 'Delete schedule',
-      description: 'Remove the scheduled export for "${widget.volumeName}"? This cannot be undone.',
+      description:
+          'Remove the scheduled export for "${widget.volumeName}"? This cannot be undone.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -386,7 +409,10 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     });
 
     try {
-      await widget.apiClient.deleteVolumeExportSchedule(widget.volumeName, schedule.id);
+      await widget.apiClient.deleteVolumeExportSchedule(
+        widget.volumeName,
+        schedule.id,
+      );
       if (!mounted) {
         return;
       }
@@ -405,7 +431,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final sortedDays = _dayTimes.keys.toList()..sort(VolumeExportScheduleItem.compareWeekdays);
+    final sortedDays = _dayTimes.keys.toList()
+      ..sort(VolumeExportScheduleItem.compareWeekdays);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -444,97 +471,138 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Days', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Select the days of the week when exports should run.',
-                          style: theme.textTheme.muted,
+                      Text(
+                        'Days',
+                        style: theme.textTheme.large.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final (day, label) in _weekdays)
-                              _DayChip(
-                                theme: theme,
-                                label: label,
-                                selected: _dayTimes.containsKey(day),
-                                onTap: _busy ? null : () => _toggleDay(day),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Select the days of the week when exports should run.',
+                        style: theme.textTheme.muted,
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final (day, label) in _weekdays)
+                            _DayChip(
+                              theme: theme,
+                              label: label,
+                              selected: _dayTimes.containsKey(day),
+                              onTap: _busy ? null : () => _toggleDay(day),
+                            ),
+                        ],
+                      ),
+                      if (_dayTimes.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        for (
+                          var dayIndex = 0;
+                          dayIndex < sortedDays.length;
+                          dayIndex++
+                        ) ...[
+                          if (dayIndex > 0) const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: theme.colorScheme.border,
                               ),
-                          ],
-                        ),
-                        if (_dayTimes.isNotEmpty) ...[
-                          const SizedBox(height: 20),
-                          for (var dayIndex = 0; dayIndex < sortedDays.length; dayIndex++) ...[
-                            if (dayIndex > 0) const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: theme.colorScheme.border),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          _weekdayLabel(sortedDays[dayIndex]),
-                                          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        _weekdayLabel(sortedDays[dayIndex]),
+                                        style: theme.textTheme.large.copyWith(
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
-                                      CalfButton.outline(
-                                        enabled: !_busy,
-                                        onPressed: () => _addTime(sortedDays[dayIndex]),
-                                        child: const Text('Add time'),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Set one or more export times for ${_weekdayLabel(sortedDays[dayIndex])}.',
-                                    style: theme.textTheme.muted,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  for (var index = 0; index < _dayTimes[sortedDays[dayIndex]]!.length; index++) ...[
-                                    _ExportTimeRow(
-                                      key: _timeRowKey(sortedDays[dayIndex], index),
-                                      theme: theme,
-                                      time: _dayTimes[sortedDays[dayIndex]]![index],
-                                      enabled: !_busy,
-                                      canRemove: _dayTimes[sortedDays[dayIndex]]!.length > 1,
-                                      onTimeChanged: (time) => _updateExportTime(sortedDays[dayIndex], index, time),
-                                      onRemove: () => _removeTime(sortedDays[dayIndex], index),
                                     ),
-                                    if (index < _dayTimes[sortedDays[dayIndex]]!.length - 1) const SizedBox(height: 8),
+                                    CalfButton.outline(
+                                      enabled: !_busy,
+                                      onPressed: () =>
+                                          _addTime(sortedDays[dayIndex]),
+                                      child: const Text('Add time'),
+                                    ),
                                   ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Set one or more export times for ${_weekdayLabel(sortedDays[dayIndex])}.',
+                                  style: theme.textTheme.muted,
+                                ),
+                                const SizedBox(height: 12),
+                                for (
+                                  var index = 0;
+                                  index <
+                                      _dayTimes[sortedDays[dayIndex]]!.length;
+                                  index++
+                                ) ...[
+                                  _ExportTimeRow(
+                                    key: _timeRowKey(
+                                      sortedDays[dayIndex],
+                                      index,
+                                    ),
+                                    theme: theme,
+                                    time:
+                                        _dayTimes[sortedDays[dayIndex]]![index],
+                                    enabled: !_busy,
+                                    canRemove:
+                                        _dayTimes[sortedDays[dayIndex]]!
+                                            .length >
+                                        1,
+                                    onTimeChanged: (time) => _updateExportTime(
+                                      sortedDays[dayIndex],
+                                      index,
+                                      time,
+                                    ),
+                                    onRemove: () => _removeTime(
+                                      sortedDays[dayIndex],
+                                      index,
+                                    ),
+                                  ),
+                                  if (index <
+                                      _dayTimes[sortedDays[dayIndex]]!.length -
+                                          1)
+                                    const SizedBox(height: 8),
                                 ],
-                              ),
+                              ],
                             ),
-                          ],
-                        ] else ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            'Select at least one day to configure export times.',
-                            style: theme.textTheme.muted,
                           ),
                         ],
-                        if (_cronSummary.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(_cronSummary, style: theme.textTheme.small),
-                          ),
-                        ],
+                      ] else ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          'Select at least one day to configure export times.',
+                          style: theme.textTheme.muted,
+                        ),
                       ],
-                    ),
+                      if (_cronSummary.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.08,
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _cronSummary,
+                            style: theme.textTheme.small,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
+                ),
                 const SizedBox(height: 16),
                 Container(
                   decoration: BoxDecoration(
@@ -545,133 +613,174 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Location', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 16),
-                        VolumeExportOptionTile(
-                          theme: theme,
-                          title: 'Local file',
-                          description: 'Create a compressed file (.tar.gz) in a selected directory.',
-                          selected: _type == VolumeQuickExportType.localFile,
-                          onSelect: _busy ? null : () => setState(() => _type = VolumeQuickExportType.localFile),
-                          child: _type == VolumeQuickExportType.localFile
-                              ? Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    const SizedBox(height: 12),
-                                    _ExportNamePatternField(
-                                      theme: theme,
-                                      controller: _fileNameController,
-                                      label: 'File name pattern',
-                                      placeholder: defaultExportFileNamePattern(),
-                                      helperText:
-                                          'Use placeholders for unique names, or enter a fixed name if you want to overwrite the same file each run.',
-                                      previewLabel: 'Example file name',
-                                      preview: _namePatternPreview,
-                                      onChanged: () => setState(() {}),
-                                      onInsertToken: (token) => _insertPatternToken(_fileNameController, token),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: ShadInput(
-                                            controller: _folderController,
-                                            placeholder: const Text('Select folder'),
-                                            onChanged: (_) => setState(() {}),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        CalfButton.outline(
-                                          onPressed: _busy ? null : _browseFolder,
-                                          child: const Text('Browse'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                )
-                              : null,
+                      Text(
+                        'Location',
+                        style: theme.textTheme.large.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(height: 16),
-                        VolumeExportOptionTile(
-                          theme: theme,
-                          title: 'Local image',
-                          description: 'Copy the volume content to an existing image.',
-                          selected: _type == VolumeQuickExportType.localImage,
-                          onSelect: _busy ? null : () => setState(() => _type = VolumeQuickExportType.localImage),
-                          child: _type == VolumeQuickExportType.localImage
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: VolumeExportImageRefField(
+                      ),
+                      const SizedBox(height: 16),
+                      VolumeExportOptionTile(
+                        theme: theme,
+                        title: 'Local file',
+                        description:
+                            'Create a compressed file (.tar.gz) in a selected directory.',
+                        selected: _type == VolumeQuickExportType.localFile,
+                        onSelect: _busy
+                            ? null
+                            : () => setState(
+                                () => _type = VolumeQuickExportType.localFile,
+                              ),
+                        child: _type == VolumeQuickExportType.localFile
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 12),
+                                  _ExportNamePatternField(
                                     theme: theme,
-                                    controller: _imageRefController,
-                                    images: _images,
-                                    imagesLoading: _imagesLoading,
-                                    imagesError: _imagesError,
-                                    onChanged: () => setState(() {}),
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        VolumeExportOptionTile(
-                          theme: theme,
-                          title: 'New image',
-                          description: 'Create a new image and copy the volume contents into it.',
-                          selected: _type == VolumeQuickExportType.newImage,
-                          onSelect: _busy ? null : () => setState(() => _type = VolumeQuickExportType.newImage),
-                          child: _type == VolumeQuickExportType.newImage
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: _ExportNamePatternField(
-                                    theme: theme,
-                                    controller: _imageRefController,
-                                    label: 'Image name pattern',
-                                    placeholder: defaultExportImageRefPattern(),
+                                    controller: _fileNameController,
+                                    label: 'File name pattern',
+                                    placeholder: defaultExportFileNamePattern(),
                                     helperText:
-                                        'Each run creates a new image. Use {timestamp} for unique tags, or a fixed name to overwrite.',
-                                    previewLabel: 'Example image reference',
+                                        'Use placeholders for unique names, or enter a fixed name if you want to overwrite the same file each run.',
+                                    previewLabel: 'Example file name',
                                     preview: _namePatternPreview,
                                     onChanged: () => setState(() {}),
-                                    onInsertToken: (token) => _insertPatternToken(_imageRefController, token),
+                                    onInsertToken: (token) =>
+                                        _insertPatternToken(
+                                          _fileNameController,
+                                          token,
+                                        ),
                                   ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(height: 16),
-                        VolumeExportOptionTile(
-                          theme: theme,
-                          title: 'Registry',
-                          description: 'Push the volume content to Docker Hub.',
-                          selected: _type == VolumeQuickExportType.registry,
-                          onSelect: _busy ? null : () => setState(() => _type = VolumeQuickExportType.registry),
-                          child: _type == VolumeQuickExportType.registry
-                              ? Padding(
-                                  padding: const EdgeInsets.only(top: 12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  const SizedBox(height: 12),
+                                  Row(
                                     children: [
-                                      _DockerHubRegistryNotice(theme: theme),
-                                      const SizedBox(height: 12),
-                                      ShadInput(
-                                        controller: _imageRefController,
-                                        placeholder: const Text('<user>/<repo-name>:<tag>'),
-                                        onChanged: (_) => setState(() {}),
+                                      Expanded(
+                                        child: ShadInput(
+                                          controller: _folderController,
+                                          placeholder: const Text(
+                                            'Select folder',
+                                          ),
+                                          onChanged: (_) => setState(() {}),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      CalfButton.outline(
+                                        onPressed: _busy ? null : _browseFolder,
+                                        child: const Text('Browse'),
                                       ),
                                     ],
                                   ),
-                                )
-                              : null,
-                        ),
-                      ],
-                    ),
+                                ],
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      VolumeExportOptionTile(
+                        theme: theme,
+                        title: 'Local image',
+                        description:
+                            'Copy the volume content to an existing image.',
+                        selected: _type == VolumeQuickExportType.localImage,
+                        onSelect: _busy
+                            ? null
+                            : () => setState(
+                                () => _type = VolumeQuickExportType.localImage,
+                              ),
+                        child: _type == VolumeQuickExportType.localImage
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: VolumeExportImageRefField(
+                                  theme: theme,
+                                  controller: _imageRefController,
+                                  images: _images,
+                                  imagesLoading: _imagesLoading,
+                                  imagesError: _imagesError,
+                                  onChanged: () => setState(() {}),
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      VolumeExportOptionTile(
+                        theme: theme,
+                        title: 'New image',
+                        description:
+                            'Create a new image and copy the volume contents into it.',
+                        selected: _type == VolumeQuickExportType.newImage,
+                        onSelect: _busy
+                            ? null
+                            : () => setState(
+                                () => _type = VolumeQuickExportType.newImage,
+                              ),
+                        child: _type == VolumeQuickExportType.newImage
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: _ExportNamePatternField(
+                                  theme: theme,
+                                  controller: _imageRefController,
+                                  label: 'Image name pattern',
+                                  placeholder: defaultExportImageRefPattern(),
+                                  helperText:
+                                      'Each run creates a new image. Use {timestamp} for unique tags, or a fixed name to overwrite.',
+                                  previewLabel: 'Example image reference',
+                                  preview: _namePatternPreview,
+                                  onChanged: () => setState(() {}),
+                                  onInsertToken: (token) => _insertPatternToken(
+                                    _imageRefController,
+                                    token,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      VolumeExportOptionTile(
+                        theme: theme,
+                        title: 'Registry',
+                        description: 'Push the volume content to Docker Hub.',
+                        selected: _type == VolumeQuickExportType.registry,
+                        onSelect: _busy
+                            ? null
+                            : () => setState(
+                                () => _type = VolumeQuickExportType.registry,
+                              ),
+                        child: _type == VolumeQuickExportType.registry
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _DockerHubRegistryNotice(theme: theme),
+                                    const SizedBox(height: 12),
+                                    ShadInput(
+                                      controller: _imageRefController,
+                                      placeholder: const Text(
+                                        '<user>/<repo-name>:<tag>',
+                                      ),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : null,
+                      ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
-          Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Row(
@@ -692,7 +801,13 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
             CalfButton(
               enabled: _canApply,
               onPressed: _applyChanges,
-              child: Text(_busy ? 'Applying...' : widget.isEditing ? 'Apply changes' : 'Create schedule'),
+              child: Text(
+                _busy
+                    ? 'Applying...'
+                    : widget.isEditing
+                    ? 'Apply changes'
+                    : 'Create schedule',
+              ),
             ),
           ],
         ),
@@ -724,8 +839,14 @@ class _ExportTimeRow extends StatefulWidget {
 }
 
 class _ExportTimeRowState extends State<_ExportTimeRow> {
-  static final _hourOptions = List.generate(24, (hour) => hour.toString().padLeft(2, '0'));
-  static final _minuteOptions = List.generate(60, (minute) => minute.toString().padLeft(2, '0'));
+  static final _hourOptions = List.generate(
+    24,
+    (hour) => hour.toString().padLeft(2, '0'),
+  );
+  static final _minuteOptions = List.generate(
+    60,
+    (minute) => minute.toString().padLeft(2, '0'),
+  );
 
   late int _hour;
   late int _minute;
@@ -739,9 +860,7 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
     super.initState();
     _hour = widget.time.hour;
     _minute = widget.time.minute;
-    _hourController = ShadSelectController(
-      initialValue: {_formatHour(_hour)},
-    );
+    _hourController = ShadSelectController(initialValue: {_formatHour(_hour)});
     _minuteController = ShadSelectController(
       initialValue: {_formatMinute(_minute)},
     );
@@ -804,12 +923,7 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
               enabled: widget.enabled,
               placeholder: const Text('HH'),
               options: _hourOptions
-                  .map(
-                    (value) => ShadOption(
-                      value: value,
-                      child: Text(value),
-                    ),
-                  )
+                  .map((value) => ShadOption(value: value, child: Text(value)))
                   .toList(),
               selectedOptionBuilder: (context, value) => Text(value),
               onChanged: widget.enabled ? _updateHour : null,
@@ -817,7 +931,12 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(':', style: widget.theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+            child: Text(
+              ':',
+              style: widget.theme.textTheme.large.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           SizedBox(
             width: 76,
@@ -826,12 +945,7 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
               enabled: widget.enabled,
               placeholder: const Text('MM'),
               options: _minuteOptions
-                  .map(
-                    (value) => ShadOption(
-                      value: value,
-                      child: Text(value),
-                    ),
-                  )
+                  .map((value) => ShadOption(value: value, child: Text(value)))
                   .toList(),
               selectedOptionBuilder: (context, value) => Text(value),
               onChanged: widget.enabled ? _updateMinute : null,
@@ -842,7 +956,11 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
             CalfButton.ghost(
               enabled: widget.enabled,
               onPressed: widget.onRemove,
-              child: Icon(LucideIcons.trash2, size: 16, color: widget.theme.colorScheme.destructive),
+              child: Icon(
+                LucideIcons.trash2,
+                size: 16,
+                color: widget.theme.colorScheme.destructive,
+              ),
             ),
           ],
         ],
@@ -904,22 +1022,21 @@ class _ExportNamePatternField extends StatelessWidget {
   final VoidCallback onChanged;
   final ValueChanged<String> onInsertToken;
 
-  static const _tokens = [
-    '{volume}',
-    '{timestamp}',
-    '{date}',
-    '{time}',
-  ];
+  static const _tokens = ['{volume}', '{timestamp}', '{date}', '{time}'];
 
   @override
   Widget build(BuildContext context) {
     final pattern = controller.text.trim();
-    final isStaticName = pattern.isNotEmpty && !exportNamePatternHasUniqueToken(pattern);
+    final isStaticName =
+        pattern.isNotEmpty && !exportNamePatternHasUniqueToken(pattern);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(label, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 8),
         ShadInput(
           controller: controller,
@@ -952,7 +1069,12 @@ class _ExportNamePatternField extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(previewLabel, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  previewLabel,
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(preview, style: theme.textTheme.small),
               ],
@@ -963,7 +1085,9 @@ class _ExportNamePatternField extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Static name: each scheduled run will overwrite the previous export at this destination.',
-            style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
           ),
         ],
       ],
@@ -991,9 +1115,15 @@ class _PatternTokenChipState extends State<_PatternTokenChip> {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = _hovered ? widget.theme.colorScheme.primary : widget.theme.colorScheme.border;
-    final backgroundColor = _hovered ? widget.theme.colorScheme.primary.withValues(alpha: 0.12) : null;
-    final textColor = _hovered ? widget.theme.colorScheme.primary : widget.theme.colorScheme.foreground;
+    final borderColor = _hovered
+        ? widget.theme.colorScheme.primary
+        : widget.theme.colorScheme.border;
+    final backgroundColor = _hovered
+        ? widget.theme.colorScheme.primary.withValues(alpha: 0.12)
+        : null;
+    final textColor = _hovered
+        ? widget.theme.colorScheme.primary
+        : widget.theme.colorScheme.foreground;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1011,9 +1141,7 @@ class _PatternTokenChipState extends State<_PatternTokenChip> {
           ),
           child: Text(
             widget.label,
-            style: widget.theme.textTheme.small.copyWith(
-              color: textColor,
-            ),
+            style: widget.theme.textTheme.small.copyWith(color: textColor),
           ),
         ),
       ),
@@ -1043,14 +1171,22 @@ class _DayChip extends StatelessWidget {
         height: 36,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? theme.colorScheme.primary.withValues(alpha: 0.15) : null,
-          border: Border.all(color: selected ? theme.colorScheme.primary : theme.colorScheme.border),
+          color: selected
+              ? theme.colorScheme.primary.withValues(alpha: 0.15)
+              : null,
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.border,
+          ),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           label,
           style: theme.textTheme.small.copyWith(
-            color: selected ? theme.colorScheme.primary : theme.colorScheme.foreground,
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.foreground,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),

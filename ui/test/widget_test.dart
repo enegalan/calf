@@ -14,73 +14,97 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<List<ContainerItem>> fetchContainers() async => const [
-        ContainerItem(
-          id: 'abc123',
-          name: 'hello',
-          image: 'hello-world',
-          state: 'running',
-          status: 'Up',
-        ),
-      ];
+    ContainerItem(
+      id: 'abc123',
+      name: 'hello',
+      image: 'hello-world',
+      state: 'running',
+      status: 'Up',
+    ),
+  ];
 
   @override
   Future<List<ImageItem>> fetchImages() async => const [
-        ImageItem(
-          id: 'img1',
-          repository: 'hello-world',
-          tag: 'latest',
-          size: '10MB',
-        ),
-      ];
+    ImageItem(
+      id: 'img1',
+      repository: 'hello-world',
+      tag: 'latest',
+      size: '10MB',
+    ),
+  ];
 
   @override
   Future<List<ImageLayer>> fetchImageLayers(String reference) async => const [
-        ImageLayer(index: 0, createdBy: 'CMD ["/hello"]', size: '0 B'),
-      ];
+    ImageLayer(index: 0, createdBy: 'CMD ["/hello"]', size: '0 B'),
+  ];
 
   @override
   Future<List<VolumeItem>> fetchVolumes() async => const [
-        VolumeItem(name: 'calf-data', driver: 'local', inUse: true, size: '88 B', created: '9 months ago'),
-      ];
+    VolumeItem(
+      name: 'calf-data',
+      driver: 'local',
+      inUse: true,
+      size: '88 B',
+      created: '9 months ago',
+    ),
+  ];
 
   @override
   Future<List<NetworkItem>> fetchNetworks() async => const [
-        NetworkItem(
-          id: '9d1ce4c80488',
-          name: 'bridge',
-          driver: 'bridge',
-          scope: 'local',
-          subnet: '192.168.215.0/24',
-        ),
-      ];
+    NetworkItem(
+      id: '9d1ce4c80488',
+      name: 'bridge',
+      driver: 'bridge',
+      scope: 'local',
+      subnet: '192.168.215.0/24',
+    ),
+  ];
 
   @override
   Future<NetworkDetail> fetchNetworkDetail(String name) async => NetworkDetail(
-        id: '9d1ce4c80488',
-        name: name,
-        driver: 'bridge',
-        scope: 'local',
-        subnet: '192.168.215.0/24',
-        gateway: '192.168.215.1',
-        created: '9 months ago',
-      );
+    id: '9d1ce4c80488',
+    name: name,
+    driver: 'bridge',
+    scope: 'local',
+    subnet: '192.168.215.0/24',
+    gateway: '192.168.215.1',
+    created: '9 months ago',
+  );
 
   @override
   Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
-        name: name,
-        driver: 'local',
-        created: '9 months ago',
-        inUse: true,
-      );
+    name: name,
+    driver: 'local',
+    created: '9 months ago',
+    inUse: true,
+  );
 
   @override
-  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async => const [
-        ContainerFileEntry(name: 'app', path: '/app', isDir: true, size: 0, mode: 'drwxr-xr-x', modified: '5 months ago'),
-        ContainerFileEntry(name: 'dump.rdb', path: '/dump.rdb', isDir: false, size: 88, mode: '-rw-------', modified: '7 months ago'),
-      ];
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(
+    String name, {
+    String path = '/',
+  }) async => const [
+    ContainerFileEntry(
+      name: 'app',
+      path: '/app',
+      isDir: true,
+      size: 0,
+      mode: 'drwxr-xr-x',
+      modified: '5 months ago',
+    ),
+    ContainerFileEntry(
+      name: 'dump.rdb',
+      path: '/dump.rdb',
+      isDir: false,
+      size: 88,
+      mode: '-rw-------',
+      modified: '7 months ago',
+    ),
+  ];
 
   @override
-  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async => const [
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async =>
+      const [
         VolumeContainerUsage(
           id: 'abc123',
           name: 'hello',
@@ -91,7 +115,8 @@ class FakeCalfClient implements CalfClient {
       ];
 
   @override
-  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async => const [];
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async =>
+      const [];
 
   @override
   Future<VolumeExportItem> createVolumeExport({
@@ -100,24 +125,28 @@ class FakeCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportItem(
-        id: 'export-1',
-        volume: name,
-        type: type,
-        status: 'completed',
-        createdAt: '2026-01-01T00:00:00Z',
-        fileName: fileName,
-        filePath: folder,
-        imageRef: imageRef,
-        downloadable: type == 'local_file',
-      );
+  }) async => VolumeExportItem(
+    id: 'export-1',
+    volume: name,
+    type: type,
+    status: 'completed',
+    createdAt: '2026-01-01T00:00:00Z',
+    fileName: fileName,
+    filePath: folder,
+    imageRef: imageRef,
+    downloadable: type == 'local_file',
+  );
 
   @override
-  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async => const [1, 2, 3];
+  Future<List<int>> downloadVolumeExport(
+    String volumeName,
+    String exportId,
+  ) async => const [1, 2, 3];
 
   @override
-  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async => const [];
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(
+    String name,
+  ) async => const [];
 
   @override
   Future<VolumeExportScheduleItem> createVolumeExportSchedule({
@@ -128,15 +157,14 @@ class FakeCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportScheduleItem(
-        id: 'schedule-1',
-        volume: name,
-        enabled: enabled,
-        dayTimes: dayTimes,
-        type: type,
-        nextRunAt: enabled ? '2026-01-02T03:00:00Z' : '',
-      );
+  }) async => VolumeExportScheduleItem(
+    id: 'schedule-1',
+    volume: name,
+    enabled: enabled,
+    dayTimes: dayTimes,
+    type: type,
+    nextRunAt: enabled ? '2026-01-02T03:00:00Z' : '',
+  );
 
   @override
   Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
@@ -148,48 +176,57 @@ class FakeCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportScheduleItem(
-        id: scheduleId,
-        volume: volumeName,
-        enabled: enabled ?? true,
-        dayTimes: dayTimes ??
-            const [
-              VolumeExportDayTimes(day: 1, times: ['03:00']),
-            ],
-        type: type.isNotEmpty ? type : 'local_file',
-      );
+  }) async => VolumeExportScheduleItem(
+    id: scheduleId,
+    volume: volumeName,
+    enabled: enabled ?? true,
+    dayTimes:
+        dayTimes ??
+        const [
+          VolumeExportDayTimes(day: 1, times: ['03:00']),
+        ],
+    type: type.isNotEmpty ? type : 'local_file',
+  );
 
   @override
-  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
+  Future<void> deleteVolumeExportSchedule(
+    String volumeName,
+    String scheduleId,
+  ) async {}
 
   @override
   Future<List<BuildItem>> fetchBuilds({String? tag}) async => const [];
 
   @override
   Future<BuildDetail> fetchBuildDetail(String id) async => BuildDetail(
-        id: id,
-        tag: 'demo',
-        context: '.',
-        status: 'success',
-        createdAt: '2026-01-01T00:00:00Z',
-      );
+    id: id,
+    tag: 'demo',
+    context: '.',
+    status: 'success',
+    createdAt: '2026-01-01T00:00:00Z',
+  );
 
   @override
   Future<BuildSource> fetchBuildSource(String id) async => const BuildSource(
-        path: 'Dockerfile',
-        filename: 'Dockerfile',
-        content: 'FROM alpine',
-        platform: 'arm64',
-      );
+    path: 'Dockerfile',
+    filename: 'Dockerfile',
+    content: 'FROM alpine',
+    platform: 'arm64',
+  );
 
   @override
   Future<BuildLogs> fetchBuildLogs(String id) async => const BuildLogs(
-        rawLog: '#1 DONE 0.1s',
-        steps: [
-          BuildStep(index: 1, total: 1, name: 'load build definition', cached: false, durationMs: 100),
-        ],
-      );
+    rawLog: '#1 DONE 0.1s',
+    steps: [
+      BuildStep(
+        index: 1,
+        total: 1,
+        name: 'load build definition',
+        cached: false,
+        durationMs: 100,
+      ),
+    ],
+  );
 
   @override
   Future<void> startContainer(String id) async {}
@@ -204,19 +241,26 @@ class FakeCalfClient implements CalfClient {
   Future<void> restartContainer(String id) async {}
 
   @override
-  Future<String> fetchContainerInspect(String id, {String? section}) async => '{"Id":"$id"}';
+  Future<String> fetchContainerInspect(String id, {String? section}) async =>
+      '{"Id":"$id"}';
 
   @override
-  Future<List<ContainerMount>> fetchContainerMounts(String id) async => const [];
+  Future<List<ContainerMount>> fetchContainerMounts(String id) async =>
+      const [];
 
   @override
-  Future<List<ContainerFileEntry>> fetchContainerFiles(String id, {String path = '/'}) async => const [];
+  Future<List<ContainerFileEntry>> fetchContainerFiles(
+    String id, {
+    String path = '/',
+  }) async => const [];
 
   @override
-  Future<ContainerExecResult> execContainer(String id, String command) async => const ContainerExecResult(output: '');
+  Future<ContainerExecResult> execContainer(String id, String command) async =>
+      const ContainerExecResult(output: '');
 
   @override
-  Future<ContainerStats> fetchContainerStats(String id) async => const ContainerStats(
+  Future<ContainerStats> fetchContainerStats(String id) async =>
+      const ContainerStats(
         cpuPercent: '0%',
         memUsage: '0B / 0B',
         memPercent: '0%',
@@ -250,7 +294,11 @@ class FakeCalfClient implements CalfClient {
   Future<void> removeNetwork(String name) async {}
 
   @override
-  Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {
+  Future<BuildItem> runBuild({
+    required String context,
+    required String tag,
+    String dockerfile = '',
+  }) async {
     return BuildItem(
       id: 'build-1',
       tag: tag,
@@ -266,26 +314,29 @@ class FakeCalfClient implements CalfClient {
   }
 
   @override
-  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
+  Uri containerLogsWebSocketUri(String id) =>
+      Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
 
   @override
-  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
+  Uri containerExecWebSocketUri(String id) =>
+      Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
 
   @override
   Future<Config> fetchConfig() async => const Config(
-        pollIntervalMs: 3000,
-        cpus: 4,
-        memoryGB: 4,
-        memorySwapGB: 1,
-        hostCPUs: 8,
-        hostMemoryGB: 16,
-      );
+    pollIntervalMs: 3000,
+    cpus: 4,
+    memoryGB: 4,
+    memorySwapGB: 1,
+    hostCPUs: 8,
+    hostMemoryGB: 16,
+  );
 
   @override
   Future<Config> updateConfig(Config config) async => config;
 
   @override
-  Future<MigrationStatus> fetchDockerDesktopMigration() async => const MigrationStatus(
+  Future<MigrationStatus> fetchDockerDesktopMigration() async =>
+      const MigrationStatus(
         phase: 'idle',
         step: 'idle',
         progress: 0,
@@ -304,7 +355,8 @@ class FakeCalfClient implements CalfClient {
       );
 
   @override
-  Future<MigrationStatus> startDockerDesktopMigration() async => const MigrationStatus(
+  Future<MigrationStatus> startDockerDesktopMigration() async =>
+      const MigrationStatus(
         phase: 'completed',
         step: 'done',
         progress: 100,
@@ -336,7 +388,9 @@ class FakeCalfClient implements CalfClient {
       );
 
   @override
-  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(String sessionId) async =>
+  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(
+    String sessionId,
+  ) async =>
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
 
   @override
@@ -355,7 +409,11 @@ class _LoggedInCalfClient extends FakeCalfClient {
 
   @override
   Future<RegistryLoginStatus> fetchRegistryStatus() async =>
-      const RegistryLoginStatus(loggedIn: true, server: 'docker.io', username: 'demo');
+      const RegistryLoginStatus(
+        loggedIn: true,
+        server: 'docker.io',
+        username: 'demo',
+      );
 }
 
 void main() {
@@ -460,31 +518,32 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<NetworkDetail> fetchNetworkDetail(String name) async => NetworkDetail(
-        id: '',
-        name: name,
-        driver: 'bridge',
-        scope: 'local',
-        subnet: '',
-        gateway: '',
-        created: '',
-      );
+    id: '',
+    name: name,
+    driver: 'bridge',
+    scope: 'local',
+    subnet: '',
+    gateway: '',
+    created: '',
+  );
 
   @override
-  Future<VolumeDetail> fetchVolumeDetail(String name) async => VolumeDetail(
-        name: name,
-        driver: 'local',
-        created: '',
-        inUse: false,
-      );
+  Future<VolumeDetail> fetchVolumeDetail(String name) async =>
+      VolumeDetail(name: name, driver: 'local', created: '', inUse: false);
 
   @override
-  Future<List<ContainerFileEntry>> fetchVolumeFiles(String name, {String path = '/'}) async => const [];
+  Future<List<ContainerFileEntry>> fetchVolumeFiles(
+    String name, {
+    String path = '/',
+  }) async => const [];
 
   @override
-  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async => const [];
+  Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async =>
+      const [];
 
   @override
-  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async => const [];
+  Future<List<VolumeExportItem>> fetchVolumeExports(String name) async =>
+      const [];
 
   @override
   Future<VolumeExportItem> createVolumeExport({
@@ -493,21 +552,25 @@ class _ErrorCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportItem(
-        id: 'export-1',
-        volume: name,
-        type: type,
-        status: 'completed',
-        createdAt: '2026-01-01T00:00:00Z',
-        downloadable: type == 'local_file',
-      );
+  }) async => VolumeExportItem(
+    id: 'export-1',
+    volume: name,
+    type: type,
+    status: 'completed',
+    createdAt: '2026-01-01T00:00:00Z',
+    downloadable: type == 'local_file',
+  );
 
   @override
-  Future<List<int>> downloadVolumeExport(String volumeName, String exportId) async => const [];
+  Future<List<int>> downloadVolumeExport(
+    String volumeName,
+    String exportId,
+  ) async => const [];
 
   @override
-  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(String name) async => const [];
+  Future<List<VolumeExportScheduleItem>> fetchVolumeExportSchedules(
+    String name,
+  ) async => const [];
 
   @override
   Future<VolumeExportScheduleItem> createVolumeExportSchedule({
@@ -518,14 +581,13 @@ class _ErrorCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportScheduleItem(
-        id: 'schedule-1',
-        volume: name,
-        enabled: enabled,
-        dayTimes: dayTimes,
-        type: type,
-      );
+  }) async => VolumeExportScheduleItem(
+    id: 'schedule-1',
+    volume: name,
+    enabled: enabled,
+    dayTimes: dayTimes,
+    type: type,
+  );
 
   @override
   Future<VolumeExportScheduleItem> updateVolumeExportSchedule({
@@ -537,20 +599,23 @@ class _ErrorCalfClient implements CalfClient {
     String fileName = '',
     String folder = '',
     String imageRef = '',
-  }) async =>
-      VolumeExportScheduleItem(
-        id: scheduleId,
-        volume: volumeName,
-        enabled: enabled ?? true,
-        dayTimes: dayTimes ??
-            const [
-              VolumeExportDayTimes(day: 1, times: ['03:00']),
-            ],
-        type: type.isNotEmpty ? type : 'local_file',
-      );
+  }) async => VolumeExportScheduleItem(
+    id: scheduleId,
+    volume: volumeName,
+    enabled: enabled ?? true,
+    dayTimes:
+        dayTimes ??
+        const [
+          VolumeExportDayTimes(day: 1, times: ['03:00']),
+        ],
+    type: type.isNotEmpty ? type : 'local_file',
+  );
 
   @override
-  Future<void> deleteVolumeExportSchedule(String volumeName, String scheduleId) async {}
+  Future<void> deleteVolumeExportSchedule(
+    String volumeName,
+    String scheduleId,
+  ) async {}
 
   @override
   Future<List<BuildItem>> fetchBuilds({String? tag}) async => [];
@@ -583,19 +648,26 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> restartContainer(String id) async {}
 
   @override
-  Future<String> fetchContainerInspect(String id, {String? section}) async => '{"Id":"$id"}';
+  Future<String> fetchContainerInspect(String id, {String? section}) async =>
+      '{"Id":"$id"}';
 
   @override
-  Future<List<ContainerMount>> fetchContainerMounts(String id) async => const [];
+  Future<List<ContainerMount>> fetchContainerMounts(String id) async =>
+      const [];
 
   @override
-  Future<List<ContainerFileEntry>> fetchContainerFiles(String id, {String path = '/'}) async => const [];
+  Future<List<ContainerFileEntry>> fetchContainerFiles(
+    String id, {
+    String path = '/',
+  }) async => const [];
 
   @override
-  Future<ContainerExecResult> execContainer(String id, String command) async => const ContainerExecResult(output: '');
+  Future<ContainerExecResult> execContainer(String id, String command) async =>
+      const ContainerExecResult(output: '');
 
   @override
-  Future<ContainerStats> fetchContainerStats(String id) async => const ContainerStats(
+  Future<ContainerStats> fetchContainerStats(String id) async =>
+      const ContainerStats(
         cpuPercent: '0%',
         memUsage: '0B / 0B',
         memPercent: '0%',
@@ -629,7 +701,11 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> removeNetwork(String name) async {}
 
   @override
-  Future<BuildItem> runBuild({required String context, required String tag, String dockerfile = ''}) async {
+  Future<BuildItem> runBuild({
+    required String context,
+    required String tag,
+    String dockerfile = '',
+  }) async {
     return BuildItem(
       id: 'build-1',
       tag: tag,
@@ -643,10 +719,12 @@ class _ErrorCalfClient implements CalfClient {
   Stream<String> streamContainerLogs(String id) async* {}
 
   @override
-  Uri containerLogsWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
+  Uri containerLogsWebSocketUri(String id) =>
+      Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/logs');
 
   @override
-  Uri containerExecWebSocketUri(String id) => Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
+  Uri containerExecWebSocketUri(String id) =>
+      Uri.parse('ws://127.0.0.1:8765/v1/containers/$id/exec');
 
   @override
   Future<Config> fetchConfig() async {
@@ -686,7 +764,9 @@ class _ErrorCalfClient implements CalfClient {
       );
 
   @override
-  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(String sessionId) async =>
+  Future<RegistryBrowserLoginStatus> fetchRegistryBrowserLogin(
+    String sessionId,
+  ) async =>
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
 
   @override

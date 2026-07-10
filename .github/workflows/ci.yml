@@ -24,6 +24,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       - run: CGO_ENABLED=0 go vet ./...
         working-directory: backend
+      - run: make format-check-backend
       - run: CGO_ENABLED=0 go test ./...
         working-directory: backend
       - run: CGO_ENABLED=0 go build -o /dev/null ./cmd/calf
@@ -49,6 +50,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
+      - run: make format-check-ui
+        working-directory: .
       - run: flutter analyze
       - run: flutter test
       - run: flutter build macos --no-pub

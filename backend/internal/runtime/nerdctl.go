@@ -38,19 +38,19 @@ func interactiveExecArgs(id string) []string {
 }
 
 type nerdctlLine struct {
-	ID         string `json:"ID"`
-	Names      string `json:"Names"`
-	Name       string `json:"Name"`
-	Driver     string `json:"Driver"`
-	Image      string `json:"Image"`
-	State      string `json:"State"`
-	Status     string `json:"Status"`
-	CreatedAt  string `json:"CreatedAt"`
-	Ports      string `json:"Ports"`
+	ID         string            `json:"ID"`
+	Names      string            `json:"Names"`
+	Name       string            `json:"Name"`
+	Driver     string            `json:"Driver"`
+	Image      string            `json:"Image"`
+	State      string            `json:"State"`
+	Status     string            `json:"Status"`
+	CreatedAt  string            `json:"CreatedAt"`
+	Ports      string            `json:"Ports"`
 	Labels     map[string]string `json:"Labels"`
-	Repository string `json:"Repository"`
-	Tag        string `json:"Tag"`
-	Size       string `json:"Size"`
+	Repository string            `json:"Repository"`
+	Tag        string            `json:"Tag"`
+	Size       string            `json:"Size"`
 }
 
 type commandRunner func(ctx context.Context, command string, args ...string) ([]byte, error)
@@ -120,8 +120,6 @@ func pushImage(ctx context.Context, run commandRunner, ref string) error {
 
 	return nil
 }
-
-
 
 func ParseContainerLines(output []byte) ([]Container, error) {
 	containers := make([]Container, 0)

@@ -19,10 +19,7 @@ class RunningFilterSwitch extends StatelessWidget {
 
     return Row(
       children: [
-        ShadSwitch(
-          value: value,
-          onChanged: onChanged,
-        ),
+        ShadSwitch(value: value, onChanged: onChanged),
         const SizedBox(width: 8),
         Text(label, style: theme.textTheme.small),
       ],

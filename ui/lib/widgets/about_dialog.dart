@@ -33,7 +33,9 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
           Text(
             'A lightweight alternative to Docker Desktop.',
             textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -41,15 +43,18 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
             children: [
               _AboutLink(
                 label: 'GitHub',
-                onPressed: () => _openExternalLink(dialogContext, calfRepositoryUrl),
-              )
+                onPressed: () =>
+                    _openExternalLink(dialogContext, calfRepositoryUrl),
+              ),
             ],
           ),
           const SizedBox(height: 16),
           Text(
             'MIT License · © ${DateTime.now().year}',
             textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ],
       ),
@@ -64,7 +69,9 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
       context: context,
       builder: (errorContext) => ShadDialog(
         title: const Text('Could not open link'),
-        description: const Text('Your system could not open the URL in a browser.'),
+        description: const Text(
+          'Your system could not open the URL in a browser.',
+        ),
         actions: [
           CalfButton(
             onPressed: () => Navigator.of(errorContext).pop(),
@@ -77,10 +84,7 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
 }
 
 class _AboutLink extends StatelessWidget {
-  const _AboutLink({
-    required this.label,
-    required this.onPressed,
-  });
+  const _AboutLink({required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback onPressed;

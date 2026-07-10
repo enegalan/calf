@@ -18,7 +18,8 @@ class NetworksScreen extends StatefulWidget {
   State<NetworksScreen> createState() => _NetworksScreenState();
 }
 
-class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin {
+class _NetworksScreenState extends State<NetworksScreen>
+    with PollIntervalMixin {
   List<NetworkItem> _networks = [];
   RuntimeStatus? _runtime;
   String? _error;
@@ -33,7 +34,9 @@ class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin 
     _loadNetworks();
     startPollInterval(widget.apiClient, _loadNetworks);
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -54,8 +57,9 @@ class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin 
 
     try {
       final status = await widget.apiClient.fetchStatus();
-      final networks = List<NetworkItem>.from(await widget.apiClient.fetchNetworks())
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final networks = List<NetworkItem>.from(
+        await widget.apiClient.fetchNetworks(),
+      )..sort((a, b) => a.name.compareTo(b.name));
       if (!mounted) {
         return;
       }
@@ -91,10 +95,12 @@ class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin 
     }
 
     return _networks
-        .where((network) =>
-            network.name.toLowerCase().contains(_searchQuery) ||
-            network.subnet.toLowerCase().contains(_searchQuery) ||
-            network.driver.toLowerCase().contains(_searchQuery))
+        .where(
+          (network) =>
+              network.name.toLowerCase().contains(_searchQuery) ||
+              network.subnet.toLowerCase().contains(_searchQuery) ||
+              network.driver.toLowerCase().contains(_searchQuery),
+        )
         .toList();
   }
 
@@ -135,8 +141,8 @@ class _NetworksScreenState extends State<NetworksScreen> with PollIntervalMixin 
       emptyMessage: _searchQuery.isNotEmpty
           ? 'No networks match "$_searchQuery".'
           : _runtime?.state == 'stopped'
-              ? 'No networks. Runtime is stopped.'
-              : 'No networks.',
+          ? 'No networks. Runtime is stopped.'
+          : 'No networks.',
       itemCount: filtered.length,
       itemBuilder: (context, index) {
         final network = filtered[index];
@@ -211,7 +217,9 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     });
 
     try {
-      final detail = await widget.apiClient.fetchNetworkDetail(widget.networkName);
+      final detail = await widget.apiClient.fetchNetworkDetail(
+        widget.networkName,
+      );
       if (!mounted) {
         return;
       }
@@ -257,7 +265,11 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
           children: [
             CalfButton.ghost(
               onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
+              child: Icon(
+                LucideIcons.chevronLeft,
+                size: 18,
+                color: theme.colorScheme.foreground,
+              ),
             ),
             const SizedBox(width: 4),
             Text('Networks', style: theme.textTheme.muted),
@@ -281,7 +293,9 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
         else if (_error != null)
           Text(
             _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+            style: theme.textTheme.large.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
           )
         else if (_detail != null)
           Expanded(
@@ -294,17 +308,32 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                     rows: [
                       _InfoRow(label: 'Name', value: _detail!.name),
                       _InfoRow(label: 'ID', value: _detail!.id),
-                      _InfoRow(label: 'Created', value: _displayValue(_detail!.created)),
-                      _InfoRow(label: 'Subnet', value: _displayValue(_detail!.subnet)),
-                      _InfoRow(label: 'Gateway', value: _displayValue(_detail!.gateway)),
+                      _InfoRow(
+                        label: 'Created',
+                        value: _displayValue(_detail!.created),
+                      ),
+                      _InfoRow(
+                        label: 'Subnet',
+                        value: _displayValue(_detail!.subnet),
+                      ),
+                      _InfoRow(
+                        label: 'Gateway',
+                        value: _displayValue(_detail!.gateway),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
                   _InfoCard(
                     theme: theme,
                     rows: [
-                      _InfoRow(label: 'Driver', value: _displayValue(_detail!.driver)),
-                      _InfoRow(label: 'Scope', value: _displayValue(_detail!.scope)),
+                      _InfoRow(
+                        label: 'Driver',
+                        value: _displayValue(_detail!.driver),
+                      ),
+                      _InfoRow(
+                        label: 'Scope',
+                        value: _displayValue(_detail!.scope),
+                      ),
                     ],
                   ),
                   if (_detail!.options.isNotEmpty) ...[
@@ -348,7 +377,9 @@ class _InfoCard extends StatelessWidget {
             if (index > 0) const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: Text(rows[index].label, style: theme.textTheme.large)),
+                Expanded(
+                  child: Text(rows[index].label, style: theme.textTheme.large),
+                ),
                 Expanded(
                   child: Text(
                     rows[index].value,
@@ -380,7 +411,8 @@ class _OptionsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = options.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final entries = options.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
 
     return Container(
       width: double.infinity,
@@ -394,7 +426,9 @@ class _OptionsTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: theme.colorScheme.muted,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(7),
+              ),
             ),
             child: Row(
               children: [
@@ -408,7 +442,9 @@ class _OptionsTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 border: index < entries.length - 1
-                    ? Border(bottom: BorderSide(color: theme.colorScheme.border))
+                    ? Border(
+                        bottom: BorderSide(color: theme.colorScheme.border),
+                      )
                     : null,
               ),
               child: Row(

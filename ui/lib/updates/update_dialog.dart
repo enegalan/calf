@@ -48,12 +48,16 @@ Future<void> showUpdateAvailableDialog({
           if (update.releaseNotes.isNotEmpty)
             Text(
               update.releaseNotes,
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
+              ),
             )
           else
             Text(
               'A newer version is available on GitHub.',
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
+              ),
             ),
         ],
       ),

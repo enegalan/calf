@@ -4,7 +4,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 
-typedef LoadDirectoryCallback = Future<List<ContainerFileEntry>> Function(String path);
+typedef LoadDirectoryCallback =
+    Future<List<ContainerFileEntry>> Function(String path);
 
 class FilesPanel extends StatefulWidget {
   const FilesPanel({
@@ -109,19 +110,22 @@ class _FilesPanelState extends State<FilesPanel> {
       child: _rootLoading
           ? Text('Loading files...', style: theme.textTheme.muted)
           : _rootError != null
-              ? Text(_rootError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    FilesPanelHeader(theme: theme),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView(
-                        children: _buildDirectoryRows('/', 0),
-                      ),
-                    ),
-                  ],
+          ? Text(
+              _rootError!,
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilesPanelHeader(theme: theme),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ListView(children: _buildDirectoryRows('/', 0)),
                 ),
+              ],
+            ),
     );
   }
 
@@ -146,7 +150,13 @@ class _FilesPanelState extends State<FilesPanel> {
       }
 
       if (_loading.contains(entry.path)) {
-        rows.add(FilesPanelStatusRow(theme: widget.theme, depth: depth + 1, message: 'Loading...'));
+        rows.add(
+          FilesPanelStatusRow(
+            theme: widget.theme,
+            depth: depth + 1,
+            message: 'Loading...',
+          ),
+        );
         continue;
       }
 
@@ -250,7 +260,9 @@ class FilesPanelRow extends StatelessWidget {
             width: 20,
             child: entry.isDir
                 ? Icon(
-                    expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                    expanded
+                        ? LucideIcons.chevronDown
+                        : LucideIcons.chevronRight,
                     size: 16,
                     color: theme.colorScheme.mutedForeground,
                   )
@@ -264,11 +276,19 @@ class FilesPanelRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
-            child: Text(entry.name, style: theme.textTheme.small, overflow: TextOverflow.ellipsis),
+            child: Text(
+              entry.name,
+              style: theme.textTheme.small,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           Expanded(
             flex: 2,
-            child: Text(entry.note, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
+            child: Text(
+              entry.note,
+              style: theme.textTheme.muted,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           Expanded(
             child: Text(
@@ -277,10 +297,18 @@ class FilesPanelRow extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Text(entry.modified, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
+            child: Text(
+              entry.modified,
+              style: theme.textTheme.muted,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           Expanded(
-            child: Text(entry.mode, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
+            child: Text(
+              entry.mode,
+              style: theme.textTheme.muted,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),
@@ -309,7 +337,9 @@ class FilesPanelStatusRow extends StatelessWidget {
       child: Text(
         message,
         style: theme.textTheme.small.copyWith(
-          color: isError ? theme.colorScheme.destructive : theme.colorScheme.mutedForeground,
+          color: isError
+              ? theme.colorScheme.destructive
+              : theme.colorScheme.mutedForeground,
         ),
       ),
     );

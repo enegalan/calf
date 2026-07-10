@@ -67,17 +67,17 @@ class MacosMenuScope extends StatelessWidget {
         members: [
           PlatformMenuItem(
             label: 'Preferences…',
-            shortcut: const SingleActivator(LogicalKeyboardKey.comma, meta: true),
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.comma,
+              meta: true,
+            ),
             onSelected: onOpenSettings,
           ),
           PlatformMenuItem(
             label: 'Check for Updates…',
             onSelected: onCheckForUpdates,
           ),
-          PlatformMenuItem(
-            label: "What's New…",
-            onSelected: onOpenWhatsNew,
-          ),
+          PlatformMenuItem(label: "What's New…", onSelected: onOpenWhatsNew),
         ],
       ),
       ?_platformMenu(PlatformProvidedMenuItemType.servicesSubmenu),
@@ -155,10 +155,7 @@ class MacosMenuScope extends StatelessWidget {
       PlatformMenu(
         label: 'Help',
         menus: [
-          PlatformMenuItem(
-            label: 'Report an Issue',
-            onSelected: onReportIssue,
-          ),
+          PlatformMenuItem(label: 'Report an Issue', onSelected: onReportIssue),
           PlatformMenuItem(
             label: 'GitHub Repository',
             onSelected: onOpenRepository,
@@ -174,9 +171,6 @@ class MacosMenuScope extends StatelessWidget {
       return child;
     }
 
-    return PlatformMenuBar(
-      menus: _buildMenus(context),
-      child: child,
-    );
+    return PlatformMenuBar(menus: _buildMenus(context), child: child);
   }
 }

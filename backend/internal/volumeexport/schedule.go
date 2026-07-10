@@ -28,14 +28,14 @@ type Schedule struct {
 	Enabled    bool              `json:"enabled"`
 	DayTimes   []DayTimeSchedule `json:"day_times,omitempty"`
 	Type       string            `json:"type"`
-	FileName   string   `json:"file_name,omitempty"`
-	Folder     string   `json:"folder,omitempty"`
-	ImageRef   string   `json:"image_ref,omitempty"`
-	CreatedAt  string   `json:"created_at"`
-	LastRunAt  string   `json:"last_run_at,omitempty"`
-	NextRunAt  string   `json:"next_run_at,omitempty"`
-	LastStatus string   `json:"last_status,omitempty"`
-	LastError  string   `json:"last_error,omitempty"`
+	FileName   string            `json:"file_name,omitempty"`
+	Folder     string            `json:"folder,omitempty"`
+	ImageRef   string            `json:"image_ref,omitempty"`
+	CreatedAt  string            `json:"created_at"`
+	LastRunAt  string            `json:"last_run_at,omitempty"`
+	NextRunAt  string            `json:"next_run_at,omitempty"`
+	LastStatus string            `json:"last_status,omitempty"`
+	LastError  string            `json:"last_error,omitempty"`
 }
 
 type ScheduleStore struct {

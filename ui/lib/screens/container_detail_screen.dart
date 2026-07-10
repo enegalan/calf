@@ -160,31 +160,35 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       _logsError = null;
     });
 
-    _logsSubscription = widget.apiClient.streamContainerLogs(_container.id).listen(
-      (line) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _logsError = null;
-          _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
-          if (_logLines.length > _maxLogLines) {
-            _logLines.removeRange(0, _logLines.length - _maxLogLines);
-          }
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_logsScrollController.hasClients) {
-            _logsScrollController.jumpTo(_logsScrollController.position.maxScrollExtent);
-          }
-        });
-      },
-      onError: (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _logsError = error.toString());
-      },
-    );
+    _logsSubscription = widget.apiClient
+        .streamContainerLogs(_container.id)
+        .listen(
+          (line) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _logsError = null;
+              _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
+              if (_logLines.length > _maxLogLines) {
+                _logLines.removeRange(0, _logLines.length - _maxLogLines);
+              }
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_logsScrollController.hasClients) {
+                _logsScrollController.jumpTo(
+                  _logsScrollController.position.maxScrollExtent,
+                );
+              }
+            });
+          },
+          onError: (error) {
+            if (!mounted) {
+              return;
+            }
+            setState(() => _logsError = error.toString());
+          },
+        );
   }
 
   Future<void> _loadInspect() async {
@@ -245,7 +249,10 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _logsSubscription?.cancel();
     _statsTimer?.cancel();
     _refreshStats();
-    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshStats());
+    _statsTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshStats(),
+    );
   }
 
   Future<void> _refreshStats() async {
@@ -326,7 +333,11 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(LucideIcons.box, size: 28, color: _containerIconColor(_container, theme)),
+            Icon(
+              LucideIcons.box,
+              size: 28,
+              color: _containerIconColor(_container, theme),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -340,17 +351,25 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(_container.shortId, style: theme.textTheme.muted),
-                      Text(_container.displayImage, style: theme.textTheme.muted),
+                      Text(
+                        _container.displayImage,
+                        style: theme.textTheme.muted,
+                      ),
                       if (port != null)
                         GestureDetector(
                           onTap: () => openPort(port),
                           child: Text(
                             '$port:$port',
-                            style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                            style: theme.textTheme.small.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                         )
                       else
-                        Text(_container.displayPorts, style: theme.textTheme.muted),
+                        Text(
+                          _container.displayPorts,
+                          style: theme.textTheme.muted,
+                        ),
                     ],
                   ),
                 ],
@@ -359,7 +378,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('STATUS', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+                Text(
+                  'STATUS',
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
                 Text(_container.status, style: theme.textTheme.small),
                 const SizedBox(height: 8),
                 Row(
@@ -367,34 +391,65 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     CalfButton.outline(
                       enabled: !_busy && _container.isRunning,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: _container.isRunning ? () => _runAction(() => widget.apiClient.stopContainer(_container.id)) : null,
-                      child: Icon(LucideIcons.square, size: 16, color: theme.colorScheme.foreground),
+                      onPressed: _container.isRunning
+                          ? () => _runAction(
+                              () =>
+                                  widget.apiClient.stopContainer(_container.id),
+                            )
+                          : null,
+                      child: Icon(
+                        LucideIcons.square,
+                        size: 16,
+                        color: theme.colorScheme.foreground,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy && !_container.isRunning,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: !_container.isRunning ? () => _runAction(() => widget.apiClient.startContainer(_container.id)) : null,
-                      child: Icon(LucideIcons.play, size: 16, color: theme.colorScheme.primaryForeground),
+                      onPressed: !_container.isRunning
+                          ? () => _runAction(
+                              () => widget.apiClient.startContainer(
+                                _container.id,
+                              ),
+                            )
+                          : null,
+                      child: Icon(
+                        LucideIcons.play,
+                        size: 16,
+                        color: theme.colorScheme.primaryForeground,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: () => _runAction(() => widget.apiClient.restartContainer(_container.id)),
-                      child: Icon(LucideIcons.rotateCw, size: 16, color: theme.colorScheme.primaryForeground),
+                      onPressed: () => _runAction(
+                        () => widget.apiClient.restartContainer(_container.id),
+                      ),
+                      child: Icon(
+                        LucideIcons.rotateCw,
+                        size: 16,
+                        color: theme.colorScheme.primaryForeground,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     CalfButton.destructive(
                       enabled: !_busy,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       onPressed: () async {
-                        await _runAction(() => widget.apiClient.removeContainer(_container.id));
+                        await _runAction(
+                          () => widget.apiClient.removeContainer(_container.id),
+                        );
                         if (mounted) {
                           widget.onBack();
                         }
                       },
-                      child: Icon(LucideIcons.trash2, size: 16, color: theme.colorScheme.destructiveForeground),
+                      child: Icon(
+                        LucideIcons.trash2,
+                        size: 16,
+                        color: theme.colorScheme.destructiveForeground,
+                      ),
                     ),
                   ],
                 ),
@@ -404,12 +459,24 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
-          Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         CalfTabBar(
           theme: theme,
-          labels: const ['Logs', 'Inspect', 'Bind mounts', 'Exec', 'Files', 'Stats'],
+          labels: const [
+            'Logs',
+            'Inspect',
+            'Bind mounts',
+            'Exec',
+            'Files',
+            'Stats',
+          ],
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
         ),
@@ -439,7 +506,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           onToggleRaw: (value) => setState(() => _inspectRawJson = value),
         );
       case _ContainerDetailTab.mounts:
-        return _MountsTab(theme: theme, loading: _mountsLoading, error: _mountsError, mounts: _mounts);
+        return _MountsTab(
+          theme: theme,
+          loading: _mountsLoading,
+          error: _mountsError,
+          mounts: _mounts,
+        );
       case _ContainerDetailTab.exec:
         return _ExecTab(
           theme: theme,
@@ -450,7 +522,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       case _ContainerDetailTab.files:
         return FilesPanel(
           theme: theme,
-          loadDirectory: (path) => widget.apiClient.fetchContainerFiles(_container.id, path: path),
+          loadDirectory: (path) =>
+              widget.apiClient.fetchContainerFiles(_container.id, path: path),
         );
       case _ContainerDetailTab.stats:
         return _StatsTab(
@@ -523,15 +596,22 @@ class _InspectTab extends StatelessWidget {
             child: loading
                 ? Text('Loading inspect data...', style: theme.textTheme.muted)
                 : error != null
-                    ? Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-                    : rawJson
-                        ? SingleChildScrollView(
-                            child: SelectableText(
-                              text,
-                              style: theme.textTheme.small.copyWith(fontFamily: 'Menlo'),
-                            ),
-                          )
-                        : _InspectFormattedView(theme: theme, inspect: inspect),
+                ? Text(
+                    error!,
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.destructive,
+                    ),
+                  )
+                : rawJson
+                ? SingleChildScrollView(
+                    child: SelectableText(
+                      text,
+                      style: theme.textTheme.small.copyWith(
+                        fontFamily: 'Menlo',
+                      ),
+                    ),
+                  )
+                : _InspectFormattedView(theme: theme, inspect: inspect),
           ),
         ),
       ],
@@ -540,10 +620,7 @@ class _InspectTab extends StatelessWidget {
 }
 
 class _InspectFormattedView extends StatelessWidget {
-  const _InspectFormattedView({
-    required this.theme,
-    required this.inspect,
-  });
+  const _InspectFormattedView({required this.theme, required this.inspect});
 
   final ShadThemeData theme;
   final Map<String, dynamic>? inspect;
@@ -556,7 +633,10 @@ class _InspectFormattedView extends StatelessWidget {
 
     final sections = _buildInspectSections(inspect!);
     if (sections.isEmpty) {
-      return Text('No inspect sections available.', style: theme.textTheme.muted);
+      return Text(
+        'No inspect sections available.',
+        style: theme.textTheme.muted,
+      );
     }
 
     return ListView.separated(
@@ -567,12 +647,26 @@ class _InspectFormattedView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(section.title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              section.title,
+              style: theme.textTheme.large.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 12),
-            for (var rowIndex = 0; rowIndex < section.rows.length; rowIndex++) ...[
-              if (rowIndex > 0) Divider(color: theme.colorScheme.border, height: 1),
+            for (
+              var rowIndex = 0;
+              rowIndex < section.rows.length;
+              rowIndex++
+            ) ...[
+              if (rowIndex > 0)
+                Divider(color: theme.colorScheme.border, height: 1),
               const SizedBox(height: 10),
-              _InspectRow(theme: theme, label: section.rows[rowIndex].label, value: section.rows[rowIndex].value),
+              _InspectRow(
+                theme: theme,
+                label: section.rows[rowIndex].label,
+                value: section.rows[rowIndex].value,
+              ),
               const SizedBox(height: 10),
             ],
           ],
@@ -598,10 +692,12 @@ class _InspectFormattedView extends StatelessWidget {
             rows.add(_InspectRowData(label: item, value: ''));
             continue;
           }
-          rows.add(_InspectRowData(
-            label: item.substring(0, separator),
-            value: item.substring(separator + 1),
-          ));
+          rows.add(
+            _InspectRowData(
+              label: item.substring(0, separator),
+              value: item.substring(separator + 1),
+            ),
+          );
         }
         if (rows.isNotEmpty) {
           sections.add(_InspectSection(title: 'Environment', rows: rows));
@@ -611,7 +707,12 @@ class _InspectFormattedView extends StatelessWidget {
       final labels = config['Labels'];
       if (labels is Map) {
         final rows = labels.entries
-            .map((entry) => _InspectRowData(label: entry.key.toString(), value: entry.value.toString()))
+            .map(
+              (entry) => _InspectRowData(
+                label: entry.key.toString(),
+                value: entry.value.toString(),
+              ),
+            )
             .toList();
         if (rows.isNotEmpty) {
           sections.add(_InspectSection(title: 'Labels', rows: rows));
@@ -626,7 +727,9 @@ class _InspectFormattedView extends StatelessWidget {
         final rows = ports.entries.map((entry) {
           final bindings = entry.value;
           var value = '';
-          if (bindings is List && bindings.isNotEmpty && bindings.first is Map) {
+          if (bindings is List &&
+              bindings.isNotEmpty &&
+              bindings.first is Map) {
             final host = bindings.first as Map;
             value = '${host['HostIp'] ?? ''}:${host['HostPort'] ?? ''}';
           }
@@ -674,7 +777,10 @@ class _InspectRow extends StatelessWidget {
       children: [
         Expanded(
           flex: 2,
-          child: Text(label, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          child: Text(
+            label,
+            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+          ),
         ),
         Expanded(
           flex: 4,
@@ -683,7 +789,11 @@ class _InspectRow extends StatelessWidget {
         CalfButton.ghost(
           padding: const EdgeInsets.all(6),
           onPressed: () => Clipboard.setData(ClipboardData(text: value)),
-          child: Icon(LucideIcons.copy, size: 16, color: theme.colorScheme.mutedForeground),
+          child: Icon(
+            LucideIcons.copy,
+            size: 16,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
       ],
     );
@@ -706,13 +816,27 @@ class _MountsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return _Panel(theme: theme, child: Text('Loading bind mounts...', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('Loading bind mounts...', style: theme.textTheme.muted),
+      );
     }
     if (error != null) {
-      return _Panel(theme: theme, child: Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)));
+      return _Panel(
+        theme: theme,
+        child: Text(
+          error!,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.destructive,
+          ),
+        ),
+      );
     }
     if (mounts.isEmpty) {
-      return _Panel(theme: theme, child: Text('No bind mounts.', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('No bind mounts.', style: theme.textTheme.muted),
+      );
     }
 
     return _Panel(
@@ -721,8 +845,22 @@ class _MountsTab extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Source (Host)', style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600))),
-              Expanded(child: Text('Destination (Container)', style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  'Source (Host)',
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Destination (Container)',
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -732,8 +870,17 @@ class _MountsTab extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(mount.source, style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary))),
-                Expanded(child: Text(mount.destination, style: theme.textTheme.small)),
+                Expanded(
+                  child: Text(
+                    mount.source,
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(mount.destination, style: theme.textTheme.small),
+                ),
               ],
             ),
           ],
@@ -793,7 +940,11 @@ class _ExecTabState extends State<_ExecTab> {
       _channel?.sink.add(utf8.encode(data));
     };
     _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-      final payload = jsonEncode({'type': 'resize', 'rows': height, 'cols': width});
+      final payload = jsonEncode({
+        'type': 'resize',
+        'rows': height,
+        'cols': width,
+      });
       _channel?.sink.add(payload);
     };
     _subscription = _channel!.stream.listen(
@@ -833,7 +984,10 @@ class _ExecTabState extends State<_ExecTab> {
     if (!widget.isRunning) {
       return _Panel(
         theme: widget.theme,
-        child: Text('Exec is available only for running containers.', style: widget.theme.textTheme.muted),
+        child: Text(
+          'Exec is available only for running containers.',
+          style: widget.theme.textTheme.muted,
+        ),
       );
     }
 
@@ -846,7 +1000,6 @@ class _ExecTabState extends State<_ExecTab> {
     );
   }
 }
-
 
 class _StatsTab extends StatelessWidget {
   const _StatsTab({
@@ -866,13 +1019,27 @@ class _StatsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && stats == null) {
-      return _Panel(theme: theme, child: Text('Loading stats...', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('Loading stats...', style: theme.textTheme.muted),
+      );
     }
     if (error != null && stats == null) {
-      return _Panel(theme: theme, child: Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)));
+      return _Panel(
+        theme: theme,
+        child: Text(
+          error!,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.destructive,
+          ),
+        ),
+      );
     }
     if (stats == null) {
-      return _Panel(theme: theme, child: Text('No stats available.', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('No stats available.', style: theme.textTheme.muted),
+      );
     }
 
     return GridView.count(
@@ -885,7 +1052,11 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'CPU usage: ${stats!.cpuPercent}',
           series: [
-            _ChartSeries(label: 'CPU', color: theme.colorScheme.primary, values: history.cpu),
+            _ChartSeries(
+              label: 'CPU',
+              color: theme.colorScheme.primary,
+              values: history.cpu,
+            ),
           ],
           formatY: (value) => '${value.toStringAsFixed(1)}%',
         ),
@@ -893,7 +1064,11 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Memory usage: ${stats!.memUsage}',
           series: [
-            _ChartSeries(label: 'Memory', color: theme.colorScheme.primary, values: history.memUsed),
+            _ChartSeries(
+              label: 'Memory',
+              color: theme.colorScheme.primary,
+              values: history.memUsed,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -901,8 +1076,16 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Disk read/write: ${stats!.blockIo}',
           series: [
-            _ChartSeries(label: 'Data read', color: theme.colorScheme.primary, values: history.diskRead),
-            _ChartSeries(label: 'Data write', color: const Color(0xFFF97316), values: history.diskWrite),
+            _ChartSeries(
+              label: 'Data read',
+              color: theme.colorScheme.primary,
+              values: history.diskRead,
+            ),
+            _ChartSeries(
+              label: 'Data write',
+              color: const Color(0xFFF97316),
+              values: history.diskWrite,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -910,8 +1093,16 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Network I/O: ${stats!.netIo}',
           series: [
-            _ChartSeries(label: 'Data received', color: theme.colorScheme.primary, values: history.netRx),
-            _ChartSeries(label: 'Data sent', color: const Color(0xFFF97316), values: history.netTx),
+            _ChartSeries(
+              label: 'Data received',
+              color: theme.colorScheme.primary,
+              values: history.netRx,
+            ),
+            _ChartSeries(
+              label: 'Data sent',
+              color: const Color(0xFFF97316),
+              values: history.netTx,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -956,7 +1147,10 @@ class _StatsChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            title,
+            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 12),
           Expanded(
             child: LineChart(
@@ -966,7 +1160,8 @@ class _StatsChartCard extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: theme.colorScheme.border, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
@@ -980,9 +1175,15 @@ class _StatsChartCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 lineBarsData: [
                   for (final item in series)

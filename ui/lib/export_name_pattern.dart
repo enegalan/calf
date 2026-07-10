@@ -16,10 +16,18 @@ String sanitizeVolumeNameToken(String value) {
 }
 
 String sanitizeExportFileName(String value) {
-  return value.trim().replaceAll('/', '_').replaceAll('\\', '_').replaceAll(':', '-');
+  return value
+      .trim()
+      .replaceAll('/', '_')
+      .replaceAll('\\', '_')
+      .replaceAll(':', '-');
 }
 
-String expandExportFileNamePattern(String pattern, String volumeName, DateTime runTime) {
+String expandExportFileNamePattern(
+  String pattern,
+  String volumeName,
+  DateTime runTime,
+) {
   return _expandNamePattern(
     pattern: pattern,
     volumeName: volumeName,
@@ -29,7 +37,11 @@ String expandExportFileNamePattern(String pattern, String volumeName, DateTime r
   );
 }
 
-String expandExportImageRefPattern(String pattern, String volumeName, DateTime runTime) {
+String expandExportImageRefPattern(
+  String pattern,
+  String volumeName,
+  DateTime runTime,
+) {
   return _expandNamePattern(
     pattern: pattern,
     volumeName: volumeName,
@@ -46,7 +58,9 @@ String _expandNamePattern({
   required String defaultPattern,
   required bool forFileExport,
 }) {
-  final resolvedPattern = pattern.trim().isEmpty ? defaultPattern : pattern.trim();
+  final resolvedPattern = pattern.trim().isEmpty
+      ? defaultPattern
+      : pattern.trim();
 
   final timestamp = _formatPatternTimestamp(runTime);
   final date =

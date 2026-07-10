@@ -83,7 +83,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
 
     switch (_type) {
       case VolumeQuickExportType.localFile:
-        return _fileNameController.text.trim().isNotEmpty && _folderController.text.trim().isNotEmpty;
+        return _fileNameController.text.trim().isNotEmpty &&
+            _folderController.text.trim().isNotEmpty;
       case VolumeQuickExportType.localImage:
         return _imageRefController.text.trim().isNotEmpty;
       case VolumeQuickExportType.newImage:
@@ -172,7 +173,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Location', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+                  Text(
+                    'Location',
+                    style: theme.textTheme.large.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   VolumeExportOptionTile(
                     theme: theme,
@@ -180,7 +186,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                     description:
                         'Create a compressed file (.tar.gz) in a selected directory with the content of this volume.',
                     selected: _type == VolumeQuickExportType.localFile,
-                    onSelect: () => setState(() => _type = VolumeQuickExportType.localFile),
+                    onSelect: () =>
+                        setState(() => _type = VolumeQuickExportType.localFile),
                     child: _type == VolumeQuickExportType.localFile
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,9 +223,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                   VolumeExportOptionTile(
                     theme: theme,
                     title: 'Local image',
-                    description: 'Copy the volume content to an existing image in the /volume-data directory.',
+                    description:
+                        'Copy the volume content to an existing image in the /volume-data directory.',
                     selected: _type == VolumeQuickExportType.localImage,
-                    onSelect: () => setState(() => _type = VolumeQuickExportType.localImage),
+                    onSelect: () => setState(
+                      () => _type = VolumeQuickExportType.localImage,
+                    ),
                     child: _type == VolumeQuickExportType.localImage
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -242,9 +252,11 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                   VolumeExportOptionTile(
                     theme: theme,
                     title: 'New image',
-                    description: 'Create a new image and copy the volume contents into it.',
+                    description:
+                        'Create a new image and copy the volume contents into it.',
                     selected: _type == VolumeQuickExportType.newImage,
-                    onSelect: () => setState(() => _type = VolumeQuickExportType.newImage),
+                    onSelect: () =>
+                        setState(() => _type = VolumeQuickExportType.newImage),
                     child: _type == VolumeQuickExportType.newImage
                         ? Padding(
                             padding: const EdgeInsets.only(top: 12),
@@ -262,7 +274,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                     title: 'Registry',
                     description: 'Push the volume content to Docker Hub.',
                     selected: _type == VolumeQuickExportType.registry,
-                    onSelect: () => setState(() => _type = VolumeQuickExportType.registry),
+                    onSelect: () =>
+                        setState(() => _type = VolumeQuickExportType.registry),
                     child: _type == VolumeQuickExportType.registry
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -272,7 +285,9 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                               const SizedBox(height: 12),
                               ShadInput(
                                 controller: _imageRefController,
-                                placeholder: const Text('<user>/<repo-name>:<tag>'),
+                                placeholder: const Text(
+                                  '<user>/<repo-name>:<tag>',
+                                ),
                                 onChanged: (_) => setState(() {}),
                               ),
                             ],
@@ -286,7 +301,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
-          Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Row(

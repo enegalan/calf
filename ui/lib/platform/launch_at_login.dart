@@ -30,7 +30,8 @@ String? macAppBundlePath(String executable) {
     return null;
   }
 
-  if (contentsIndex + 1 >= segments.length || segments[contentsIndex + 1] != 'MacOS') {
+  if (contentsIndex + 1 >= segments.length ||
+      segments[contentsIndex + 1] != 'MacOS') {
     return null;
   }
 
@@ -148,7 +149,8 @@ class LaunchAtLogin {
     try {
       final contents = await desktopFile.readAsString();
       final launchPath = launchAtLoginPath();
-      return contents.contains('Exec=$launchPath') || contents.contains('Exec="$launchPath"');
+      return contents.contains('Exec=$launchPath') ||
+          contents.contains('Exec="$launchPath"');
     } on FileSystemException catch (error) {
       debugPrint('Failed to read launch-at-login desktop file: $error');
       return false;
@@ -202,7 +204,12 @@ X-GNOME-Autostart-enabled=true
 
   static Future<bool> _windowsIsEnabled() async {
     try {
-      final result = await Process.run('reg', ['query', _windowsRunKey, '/v', _appName]);
+      final result = await Process.run('reg', [
+        'query',
+        _windowsRunKey,
+        '/v',
+        _appName,
+      ]);
       if (result.exitCode != 0) {
         return false;
       }
@@ -221,10 +228,17 @@ X-GNOME-Autostart-enabled=true
     final runValue = _windowsRunValue(launchPath);
 
     try {
-      final result = await Process.run(
-        'reg',
-        ['add', _windowsRunKey, '/v', _appName, '/t', 'REG_SZ', '/d', runValue, '/f'],
-      );
+      final result = await Process.run('reg', [
+        'add',
+        _windowsRunKey,
+        '/v',
+        _appName,
+        '/t',
+        'REG_SZ',
+        '/d',
+        runValue,
+        '/f',
+      ]);
       return result.exitCode == 0;
     } on ProcessException catch (error) {
       debugPrint('Failed to enable Windows launch-at-login: $error');
@@ -236,7 +250,13 @@ X-GNOME-Autostart-enabled=true
 
   static Future<bool> _windowsDisable() async {
     try {
-      final result = await Process.run('reg', ['delete', _windowsRunKey, '/v', _appName, '/f']);
+      final result = await Process.run('reg', [
+        'delete',
+        _windowsRunKey,
+        '/v',
+        _appName,
+        '/f',
+      ]);
       return result.exitCode == 0;
     } on ProcessException catch (error) {
       debugPrint('Failed to disable Windows launch-at-login: $error');

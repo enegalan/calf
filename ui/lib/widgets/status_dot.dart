@@ -27,7 +27,10 @@ class StatusDot extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: theme.colorScheme.mutedForeground, width: 1.5),
+          border: Border.all(
+            color: theme.colorScheme.mutedForeground,
+            width: 1.5,
+          ),
         ),
       );
     }

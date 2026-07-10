@@ -2,7 +2,8 @@ import 'dart:io';
 
 import 'package:ui/constants/calf_constants.dart';
 
-String get calfReportIssueUrl => 'https://github.com/${CalfGitHub.repo}/issues/new';
+String get calfReportIssueUrl =>
+    'https://github.com/${CalfGitHub.repo}/issues/new';
 
 String get calfRepositoryUrl => 'https://github.com/${CalfGitHub.repo}';
 
@@ -27,7 +28,10 @@ Future<bool> openExternalUrl(String url) async {
     }
 
     if (Platform.isWindows) {
-      final result = await Process.run('rundll32', ['url.dll,FileProtocolHandler', url]);
+      final result = await Process.run('rundll32', [
+        'url.dll,FileProtocolHandler',
+        url,
+      ]);
       return result.exitCode == 0;
     }
   } catch (_) {}

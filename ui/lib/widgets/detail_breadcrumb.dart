@@ -25,7 +25,11 @@ class DetailBreadcrumb extends StatelessWidget {
       children: [
         CalfButton.ghost(
           onPressed: onBackEnabled ? onBack : null,
-          child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
+          child: Icon(
+            LucideIcons.chevronLeft,
+            size: 18,
+            color: theme.colorScheme.foreground,
+          ),
         ),
         const SizedBox(width: 4),
         for (var index = 0; index < segments.length; index++) ...[
@@ -34,7 +38,9 @@ class DetailBreadcrumb extends StatelessWidget {
             Expanded(
               child: Text(
                 segments[index],
-                style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.large.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             )

@@ -28,12 +28,12 @@ type BuildTag struct {
 }
 
 type BuildTiming struct {
-	ImagePullsMs       int64 `json:"image_pulls_ms"`
-	LocalTransfersMs   int64 `json:"local_transfers_ms"`
-	ExecutionsMs       int64 `json:"executions_ms"`
-	FileOperationsMs   int64 `json:"file_operations_ms"`
-	ResultExportsMs    int64 `json:"result_exports_ms"`
-	IdleMs             int64 `json:"idle_ms"`
+	ImagePullsMs     int64 `json:"image_pulls_ms"`
+	LocalTransfersMs int64 `json:"local_transfers_ms"`
+	ExecutionsMs     int64 `json:"executions_ms"`
+	FileOperationsMs int64 `json:"file_operations_ms"`
+	ResultExportsMs  int64 `json:"result_exports_ms"`
+	IdleMs           int64 `json:"idle_ms"`
 }
 
 type Build struct {

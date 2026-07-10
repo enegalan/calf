@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	goruntime "runtime"
 	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -44,11 +44,11 @@ type healthResponse struct {
 }
 
 type statusResponse struct {
-	Version       string          `json:"version"`
-	UptimeSeconds int64           `json:"uptime_seconds"`
-	ListenAddr    string          `json:"listen_addr"`
-	LogLevel      string          `json:"log_level"`
-	Runtime       runtime.Status  `json:"runtime"`
+	Version       string         `json:"version"`
+	UptimeSeconds int64          `json:"uptime_seconds"`
+	ListenAddr    string         `json:"listen_addr"`
+	LogLevel      string         `json:"log_level"`
+	Runtime       runtime.Status `json:"runtime"`
 }
 
 type configResponse struct {

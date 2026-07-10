@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
+import 'package:flutter/material.dart'
+    show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -115,7 +116,10 @@ class _AppShellState extends State<AppShell> {
 
     setState(() => _updateCheckResult = result);
 
-    if (!force && !_updateDialogShown && result.hasUpdate && result.latest != null) {
+    if (!force &&
+        !_updateDialogShown &&
+        result.hasUpdate &&
+        result.latest != null) {
       _updateDialogShown = true;
       await showUpdateAvailableDialog(
         context: context,
@@ -289,18 +293,24 @@ class _AppShellState extends State<AppShell> {
                       padding: const EdgeInsets.all(16),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final isCurrentlyCollapsed = constraints.maxWidth < 150;
+                          final isCurrentlyCollapsed =
+                              constraints.maxWidth < 150;
                           return Column(
                             crossAxisAlignment: isCurrentlyCollapsed
                                 ? CrossAxisAlignment.center
                                 : CrossAxisAlignment.start,
                             children: [
-                              for (var index = 0; index < navItems.length; index++) ...[
+                              for (
+                                var index = 0;
+                                index < navItems.length;
+                                index++
+                              ) ...[
                                 if (index > 0) const SizedBox(height: 8),
                                 _NavItem(
                                   label: navItems[index].label,
                                   icon: navItems[index].icon,
-                                  selected: !_showSettings && _selectedIndex == index,
+                                  selected:
+                                      !_showSettings && _selectedIndex == index,
                                   collapsed: isCurrentlyCollapsed,
                                   onTap: () => setState(() {
                                     _selectedIndex = index;
@@ -324,13 +334,16 @@ class _AppShellState extends State<AppShell> {
                               themeMode: widget.themeMode,
                               onThemeModeChanged: widget.onThemeModeChanged,
                               initialUpdateCheckResult: _updateCheckResult,
-                              onCheckForUpdates: () => checkForUpdates(force: true),
+                              onCheckForUpdates: () =>
+                                  checkForUpdates(force: true),
                               onUpdateCheckResultChanged: (result) {
                                 setState(() => _updateCheckResult = result);
                               },
                             )
                           : switch (_selectedIndex) {
-                              0 => ContainersScreen(apiClient: widget.apiClient),
+                              0 => ContainersScreen(
+                                apiClient: widget.apiClient,
+                              ),
                               1 => ImagesScreen(apiClient: widget.apiClient),
                               2 => VolumesScreen(apiClient: widget.apiClient),
                               3 => NetworksScreen(apiClient: widget.apiClient),
@@ -360,7 +373,9 @@ class _AppShellState extends State<AppShell> {
                             ? () {
                                 setState(() {
                                   _isCollapsed = !_isCollapsed;
-                                  SidebarPreferences.saveCollapsed(_isCollapsed);
+                                  SidebarPreferences.saveCollapsed(
+                                    _isCollapsed,
+                                  );
                                 });
                               }
                             : null,
@@ -379,7 +394,8 @@ class _AppShellState extends State<AppShell> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
-                          shadowColor: theme.colorScheme.popoverForeground.withValues(alpha: 0.15),
+                          shadowColor: theme.colorScheme.popoverForeground
+                              .withValues(alpha: 0.15),
                         ),
                       ),
                     ),
@@ -429,7 +445,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final color = selected ? theme.colorScheme.accentForeground : theme.colorScheme.foreground;
+    final color = selected
+        ? theme.colorScheme.accentForeground
+        : theme.colorScheme.foreground;
     final effectivePadding = collapsed
         ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
@@ -442,7 +460,9 @@ class _NavItem extends StatelessWidget {
       child: Align(
         alignment: collapsed ? Alignment.center : Alignment.centerLeft,
         child: Row(
-          mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+          mainAxisAlignment: collapsed
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
           mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
           children: [
             Icon(icon, size: 18, color: color),
@@ -512,7 +532,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   UpdateCheckResult? _updateCheckResult;
   bool _updateChecking = false;
 
-  bool get _dirty => _config != null &&
+  bool get _dirty =>
+      _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
           _draftMemory.toInt() != _config!.memoryGB ||
           _draftSwap.toInt() != _config!.memorySwapGB ||
@@ -841,8 +862,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _config!.dockerContextActive
                   ? 'Active context: calf'
                   : _config!.dockerContextName.isEmpty
-                      ? 'Docker CLI context not set to calf'
-                      : 'Active context: ${_config!.dockerContextName}',
+                  ? 'Docker CLI context not set to calf'
+                  : 'Active context: ${_config!.dockerContextName}',
               style: theme.textTheme.muted,
             ),
           ],
@@ -851,14 +872,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Open at login',
             ShadSwitch(
               value: _launchAtLoginEnabled ?? false,
-              onChanged: _launchAtLoginLoading || _launchAtLoginSaving ? null : setLaunchAtLoginEnabled,
+              onChanged: _launchAtLoginLoading || _launchAtLoginSaving
+                  ? null
+                  : setLaunchAtLoginEnabled,
             ),
           ),
           if (_launchAtLoginError != null) ...[
             const SizedBox(height: 8),
             Text(
               _launchAtLoginError!,
-              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              style: theme.textTheme.large.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
             ),
           ],
           const SizedBox(height: 16),
@@ -877,22 +902,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sectionHeader('Updates', theme),
           const SizedBox(height: 12),
           Text(
-            widget.appVersion.isEmpty ? 'Loading version...' : 'Current version: ${widget.appVersion}',
+            widget.appVersion.isEmpty
+                ? 'Loading version...'
+                : 'Current version: ${widget.appVersion}',
             style: theme.textTheme.muted,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               CalfButton(
-                onPressed: _updateChecking || widget.appVersion.isEmpty ? null : checkForUpdates,
+                onPressed: _updateChecking || widget.appVersion.isEmpty
+                    ? null
+                    : checkForUpdates,
                 enabled: !_updateChecking && widget.appVersion.isNotEmpty,
-                child: Text(_updateChecking ? 'Checking...' : 'Check for updates'),
+                child: Text(
+                  _updateChecking ? 'Checking...' : 'Check for updates',
+                ),
               ),
-              if (_updateCheckResult?.hasUpdate == true && _updateCheckResult!.latest != null) ...[
+              if (_updateCheckResult?.hasUpdate == true &&
+                  _updateCheckResult!.latest != null) ...[
                 const SizedBox(width: 12),
                 CalfButton(
                   onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
-                  child: Text('Download ${_updateCheckResult!.latest!.version}'),
+                  child: Text(
+                    'Download ${_updateCheckResult!.latest!.version}',
+                  ),
                 ),
               ],
             ],
@@ -902,9 +936,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (_updateCheckResult!.error != null)
               Text(
                 _updateCheckResult!.error!,
-                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+                style: theme.textTheme.large.copyWith(
+                  color: theme.colorScheme.destructive,
+                ),
               )
-            else if (_updateCheckResult!.hasUpdate && _updateCheckResult!.latest != null) ...[
+            else if (_updateCheckResult!.hasUpdate &&
+                _updateCheckResult!.latest != null) ...[
               Text(
                 'Version ${_updateCheckResult!.latest!.version} is available.',
                 style: theme.textTheme.large,
@@ -922,10 +959,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('Skip this version'),
               ),
             ] else
-              Text(
-                'You are up to date.',
-                style: theme.textTheme.muted,
-              ),
+              Text('You are up to date.', style: theme.textTheme.muted),
           ],
           const SizedBox(height: 24),
           _sectionHeader('Migration', theme),
@@ -938,17 +972,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CalfButton(
             onPressed: _migrating ? null : startDockerDesktopMigration,
             enabled: !_migrating,
-            child: Text(_migrating ? 'Migrating...' : 'Migrate from Docker Desktop'),
+            child: Text(
+              _migrating ? 'Migrating...' : 'Migrate from Docker Desktop',
+            ),
           ),
           if (_migrationStatus != null) ...[
             const SizedBox(height: 16),
             ShadProgress(value: _migrationStatus!.progress / 100),
             const SizedBox(height: 8),
             Text(_migrationStatus!.message, style: theme.textTheme.large),
-            if (_migrationStatus!.error != null && _migrationStatus!.error!.isNotEmpty)
+            if (_migrationStatus!.error != null &&
+                _migrationStatus!.error!.isNotEmpty)
               Text(
                 _migrationStatus!.error!,
-                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+                style: theme.textTheme.large.copyWith(
+                  color: theme.colorScheme.destructive,
+                ),
               ),
             if (_migrationStatus!.phase == 'completed') ...[
               const SizedBox(height: 8),
@@ -974,9 +1013,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _config!.noProxy.isNotEmpty))
                   const Padding(
                     padding: EdgeInsets.only(left: 8),
-                    child: ShadBadge.secondary(
-                      child: Text('Configured'),
-                    ),
+                    child: ShadBadge.secondary(child: Text('Configured')),
                   ),
               ],
             ),
@@ -1019,7 +1056,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           else if (_configError != null)
             Text(
               _configError!,
-              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              style: theme.textTheme.large.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
             )
           else if (_config != null) ...[
             _sliderRow(
@@ -1050,10 +1089,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             CalfButton(
-              onPressed: _dirty && !_saving && _httpProxyError == null && _httpsProxyError == null
+              onPressed:
+                  _dirty &&
+                      !_saving &&
+                      _httpProxyError == null &&
+                      _httpsProxyError == null
                   ? applyConfig
                   : null,
-              enabled: _dirty && _httpProxyError == null && _httpsProxyError == null,
+              enabled:
+                  _dirty && _httpProxyError == null && _httpsProxyError == null,
               child: Text(_saving ? 'Saving...' : 'Apply'),
             ),
           ],
@@ -1077,14 +1121,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _sectionHeader(String label, ShadThemeData theme) {
-    return Text(label, style: theme.textTheme.h4.copyWith(color: theme.colorScheme.mutedForeground));
+    return Text(
+      label,
+      style: theme.textTheme.h4.copyWith(
+        color: theme.colorScheme.mutedForeground,
+      ),
+    );
   }
 
   Widget _settingRow(String label, Widget control) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(child: Text(label, style: ShadTheme.of(context).textTheme.large)),
+        Expanded(
+          child: Text(label, style: ShadTheme.of(context).textTheme.large),
+        ),
         control,
       ],
     );
@@ -1123,10 +1174,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 thumbBorderColor: primary,
               ),
             ),
-            if (trailing != null) ...[
-              const SizedBox(width: 12),
-              trailing,
-            ],
+            if (trailing != null) ...[const SizedBox(width: 12), trailing],
           ],
         ),
       ],
@@ -1138,7 +1186,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _validateHttpsProxy(String value) {
-    setState(() => _httpsProxyError = _validateProxyUrl(value, ['http', 'https']));
+    setState(
+      () => _httpsProxyError = _validateProxyUrl(value, ['http', 'https']),
+    );
   }
 
   String? _validateProxyUrl(String value, List<String> allowedSchemes) {
@@ -1161,7 +1211,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('No proxy', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          'No proxy',
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         const SizedBox(height: 8),
         if (_noProxyEntries.isNotEmpty) ...[
           Wrap(
@@ -1169,7 +1224,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             runSpacing: 6,
             children: _noProxyEntries.map((entry) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.muted,
                   borderRadius: BorderRadius.circular(6),
@@ -1183,7 +1241,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () {
                         setState(() => _noProxyEntries.remove(entry));
                       },
-                      child: Icon(LucideIcons.x, size: 12, color: theme.colorScheme.mutedForeground),
+                      child: Icon(
+                        LucideIcons.x,
+                        size: 12,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
                     ),
                   ],
                 ),
@@ -1198,7 +1260,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ShadInput(
                 controller: _noProxyInputController,
                 placeholder: const Text('localhost'),
-                leading: Icon(LucideIcons.ban, size: 16, color: theme.colorScheme.mutedForeground),
+                leading: Icon(
+                  LucideIcons.ban,
+                  size: 16,
+                  color: theme.colorScheme.mutedForeground,
+                ),
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (value) {
                   _addNoProxyEntry(value, theme);
@@ -1280,12 +1346,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         const SizedBox(height: 8),
         ShadInput(
           controller: controller,
           placeholder: Text(placeholder),
-          leading: Icon(icon, size: 16, color: theme.colorScheme.mutedForeground),
+          leading: Icon(
+            icon,
+            size: 16,
+            color: theme.colorScheme.mutedForeground,
+          ),
           trailing: controller.text.isNotEmpty
               ? GestureDetector(
                   onTap: () {
@@ -1294,7 +1369,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(4),
-                    child: Icon(LucideIcons.x, size: 14, color: theme.colorScheme.mutedForeground),
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 14,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
                   ),
                 )
               : null,

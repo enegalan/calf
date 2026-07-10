@@ -1,6 +1,8 @@
-.PHONY: help ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli release-macos \
-        ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux release-windows release \
-        package-macos package-windows package-linux package homebrew-cask
+.PHONY: help format format-backend format-ui format-check format-check-backend \
+        format-check-ui ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli \
+        release-macos ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux \
+        release-windows release package-macos package-windows package-linux package \
+        homebrew-cask
 
 help:
 	@echo "Calf — common commands"
@@ -26,10 +28,31 @@ help:
 	@echo "  make package-linux      create Linux .deb, .rpm, and AppImage installers"
 	@echo "  make package-windows    create Windows .exe installer"
 	@echo ""
+	@echo "  make format             format Go + Dart sources"
+	@echo "  make format-backend     gofmt backend/"
+	@echo "  make format-ui          dart format ui/"
+	@echo "  make format-check       verify Go + Dart formatting (CI)"
+	@echo ""
 	@echo "  make clean              remove build artifacts"
 	@echo "  make verify-docker-cli  smoke-test docker CLI against Calf"
 	@echo ""
 	@echo "Full guide: DEVELOPMENT.md"
+
+format: format-backend format-ui
+
+format-backend:
+	cd backend && gofmt -w .
+
+format-ui:
+	cd ui && dart format .
+
+format-check: format-check-backend format-check-ui
+
+format-check-backend:
+	@test -z "$$(cd backend && gofmt -l .)" || (echo "Run 'make format-backend' to fix:"; cd backend && gofmt -l .; exit 1)
+
+format-check-ui:
+	cd ui && dart format --output=none --set-exit-if-changed .
 
 ui-macos:
 	cd ui && flutter build macos

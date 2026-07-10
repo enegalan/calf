@@ -1,5 +1,12 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart' show BoxDecoration, BoxShadow, PopupMenuItem, RelativeRect, SelectableText, showMenu;
+import 'package:flutter/material.dart'
+    show
+        BoxDecoration,
+        BoxShadow,
+        PopupMenuItem,
+        RelativeRect,
+        SelectableText,
+        showMenu;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -134,8 +141,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         _history = history.isNotEmpty
             ? history
             : detail != null
-                ? [detail]
-                : const [];
+            ? [detail]
+            : const [];
         _historyLoading = false;
       });
     } catch (error) {
@@ -151,7 +158,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
 
   Future<void> _loadLogs() async {
     final detail = _detail;
-    if (detail != null && (detail.rawLog.isNotEmpty || detail.steps.isNotEmpty)) {
+    if (detail != null &&
+        (detail.rawLog.isNotEmpty || detail.steps.isNotEmpty)) {
       return;
     }
     if (_logs != null || _logsLoading) {
@@ -223,7 +231,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         if (_detailLoading)
           Text('Loading...', style: theme.textTheme.muted)
         else if (_detailError != null)
-          Text(_detailError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
+          Text(
+            _detailError!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          )
         else if (detail != null) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,18 +254,36 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                         CalfButton.ghost(
                           padding: const EdgeInsets.all(4),
                           onPressed: () => _copyText(detail.id),
-                          child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                          child: Icon(
+                            LucideIcons.copy,
+                            size: 14,
+                            color: theme.colorScheme.mutedForeground,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              _SummaryColumn(theme: theme, label: 'Status', value: _statusLabel(detail.status), color: _statusColor(detail.status, theme)),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Status',
+                value: _statusLabel(detail.status),
+                color: _statusColor(detail.status, theme),
+              ),
               const SizedBox(width: 24),
-              _SummaryColumn(theme: theme, label: 'Duration', value: _formatDuration(detail.durationMs)),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Duration',
+                value: _formatDuration(detail.durationMs),
+              ),
               const SizedBox(width: 24),
-              _SummaryColumn(theme: theme, label: 'Builder', value: detail.builder, link: true),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Builder',
+                value: detail.builder,
+                link: true,
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -342,12 +373,21 @@ class _SummaryColumn extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(label, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         const SizedBox(height: 4),
         Text(
           value,
           style: theme.textTheme.large.copyWith(
-            color: color ?? (link ? theme.colorScheme.primary : theme.colorScheme.foreground),
+            color:
+                color ??
+                (link
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.foreground),
           ),
         ),
       ],
@@ -374,10 +414,13 @@ class _InfoTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final platforms = <String>{
       if (detail.platform.isNotEmpty) detail.platform,
-      ...detail.dependencies.map((item) => item.platform).where((item) => item.isNotEmpty),
-      ...detail.results.map((item) => item.platform).where((item) => item.isNotEmpty),
-    }.toList()
-      ..sort();
+      ...detail.dependencies
+          .map((item) => item.platform)
+          .where((item) => item.isNotEmpty),
+      ...detail.results
+          .map((item) => item.platform)
+          .where((item) => item.isNotEmpty),
+    }.toList()..sort();
 
     final filterArch = _platformArch(platformFilter);
     final dependencies = detail.dependencies.where((item) {
@@ -408,26 +451,31 @@ class _InfoTab extends StatelessWidget {
                 ),
         ),
         _InfoRow(theme: theme, label: 'File name', value: detail.dockerfile),
-        _InfoRow(theme: theme, label: 'Remote source location', value: detail.remoteSource, link: true),
+        _InfoRow(
+          theme: theme,
+          label: 'Remote source location',
+          value: detail.remoteSource,
+          link: true,
+        ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
         _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
         const SizedBox(height: 12),
-        _TimingCharts(theme: theme, timing: detail.timing, totalMs: detail.durationMs, cachedSteps: detail.cachedSteps, totalSteps: detail.totalSteps),
+        _TimingCharts(
+          theme: theme,
+          timing: detail.timing,
+          totalMs: detail.durationMs,
+          cachedSteps: detail.cachedSteps,
+          totalSteps: detail.totalSteps,
+        ),
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Dependencies'),
         _DataTable(
           theme: theme,
           columns: const ['Source', 'Platform', 'Digest'],
           rows: dependencies
-              .map(
-                (item) => [
-                  item.source,
-                  item.platform,
-                  item.digest,
-                ],
-              )
+              .map((item) => [item.source, item.platform, item.digest])
               .toList(),
           onCopy: onCopy,
         ),
@@ -438,14 +486,7 @@ class _InfoTab extends StatelessWidget {
           columns: const ['Artifact', 'Platform', 'Digest', 'Size'],
           copyColumnIndex: 2,
           rows: results
-              .map(
-                (item) => [
-                  item.name,
-                  item.platform,
-                  item.digest,
-                  item.size,
-                ],
-              )
+              .map((item) => [item.name, item.platform, item.digest, item.size])
               .toList(),
           onCopy: onCopy,
         ),
@@ -499,7 +540,12 @@ class _PlatformFilter extends StatelessWidget {
                 offset.dy + renderBox.size.height,
               ),
               items: options
-                  .map((option) => PopupMenuItem<String>(value: option, child: Text(option)))
+                  .map(
+                    (option) => PopupMenuItem<String>(
+                      value: option,
+                      child: Text(option),
+                    ),
+                  )
                   .toList(),
             );
             if (selected != null) {
@@ -511,7 +557,11 @@ class _PlatformFilter extends StatelessWidget {
             children: [
               Text(value, style: theme.textTheme.small),
               const SizedBox(width: 4),
-              Icon(LucideIcons.chevronDown, size: 14, color: theme.colorScheme.foreground),
+              Icon(
+                LucideIcons.chevronDown,
+                size: 14,
+                color: theme.colorScheme.foreground,
+              ),
             ],
           ),
         ),
@@ -538,7 +588,8 @@ class _TimingCharts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final realTime = _timingSlices(timing);
-    final accumulatedTotal = timing.localTransfersMs +
+    final accumulatedTotal =
+        timing.localTransfersMs +
         timing.imagePullsMs +
         timing.executionsMs +
         timing.fileOperationsMs +
@@ -548,7 +599,11 @@ class _TimingCharts extends StatelessWidget {
     final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
       _TimingSlice('Cached steps', cachedSteps.toDouble(), CalfColors.success),
-      _TimingSlice('Other steps', uncachedSteps.toDouble(), theme.colorScheme.mutedForeground),
+      _TimingSlice(
+        'Other steps',
+        uncachedSteps.toDouble(),
+        theme.colorScheme.mutedForeground,
+      ),
     ];
     final idleMs = timing.idleMs.clamp(0, totalMs);
     final activeMs = (totalMs - idleMs).clamp(0, totalMs);
@@ -583,8 +638,16 @@ class _TimingCharts extends StatelessWidget {
           theme: theme,
           title: 'Parallel execution',
           slices: [
-            _TimingSlice('Active', activeMs > 0 ? activeMs.toDouble() : 1, const Color(0xFF3B82F6)),
-            _TimingSlice('Idle', idleMs > 0 ? idleMs.toDouble() : 0, theme.colorScheme.mutedForeground),
+            _TimingSlice(
+              'Active',
+              activeMs > 0 ? activeMs.toDouble() : 1,
+              const Color(0xFF3B82F6),
+            ),
+            _TimingSlice(
+              'Idle',
+              idleMs > 0 ? idleMs.toDouble() : 0,
+              theme.colorScheme.mutedForeground,
+            ),
           ].where((slice) => slice.value > 0).toList(),
           formatValue: (value) => _formatDuration(value.toInt()),
         ),
@@ -594,12 +657,36 @@ class _TimingCharts extends StatelessWidget {
 
   List<_TimingSlice> _timingSlices(BuildTiming timing) {
     return [
-      _TimingSlice('Local file transfers', timing.localTransfersMs.toDouble(), const Color(0xFF166534)),
-      _TimingSlice('Image pulls', timing.imagePullsMs.toDouble(), const Color(0xFF4ADE80)),
-      _TimingSlice('Executions', timing.executionsMs.toDouble(), const Color(0xFF3B82F6)),
-      _TimingSlice('File operations', timing.fileOperationsMs.toDouble(), const Color(0xFFEF4444)),
-      _TimingSlice('Result exports', timing.resultExportsMs.toDouble(), const Color(0xFFA855F7)),
-      _TimingSlice('Idle', timing.idleMs.toDouble(), theme.colorScheme.mutedForeground),
+      _TimingSlice(
+        'Local file transfers',
+        timing.localTransfersMs.toDouble(),
+        const Color(0xFF166534),
+      ),
+      _TimingSlice(
+        'Image pulls',
+        timing.imagePullsMs.toDouble(),
+        const Color(0xFF4ADE80),
+      ),
+      _TimingSlice(
+        'Executions',
+        timing.executionsMs.toDouble(),
+        const Color(0xFF3B82F6),
+      ),
+      _TimingSlice(
+        'File operations',
+        timing.fileOperationsMs.toDouble(),
+        const Color(0xFFEF4444),
+      ),
+      _TimingSlice(
+        'Result exports',
+        timing.resultExportsMs.toDouble(),
+        const Color(0xFFA855F7),
+      ),
+      _TimingSlice(
+        'Idle',
+        timing.idleMs.toDouble(),
+        theme.colorScheme.mutedForeground,
+      ),
     ].where((slice) => slice.value > 0).toList();
   }
 }
@@ -634,8 +721,12 @@ class _TimingChartCardState extends State<_TimingChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    final total = widget.slices.fold<double>(0, (sum, slice) => sum + slice.value);
-    final touchedSlice = _touchedIndex != null &&
+    final total = widget.slices.fold<double>(
+      0,
+      (sum, slice) => sum + slice.value,
+    );
+    final touchedSlice =
+        _touchedIndex != null &&
             _touchedIndex! >= 0 &&
             _touchedIndex! < widget.slices.length
         ? widget.slices[_touchedIndex!]
@@ -653,11 +744,21 @@ class _TimingChartCardState extends State<_TimingChartCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.title, style: widget.theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            widget.title,
+            style: widget.theme.textTheme.small.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 8),
           Expanded(
             child: total <= 0
-                ? Center(child: Text('No timing data', style: widget.theme.textTheme.muted))
+                ? Center(
+                    child: Text(
+                      'No timing data',
+                      style: widget.theme.textTheme.muted,
+                    ),
+                  )
                 : Stack(
                     alignment: Alignment.center,
                     children: [
@@ -675,12 +776,18 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                                   _touchedIndex = null;
                                   return;
                                 }
-                                _touchedIndex = response.touchedSection!.touchedSectionIndex;
+                                _touchedIndex = response
+                                    .touchedSection!
+                                    .touchedSectionIndex;
                               });
                             },
                           ),
                           sections: [
-                            for (var index = 0; index < widget.slices.length; index++)
+                            for (
+                              var index = 0;
+                              index < widget.slices.length;
+                              index++
+                            )
                               PieChartSectionData(
                                 value: widget.slices[index].value,
                                 color: widget.slices[index].color,
@@ -694,14 +801,20 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                       if (touchedSlice != null && touchedPercent != null)
                         IgnorePointer(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: widget.theme.colorScheme.background,
-                              border: Border.all(color: widget.theme.colorScheme.border),
+                              border: Border.all(
+                                color: widget.theme.colorScheme.border,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: widget.theme.colorScheme.foreground.withValues(alpha: 0.08),
+                                  color: widget.theme.colorScheme.foreground
+                                      .withValues(alpha: 0.08),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -712,7 +825,9 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
-                                  style: widget.theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+                                  style: widget.theme.textTheme.small.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -749,7 +864,14 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.large.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           ?trailing,
         ],
       ),
@@ -781,11 +903,16 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: theme.textTheme.muted)),
+          SizedBox(
+            width: 180,
+            child: Text(label, style: theme.textTheme.muted),
+          ),
           Expanded(
             child: Text(
               value,
-              style: theme.textTheme.large.copyWith(color: link ? theme.colorScheme.primary : null),
+              style: theme.textTheme.large.copyWith(
+                color: link ? theme.colorScheme.primary : null,
+              ),
             ),
           ),
         ],
@@ -820,7 +947,14 @@ class _DataTable extends StatelessWidget {
         Row(
           children: [
             for (final column in columns) ...[
-              Expanded(child: Text(column, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground))),
+              Expanded(
+                child: Text(
+                  column,
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+              ),
             ],
             const SizedBox(width: 32),
           ],
@@ -844,14 +978,20 @@ class _DataTable extends StatelessWidget {
                   Builder(
                     builder: (context) {
                       final copyIndex = copyColumnIndex ?? row.length - 1;
-                      if (copyIndex < 0 || copyIndex >= row.length || row[copyIndex].isEmpty) {
+                      if (copyIndex < 0 ||
+                          copyIndex >= row.length ||
+                          row[copyIndex].isEmpty) {
                         return const SizedBox.shrink();
                       }
 
                       return CalfButton.ghost(
                         padding: const EdgeInsets.all(4),
                         onPressed: () => onCopy(row[copyIndex]),
-                        child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                        child: Icon(
+                          LucideIcons.copy,
+                          size: 14,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
                       );
                     },
                   ),
@@ -885,7 +1025,12 @@ class _SourceTab extends StatelessWidget {
       return Text('Loading source...', style: theme.textTheme.muted);
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
 
     final content = source?.content ?? '';
@@ -894,9 +1039,16 @@ class _SourceTab extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(LucideIcons.box, size: 16, color: theme.colorScheme.foreground),
+            Icon(
+              LucideIcons.box,
+              size: 16,
+              color: theme.colorScheme.foreground,
+            ),
             const SizedBox(width: 8),
-            Text(source?.filename ?? detail.dockerfile, style: theme.textTheme.large),
+            Text(
+              source?.filename ?? detail.dockerfile,
+              style: theme.textTheme.large,
+            ),
             const SizedBox(width: 12),
             Text(_platformArch(detail.platform), style: theme.textTheme.muted),
           ],
@@ -914,7 +1066,10 @@ class _SourceTab extends StatelessWidget {
             child: SingleChildScrollView(
               child: SelectableText(
                 content,
-                style: theme.textTheme.small.copyWith(fontFamily: 'Menlo', height: 1.5),
+                style: theme.textTheme.small.copyWith(
+                  fontFamily: 'Menlo',
+                  height: 1.5,
+                ),
               ),
             ),
           ),
@@ -952,13 +1107,25 @@ class _LogsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Center(child: Text('Loading logs...', style: theme.textTheme.muted));
+      return Center(
+        child: Text('Loading logs...', style: theme.textTheme.muted),
+      );
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
     if (rawLog.isEmpty && steps.isEmpty) {
-      return Center(child: Text('No logs available for this build.', style: theme.textTheme.muted));
+      return Center(
+        child: Text(
+          'No logs available for this build.',
+          style: theme.textTheme.muted,
+        ),
+      );
     }
 
     if (plainLogs) {
@@ -982,7 +1149,10 @@ class _LogsTab extends StatelessWidget {
               child: SingleChildScrollView(
                 child: SelectableText(
                   rawLog,
-                  style: theme.textTheme.small.copyWith(fontFamily: 'Menlo', height: 1.4),
+                  style: theme.textTheme.small.copyWith(
+                    fontFamily: 'Menlo',
+                    height: 1.4,
+                  ),
                 ),
               ),
             ),
@@ -1011,7 +1181,9 @@ class _LogsTab extends StatelessWidget {
             itemBuilder: (context, index) {
               final step = steps[index];
               final expanded = expandedSteps.contains(index);
-              final badge = step.index > 0 ? '${step.index}/${step.total}' : 'internal';
+              final badge = step.index > 0
+                  ? '${step.index}/${step.total}'
+                  : 'internal';
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1019,36 +1191,64 @@ class _LogsTab extends StatelessWidget {
                   children: [
                     HoverListRow(
                       theme: theme,
-                      onTap: step.log.isEmpty ? null : () => onToggleStep(index),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      onTap: step.log.isEmpty
+                          ? null
+                          : () => onToggleStep(index),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 10,
+                      ),
                       child: Row(
                         children: [
                           _StepBadge(theme: theme, label: badge),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(step.name, style: theme.textTheme.large.copyWith(fontFamily: 'Menlo')),
+                            child: Text(
+                              step.name,
+                              style: theme.textTheme.large.copyWith(
+                                fontFamily: 'Menlo',
+                              ),
+                            ),
                           ),
                           if (step.cached)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(999),
                               ),
-                              child: Text('CACHED', style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary)),
+                              child: Text(
+                                'CACHED',
+                                style: theme.textTheme.small.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
                             ),
                           const SizedBox(width: 8),
-                          Text(_formatDuration(step.durationMs), style: theme.textTheme.muted),
+                          Text(
+                            _formatDuration(step.durationMs),
+                            style: theme.textTheme.muted,
+                          ),
                           SizedBox(
                             width: 120,
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: FractionallySizedBox(
-                                widthFactor: (step.durationMs / totalMs).clamp(0.05, 1.0),
+                                widthFactor: (step.durationMs / totalMs).clamp(
+                                  0.05,
+                                  1.0,
+                                ),
                                 child: Container(
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 ),
@@ -1064,12 +1264,16 @@ class _LogsTab extends StatelessWidget {
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.muted.withValues(alpha: 0.15),
+                          color: theme.colorScheme.muted.withValues(
+                            alpha: 0.15,
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: SelectableText(
                           step.log,
-                          style: theme.textTheme.small.copyWith(fontFamily: 'Menlo'),
+                          style: theme.textTheme.small.copyWith(
+                            fontFamily: 'Menlo',
+                          ),
                         ),
                       ),
                   ],
@@ -1125,17 +1329,27 @@ class _HistoryTab extends StatelessWidget {
       return Text('Loading history...', style: theme.textTheme.muted);
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
 
     final items = history.take(30).toList().reversed.toList();
     final durations = items.map((item) => item.durationMs.toDouble()).toList();
     final totalSteps = items.map((item) => item.totalSteps.toDouble()).toList();
-    final cachedSteps = items.map((item) => item.cachedSteps.toDouble()).toList();
+    final cachedSteps = items
+        .map((item) => item.cachedSteps.toDouble())
+        .toList();
 
     return ListView(
       children: [
-        Text('Build history', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'Build history',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
@@ -1145,7 +1359,12 @@ class _HistoryTab extends StatelessWidget {
         SizedBox(
           height: 220,
           child: items.isEmpty
-              ? Center(child: Text('No builds to chart yet.', style: theme.textTheme.muted))
+              ? Center(
+                  child: Text(
+                    'No builds to chart yet.',
+                    style: theme.textTheme.muted,
+                  ),
+                )
               : LineChart(
                   LineChartData(
                     minX: 0,
@@ -1155,7 +1374,10 @@ class _HistoryTab extends StatelessWidget {
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: theme.colorScheme.border,
+                        strokeWidth: 1,
+                      ),
                     ),
                     titlesData: const FlTitlesData(show: false),
                     borderData: FlBorderData(show: false),
@@ -1164,7 +1386,10 @@ class _HistoryTab extends StatelessWidget {
                       touchTooltipData: LineTouchTooltipData(
                         getTooltipItems: (spots) {
                           return spots.map((spot) {
-                            final index = spot.x.round().clamp(0, items.length - 1);
+                            final index = spot.x.round().clamp(
+                              0,
+                              items.length - 1,
+                            );
                             final item = items[index];
                             String label;
                             String value;
@@ -1181,7 +1406,9 @@ class _HistoryTab extends StatelessWidget {
                             }
                             return LineTooltipItem(
                               '$label\n$value',
-                              theme.textTheme.small.copyWith(color: theme.colorScheme.foreground),
+                              theme.textTheme.small.copyWith(
+                                color: theme.colorScheme.foreground,
+                              ),
                             );
                           }).toList();
                         },
@@ -1214,32 +1441,52 @@ class _HistoryTab extends StatelessWidget {
                 ),
         ),
         const SizedBox(height: 24),
-        Text('Past builds', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'Past builds',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
         const SizedBox(height: 12),
         if (history.isEmpty)
           Text('No builds found for this image.', style: theme.textTheme.muted)
         else
           for (final item in history)
-          HoverListRow(
-            theme: theme,
-            onTap: onOpenBuild == null || item.id == currentId ? null : () => onOpenBuild!(item.id),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text(item.tag, style: theme.textTheme.large)),
-                Expanded(child: Text(item.id, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis)),
-                Text(item.builder, style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(_platformArch(item.platform), style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text('${item.cachedSteps}/${item.totalSteps}', style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(_formatDuration(item.durationMs), style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(item.createdAt, style: theme.textTheme.muted),
-              ],
+            HoverListRow(
+              theme: theme,
+              onTap: onOpenBuild == null || item.id == currentId
+                  ? null
+                  : () => onOpenBuild!(item.id),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(child: Text(item.tag, style: theme.textTheme.large)),
+                  Expanded(
+                    child: Text(
+                      item.id,
+                      style: theme.textTheme.muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(item.builder, style: theme.textTheme.muted),
+                  const SizedBox(width: 12),
+                  Text(
+                    _platformArch(item.platform),
+                    style: theme.textTheme.muted,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${item.cachedSteps}/${item.totalSteps}',
+                    style: theme.textTheme.muted,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatDuration(item.durationMs),
+                    style: theme.textTheme.muted,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(item.createdAt, style: theme.textTheme.muted),
+                ],
+              ),
             ),
-          ),
       ],
     );
   }
@@ -1300,7 +1547,10 @@ List<FlSpot> _normalizedHistorySpots(List<double> values) {
     return const [];
   }
 
-  final peak = values.fold<double>(0, (current, value) => value > current ? value : current);
+  final peak = values.fold<double>(
+    0,
+    (current, value) => value > current ? value : current,
+  );
   final normalized = values
       .map((value) => peak <= 0 ? 0.0 : value / peak)
       .toList(growable: false);
@@ -1314,10 +1564,7 @@ List<FlSpot> _historySpots(List<double> values) {
   }
 
   if (values.length == 1) {
-    return [
-      FlSpot(0, values[0]),
-      FlSpot(1, values[0]),
-    ];
+    return [FlSpot(0, values[0]), FlSpot(1, values[0])];
   }
 
   return [

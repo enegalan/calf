@@ -25,7 +25,8 @@ class ContainersScreen extends StatefulWidget {
   State<ContainersScreen> createState() => _ContainersScreenState();
 }
 
-class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMixin {
+class _ContainersScreenState extends State<ContainersScreen>
+    with PollIntervalMixin {
   List<ContainerItem> _containers = [];
   RuntimeStatus? _runtime;
   String? _error;
@@ -46,7 +47,9 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
     _loadContainers();
     startPollInterval(widget.apiClient, _loadContainers);
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -231,7 +234,15 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
     standalone.sort((a, b) => a.displayName.compareTo(b.displayName));
 
     return _ContainerLayout(
-      groups: sortedProjects.map((project) => MapEntry(project, groups[project]!..sort((a, b) => a.displayName.compareTo(b.displayName)))).toList(),
+      groups: sortedProjects
+          .map(
+            (project) => MapEntry(
+              project,
+              groups[project]!
+                ..sort((a, b) => a.displayName.compareTo(b.displayName)),
+            ),
+          )
+          .toList(),
       standalone: standalone,
     );
   }
@@ -262,7 +273,9 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
     final theme = ShadTheme.of(context);
     final filtered = _filteredContainers();
     final layout = _buildLayout(filtered);
-    final runningCount = _containers.where((container) => container.isRunning).length;
+    final runningCount = _containers
+        .where((container) => container.isRunning)
+        .length;
     final isEmpty = layout.groups.isEmpty && layout.standalone.isEmpty;
 
     return Column(
@@ -282,7 +295,11 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
-          leading: Icon(LucideIcons.search, size: 16, color: theme.colorScheme.mutedForeground),
+          leading: Icon(
+            LucideIcons.search,
+            size: 16,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
         const SizedBox(height: 12),
         RunningFilterSwitch(
@@ -294,14 +311,23 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
-              _runtime!.portConflicts.map((conflict) => conflict.hint).join('\n'),
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+              _runtime!.portConflicts
+                  .map((conflict) => conflict.hint)
+                  .join('\n'),
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
             ),
           ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+            child: Text(
+              _error!,
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
+            ),
           ),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
@@ -312,10 +338,10 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
                 _searchQuery.isNotEmpty
                     ? 'No containers match "$_searchQuery".'
                     : _runtime?.state == 'stopped'
-                        ? 'No containers. Runtime is stopped.'
-                        : _runningOnly
-                            ? 'No running containers.'
-                            : 'No containers.',
+                    ? 'No containers. Runtime is stopped.'
+                    : _runningOnly
+                    ? 'No running containers.'
+                    : 'No containers.',
                 style: theme.textTheme.muted,
               ),
             ),
@@ -332,12 +358,23 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
                     expanded: _isGroupExpanded(group.key),
                     selectedId: _selectedId,
                     onToggle: () => _toggleGroup(group.key),
-                    onOpenGroup: () => _openComposeGroup(group.key, group.value),
-                    onStart: (id) => _runAction(() => widget.apiClient.startContainer(id)),
-                    onStop: (id) => _runAction(() => widget.apiClient.stopContainer(id)),
-                    onRemove: (id) => _runAction(() => widget.apiClient.removeContainer(id)),
-                    onStopAll: () => _runGroupAction(group.value, widget.apiClient.stopContainer, runningOnly: true),
-                    onRemoveAll: () => _runGroupAction(group.value, widget.apiClient.removeContainer),
+                    onOpenGroup: () =>
+                        _openComposeGroup(group.key, group.value),
+                    onStart: (id) =>
+                        _runAction(() => widget.apiClient.startContainer(id)),
+                    onStop: (id) =>
+                        _runAction(() => widget.apiClient.stopContainer(id)),
+                    onRemove: (id) =>
+                        _runAction(() => widget.apiClient.removeContainer(id)),
+                    onStopAll: () => _runGroupAction(
+                      group.value,
+                      widget.apiClient.stopContainer,
+                      runningOnly: true,
+                    ),
+                    onRemoveAll: () => _runGroupAction(
+                      group.value,
+                      widget.apiClient.removeContainer,
+                    ),
                     onOpen: _openContainer,
                     onOpenPort: openPort,
                   ),
@@ -346,9 +383,15 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
                     container: container,
                     theme: theme,
                     selected: _selectedId == container.id,
-                    onStart: () => _runAction(() => widget.apiClient.startContainer(container.id)),
-                    onStop: () => _runAction(() => widget.apiClient.stopContainer(container.id)),
-                    onRemove: () => _runAction(() => widget.apiClient.removeContainer(container.id)),
+                    onStart: () => _runAction(
+                      () => widget.apiClient.startContainer(container.id),
+                    ),
+                    onStop: () => _runAction(
+                      () => widget.apiClient.stopContainer(container.id),
+                    ),
+                    onRemove: () => _runAction(
+                      () => widget.apiClient.removeContainer(container.id),
+                    ),
                     onOpen: () => _openContainer(container),
                     onOpenPort: openPort,
                   ),
@@ -361,10 +404,7 @@ class _ContainersScreenState extends State<ContainersScreen> with PollIntervalMi
 }
 
 class _ContainerLayout {
-  const _ContainerLayout({
-    required this.groups,
-    required this.standalone,
-  });
+  const _ContainerLayout({required this.groups, required this.standalone});
 
   final List<MapEntry<String, List<ContainerItem>>> groups;
   final List<ContainerItem> standalone;
@@ -421,7 +461,10 @@ class _ComposeGroupTile extends StatelessWidget {
                 height: 28,
                 padding: EdgeInsets.zero,
                 onPressed: onToggle,
-                child: Icon(expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight, size: 16),
+                child: Icon(
+                  expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+                  size: 16,
+                ),
               ),
               const SizedBox(width: 4),
               Expanded(
@@ -439,7 +482,9 @@ class _ComposeGroupTile extends StatelessWidget {
                             Text(project, style: theme.textTheme.large),
                             Text(
                               '$running running / ${containers.length} total',
-                              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                              style: theme.textTheme.small.copyWith(
+                                color: theme.colorScheme.mutedForeground,
+                              ),
                             ),
                           ],
                         ),
@@ -448,8 +493,16 @@ class _ComposeGroupTile extends StatelessWidget {
                   ),
                 ),
               ),
-              _ActionIcon(icon: LucideIcons.square, tooltip: 'Stop all', onPressed: onStopAll),
-              _ActionIcon(icon: LucideIcons.trash2, tooltip: 'Delete all', onPressed: onRemoveAll),
+              _ActionIcon(
+                icon: LucideIcons.square,
+                tooltip: 'Stop all',
+                onPressed: onStopAll,
+              ),
+              _ActionIcon(
+                icon: LucideIcons.trash2,
+                tooltip: 'Delete all',
+                onPressed: onRemoveAll,
+              ),
             ],
           ),
         ),
@@ -515,10 +568,16 @@ class _ContainerTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(container.displayName, style: theme.textTheme.large, overflow: TextOverflow.ellipsis),
+                    Text(
+                      container.displayName,
+                      style: theme.textTheme.large,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                     Text(
                       container.subtitle,
-                      style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                      style: theme.textTheme.small.copyWith(
+                        color: theme.colorScheme.mutedForeground,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -533,10 +592,22 @@ class _ContainerTile extends StatelessWidget {
               onPressed: () => onOpenPort(port),
             ),
           if (container.isRunning)
-            _ActionIcon(icon: LucideIcons.square, tooltip: 'Stop', onPressed: onStop)
+            _ActionIcon(
+              icon: LucideIcons.square,
+              tooltip: 'Stop',
+              onPressed: onStop,
+            )
           else
-            _ActionIcon(icon: LucideIcons.play, tooltip: 'Start', onPressed: onStart),
-          _ActionIcon(icon: LucideIcons.trash2, tooltip: 'Delete', onPressed: onRemove),
+            _ActionIcon(
+              icon: LucideIcons.play,
+              tooltip: 'Start',
+              onPressed: onStart,
+            ),
+          _ActionIcon(
+            icon: LucideIcons.trash2,
+            tooltip: 'Delete',
+            onPressed: onRemove,
+          ),
         ],
       ),
     );
@@ -544,10 +615,7 @@ class _ContainerTile extends StatelessWidget {
 }
 
 class _ComposeStackIcon extends StatelessWidget {
-  const _ComposeStackIcon({
-    required this.containers,
-    required this.theme,
-  });
+  const _ComposeStackIcon({required this.containers, required this.theme});
 
   final List<ContainerItem> containers;
   final ShadThemeData theme;
@@ -576,10 +644,7 @@ class _ComposeStackIcon extends StatelessWidget {
 }
 
 class _ContainerStatusIcon extends StatelessWidget {
-  const _ContainerStatusIcon({
-    required this.container,
-    required this.theme,
-  });
+  const _ContainerStatusIcon({required this.container, required this.theme});
 
   final ContainerItem container;
   final ShadThemeData theme;
@@ -668,7 +733,9 @@ bool _isStoppedContainer(ContainerItem container) {
 }
 
 _GroupRunState _groupRunState(List<ContainerItem> containers) {
-  final runningCount = containers.where((container) => container.isRunning).length;
+  final runningCount = containers
+      .where((container) => container.isRunning)
+      .length;
   if (runningCount == containers.length) {
     return _GroupRunState.allRunning;
   }
@@ -684,10 +751,7 @@ _GroupRunState _groupRunState(List<ContainerItem> containers) {
 }
 
 class _GroupStatusDot extends StatelessWidget {
-  const _GroupStatusDot({
-    required this.state,
-    required this.theme,
-  });
+  const _GroupStatusDot({required this.state, required this.theme});
 
   final _GroupRunState state;
   final ShadThemeData theme;

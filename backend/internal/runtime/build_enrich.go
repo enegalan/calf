@@ -16,9 +16,9 @@ var fromLineRe = regexp.MustCompile(`(?i)^FROM\s+(\S+)`)
 var buildImageNameRe = regexp.MustCompile(`(?i)naming to\s+(\S+)`)
 
 type imageInspectRow struct {
-	ID       string `json:"Id"`
-	Digest   string `json:"Digest"`
-	Size     int64  `json:"Size"`
+	ID       string   `json:"Id"`
+	Digest   string   `json:"Digest"`
+	Size     int64    `json:"Size"`
 	RepoTags []string `json:"RepoTags"`
 }
 

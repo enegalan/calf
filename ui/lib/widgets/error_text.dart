@@ -4,11 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 
 class ErrorText extends StatelessWidget {
-  const ErrorText({
-    super.key,
-    required this.error,
-    this.style,
-  });
+  const ErrorText({super.key, required this.error, this.style});
 
   final Object error;
   final TextStyle? style;
@@ -19,7 +15,9 @@ class ErrorText extends StatelessWidget {
 
     return Text(
       formatAsyncError(error),
-      style: style ?? theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+      style:
+          style ??
+          theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
     );
   }
 }

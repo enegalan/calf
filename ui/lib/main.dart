@@ -50,7 +50,12 @@ Future<void> _startDaemon() async {
     if (extras.isNotEmpty) {
       env['PATH'] = '$extras:$path';
     }
-    _daemonProcess = await Process.start(daemonPath, [], runInShell: false, environment: env);
+    _daemonProcess = await Process.start(
+      daemonPath,
+      [],
+      runInShell: false,
+      environment: env,
+    );
     _daemonRestartAttempts = 0;
     _daemonProcess!.stdout.listen((data) => stdout.add(data));
     _daemonProcess!.stderr.listen((data) => stderr.add(data));
@@ -63,7 +68,9 @@ Future<void> _startDaemon() async {
       _daemonProcess = null;
       _daemonRestartAttempts++;
       if (_daemonRestartAttempts > _maxDaemonRestarts) {
-        stderr.writeln('calf-daemon failed to stay running after $_maxDaemonRestarts attempts');
+        stderr.writeln(
+          'calf-daemon failed to stay running after $_maxDaemonRestarts attempts',
+        );
         return;
       }
       final delay = Duration(seconds: _daemonRestartAttempts);
@@ -92,7 +99,11 @@ String _extraPaths() {
   if (Platform.isMacOS) {
     final path = Platform.environment['PATH'] ?? '';
     final missing = <String>[];
-    for (final dir in ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin']) {
+    for (final dir in [
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+    ]) {
       if (!path.contains(dir)) {
         missing.add(dir);
       }
@@ -110,10 +121,13 @@ Future<void> _stopDaemon() async {
   if (process == null) return;
   _daemonProcess = null;
   process.kill();
-  await process.exitCode.timeout(const Duration(seconds: 5), onTimeout: () {
-    process.kill(ProcessSignal.sigkill);
-    return -1;
-  });
+  await process.exitCode.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      process.kill(ProcessSignal.sigkill);
+      return -1;
+    },
+  );
 }
 
 void main() {
@@ -191,12 +205,15 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
     for (var i = 0; i < attempts; i++) {
       try {
-        final response = await client.get(url).timeout(const Duration(seconds: 2));
+        final response = await client
+            .get(url)
+            .timeout(const Duration(seconds: 2));
         if (response.statusCode == 200) {
           final body = jsonDecode(response.body);
           if (body is Map<String, dynamic>) {
             final runtime = body['runtime'];
-            if (runtime is Map<String, dynamic> && runtime['state'] == 'running') {
+            if (runtime is Map<String, dynamic> &&
+                runtime['state'] == 'running') {
               client.close();
               if (mounted) {
                 setState(() {
@@ -209,7 +226,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             if (runtime is Map<String, dynamic>) {
               final log = runtime['log'];
               if (mounted) {
-                setState(() => _error = (log is String && log.isNotEmpty) ? log : null);
+                setState(
+                  () => _error = (log is String && log.isNotEmpty) ? log : null,
+                );
               }
             }
           }
@@ -230,7 +249,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     client.close();
     if (mounted) {
       setState(() {
-        _error = _error ?? 'Daemon did not become ready in time. Try restarting Calf.';
+        _error =
+            _error ??
+            'Daemon did not become ready in time. Try restarting Calf.';
       });
     }
   }
@@ -244,7 +265,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       darkTheme: _materialTheme(_darkShadTheme),
       builder: (context, child) {
         final brightness = Theme.of(context).brightness;
-        final shadTheme = brightness == Brightness.dark ? _darkShadTheme : _lightShadTheme;
+        final shadTheme = brightness == Brightness.dark
+            ? _darkShadTheme
+            : _lightShadTheme;
 
         return ShadTheme(
           data: shadTheme,
@@ -264,7 +287,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
                           const CircularProgressIndicator(),
                           if (_error != null) ...[
                             const SizedBox(height: 16),
-                            Text(_error!, style: TextStyle(color: shadTheme.colorScheme.destructive)),
+                            Text(
+                              _error!,
+                              style: TextStyle(
+                                color: shadTheme.colorScheme.destructive,
+                              ),
+                            ),
                           ],
                         ],
                       ),

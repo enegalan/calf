@@ -69,7 +69,11 @@ class VolumeExportOptionTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: selected ? theme.colorScheme.primary : theme.colorScheme.border),
+        border: Border.all(
+          color: selected
+              ? theme.colorScheme.primary
+              : theme.colorScheme.border,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -84,14 +88,21 @@ class VolumeExportOptionTile extends StatelessWidget {
                 Icon(
                   selected ? LucideIcons.circleDot : LucideIcons.circle,
                   size: 18,
-                  color: selected ? theme.colorScheme.primary : theme.colorScheme.mutedForeground,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.mutedForeground,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+                      Text(
+                        title,
+                        style: theme.textTheme.large.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(description, style: theme.textTheme.muted),
                     ],
@@ -139,18 +150,18 @@ class VolumeExportImageRefField extends StatelessWidget {
       );
     }
 
-    final references = images.map((image) => image.reference).toSet().toList()..sort();
-    final selected = references.contains(controller.text) ? controller.text : null;
+    final references = images.map((image) => image.reference).toSet().toList()
+      ..sort();
+    final selected = references.contains(controller.text)
+        ? controller.text
+        : null;
 
     return ShadSelect<String>(
       placeholder: const Text('Image name'),
       initialValue: selected,
       options: references
           .map(
-            (reference) => ShadOption(
-              value: reference,
-              child: Text(reference),
-            ),
+            (reference) => ShadOption(value: reference, child: Text(reference)),
           )
           .toList(),
       selectedOptionBuilder: (context, value) => Text(value),
@@ -212,7 +223,11 @@ class VolumeExportLocalImageWarning extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(LucideIcons.triangleAlert, size: 16, color: const Color(0xFFF59E0B)),
+          Icon(
+            LucideIcons.triangleAlert,
+            size: 16,
+            color: const Color(0xFFF59E0B),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(

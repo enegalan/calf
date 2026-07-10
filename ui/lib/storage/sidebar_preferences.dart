@@ -14,6 +14,8 @@ class SidebarPreferences {
   }
 
   static Future<void> saveCollapsed(bool collapsed) async {
-    await CalfUiStorage.writeMap(CalfStorageFiles.sidebar, {'collapsed': collapsed});
+    await CalfUiStorage.writeMap(CalfStorageFiles.sidebar, {
+      'collapsed': collapsed,
+    });
   }
 }

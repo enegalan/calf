@@ -102,14 +102,17 @@ class CalfButton extends StatelessWidget {
 
   ButtonStyle _buttonStyle(ShadThemeData theme) {
     final textStyle = theme.textTheme.small;
-    final basePadding = padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+    final basePadding =
+        padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     final compact = width != null && width! <= 40;
     final minSize = Size(
       width == null || width == 0 ? (compact ? 0 : 64) : width!,
       height ?? (compact ? 32 : 36),
     );
     final density = compact ? VisualDensity.compact : VisualDensity.standard;
-    final tapTarget = compact ? MaterialTapTargetSize.shrinkWrap : MaterialTapTargetSize.padded;
+    final tapTarget = compact
+        ? MaterialTapTargetSize.shrinkWrap
+        : MaterialTapTargetSize.padded;
 
     switch (_variant) {
       case _CalfButtonVariant.primary:
@@ -121,8 +124,11 @@ class CalfButton extends StatelessWidget {
           tapTargetSize: tapTarget,
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: theme.colorScheme.primaryForeground,
-          disabledBackgroundColor: theme.colorScheme.primary.withValues(alpha: 0.5),
-          disabledForegroundColor: theme.colorScheme.primaryForeground.withValues(alpha: 0.7),
+          disabledBackgroundColor: theme.colorScheme.primary.withValues(
+            alpha: 0.5,
+          ),
+          disabledForegroundColor: theme.colorScheme.primaryForeground
+              .withValues(alpha: 0.7),
         );
       case _CalfButtonVariant.outline:
         return OutlinedButton.styleFrom(
@@ -156,8 +162,11 @@ class CalfButton extends StatelessWidget {
           tapTargetSize: tapTarget,
           backgroundColor: theme.colorScheme.destructive,
           foregroundColor: theme.colorScheme.destructiveForeground,
-          disabledBackgroundColor: theme.colorScheme.destructive.withValues(alpha: 0.5),
-          disabledForegroundColor: theme.colorScheme.destructiveForeground.withValues(alpha: 0.7),
+          disabledBackgroundColor: theme.colorScheme.destructive.withValues(
+            alpha: 0.5,
+          ),
+          disabledForegroundColor: theme.colorScheme.destructiveForeground
+              .withValues(alpha: 0.7),
         );
     }
   }

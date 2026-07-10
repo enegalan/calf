@@ -112,7 +112,9 @@ class UpdateChecker {
     try {
       final response = await _client
           .get(
-            Uri.parse('https://api.github.com/repos/${CalfGitHub.repo}/releases/latest'),
+            Uri.parse(
+              'https://api.github.com/repos/${CalfGitHub.repo}/releases/latest',
+            ),
             headers: const {
               'Accept': 'application/vnd.github+json',
               'User-Agent': 'Calf',
@@ -245,7 +247,10 @@ class UpdateChecker {
 
       final name = asset['name'];
       final url = asset['browser_download_url'];
-      if (name is String && url is String && name.isNotEmpty && url.isNotEmpty) {
+      if (name is String &&
+          url is String &&
+          name.isNotEmpty &&
+          url.isNotEmpty) {
         assetByName[name] = url;
       }
     }

@@ -13,11 +13,11 @@ import (
 )
 
 type VolumeExportOptions struct {
-	VolumeName string
-	Type       string
-	FileName   string
-	Folder     string
-	ImageRef   string
+	VolumeName  string
+	Type        string
+	FileName    string
+	Folder      string
+	ImageRef    string
 	ArchivePath string
 }
 

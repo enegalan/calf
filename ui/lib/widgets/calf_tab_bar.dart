@@ -65,7 +65,9 @@ class _CalfTabButton extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
+              color: selected
+                  ? theme.colorScheme.primary
+                  : const Color(0x00000000),
               width: 2,
             ),
           ),
@@ -73,7 +75,9 @@ class _CalfTabButton extends StatelessWidget {
         child: Text(
           label,
           style: (labelStyle ?? theme.textTheme.small).copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
+            color: selected
+                ? theme.colorScheme.foreground
+                : theme.colorScheme.mutedForeground,
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),

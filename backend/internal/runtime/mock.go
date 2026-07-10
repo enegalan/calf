@@ -12,23 +12,23 @@ import (
 type Mock struct {
 	mu sync.Mutex
 
-	StatusValue    Status
-	Containers     []Container
-	Images         []Image
-	Volumes        []Volume
-	Networks       []Network
-	StartErr       error
-	StopErr        error
-	StatusErr      error
-	ContainersErr  error
-	ImagesErr      error
-	ContainerErr   error
-	ExportVolumeErr error
-	ImageErr       error
-	NetworksErr    error
-	NetworkErr     error
-	LogLines       []string
-	Started        bool
+	StatusValue      Status
+	Containers       []Container
+	Images           []Image
+	Volumes          []Volume
+	Networks         []Network
+	StartErr         error
+	StopErr          error
+	StatusErr        error
+	ContainersErr    error
+	ImagesErr        error
+	ContainerErr     error
+	ExportVolumeErr  error
+	ImageErr         error
+	NetworksErr      error
+	NetworkErr       error
+	LogLines         []string
+	Started          bool
 	registryLoggedIn bool
 }
 

@@ -33,7 +33,9 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     _loadBuilds();
     startPollInterval(widget.apiClient, _loadBuilds);
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -98,11 +100,14 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     final theme = ShadTheme.of(context);
     final filtered = _searchQuery.isEmpty
         ? _builds
-        : _builds.where((b) =>
-            b.tag.toLowerCase().contains(_searchQuery) ||
-            b.id.toLowerCase().contains(_searchQuery) ||
-            b.status.toLowerCase().contains(_searchQuery))
-            .toList();
+        : _builds
+              .where(
+                (b) =>
+                    b.tag.toLowerCase().contains(_searchQuery) ||
+                    b.id.toLowerCase().contains(_searchQuery) ||
+                    b.status.toLowerCase().contains(_searchQuery),
+              )
+              .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,14 +122,19 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
         else if (_error != null)
-          Text(_error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive))
+          Text(
+            _error!,
+            style: theme.textTheme.large.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          )
         else if (filtered.isEmpty)
           Text(
             _searchQuery.isNotEmpty
                 ? 'No builds match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
-                    ? 'No builds yet. Runtime is stopped.'
-                    : 'No builds yet.',
+                ? 'No builds yet. Runtime is stopped.'
+                : 'No builds yet.',
             style: theme.textTheme.muted,
           )
         else
@@ -137,7 +147,10 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                 return HoverListRow(
                   theme: theme,
                   onTap: () => _openBuild(build),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -154,10 +167,16 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(build.tag, style: theme.textTheme.large),
-                            Text(build.context.isNotEmpty ? '${build.context} · ${build.status}' : build.status, style: theme.textTheme.muted),
+                            Text(
+                              build.context.isNotEmpty
+                                  ? '${build.context} · ${build.status}'
+                                  : build.status,
+                              style: theme.textTheme.muted,
+                            ),
                             Text(
                               [
-                                if (build.durationMs > 0) _formatBuildDuration(build.durationMs),
+                                if (build.durationMs > 0)
+                                  _formatBuildDuration(build.durationMs),
                                 build.createdAt,
                               ].where((item) => item.isNotEmpty).join(' · '),
                               style: theme.textTheme.muted,

@@ -42,18 +42,18 @@ type nativeNetworkInspect struct {
 }
 
 type nativeNetworkCNI struct {
-	Name    string             `json:"name"`
-	Plugins []nativeCNIPlugin  `json:"plugins"`
+	Name    string            `json:"name"`
+	Plugins []nativeCNIPlugin `json:"plugins"`
 }
 
 type nativeCNIPlugin struct {
-	Type        string          `json:"type"`
-	Bridge      string          `json:"bridge"`
-	IsGateway   bool            `json:"isGateway"`
-	IPMasq      bool            `json:"ipMasq"`
-	HairpinMode bool            `json:"hairpinMode"`
-	MTU         int             `json:"mtu"`
-	IPAM        nativeCNIIPAM   `json:"ipam"`
+	Type        string        `json:"type"`
+	Bridge      string        `json:"bridge"`
+	IsGateway   bool          `json:"isGateway"`
+	IPMasq      bool          `json:"ipMasq"`
+	HairpinMode bool          `json:"hairpinMode"`
+	MTU         int           `json:"mtu"`
+	IPAM        nativeCNIIPAM `json:"ipam"`
 }
 
 type nativeCNIIPAM struct {

@@ -34,7 +34,9 @@ class _VolumesScreenState extends State<VolumesScreen> {
     super.initState();
     _loadVolumes();
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
@@ -65,7 +67,8 @@ class _VolumesScreenState extends State<VolumesScreen> {
   }
 
   List<VolumeItem> _sortedVolumes(List<VolumeItem> volumes) {
-    return List<VolumeItem>.from(volumes)..sort((a, b) => a.name.compareTo(b.name));
+    return List<VolumeItem>.from(volumes)
+      ..sort((a, b) => a.name.compareTo(b.name));
   }
 
   Future<void> _loadVolumes({bool silent = false}) async {
@@ -88,7 +91,9 @@ class _VolumesScreenState extends State<VolumesScreen> {
         return;
       }
 
-      if (!silent || _volumesChanged(_volumes, volumes) || _runtime?.state != status.runtime.state) {
+      if (!silent ||
+          _volumesChanged(_volumes, volumes) ||
+          _runtime?.state != status.runtime.state) {
         setState(() {
           _runtime = status.runtime;
           _volumes = volumes;
@@ -129,9 +134,13 @@ class _VolumesScreenState extends State<VolumesScreen> {
       return items;
     }
 
-    return items.where((volume) =>
-        volume.name.toLowerCase().contains(_searchQuery) ||
-        volume.driver.toLowerCase().contains(_searchQuery)).toList();
+    return items
+        .where(
+          (volume) =>
+              volume.name.toLowerCase().contains(_searchQuery) ||
+              volume.driver.toLowerCase().contains(_searchQuery),
+        )
+        .toList();
   }
 
   Future<void> _cloneVolume(VolumeItem volume) async {
@@ -157,7 +166,12 @@ class _VolumesScreenState extends State<VolumesScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Volume name', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+            Text(
+              'Volume name',
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
+              ),
+            ),
             const SizedBox(height: 8),
             ShadInput(
               controller: nameController,
@@ -221,16 +235,21 @@ class _VolumesScreenState extends State<VolumesScreen> {
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
         else if (_error != null)
-          Text(_error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive))
+          Text(
+            _error!,
+            style: theme.textTheme.large.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          )
         else if (filtered.isEmpty)
           Text(
             _searchQuery.isNotEmpty
                 ? 'No volumes match "$_searchQuery".'
                 : _runtime?.state == 'stopped'
-                    ? 'No volumes. Runtime is stopped.'
-                    : _runningOnly
-                        ? 'No volumes in use.'
-                        : 'No volumes.',
+                ? 'No volumes. Runtime is stopped.'
+                : _runningOnly
+                ? 'No volumes in use.'
+                : 'No volumes.',
             style: theme.textTheme.muted,
           )
         else
@@ -242,7 +261,10 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
                 return HoverListRow(
                   theme: theme,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 10,
+                  ),
                   onTap: () => _openVolume(volume),
                   child: Row(
                     children: [
@@ -254,7 +276,10 @@ class _VolumesScreenState extends State<VolumesScreen> {
                           children: [
                             Text(volume.name, style: theme.textTheme.large),
                             if (volume.subtitle.isNotEmpty)
-                              Text(volume.subtitle, style: theme.textTheme.muted),
+                              Text(
+                                volume.subtitle,
+                                style: theme.textTheme.muted,
+                              ),
                           ],
                         ),
                       ),
@@ -263,7 +288,11 @@ class _VolumesScreenState extends State<VolumesScreen> {
                         child: CalfButton.outline(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           onPressed: () => _cloneVolume(volume),
-                          child: Icon(LucideIcons.copy, size: 16, color: theme.colorScheme.foreground),
+                          child: Icon(
+                            LucideIcons.copy,
+                            size: 16,
+                            color: theme.colorScheme.foreground,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -284,4 +313,3 @@ class _VolumesScreenState extends State<VolumesScreen> {
     );
   }
 }
-

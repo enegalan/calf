@@ -67,8 +67,14 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
       ..sort((a, b) => a.displayName.compareTo(b.displayName));
     _assignColors();
 
-    final oldRunning = oldWidget.containers.where((container) => container.isRunning).map((container) => container.id).toSet();
-    final newRunning = _containers.where((container) => container.isRunning).map((container) => container.id).toSet();
+    final oldRunning = oldWidget.containers
+        .where((container) => container.isRunning)
+        .map((container) => container.id)
+        .toSet();
+    final newRunning = _containers
+        .where((container) => container.isRunning)
+        .map((container) => container.id)
+        .toSet();
     if (oldRunning != newRunning) {
       _syncMixedLogs();
     }
@@ -84,7 +90,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   void _assignColors() {
     _containerColors.clear();
     for (var index = 0; index < _containers.length; index++) {
-      _containerColors[_containers[index].id] = _mixedLogColors[index % _mixedLogColors.length];
+      _containerColors[_containers[index].id] =
+          _mixedLogColors[index % _mixedLogColors.length];
     }
   }
 
@@ -97,7 +104,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   }
 
   void _syncMixedLogs() {
-    final running = _containers.where((container) => container.isRunning).toList();
+    final running = _containers
+        .where((container) => container.isRunning)
+        .toList();
     final runningIds = running.map((container) => container.id).toSet();
 
     for (final id in _subscribedContainerIds.toList()) {
@@ -119,11 +128,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
       _subscribedContainerIds.add(container.id);
       _logSubscriptions[container.id] = logsStream.listen(
         (line) => _appendLogLine(container, color, line),
-        onError: (error) => _appendLogLine(
-          container,
-          color,
-          'Failed to stream logs: $error',
-        ),
+        onError: (error) =>
+            _appendLogLine(container, color, 'Failed to stream logs: $error'),
         onDone: () {
           _subscribedContainerIds.remove(container.id);
           _logSubscriptions.remove(container.id);
@@ -143,20 +149,26 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
           _mixedLogBlocks.last.containerId == container.id &&
           _mixedLogBlocks.last.color == color) {
         final last = _mixedLogBlocks.last;
-        _mixedLogBlocks[_mixedLogBlocks.length - 1] = last.copyWith(lines: [...last.lines, entry]);
+        _mixedLogBlocks[_mixedLogBlocks.length - 1] = last.copyWith(
+          lines: [...last.lines, entry],
+        );
       } else {
-        _mixedLogBlocks.add(MixedLogBlock(
-          containerId: container.id,
-          containerName: container.displayName,
-          color: color,
-          lines: [entry],
-        ));
+        _mixedLogBlocks.add(
+          MixedLogBlock(
+            containerId: container.id,
+            containerName: container.displayName,
+            color: color,
+            lines: [entry],
+          ),
+        );
       }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_logsScrollController.hasClients) {
-        _logsScrollController.jumpTo(_logsScrollController.position.maxScrollExtent);
+        _logsScrollController.jumpTo(
+          _logsScrollController.position.maxScrollExtent,
+        );
       }
     });
   }
@@ -208,7 +220,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final running = _containers.where((container) => container.isRunning).length;
+    final running = _containers
+        .where((container) => container.isRunning)
+        .length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -217,12 +231,20 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
           children: [
             CalfButton.ghost(
               onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
+              child: Icon(
+                LucideIcons.chevronLeft,
+                size: 18,
+                color: theme.colorScheme.foreground,
+              ),
             ),
             const SizedBox(width: 4),
             Text('Containers', style: theme.textTheme.muted),
             Text(' / ', style: theme.textTheme.muted),
-            Icon(LucideIcons.layers, size: 20, color: theme.colorScheme.primary),
+            Icon(
+              LucideIcons.layers,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Column(
@@ -231,7 +253,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   Text(widget.project, style: theme.textTheme.h3),
                   Text(
                     '$running running / ${_containers.length} total',
-                    style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.mutedForeground,
+                    ),
                   ),
                 ],
               ),
@@ -239,35 +263,62 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             CalfButton.outline(
               enabled: !_busy && running > 0,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running > 0 ? () => _runGroupAction(widget.apiClient.stopContainer, runningOnly: true) : null,
-              child: Icon(LucideIcons.square, size: 16, color: theme.colorScheme.foreground),
+              onPressed: running > 0
+                  ? () => _runGroupAction(
+                      widget.apiClient.stopContainer,
+                      runningOnly: true,
+                    )
+                  : null,
+              child: Icon(
+                LucideIcons.square,
+                size: 16,
+                color: theme.colorScheme.foreground,
+              ),
             ),
             const SizedBox(width: 8),
             CalfButton(
               enabled: !_busy && running < _containers.length,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: running < _containers.length
-                  ? () => _runGroupAction(widget.apiClient.startContainer, stoppedOnly: true)
+                  ? () => _runGroupAction(
+                      widget.apiClient.startContainer,
+                      stoppedOnly: true,
+                    )
                   : null,
-              child: Icon(LucideIcons.play, size: 16, color: theme.colorScheme.primaryForeground),
+              child: Icon(
+                LucideIcons.play,
+                size: 16,
+                color: theme.colorScheme.primaryForeground,
+              ),
             ),
             const SizedBox(width: 8),
             CalfButton.destructive(
               enabled: !_busy,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: () async {
-                final ok = await _runGroupAction(widget.apiClient.removeContainer);
+                final ok = await _runGroupAction(
+                  widget.apiClient.removeContainer,
+                );
                 if (mounted && ok) {
                   widget.onBack();
                 }
               },
-              child: Icon(LucideIcons.trash2, size: 16, color: theme.colorScheme.destructiveForeground),
+              child: Icon(
+                LucideIcons.trash2,
+                size: 16,
+                color: theme.colorScheme.destructiveForeground,
+              ),
             ),
           ],
         ),
         if (_error != null) ...[
           const SizedBox(height: 12),
-          Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Expanded(
@@ -281,9 +332,12 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   containers: _containers,
                   colors: _containerColors,
                   onOpen: widget.onOpenContainer,
-                  onStart: (id) => _runAction(() => widget.apiClient.startContainer(id)),
-                  onStop: (id) => _runAction(() => widget.apiClient.stopContainer(id)),
-                  onRemove: (id) => _runAction(() => widget.apiClient.removeContainer(id)),
+                  onStart: (id) =>
+                      _runAction(() => widget.apiClient.startContainer(id)),
+                  onStop: (id) =>
+                      _runAction(() => widget.apiClient.stopContainer(id)),
+                  onRemove: (id) =>
+                      _runAction(() => widget.apiClient.removeContainer(id)),
                   onOpenPort: openPort,
                   busy: _busy,
                 ),
@@ -395,13 +449,21 @@ class _ComposeContainerRow extends StatelessWidget {
             height: 10,
             margin: const EdgeInsets.only(top: 6),
             decoration: BoxDecoration(
-              color: container.isRunning ? accentColor : theme.colorScheme.mutedForeground,
+              color: container.isRunning
+                  ? accentColor
+                  : theme.colorScheme.mutedForeground,
               shape: BoxShape.circle,
-              border: container.isRunning ? null : Border.all(color: theme.colorScheme.mutedForeground),
+              border: container.isRunning
+                  ? null
+                  : Border.all(color: theme.colorScheme.mutedForeground),
             ),
           ),
           const SizedBox(width: 10),
-          Icon(LucideIcons.box, size: 18, color: theme.colorScheme.mutedForeground),
+          Icon(
+            LucideIcons.box,
+            size: 18,
+            color: theme.colorScheme.mutedForeground,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: GestureDetector(
@@ -410,10 +472,16 @@ class _ComposeContainerRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(container.displayName, style: theme.textTheme.large, overflow: TextOverflow.ellipsis),
+                  Text(
+                    container.displayName,
+                    style: theme.textTheme.large,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   Text(
                     container.subtitle,
-                    style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.mutedForeground,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (port != null) ...[
@@ -422,7 +490,9 @@ class _ComposeContainerRow extends StatelessWidget {
                       onTap: () => onOpenPort(port),
                       child: Text(
                         '$port:$port',
-                        style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.small.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                     ),
                   ],
@@ -431,10 +501,25 @@ class _ComposeContainerRow extends StatelessWidget {
             ),
           ),
           if (container.isRunning)
-            _ComposeActionIcon(icon: LucideIcons.square, tooltip: 'Stop', enabled: !busy, onPressed: onStop)
+            _ComposeActionIcon(
+              icon: LucideIcons.square,
+              tooltip: 'Stop',
+              enabled: !busy,
+              onPressed: onStop,
+            )
           else
-            _ComposeActionIcon(icon: LucideIcons.play, tooltip: 'Start', enabled: !busy, onPressed: onStart),
-          _ComposeActionIcon(icon: LucideIcons.trash2, tooltip: 'Delete', enabled: !busy, onPressed: onRemove),
+            _ComposeActionIcon(
+              icon: LucideIcons.play,
+              tooltip: 'Start',
+              enabled: !busy,
+              onPressed: onStart,
+            ),
+          _ComposeActionIcon(
+            icon: LucideIcons.trash2,
+            tooltip: 'Delete',
+            enabled: !busy,
+            onPressed: onRemove,
+          ),
         ],
       ),
     );

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show SelectableText, SelectionArea, Tooltip;
+import 'package:flutter/material.dart'
+    show SelectableText, SelectionArea, Tooltip;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,10 +11,7 @@ import 'package:ui/storage/logs_viewer_preferences.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class LogLine {
-  const LogLine({
-    required this.text,
-    required this.receivedAt,
-  });
+  const LogLine({required this.text, required this.receivedAt});
 
   final String text;
   final DateTime receivedAt;
@@ -159,7 +157,9 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
     final matches = <_LogMatch>[];
     for (var lineIndex = 0; lineIndex < widget.lines.length; lineIndex++) {
       for (final match in pattern.allMatches(widget.lines[lineIndex].text)) {
-        matches.add(_LogMatch(lineIndex: lineIndex, start: match.start, end: match.end));
+        matches.add(
+          _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
+        );
       }
     }
 
@@ -236,17 +236,18 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
               ),
             )
           : widget.lines.isEmpty
-              ? const SizedBox.shrink()
-              : _LogTextView(
-                  theme: theme,
-                  logLines: widget.lines,
-                  showTimestamp: showTimestamp,
-                  wrapLines: wrapLines,
-                  matches: matches,
-                  currentMatchIndex: _currentMatchIndex,
-                  scrollController: widget.scrollController,
-                ),
-      primaryListView: widget.error == null && widget.lines.isNotEmpty && wrapLines,
+          ? const SizedBox.shrink()
+          : _LogTextView(
+              theme: theme,
+              logLines: widget.lines,
+              showTimestamp: showTimestamp,
+              wrapLines: wrapLines,
+              matches: matches,
+              currentMatchIndex: _currentMatchIndex,
+              scrollController: widget.scrollController,
+            ),
+      primaryListView:
+          widget.error == null && widget.lines.isNotEmpty && wrapLines,
     );
   }
 }
@@ -269,7 +270,8 @@ class MixedLogsPanel extends StatefulWidget {
   State<MixedLogsPanel> createState() => _MixedLogsPanelState();
 }
 
-class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferencesMixin {
+class _MixedLogsPanelState extends State<MixedLogsPanel>
+    with LogViewerPreferencesMixin {
   final _searchController = TextEditingController();
   bool _searchOpen = false;
   bool _regexEnabled = false;
@@ -345,7 +347,9 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
     for (final block in widget.blocks) {
       for (final line in block.lines) {
         for (final match in pattern.allMatches(line.text)) {
-          matches.add(_LogMatch(lineIndex: lineIndex, start: match.start, end: match.end));
+          matches.add(
+            _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
+          );
         }
         lineIndex++;
       }
@@ -402,7 +406,9 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
       _currentMatchIndex = 0;
     }
 
-    final emptyMessage = widget.runningCount == 0 ? 'No running containers in this stack.' : null;
+    final emptyMessage = widget.runningCount == 0
+        ? 'No running containers in this stack.'
+        : null;
 
     return _LogsViewerChrome(
       theme: theme,
@@ -432,66 +438,68 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
               child: Text(emptyMessage, style: theme.textTheme.muted),
             )
           : widget.blocks.isEmpty
-              ? const SizedBox.shrink()
-              : ListView.builder(
-                  controller: widget.scrollController,
-                  itemCount: widget.blocks.length,
-                  itemBuilder: (context, index) {
-                    final block = widget.blocks[index];
-                    final lineOffset = _lineOffsetForBlock(index);
+          ? const SizedBox.shrink()
+          : ListView.builder(
+              controller: widget.scrollController,
+              itemCount: widget.blocks.length,
+              itemBuilder: (context, index) {
+                final block = widget.blocks[index];
+                final lineOffset = _lineOffsetForBlock(index);
 
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: index == widget.blocks.length - 1 ? 0 : 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 96,
-                            child: Text(
-                              block.containerName,
-                              style: theme.textTheme.small.copyWith(
-                                color: block.color,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == widget.blocks.length - 1 ? 0 : 12,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text(
+                          block.containerName,
+                          style: theme.textTheme.small.copyWith(
+                            color: block.color,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  left: 8,
-                                  top: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    width: 3,
-                                    decoration: BoxDecoration(
-                                      color: block.color,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 19),
-                                  child: _LogTextView(
-                                    theme: theme,
-                                    logLines: block.lines,
-                                    showTimestamp: showTimestamp,
-                                    wrapLines: wrapLines,
-                                    matches: matches,
-                                    currentMatchIndex: _currentMatchIndex,
-                                    lineOffset: lineOffset,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    );
-                  },
-                ),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: 8,
+                              top: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 3,
+                                decoration: BoxDecoration(
+                                  color: block.color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 19),
+                              child: _LogTextView(
+                                theme: theme,
+                                logLines: block.lines,
+                                showTimestamp: showTimestamp,
+                                wrapLines: wrapLines,
+                                matches: matches,
+                                currentMatchIndex: _currentMatchIndex,
+                                lineOffset: lineOffset,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
       primaryListView: emptyMessage == null && widget.blocks.isNotEmpty,
     );
   }
@@ -660,7 +668,11 @@ class _LogsSearchBar extends StatelessWidget {
             controller: controller,
             placeholder: const Text('Search...'),
             onChanged: onChanged,
-            leading: Icon(LucideIcons.search, size: 16, color: theme.colorScheme.mutedForeground),
+            leading: Icon(
+              LucideIcons.search,
+              size: 16,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -699,7 +711,11 @@ class _LogsSearchBar extends StatelessWidget {
           height: 36,
           padding: EdgeInsets.zero,
           onPressed: onClose,
-          child: Icon(LucideIcons.x, size: 16, color: theme.colorScheme.primary),
+          child: Icon(
+            LucideIcons.x,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
         ),
       ],
     );
@@ -730,7 +746,9 @@ class _LogsSearchNavButton extends StatelessWidget {
       child: Icon(
         icon,
         size: 16,
-        color: enabled ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
+        color: enabled
+            ? theme.colorScheme.foreground
+            : theme.colorScheme.mutedForeground,
       ),
     );
   }
@@ -931,11 +949,15 @@ class _LogTextView extends StatelessWidget {
 
   Widget _buildLineRow(int index) {
     final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
-    final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
+    final timestampStyle = baseStyle.copyWith(
+      color: theme.colorScheme.mutedForeground,
+    );
 
     return _LogLineRow(
       theme: theme,
-      timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+      timestamp: showTimestamp
+          ? formatLogTimestamp(logLines[index].receivedAt)
+          : null,
       text: logLines[index].text,
       lineIndex: lineOffset + index,
       baseStyle: baseStyle,
@@ -953,13 +975,18 @@ class _LogTextView extends StatelessWidget {
         builder: (context, constraints) {
           final viewportWidth = constraints.maxWidth;
           final listWidth = showTimestamp
-              ? math.max(viewportWidth, _logTimestampColumnWidth + _logRowMinContentWidth)
+              ? math.max(
+                  viewportWidth,
+                  _logTimestampColumnWidth + _logRowMinContentWidth,
+                )
               : viewportWidth;
 
           final listView = ListView.builder(
             controller: scrollController,
             shrinkWrap: scrollController == null,
-            physics: scrollController == null ? const NeverScrollableScrollPhysics() : null,
+            physics: scrollController == null
+                ? const NeverScrollableScrollPhysics()
+                : null,
             itemCount: logLines.length,
             itemBuilder: (context, index) => _buildLineRow(index),
           );
@@ -971,10 +998,7 @@ class _LogTextView extends StatelessWidget {
           return SelectionArea(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: listWidth,
-                child: listView,
-              ),
+              child: SizedBox(width: listWidth, child: listView),
             ),
           );
         },
@@ -982,7 +1006,9 @@ class _LogTextView extends StatelessWidget {
     }
 
     final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
-    final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
+    final timestampStyle = baseStyle.copyWith(
+      color: theme.colorScheme.mutedForeground,
+    );
 
     return SelectionArea(
       child: SingleChildScrollView(
@@ -994,7 +1020,9 @@ class _LogTextView extends StatelessWidget {
             for (var index = 0; index < logLines.length; index++)
               _LogLineRow(
                 theme: theme,
-                timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+                timestamp: showTimestamp
+                    ? formatLogTimestamp(logLines[index].receivedAt)
+                    : null,
                 text: logLines[index].text,
                 lineIndex: lineOffset + index,
                 baseStyle: baseStyle,
@@ -1062,7 +1090,9 @@ class _LogLineRowState extends State<_LogLineRow> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
-        color: _hovered ? widget.theme.colorScheme.muted.withValues(alpha: 1) : null,
+        color: _hovered
+            ? widget.theme.colorScheme.muted.withValues(alpha: 1)
+            : null,
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1090,7 +1120,11 @@ class _LogLineRowState extends State<_LogLineRow> {
     required TextStyle baseStyle,
   }) {
     final lineMatches = <MapEntry<int, _LogMatch>>[];
-    for (var globalIndex = 0; globalIndex < widget.matches.length; globalIndex++) {
+    for (
+      var globalIndex = 0;
+      globalIndex < widget.matches.length;
+      globalIndex++
+    ) {
       final match = widget.matches[globalIndex];
       if (match.lineIndex == lineIndex) {
         lineMatches.add(MapEntry(globalIndex, match));
@@ -1431,10 +1465,7 @@ class _ExecPanelState extends State<ExecPanel> {
 }
 
 class _TerminalMatch {
-  const _TerminalMatch({
-    required this.start,
-    required this.end,
-  });
+  const _TerminalMatch({required this.start, required this.end});
 
   final CellOffset start;
   final CellOffset end;

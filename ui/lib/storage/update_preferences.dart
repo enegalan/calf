@@ -21,24 +21,24 @@ class UpdatePreferences {
       return const UpdatePreferencesData();
     }
 
-      DateTime? lastCheckAt;
-      final lastCheckRaw = raw['last_check_at'];
-      if (lastCheckRaw is String && lastCheckRaw.isNotEmpty) {
-        lastCheckAt = DateTime.tryParse(lastCheckRaw);
-      }
+    DateTime? lastCheckAt;
+    final lastCheckRaw = raw['last_check_at'];
+    if (lastCheckRaw is String && lastCheckRaw.isNotEmpty) {
+      lastCheckAt = DateTime.tryParse(lastCheckRaw);
+    }
 
-      final skippedVersion = raw['skipped_version'];
-      final cachedUpdateRaw = raw['cached_update'];
-      UpdateInfo? cachedUpdate;
-      if (cachedUpdateRaw is Map<String, dynamic>) {
-        cachedUpdate = _parseCachedUpdate(cachedUpdateRaw);
-      }
+    final skippedVersion = raw['skipped_version'];
+    final cachedUpdateRaw = raw['cached_update'];
+    UpdateInfo? cachedUpdate;
+    if (cachedUpdateRaw is Map<String, dynamic>) {
+      cachedUpdate = _parseCachedUpdate(cachedUpdateRaw);
+    }
 
-      return UpdatePreferencesData(
-        lastCheckAt: lastCheckAt,
-        skippedVersion: skippedVersion is String ? skippedVersion : '',
-        cachedUpdate: cachedUpdate,
-      );
+    return UpdatePreferencesData(
+      lastCheckAt: lastCheckAt,
+      skippedVersion: skippedVersion is String ? skippedVersion : '',
+      cachedUpdate: cachedUpdate,
+    );
   }
 
   static Future<void> saveCheckResult({
@@ -67,20 +67,19 @@ class UpdatePreferences {
   }
 
   static Future<void> _save(UpdatePreferencesData data) async {
-    await CalfUiStorage.writeMap(
-      CalfStorageFiles.updates,
-      {
-        if (data.lastCheckAt != null) 'last_check_at': data.lastCheckAt!.toIso8601String(),
-        if (data.skippedVersion.isNotEmpty) 'skipped_version': data.skippedVersion,
-        if (data.cachedUpdate != null)
-          'cached_update': {
-            'version': data.cachedUpdate!.version,
-            'release_notes': data.cachedUpdate!.releaseNotes,
-            'download_url': data.cachedUpdate!.downloadUrl,
-            'release_page_url': data.cachedUpdate!.releasePageUrl,
-          },
-      },
-    );
+    await CalfUiStorage.writeMap(CalfStorageFiles.updates, {
+      if (data.lastCheckAt != null)
+        'last_check_at': data.lastCheckAt!.toIso8601String(),
+      if (data.skippedVersion.isNotEmpty)
+        'skipped_version': data.skippedVersion,
+      if (data.cachedUpdate != null)
+        'cached_update': {
+          'version': data.cachedUpdate!.version,
+          'release_notes': data.cachedUpdate!.releaseNotes,
+          'download_url': data.cachedUpdate!.downloadUrl,
+          'release_page_url': data.cachedUpdate!.releasePageUrl,
+        },
+    });
   }
 
   static UpdateInfo? _parseCachedUpdate(Map<String, dynamic> raw) {

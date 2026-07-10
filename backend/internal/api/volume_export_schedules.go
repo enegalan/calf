@@ -18,9 +18,9 @@ type schedulePayload struct {
 	Enabled  *bool            `json:"enabled"`
 	DayTimes []dayTimePayload `json:"day_times"`
 	Type     string           `json:"type"`
-	FileName   string             `json:"file_name"`
-	Folder     string             `json:"folder"`
-	ImageRef   string             `json:"image_ref"`
+	FileName string           `json:"file_name"`
+	Folder   string           `json:"folder"`
+	ImageRef string           `json:"image_ref"`
 }
 
 func (s *Server) volumeScheduleStore() (*volumeexport.ScheduleStore, error) {
@@ -218,9 +218,9 @@ func (s *Server) buildScheduleFromPayload(
 		Enabled:  enabled,
 		DayTimes: dayTimesFromPayload(payload),
 		Type:     exportType,
-		FileName:   fileName,
-		Folder:     folder,
-		ImageRef:   imageRef,
+		FileName: fileName,
+		Folder:   folder,
+		ImageRef: imageRef,
 	}
 
 	volumeexport.NormalizeSchedule(&schedule)

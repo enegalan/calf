@@ -55,10 +55,7 @@ class ResourceListScaffold extends StatelessWidget {
           controller: searchController,
           placeholder: const Text('Search'),
         ),
-        if (filter != null) ...[
-          const SizedBox(height: 12),
-          filter!,
-        ],
+        if (filter != null) ...[const SizedBox(height: 12), filter!],
         const SizedBox(height: 16),
         if (loading)
           Text('Loading...', style: theme.textTheme.muted)

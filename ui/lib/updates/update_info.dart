@@ -16,20 +16,20 @@ class UpdateCheckResult {
   const UpdateCheckResult.upToDate({
     required this.currentVersion,
     this.checkedAt,
-  })  : latest = null,
-        error = null;
+  }) : latest = null,
+       error = null;
 
   const UpdateCheckResult.available({
     required this.currentVersion,
     required this.latest,
     this.checkedAt,
-  })  : error = null;
+  }) : error = null;
 
   const UpdateCheckResult.failed({
     required this.currentVersion,
     required this.error,
     this.checkedAt,
-  })  : latest = null;
+  }) : latest = null;
 
   final String currentVersion;
   final UpdateInfo? latest;

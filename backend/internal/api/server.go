@@ -15,18 +15,18 @@ import (
 )
 
 type Server struct {
-	cfg        config.Config
-	cfgMu      sync.RWMutex
-	logger     *slog.Logger
-	runtime    runtime.Runtime
-	startTime  time.Time
-	httpServer *http.Server
-	buildsMu       sync.RWMutex
-	builds         []runtime.Build
-	buildSeq       int
-	migrateMu      sync.RWMutex
-	migrateStatus  migration.Status
-	migrateRunning bool
+	cfg              config.Config
+	cfgMu            sync.RWMutex
+	logger           *slog.Logger
+	runtime          runtime.Runtime
+	startTime        time.Time
+	httpServer       *http.Server
+	buildsMu         sync.RWMutex
+	builds           []runtime.Build
+	buildSeq         int
+	migrateMu        sync.RWMutex
+	migrateStatus    migration.Status
+	migrateRunning   bool
 	registrySessions *sync.Map
 	logBroadcaster   *logBroadcaster
 	exportScheduler  *exportScheduler
@@ -40,12 +40,12 @@ var logsUpgrader = websocket.Upgrader{
 
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Server {
 	server := &Server{
-		cfg:              cfg,
-		logger:           logger,
-		runtime:          rt,
-		startTime:        time.Now(),
-		migrateStatus:    migration.IdleStatus(),
-		logBroadcaster:   newLogBroadcaster(),
+		cfg:            cfg,
+		logger:         logger,
+		runtime:        rt,
+		startTime:      time.Now(),
+		migrateStatus:  migration.IdleStatus(),
+		logBroadcaster: newLogBroadcaster(),
 	}
 	server.exportScheduler = newExportScheduler(server, logger)
 	server.exportScheduler.Start()
