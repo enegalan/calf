@@ -88,61 +88,52 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	return g.backend.Cfg, nil
 }
 
-// handleConfig serves GET /v1/config and PUT /v1/config for reading and updating daemon settings.
-func (g *Gateway) handleConfig(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
+// handleConfigGet serves GET /v1/config.
+func (g *Gateway) handleConfigGet(w http.ResponseWriter, r *http.Request) {
+	httpkit.WriteJSON(w, http.StatusOK, g.buildConfigView())
+}
+
+// handleConfigPut serves PUT /v1/config.
+func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
+	var req config.UpdateRequest
+	if err := httpkit.JSONDecode(r, &req); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
 		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		httpkit.WriteJSON(w, http.StatusOK, g.buildConfigView())
+	if err := config.ValidateProxyUpdate(req); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
-	case http.MethodPut:
-		var req config.UpdateRequest
-		if err := httpkit.JSONDecode(r, &req); err != nil {
-			httpkit.WriteError(w, http.StatusBadRequest, "invalid JSON: "+err.Error())
-			return
-		}
+	proxyChanged := req.HTTPProxy != nil || req.HTTPSProxy != nil || req.NoProxy != nil
+	saved, err := g.applyConfigUpdate(req)
+	if err != nil {
+		httpkit.WriteError(w, http.StatusInternalServerError, "failed to save config: "+err.Error())
+		return
+	}
 
-		if err := config.ValidateProxyUpdate(req); err != nil {
-			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
+	httpkit.WriteJSON(w, http.StatusOK, g.buildConfigView())
 
-		proxyChanged := req.HTTPProxy != nil || req.HTTPSProxy != nil || req.NoProxy != nil
-		saved, err := g.applyConfigUpdate(req)
-		if err != nil {
-			httpkit.WriteError(w, http.StatusInternalServerError, "failed to save config: "+err.Error())
-			return
-		}
-
-		httpkit.WriteJSON(w, http.StatusOK, g.buildConfigView())
-
-		if proxyChanged {
-			go func() {
-				proxyCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-				defer cancel()
-				if err := g.backend.Runtime.ApplyProxy(proxyCtx, runtime.ProxyConfig{
-					HTTPProxy:  saved.HTTPProxy,
-					HTTPSProxy: saved.HTTPSProxy,
-					NoProxy:    saved.NoProxy,
-				}); err != nil {
-					g.logger.Warn("failed to apply proxy settings", "error", err)
-				}
-			}()
-		}
-
-		if saved.DockerContextManaged {
-			activateCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+	if proxyChanged {
+		go func() {
+			proxyCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			if err := g.backend.DockerCLI.Activate(activateCtx); err != nil {
-				g.logger.Warn("failed to activate docker context", "error", err)
+			if err := g.backend.Runtime.ApplyProxy(proxyCtx, runtime.ProxyConfig{
+				HTTPProxy:  saved.HTTPProxy,
+				HTTPSProxy: saved.HTTPSProxy,
+				NoProxy:    saved.NoProxy,
+			}); err != nil {
+				g.logger.Warn("failed to apply proxy settings", "error", err)
 			}
-		}
+		}()
+	}
 
-	default:
-		httpkit.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+	if saved.DockerContextManaged {
+		activateCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+		defer cancel()
+		if err := g.backend.DockerCLI.Activate(activateCtx); err != nil {
+			g.logger.Warn("failed to activate docker context", "error", err)
+		}
 	}
 }

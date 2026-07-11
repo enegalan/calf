@@ -78,6 +78,7 @@ calf/
 │   │   ├── httpkit/
 │   │   │   ├── response.go                    JSON response helpers
 │   │   │   ├── json.go                        Request JSON decode helper
+│   │   │   ├── route.go                       HTTP method and path routing helpers
 │   │   │   ├── runtime_errors.go              Runtime error to HTTP status mapping
 │   │   │   ├── ws_writer.go                   Mutex-guarded WebSocket writer
 │   │   │   ├── websocket.go                   WebSocket upgrader for log/exec streams
@@ -242,6 +243,7 @@ Shared HTTP utilities used by `api` handlers (not route handlers themselves).
 
 - `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`.
 - `json.go` — `JSONDecode`.
+- `route.go` — `ServeMethods`, `ServeRoutes`, `ServePrefix`, `PathParts`.
 - `runtime_errors.go` — maps runtime errors to HTTP status codes.
 - `ws_writer.go` — mutex-guarded WebSocket writer.
 - `websocket.go` — WebSocket upgrader for log/exec streams.

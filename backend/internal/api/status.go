@@ -19,16 +19,6 @@ type statusResponse struct {
 
 // handleStatus serves GET /v1/status with version, uptime, and runtime state.
 func (g *Gateway) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if r.Method != http.MethodGet {
-		httpkit.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-
 	runtimeStatus, err := g.backend.Runtime.Status(r.Context())
 	if err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())

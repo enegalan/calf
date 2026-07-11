@@ -1,117 +1,96 @@
 package api
 
 import (
-	"github.com/enegalan/calf/backend/internal/httpkit"
 	"net/http"
 	"strings"
 
-	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/daemon"
+	"github.com/enegalan/calf/backend/internal/httpkit"
+	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-// handleBuilds serves GET /v1/builds and POST /v1/builds for listing and starting image builds.
-func (g *Gateway) handleBuilds(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
+// handleBuildsList serves GET /v1/builds.
+func (g *Gateway) handleBuildsList(w http.ResponseWriter, r *http.Request) {
+	tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
+	g.backend.BuildsMu.RLock()
+	builds := append([]runtime.Build{}, g.backend.Builds...)
+	g.backend.BuildsMu.RUnlock()
+
+	if tagFilter != "" {
+		filtered := make([]runtime.Build, 0)
+		for _, build := range builds {
+			if build.Tag == tagFilter {
+				filtered = append(filtered, build)
+			}
+		}
+		builds = filtered
+	}
+
+	httpkit.WriteJSON(w, http.StatusOK, builds)
+}
+
+// handleBuildsCreate serves POST /v1/builds.
+func (g *Gateway) handleBuildsCreate(w http.ResponseWriter, r *http.Request) {
+	var payload struct {
+		Context    string `json:"context"`
+		Tag        string `json:"tag"`
+		Dockerfile string `json:"dockerfile"`
+		Platform   string `json:"platform"`
+	}
+
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	switch r.Method {
-	case http.MethodGet:
-		tagFilter := strings.TrimSpace(r.URL.Query().Get("tag"))
-		g.backend.BuildsMu.RLock()
-		builds := append([]runtime.Build{}, g.backend.Builds...)
-		g.backend.BuildsMu.RUnlock()
-
-		if tagFilter != "" {
-			filtered := make([]runtime.Build, 0)
-			for _, build := range builds {
-				if build.Tag == tagFilter {
-					filtered = append(filtered, build)
-				}
-			}
-			builds = filtered
-		}
-
-		httpkit.WriteJSON(w, http.StatusOK, builds)
-	case http.MethodPost:
-		var payload struct {
-			Context    string `json:"context"`
-			Tag        string `json:"tag"`
-			Dockerfile string `json:"dockerfile"`
-			Platform   string `json:"platform"`
-		}
-
-		if err := httpkit.JSONDecode(r, &payload); err != nil {
-			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		if payload.Context == "" || payload.Tag == "" {
-			httpkit.WriteError(w, http.StatusBadRequest, "context and tag are required")
-			return
-		}
-
-		platform := payload.Platform
-		if platform == "" {
-			platform = daemon.DefaultBuildPlatform()
-		}
-
-		build := g.backend.NewBuild(payload.Context, payload.Tag, payload.Dockerfile, platform, "running")
-		go g.backend.RunBuildJob(build.ID, payload.Context, payload.Tag, payload.Dockerfile, platform)
-		httpkit.WriteJSON(w, http.StatusAccepted, build)
-	default:
-		httpkit.MethodNotAllowed(w, r)
+	if payload.Context == "" || payload.Tag == "" {
+		httpkit.WriteError(w, http.StatusBadRequest, "context and tag are required")
+		return
 	}
+
+	platform := payload.Platform
+	if platform == "" {
+		platform = daemon.DefaultBuildPlatform()
+	}
+
+	build := g.backend.NewBuild(payload.Context, payload.Tag, payload.Dockerfile, platform, "running")
+	go g.backend.RunBuildJob(build.ID, payload.Context, payload.Tag, payload.Dockerfile, platform)
+	httpkit.WriteJSON(w, http.StatusAccepted, build)
 }
 
 // handleBuildAction routes /v1/builds/{id} subpaths and serves GET for a single build record.
-func (g *Gateway) handleBuildAction(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
+func (g *Gateway) handleBuildAction() http.HandlerFunc {
+	return httpkit.ServeRoutes("/v1/builds/", "build not found", []httpkit.Route{
+		{
+			Segments: []string{"source"},
+			Method:   http.MethodGet,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleBuildSource(w, r, parts[0])
+			},
+		},
+		{
+			Segments: []string{"logs"},
+			Method:   http.MethodGet,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleBuildLogs(w, r, parts[0])
+			},
+		},
+	}, map[string]httpkit.PartsHandler{
+		http.MethodGet: func(w http.ResponseWriter, r *http.Request, parts []string) {
+			build, ok := g.backend.GetBuild(parts[0])
+			if !ok {
+				httpkit.WriteError(w, http.StatusNotFound, "build not found")
+				return
+			}
 
-	path := strings.TrimPrefix(r.URL.Path, "/v1/builds/")
-	parts := strings.Split(path, "/")
-	if len(parts) == 0 || parts[0] == "" {
-		httpkit.WriteError(w, http.StatusNotFound, "build not found")
-		return
-	}
-
-	buildID := parts[0]
-	if len(parts) == 2 && parts[1] == "source" {
-		g.handleBuildSource(w, r, buildID)
-		return
-	}
-	if len(parts) == 2 && parts[1] == "logs" {
-		g.handleBuildLogs(w, r, buildID)
-		return
-	}
-
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
-	build, ok := g.backend.GetBuild(buildID)
-	if !ok {
-		httpkit.WriteError(w, http.StatusNotFound, "build not found")
-		return
-	}
-
-	build = g.backend.EnrichHistoryBuildIfNeeded(r.Context(), build)
-
-	httpkit.WriteJSON(w, http.StatusOK, build)
+			build = g.backend.EnrichHistoryBuildIfNeeded(r.Context(), build)
+			httpkit.WriteJSON(w, http.StatusOK, build)
+		},
+	})
 }
 
 // handleBuildSource serves GET /v1/builds/{id}/source with Dockerfile content and context metadata.
 func (g *Gateway) handleBuildSource(w http.ResponseWriter, r *http.Request, buildID string) {
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
 	build, ok := g.backend.GetBuild(buildID)
 	if !ok {
 		httpkit.WriteError(w, http.StatusNotFound, "build not found")
@@ -139,11 +118,6 @@ func (g *Gateway) handleBuildSource(w http.ResponseWriter, r *http.Request, buil
 
 // handleBuildLogs serves GET /v1/builds/{id}/logs with raw log output and parsed build steps.
 func (g *Gateway) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildID string) {
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
 	build, ok := g.backend.GetBuild(buildID)
 	if !ok {
 		httpkit.WriteError(w, http.StatusNotFound, "build not found")

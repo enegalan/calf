@@ -21,18 +21,6 @@ func (g *Gateway) writeVolumeStoreError(w http.ResponseWriter, message string, e
 	httpkit.WriteError(w, http.StatusInternalServerError, message)
 }
 
-// handleVolumeExports routes GET and POST /v1/volumes/{name}/exports.
-func (g *Gateway) handleVolumeExports(w http.ResponseWriter, r *http.Request, volumeName string) {
-	switch r.Method {
-	case http.MethodGet:
-		g.handleVolumeExportsList(w, r, volumeName)
-	case http.MethodPost:
-		g.handleVolumeExportCreate(w, r, volumeName)
-	default:
-		httpkit.MethodNotAllowed(w, r)
-	}
-}
-
 // handleVolumeExportsList serves GET /v1/volumes/{name}/exports with past export records.
 func (g *Gateway) handleVolumeExportsList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := g.backend.VolumeExportStore()
@@ -111,11 +99,6 @@ func (g *Gateway) handleVolumeExportCreate(w http.ResponseWriter, r *http.Reques
 
 // handleVolumeExportDownload serves GET /v1/volumes/{name}/exports/{id}/download as a gzip attachment.
 func (g *Gateway) handleVolumeExportDownload(w http.ResponseWriter, r *http.Request, volumeName, exportID string) {
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
 	store, err := g.backend.VolumeExportStore()
 	if err != nil {
 		g.writeVolumeStoreError(w, "failed to open export store", err)

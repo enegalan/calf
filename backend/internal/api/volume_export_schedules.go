@@ -9,18 +9,6 @@ import (
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
-// handleVolumeExportSchedules routes GET and POST /v1/volumes/{name}/export-schedules.
-func (g *Gateway) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Request, volumeName string) {
-	switch r.Method {
-	case http.MethodGet:
-		g.handleVolumeExportSchedulesList(w, r, volumeName)
-	case http.MethodPost:
-		g.handleVolumeExportScheduleCreate(w, r, volumeName)
-	default:
-		httpkit.MethodNotAllowed(w, r)
-	}
-}
-
 // handleVolumeExportSchedulesList serves GET /v1/volumes/{name}/export-schedules.
 func (g *Gateway) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.Request, volumeName string) {
 	store, err := volumeexport.NewScheduleStore()
@@ -73,18 +61,6 @@ func (g *Gateway) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *htt
 	}
 
 	httpkit.WriteJSON(w, http.StatusOK, schedule)
-}
-
-// handleVolumeExportScheduleItem routes PUT and DELETE for a single export schedule.
-func (g *Gateway) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
-	switch r.Method {
-	case http.MethodPut:
-		g.handleVolumeExportScheduleUpdate(w, r, volumeName, scheduleID)
-	case http.MethodDelete:
-		g.handleVolumeExportScheduleDelete(w, r, volumeName, scheduleID)
-	default:
-		httpkit.MethodNotAllowed(w, r)
-	}
 }
 
 // handleVolumeExportScheduleUpdate serves PUT /v1/volumes/{name}/export-schedules/{id}.

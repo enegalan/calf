@@ -12,21 +12,6 @@ import (
 
 // handleContainerLogs serves GET /v1/containers/{id}/logs by upgrading to a log-streaming WebSocket.
 func (g *Gateway) handleContainerLogs(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
-	g.handleContainerLogsWebSocket(w, r, id)
-}
-
-// handleContainerLogsWebSocket streams container log lines over a WebSocket with ping/pong keep-alive.
-func (g *Gateway) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Request, id string) {
 	conn, err := httpkit.LogsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		g.logger.Error("websocket upgrade failed", "error", err)

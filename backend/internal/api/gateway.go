@@ -8,6 +8,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/daemon"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/middleware"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
@@ -49,23 +50,50 @@ func (g *Gateway) WithMiddleware(middlewares ...middleware.Middleware) *Gateway 
 // Handler returns the HTTP handler with all /v1 routes registered.
 func (g *Gateway) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/health", g.handleHealth)
-	mux.HandleFunc("/v1/status", g.handleStatus)
-	mux.HandleFunc("/v1/containers", g.handleContainers)
-	mux.HandleFunc("/v1/containers/", g.handleContainerAction)
-	mux.HandleFunc("/v1/images", g.handleImages)
-	mux.HandleFunc("/v1/images/", g.handleImageSubpath)
-	mux.HandleFunc("/v1/volumes", g.handleVolumes)
-	mux.HandleFunc("/v1/volumes/", g.handleVolumeAction)
-	mux.HandleFunc("/v1/networks", g.handleNetworks)
-	mux.HandleFunc("/v1/networks/", g.handleNetworkAction)
-	mux.HandleFunc("/v1/builds", g.handleBuilds)
-	mux.HandleFunc("/v1/builds/", g.handleBuildAction)
-	mux.HandleFunc("/v1/registry", g.handleRegistry)
-	mux.HandleFunc("/v1/registry/login", g.handleRegistryLogin)
-	mux.HandleFunc("/v1/registry/login/", g.handleRegistryLogin)
-	mux.HandleFunc("/v1/config", g.handleConfig)
-	mux.HandleFunc("/v1/migrate/docker-desktop", g.handleDockerDesktopMigration)
+	mux.HandleFunc("/v1/health", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleHealth,
+	}))
+	mux.HandleFunc("/v1/status", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleStatus,
+	}))
+	mux.HandleFunc("/v1/containers", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleContainers,
+	}))
+	mux.HandleFunc("/v1/containers/", g.handleContainerAction())
+	mux.HandleFunc("/v1/images", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet:  g.handleImagesList,
+		http.MethodPost: g.handleImagesPull,
+	}))
+	mux.HandleFunc("/v1/images/", g.handleImageSubpath())
+	mux.HandleFunc("/v1/volumes", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet:  g.handleVolumesList,
+		http.MethodPost: g.handleVolumesCreate,
+	}))
+	mux.HandleFunc("/v1/volumes/", g.handleVolumeAction())
+	mux.HandleFunc("/v1/networks", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleNetworksList,
+	}))
+	mux.HandleFunc("/v1/networks/", g.handleNetworkAction())
+	mux.HandleFunc("/v1/builds", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet:  g.handleBuildsList,
+		http.MethodPost: g.handleBuildsCreate,
+	}))
+	mux.HandleFunc("/v1/builds/", g.handleBuildAction())
+	mux.HandleFunc("/v1/registry", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet:    g.handleRegistryStatus,
+		http.MethodPost:   g.handleRegistryCredentials,
+		http.MethodDelete: g.handleRegistryLogout,
+	}))
+	mux.HandleFunc("/v1/registry/login", g.handleRegistryLogin())
+	mux.HandleFunc("/v1/registry/login/", g.handleRegistryLogin())
+	mux.HandleFunc("/v1/config", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleConfigGet,
+		http.MethodPut: g.handleConfigPut,
+	}))
+	mux.HandleFunc("/v1/migrate/docker-desktop", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet:  g.handleDockerDesktopMigrationStatus,
+		http.MethodPost: g.handleDockerDesktopMigrationStart,
+	}))
 
 	return middleware.Chain(mux, g.middlewares...)
 }

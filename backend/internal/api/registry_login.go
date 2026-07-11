@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/enegalan/calf/backend/internal/httpkit"
 )
@@ -21,30 +20,26 @@ type registryDeviceLoginStatusResponse struct {
 }
 
 // handleRegistryLogin routes /v1/registry/login for starting and polling Docker Hub device-flow login.
-func (g *Gateway) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
+func (g *Gateway) handleRegistryLogin() http.HandlerFunc {
+	return httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: func(w http.ResponseWriter, r *http.Request) {
+			if httpkit.PathParts(r, "/v1/registry/login/") != nil {
+				httpkit.MethodNotAllowed(w, r)
+				return
+			}
 
-	path := strings.TrimPrefix(r.URL.Path, "/v1/registry/login")
-	path = strings.Trim(path, "/")
+			g.handleRegistryDeviceLoginStart(w, r)
+		},
+		http.MethodGet: func(w http.ResponseWriter, r *http.Request) {
+			parts := httpkit.PathParts(r, "/v1/registry/login/")
+			if len(parts) != 1 {
+				httpkit.MethodNotAllowed(w, r)
+				return
+			}
 
-	if path == "" {
-		if r.Method != http.MethodPost {
-			httpkit.MethodNotAllowed(w, r)
-			return
-		}
-		g.handleRegistryDeviceLoginStart(w, r)
-		return
-	}
-
-	if r.Method != http.MethodGet {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
-	g.handleRegistryDeviceLoginStatus(w, r, path)
+			g.handleRegistryDeviceLoginStatus(w, r, parts[0])
+		},
+	})
 }
 
 // handleRegistryDeviceLoginStart serves POST /v1/registry/login.

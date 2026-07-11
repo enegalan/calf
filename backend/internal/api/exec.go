@@ -1,36 +1,16 @@
 package api
 
 import (
-	"github.com/enegalan/calf/backend/internal/constants"
-	"github.com/enegalan/calf/backend/internal/httpkit"
 	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/gorilla/websocket"
 )
-
-// handleContainerExec routes GET to the interactive WebSocket exec and POST to one-shot exec.
-func (g *Gateway) handleContainerExec(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method == http.MethodOptions {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	if r.Method == http.MethodGet {
-		g.handleContainerExecWebSocket(w, r, id)
-		return
-	}
-
-	if r.Method != http.MethodPost {
-		httpkit.MethodNotAllowed(w, r)
-		return
-	}
-
-	g.handleContainerExecOnce(w, r, id)
-}
 
 // handleContainerExecWebSocket upgrades to a WebSocket and attaches an interactive PTY exec session.
 func (g *Gateway) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Request, id string) {
