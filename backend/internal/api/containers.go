@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"net/http"
 	"strings"
 
@@ -9,28 +10,28 @@ import (
 )
 
 // handleContainers serves GET /v1/containers with the list of containers.
-func (s *Server) handleContainers(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleContainers(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	containers, err := s.runtime.ListContainers(r.Context())
+	containers, err := g.backend.Runtime.ListContainers(r.Context())
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, containers)
+	httpkit.WriteJSON(w, http.StatusOK, containers)
 }
 
 // handleContainerAction routes /v1/containers/{id} and subresource paths to the appropriate handler.
-func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -39,7 +40,7 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/containers/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 || parts[0] == "" {
-		writeError(w, http.StatusNotFound, "container not found")
+		httpkit.WriteError(w, http.StatusNotFound, "container not found")
 		return
 	}
 
@@ -48,22 +49,22 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		switch parts[1] {
 		case "logs":
-			s.handleContainerLogs(w, r, id)
+			g.handleContainerLogs(w, r, id)
 			return
 		case "inspect":
-			s.handleContainerInspect(w, r, id)
+			g.handleContainerInspect(w, r, id)
 			return
 		case "mounts":
-			s.handleContainerMounts(w, r, id)
+			g.handleContainerMounts(w, r, id)
 			return
 		case "files":
-			s.handleContainerFiles(w, r, id)
+			g.handleContainerFiles(w, r, id)
 			return
 		case "exec":
-			s.handleContainerExec(w, r, id)
+			g.handleContainerExec(w, r, id)
 			return
 		case "stats":
-			s.handleContainerStats(w, r, id)
+			g.handleContainerStats(w, r, id)
 			return
 		}
 	}
@@ -72,30 +73,30 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
 		if len(parts) != 2 {
-			methodNotAllowed(w, r)
+			httpkit.MethodNotAllowed(w, r)
 			return
 		}
 
 		switch parts[1] {
 		case "start":
-			err = s.runtime.StartContainer(r.Context(), id)
+			err = g.backend.Runtime.StartContainer(r.Context(), id)
 		case "stop":
-			err = s.runtime.StopContainer(r.Context(), id)
+			err = g.backend.Runtime.StopContainer(r.Context(), id)
 		case "restart":
-			err = s.runtime.RestartContainer(r.Context(), id)
+			err = g.backend.Runtime.RestartContainer(r.Context(), id)
 		default:
-			methodNotAllowed(w, r)
+			httpkit.MethodNotAllowed(w, r)
 			return
 		}
 	case http.MethodDelete:
-		err = s.runtime.RemoveContainer(r.Context(), id)
+		err = g.backend.Runtime.RemoveContainer(r.Context(), id)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
@@ -103,15 +104,15 @@ func (s *Server) handleContainerAction(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleContainerInspect serves GET /v1/containers/{id}/inspect, optionally filtered by section query param.
-func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerInspect(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	inspect, err := s.runtime.InspectContainer(r.Context(), id)
+	inspect, err := g.backend.Runtime.InspectContainer(r.Context(), id)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
@@ -119,7 +120,7 @@ func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, 
 	if section != "" {
 		inspect, err = runtime.InspectSection(inspect, section)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 	}
@@ -130,36 +131,36 @@ func (s *Server) handleContainerInspect(w http.ResponseWriter, r *http.Request, 
 }
 
 // handleContainerMounts serves GET /v1/containers/{id}/mounts.
-func (s *Server) handleContainerMounts(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerMounts(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	mounts, err := s.runtime.ContainerMounts(r.Context(), id)
+	mounts, err := g.backend.Runtime.ContainerMounts(r.Context(), id)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, mounts)
+	httpkit.WriteJSON(w, http.StatusOK, mounts)
 }
 
 // handleContainerFiles serves GET /v1/containers/{id}/files for directory listing inside the container.
-func (s *Server) handleContainerFiles(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerFiles(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
-	files, err := s.runtime.ListContainerFiles(r.Context(), id, path)
+	files, err := g.backend.Runtime.ListContainerFiles(r.Context(), id, path)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, files)
+	httpkit.WriteJSON(w, http.StatusOK, files)
 }
 
 type containerExecRequest struct {
@@ -167,42 +168,42 @@ type containerExecRequest struct {
 }
 
 // handleContainerExecOnce serves POST /v1/containers/{id}/exec for a one-shot non-interactive command.
-func (s *Server) handleContainerExecOnce(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerExecOnce(w http.ResponseWriter, r *http.Request, id string) {
 	var request containerExecRequest
-	if err := jsonDecode(r, &request); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &request); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	output, err := s.runtime.ExecContainer(r.Context(), id, request.Command)
+	output, err := g.backend.Runtime.ExecContainer(r.Context(), id, request.Command)
 	if err != nil {
 		if output != "" {
-			writeJSON(w, http.StatusOK, map[string]string{
+			httpkit.WriteJSON(w, http.StatusOK, map[string]string{
 				"output": output,
 				"error":  err.Error(),
 			})
 			return
 		}
 
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"output": output})
+	httpkit.WriteJSON(w, http.StatusOK, map[string]string{"output": output})
 }
 
 // handleContainerStats serves GET /v1/containers/{id}/stats with live resource usage.
-func (s *Server) handleContainerStats(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerStats(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	stats, err := s.runtime.ContainerStats(r.Context(), id)
+	stats, err := g.backend.Runtime.ContainerStats(r.Context(), id)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, stats)
+	httpkit.WriteJSON(w, http.StatusOK, stats)
 }

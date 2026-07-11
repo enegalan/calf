@@ -5,35 +5,31 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/gorilla/websocket"
 )
 
-const (
-	logsPongWait   = 60 * time.Second
-	logsPingPeriod = (logsPongWait * 9) / 10
-	logsWriteWait  = 10 * time.Second
-)
-
 // handleContainerLogs serves GET /v1/containers/{id}/logs by upgrading to a log-streaming WebSocket.
-func (s *Server) handleContainerLogs(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerLogs(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	s.handleContainerLogsWebSocket(w, r, id)
+	g.handleContainerLogsWebSocket(w, r, id)
 }
 
 // handleContainerLogsWebSocket streams container log lines over a WebSocket with ping/pong keep-alive.
-func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Request, id string) {
-	conn, err := logsUpgrader.Upgrade(w, r, nil)
+func (g *Gateway) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Request, id string) {
+	conn, err := httpkit.LogsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.logger.Error("websocket upgrade failed", "error", err)
+		g.logger.Error("websocket upgrade failed", "error", err)
 		return
 	}
 	defer conn.Close()
@@ -41,13 +37,13 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	writer := newWSWriter(conn, logsWriteWait)
-	lines, unsubscribe := s.logBroadcaster.subscribe(s.runtime, id)
+	writer := httpkit.NewWSWriter(conn, constants.LogsWriteWait)
+	lines, unsubscribe := g.backend.SubscribeLogs(id)
 	defer unsubscribe()
 
-	conn.SetReadDeadline(time.Now().Add(logsPongWait))
+	conn.SetReadDeadline(time.Now().Add(constants.LogsPongWait))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(logsPongWait))
+		conn.SetReadDeadline(time.Now().Add(constants.LogsPongWait))
 		return nil
 	})
 
@@ -60,7 +56,7 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 		}
 	}()
 
-	pingTicker := time.NewTicker(logsPingPeriod)
+	pingTicker := time.NewTicker(constants.LogsPingPeriod)
 	defer pingTicker.Stop()
 
 	go func() {
@@ -69,7 +65,7 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 			case <-ctx.Done():
 				return
 			case <-pingTicker.C:
-				if writeErr := writer.writeMessage(websocket.PingMessage, nil); writeErr != nil {
+				if writeErr := writer.WriteMessage(websocket.PingMessage, nil); writeErr != nil {
 					cancel()
 					return
 				}
@@ -85,7 +81,7 @@ func (s *Server) handleContainerLogsWebSocket(w http.ResponseWriter, r *http.Req
 			if !ok {
 				return
 			}
-			if writeErr := writer.writeMessage(websocket.TextMessage, []byte(line)); writeErr != nil {
+			if writeErr := writer.WriteMessage(websocket.TextMessage, []byte(line)); writeErr != nil {
 				return
 			}
 		}

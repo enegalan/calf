@@ -1,21 +1,13 @@
 package api
 
 import (
-	"context"
-	"fmt"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"net/http"
-	"os/exec"
-	"strings"
-	"time"
 
-	"github.com/enegalan/calf/backend/internal/config"
-	"github.com/enegalan/calf/backend/internal/constants"
-	"github.com/enegalan/calf/backend/internal/migration"
-	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 // handleDockerDesktopMigration serves GET and POST /v1/migrate/docker-desktop for status and starting migration.
-func (s *Server) handleDockerDesktopMigration(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleDockerDesktopMigration(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -23,103 +15,19 @@ func (s *Server) handleDockerDesktopMigration(w http.ResponseWriter, r *http.Req
 
 	switch r.Method {
 	case http.MethodGet:
-		s.migrateMu.RLock()
-		status := s.migrateStatus
-		s.migrateMu.RUnlock()
-		writeJSON(w, http.StatusOK, status)
+		httpkit.WriteJSON(w, http.StatusOK, g.backend.MigrationStatus())
 
 	case http.MethodPost:
-		s.migrateMu.Lock()
-		if s.migrateRunning {
-			s.migrateMu.Unlock()
-			writeError(w, http.StatusConflict, "migration already running")
+		status, started := g.backend.TryStartMigration()
+		if !started {
+			httpkit.WriteError(w, http.StatusConflict, "migration already running")
 			return
 		}
 
-		s.migrateRunning = true
-		s.migrateStatus = migration.Status{
-			Phase:    migration.PhaseRunning,
-			Step:     "starting",
-			Progress: 0,
-			Message:  "Starting migration",
-		}
-		s.migrateMu.Unlock()
-
-		go s.runDockerDesktopMigration()
-
-		s.migrateMu.RLock()
-		status := s.migrateStatus
-		s.migrateMu.RUnlock()
-		writeJSON(w, http.StatusAccepted, status)
+		go g.backend.RunDockerDesktopMigration()
+		httpkit.WriteJSON(w, http.StatusAccepted, status)
 
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
-}
-
-// runDockerDesktopMigration executes the Docker Desktop migration workflow in a background goroutine.
-func (s *Server) runDockerDesktopMigration() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
-	defer cancel()
-
-	defer func() {
-		s.migrateMu.Lock()
-		s.migrateRunning = false
-		s.migrateMu.Unlock()
-	}()
-
-	status := migration.RunFromDockerDesktop(ctx, migration.Options{
-		CalfSocket: s.runtime.DockerSocket(),
-		VMName:     s.cfg.VMName,
-		RunNerdctl: s.runNerdctl,
-		Logger:     s.logger,
-		OnStatus: func(update migration.Status) {
-			s.migrateMu.Lock()
-			s.migrateStatus = update
-			s.migrateMu.Unlock()
-		},
-		SaveConfig: func(cfg config.Config) error {
-			s.cfgMu.Lock()
-			defer s.cfgMu.Unlock()
-
-			s.cfg.CPUs = cfg.CPUs
-			s.cfg.MemoryGB = cfg.MemoryGB
-			s.cfg.MemorySwapGB = cfg.MemorySwapGB
-			return config.Save(s.cfg)
-		},
-		AddBuild: s.addMigratedBuild,
-	})
-
-	s.migrateMu.Lock()
-	s.migrateStatus = status
-	s.migrateMu.Unlock()
-
-	s.cfgMu.RLock()
-	managed := s.cfg.DockerContextManaged
-	s.cfgMu.RUnlock()
-
-	if status.Phase == migration.PhaseCompleted && managed {
-		activateCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
-		defer cancel()
-		if err := s.activateDockerContext(activateCtx); err != nil {
-			s.logger.Warn("failed to activate docker context after migration", "error", err)
-		}
-	}
-}
-
-// runNerdctl runs nerdctl inside the Lima VM via limactl shell for migration operations.
-func (s *Server) runNerdctl(ctx context.Context, args ...string) error {
-	vmName := s.cfg.VMName
-	if vmName == "" {
-		vmName = "calf"
-	}
-
-	shellArgs := append([]string{"shell", vmName, "--"}, runtime.NerdctlVMArgs(args...)...)
-	command := exec.CommandContext(ctx, "limactl", shellArgs...)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("nerdctl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-	}
-
-	return nil
 }

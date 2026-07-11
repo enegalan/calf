@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/buildstore"
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -25,7 +24,7 @@ func TestBuildsPersistAcrossServerReload(t *testing.T) {
 	cfg := config.Config{ListenAddr: ":8765", LogLevel: "info"}
 	mock := runtime.NewMock()
 
-	server := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
+	server := httptest.NewServer(newTestGateway(cfg, slog.Default(), mock).Handler())
 	response, err := http.Post(server.URL+"/v1/builds", "application/json", bytes.NewBufferString(`{
 		"context": ".",
 		"tag": "demo:test"
@@ -68,7 +67,7 @@ func TestBuildsPersistAcrossServerReload(t *testing.T) {
 		t.Fatalf("expected 1 persisted build, got %d", len(file.Builds))
 	}
 
-	reloaded := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
+	reloaded := httptest.NewServer(newTestGateway(cfg, slog.Default(), mock).Handler())
 	defer reloaded.Close()
 
 	listResponse, err := http.Get(reloaded.URL + "/v1/builds")
@@ -103,7 +102,7 @@ func TestBuildDetailAndSourceEndpoints(t *testing.T) {
 
 	cfg := config.Config{ListenAddr: ":8765", LogLevel: "info"}
 	mock := runtime.NewMock()
-	server := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
+	server := httptest.NewServer(newTestGateway(cfg, slog.Default(), mock).Handler())
 	defer server.Close()
 
 	response, err := http.Post(server.URL+"/v1/builds", "application/json", bytes.NewBufferString(`{

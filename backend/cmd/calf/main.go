@@ -18,6 +18,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/middleware"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
@@ -52,7 +53,11 @@ func run() int {
 			NoProxy:    cfg.NoProxy,
 		},
 	)
-	server := api.New(cfg, logger, rt)
+	gateway := api.New(cfg, logger, rt).WithMiddleware(
+		middleware.CORS(),
+		middleware.Recovery(logger),
+		middleware.Logging(logger),
+	)
 
 	if err := ensurePort(cfg.ListenAddr); err != nil {
 		logger.Warn("cleaned up previous instance", "error", err)
@@ -80,12 +85,12 @@ func run() int {
 		}
 	}()
 
-	go server.StartBuildSync(rtCtx)
-	go server.StartDockerContextManager(rtCtx)
+	go gateway.Backend().StartBuildSync(rtCtx)
+	go gateway.Backend().DockerCLI.Start(rtCtx)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.Run()
+		errCh <- gateway.Run()
 	}()
 
 	select {
@@ -104,7 +109,7 @@ func run() int {
 		logger.Info("shutting down")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := gateway.Shutdown(shutdownCtx); err != nil {
 			logger.Error("shutdown failed", "error", err)
 		}
 	}

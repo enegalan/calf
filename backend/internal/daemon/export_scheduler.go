@@ -1,4 +1,4 @@
-package api
+package daemon
 
 import (
 	"context"
@@ -6,16 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
-// exportSchedulerInterval must match volumeexport.ScheduleRunGrace so a
-// once-per-minute tick cannot miss a scheduled export slot.
-const exportSchedulerInterval = time.Minute
-
 type exportScheduler struct {
-	server    *Server
+	core     *Core
 	logger    *slog.Logger
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -25,11 +22,11 @@ type exportScheduler struct {
 	stopOnce  sync.Once
 }
 
-// newExportScheduler creates a background scheduler bound to server for recurring volume exports.
-func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
+// newExportScheduler creates a background scheduler bound to the daemon for recurring volume exports.
+func newExportScheduler(core *Core, logger *slog.Logger) *exportScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &exportScheduler{
-		server: server,
+		core:  core,
 		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
@@ -58,7 +55,7 @@ func (s *exportScheduler) Stop() {
 func (s *exportScheduler) run() {
 	defer close(s.done)
 
-	ticker := time.NewTicker(exportSchedulerInterval)
+	ticker := time.NewTicker(constants.ExportSchedulerInterval)
 	defer ticker.Stop()
 
 	s.tick()
@@ -120,7 +117,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Minute)
 	defer cancel()
 
-	status, err := s.server.runtime.Status(ctx)
+	status, err := s.core.Runtime.Status(ctx)
 	if err != nil || status.State != runtime.StateRunning {
 		schedule.LastStatus = volumeexport.StatusFailed
 		schedule.LastError = "runtime is not running"
@@ -134,7 +131,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 		return
 	}
 
-	request := volumeExportRequest{
+	request := VolumeExportRequest{
 		Type: schedule.Type,
 	}
 
@@ -143,7 +140,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 	request.ImageRef = imageRef
 	request.Folder = schedule.Folder
 
-	_, exportErr := s.server.executeVolumeExport(ctx, schedule.Volume, request)
+	_, exportErr := s.core.ExecuteVolumeExport(ctx, schedule.Volume, request)
 	schedule.LastRunAt = tickNow.UTC().Format(time.RFC3339)
 
 	if exportErr != nil {

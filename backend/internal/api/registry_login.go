@@ -1,28 +1,11 @@
 package api
 
 import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/enegalan/calf/backend/internal/browser"
-	"github.com/enegalan/calf/backend/internal/oauth/dockerhub"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 )
-
-type registryLoginSession struct {
-	mu              sync.RWMutex
-	id              string
-	status          string
-	userCode        string
-	verificationURL string
-	username        string
-	err             string
-	cancel          context.CancelFunc
-}
 
 type registryDeviceLoginStartResponse struct {
 	SessionID       string `json:"session_id"`
@@ -37,16 +20,8 @@ type registryDeviceLoginStatusResponse struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// registryLoginSessions returns the lazily initialized map of in-flight device-login sessions.
-func (s *Server) registryLoginSessions() *sync.Map {
-	if s.registrySessions == nil {
-		s.registrySessions = &sync.Map{}
-	}
-	return s.registrySessions
-}
-
 // handleRegistryLogin routes /v1/registry/login for starting and polling Docker Hub device-flow login.
-func (s *Server) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -57,142 +32,48 @@ func (s *Server) handleRegistryLogin(w http.ResponseWriter, r *http.Request) {
 
 	if path == "" {
 		if r.Method != http.MethodPost {
-			methodNotAllowed(w, r)
+			httpkit.MethodNotAllowed(w, r)
 			return
 		}
-		s.startRegistryDeviceLogin(w, r)
+		g.handleRegistryDeviceLoginStart(w, r)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	s.getRegistryDeviceLoginStatus(w, r, path)
+	g.handleRegistryDeviceLoginStatus(w, r, path)
 }
 
-// startRegistryDeviceLogin begins a Docker Hub OAuth device-code flow and returns session details to the client.
-func (s *Server) startRegistryDeviceLogin(w http.ResponseWriter, r *http.Request) {
-	client := dockerhub.NewClient()
-	state, err := client.StartDeviceLogin(r.Context())
+// handleRegistryDeviceLoginStart serves POST /v1/registry/login.
+func (g *Gateway) handleRegistryDeviceLoginStart(w http.ResponseWriter, r *http.Request) {
+	start, err := g.backend.StartRegistryDeviceLogin(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+		httpkit.WriteError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 
-	sessionID := newRegistrySessionID()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(state.ExpiresIn)*time.Second)
-
-	session := &registryLoginSession{
-		id:              sessionID,
-		status:          "pending",
-		userCode:        state.UserCode,
-		verificationURL: state.VerificationURI,
-		cancel:          cancel,
-	}
-
-	s.registryLoginSessions().Store(sessionID, session)
-	go s.completeRegistryDeviceLogin(ctx, client, session, state)
-
-	if err := browser.OpenURL(state.VerificationURI); err != nil {
-		s.logger.Warn("failed to open browser for docker login", "error", err, "url", state.VerificationURI)
-	}
-
-	writeJSON(w, http.StatusOK, registryDeviceLoginStartResponse{
-		SessionID:       sessionID,
-		UserCode:        state.UserCode,
-		VerificationURL: state.VerificationURI,
-		ExpiresIn:       state.ExpiresIn,
+	httpkit.WriteJSON(w, http.StatusOK, registryDeviceLoginStartResponse{
+		SessionID:       start.SessionID,
+		UserCode:        start.UserCode,
+		VerificationURL: start.VerificationURL,
+		ExpiresIn:       start.ExpiresIn,
 	})
 }
 
-// getRegistryDeviceLoginStatus serves GET /v1/registry/login/{sessionID} with the current login progress.
-func (s *Server) getRegistryDeviceLoginStatus(w http.ResponseWriter, r *http.Request, sessionID string) {
-	value, ok := s.registryLoginSessions().Load(sessionID)
+// handleRegistryDeviceLoginStatus serves GET /v1/registry/login/{sessionID}.
+func (g *Gateway) handleRegistryDeviceLoginStatus(w http.ResponseWriter, r *http.Request, sessionID string) {
+	status, ok := g.backend.RegistryDeviceLoginStatus(sessionID)
 	if !ok {
-		writeError(w, http.StatusNotFound, "login session not found")
+		httpkit.WriteError(w, http.StatusNotFound, "login session not found")
 		return
 	}
 
-	session := value.(*registryLoginSession)
-	session.mu.RLock()
-	defer session.mu.RUnlock()
-
-	writeJSON(w, http.StatusOK, registryDeviceLoginStatusResponse{
-		Status:   session.status,
-		Username: session.username,
-		Error:    session.err,
+	httpkit.WriteJSON(w, http.StatusOK, registryDeviceLoginStatusResponse{
+		Status:   status.Status,
+		Username: status.Username,
+		Error:    status.Error,
 	})
-}
-
-// completeRegistryDeviceLogin polls for a device token, generates a PAT, and stores registry credentials.
-func (s *Server) completeRegistryDeviceLogin(ctx context.Context, client *dockerhub.Client, session *registryLoginSession, state dockerhub.DeviceCode) {
-	defer session.cancel()
-
-	setFailed := func(message string) {
-		session.mu.Lock()
-		session.status = "failed"
-		session.err = message
-		session.mu.Unlock()
-	}
-
-	accessToken, err := client.WaitForDeviceToken(ctx, state)
-	if err != nil {
-		status := "failed"
-		if err == context.DeadlineExceeded || err == dockerhub.ErrDeviceLoginTimeout {
-			status = "expired"
-		}
-		session.mu.Lock()
-		session.status = status
-		session.err = err.Error()
-		session.mu.Unlock()
-		time.AfterFunc(10*time.Minute, func() {
-			s.registryLoginSessions().Delete(session.id)
-		})
-		return
-	}
-
-	username, err := dockerhub.UsernameFromAccessToken(accessToken)
-	if err != nil {
-		setFailed(err.Error())
-		return
-	}
-
-	pat, err := client.GeneratePAT(ctx, accessToken)
-	if err != nil {
-		setFailed(err.Error())
-		return
-	}
-
-	session.mu.Lock()
-	session.status = "saving"
-	session.username = username
-	session.mu.Unlock()
-
-	if err := s.ensureRuntimeRunning(ctx); err != nil {
-		setFailed(err.Error())
-		return
-	}
-
-	if err := s.runtime.RegistryLogin(ctx, "", username, pat); err != nil {
-		setFailed(err.Error())
-		return
-	}
-
-	session.mu.Lock()
-	session.status = "complete"
-	session.username = username
-	session.mu.Unlock()
-
-	time.AfterFunc(10*time.Minute, func() {
-		s.registryLoginSessions().Delete(session.id)
-	})
-}
-
-// newRegistrySessionID returns a random 32-character hex session identifier.
-func newRegistrySessionID() string {
-	var bytes [16]byte
-	_, _ = rand.Read(bytes[:])
-	return hex.EncodeToString(bytes[:])
 }

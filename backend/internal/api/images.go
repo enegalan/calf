@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"net/http"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // handleImages serves GET /v1/images and POST /v1/images for listing and pulling images.
-func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleImages(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -16,72 +17,72 @@ func (s *Server) handleImages(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		images, err := s.runtime.ListImages(r.Context())
+		images, err := g.backend.Runtime.ListImages(r.Context())
 		if err != nil {
-			writeRuntimeOrFail(w, err)
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, images)
+		httpkit.WriteJSON(w, http.StatusOK, images)
 	case http.MethodPost:
 		var payload struct {
 			Reference string `json:"reference"`
 		}
 
-		if err := jsonDecode(r, &payload); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+		if err := httpkit.JSONDecode(r, &payload); err != nil {
+			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		if payload.Reference == "" {
-			writeError(w, http.StatusBadRequest, "reference is required")
+			httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
 			return
 		}
 
-		if err := s.runtime.PullImage(r.Context(), payload.Reference); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.PullImage(r.Context(), payload.Reference); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
 		utils.WriteOK(w)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleImageSubpath routes /v1/images/ subpaths to layers, run, push, or delete handlers.
-func (s *Server) handleImageSubpath(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleImageSubpath(w http.ResponseWriter, r *http.Request) {
 	subpath := strings.TrimPrefix(r.URL.Path, "/v1/images/")
 	subpath = strings.Trim(subpath, "/")
 
 	switch subpath {
 	case "layers":
-		s.handleImageLayers(w, r)
+		g.handleImageLayers(w, r)
 	case "run":
-		s.handleImageRun(w, r)
+		g.handleImageRun(w, r)
 	case "push":
-		s.handleImagePush(w, r)
+		g.handleImagePush(w, r)
 	case "":
-		writeError(w, http.StatusNotFound, "image not found")
+		httpkit.WriteError(w, http.StatusNotFound, "image not found")
 	default:
-		s.handleImageDelete(w, r, subpath)
+		g.handleImageDelete(w, r, subpath)
 	}
 }
 
 // handleImageDelete serves DELETE /v1/images/{ref} to remove an image.
-func (s *Server) handleImageDelete(w http.ResponseWriter, r *http.Request, ref string) {
+func (g *Gateway) handleImageDelete(w http.ResponseWriter, r *http.Request, ref string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodDelete {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	if err := s.runtime.RemoveImage(r.Context(), ref); err != nil {
-		writeRuntimeOrFail(w, err)
+	if err := g.backend.Runtime.RemoveImage(r.Context(), ref); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
@@ -89,41 +90,41 @@ func (s *Server) handleImageDelete(w http.ResponseWriter, r *http.Request, ref s
 }
 
 // handleImageLayers serves GET /v1/images/layers with build history for a reference query param.
-func (s *Server) handleImageLayers(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleImageLayers(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
 	ref := r.URL.Query().Get("reference")
 	if ref == "" {
-		writeError(w, http.StatusBadRequest, "reference is required")
+		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
 		return
 	}
 
-	layers, err := s.runtime.ImageHistory(r.Context(), ref)
+	layers, err := g.backend.Runtime.ImageHistory(r.Context(), ref)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, layers)
+	httpkit.WriteJSON(w, http.StatusOK, layers)
 }
 
 // handleImageRun serves POST /v1/images/run to create and start a container from an image.
-func (s *Server) handleImageRun(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
@@ -131,37 +132,37 @@ func (s *Server) handleImageRun(w http.ResponseWriter, r *http.Request) {
 		Reference string `json:"reference"`
 	}
 
-	if err := jsonDecode(r, &payload); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if payload.Reference == "" {
-		writeError(w, http.StatusBadRequest, "reference is required")
+		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
 		return
 	}
 
-	containerID, err := s.runtime.RunImage(r.Context(), payload.Reference)
+	containerID, err := g.backend.Runtime.RunImage(r.Context(), payload.Reference)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	httpkit.WriteJSON(w, http.StatusOK, map[string]string{
 		"status":       "ok",
 		"container_id": containerID,
 	})
 }
 
 // handleImagePush serves POST /v1/images/push to push an image to a registry.
-func (s *Server) handleImagePush(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleImagePush(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
@@ -169,18 +170,18 @@ func (s *Server) handleImagePush(w http.ResponseWriter, r *http.Request) {
 		Reference string `json:"reference"`
 	}
 
-	if err := jsonDecode(r, &payload); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if payload.Reference == "" {
-		writeError(w, http.StatusBadRequest, "reference is required")
+		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
 		return
 	}
 
-	if err := s.runtime.PushImage(r.Context(), payload.Reference); err != nil {
-		writeRuntimeOrFail(w, err)
+	if err := g.backend.Runtime.PushImage(r.Context(), payload.Reference); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 

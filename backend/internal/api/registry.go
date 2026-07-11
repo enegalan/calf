@@ -3,11 +3,12 @@ package api
 import (
 	"net/http"
 
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // handleRegistry serves GET, POST, and DELETE /v1/registry for registry auth status, login, and logout.
-func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -15,13 +16,13 @@ func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		status, err := s.runtime.RegistryStatus(r.Context())
+		status, err := g.backend.Runtime.RegistryStatus(r.Context())
 		if err != nil {
-			writeRuntimeOrFail(w, err)
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, status)
+		httpkit.WriteJSON(w, http.StatusOK, status)
 	case http.MethodPost:
 		var payload struct {
 			Server   string `json:"server"`
@@ -29,17 +30,17 @@ func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 			Password string `json:"password"`
 		}
 
-		if err := jsonDecode(r, &payload); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+		if err := httpkit.JSONDecode(r, &payload); err != nil {
+			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		if !s.ensureRuntimeOrFail(w, r.Context()) {
+		if !httpkit.EnsureRuntimeOrFail(w, r.Context(), g.backend) {
 			return
 		}
 
-		if err := s.runtime.RegistryLogin(r.Context(), payload.Server, payload.Username, payload.Password); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.RegistryLogin(r.Context(), payload.Server, payload.Username, payload.Password); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
@@ -47,17 +48,17 @@ func (s *Server) handleRegistry(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		server := r.URL.Query().Get("server")
 
-		if !s.ensureRuntimeOrFail(w, r.Context()) {
+		if !httpkit.EnsureRuntimeOrFail(w, r.Context(), g.backend) {
 			return
 		}
 
-		if err := s.runtime.RegistryLogout(r.Context(), server); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.RegistryLogout(r.Context(), server); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
 		utils.WriteOK(w)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }

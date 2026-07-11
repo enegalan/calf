@@ -1,4 +1,4 @@
-package api
+package daemon
 
 import (
 	"context"
@@ -9,15 +9,30 @@ import (
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
-type volumeExportRequest struct {
+type VolumeExportRequest struct {
 	Type     string
 	FileName string
 	Folder   string
 	ImageRef string
 }
 
-// executeVolumeExport runs a volume export through the runtime and persists the resulting export record.
-func (s *Server) executeVolumeExport(ctx context.Context, volumeName string, request volumeExportRequest) (volumeexport.Export, error) {
+// volumeExportStore opens the on-disk store for volume export metadata.
+func (s *Core) volumeExportStore() (*volumeexport.Store, error) {
+	return volumeexport.NewStore()
+}
+
+// VolumeExportStore opens the on-disk store for volume export metadata.
+func (s *Core) VolumeExportStore() (*volumeexport.Store, error) {
+	return s.volumeExportStore()
+}
+
+// SubscribeLogs multiplexes container log lines to a subscriber channel.
+func (s *Core) SubscribeLogs(containerID string) (<-chan string, func()) {
+	return s.logBroadcaster.subscribe(s.Runtime, containerID)
+}
+
+// ExecuteVolumeExport runs a volume export through the runtime and persists the resulting export record.
+func (s *Core) ExecuteVolumeExport(ctx context.Context, volumeName string, request VolumeExportRequest) (volumeexport.Export, error) {
 	store, err := s.volumeExportStore()
 	if err != nil {
 		return volumeexport.Export{}, err
@@ -60,7 +75,7 @@ func (s *Server) executeVolumeExport(ctx context.Context, volumeName string, req
 		ArchivePath: archivePath,
 	}
 
-	resultPath, err := s.runtime.ExportVolume(ctx, opts)
+	resultPath, err := s.Runtime.ExportVolume(ctx, opts)
 	if err != nil {
 		export.Status = volumeexport.StatusFailed
 		export.Error = err.Error()

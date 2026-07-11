@@ -1,6 +1,8 @@
 package api
 
 import (
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"context"
 	"encoding/json"
 	"io"
@@ -11,30 +13,30 @@ import (
 )
 
 // handleContainerExec routes GET to the interactive WebSocket exec and POST to one-shot exec.
-func (s *Server) handleContainerExec(w http.ResponseWriter, r *http.Request, id string) {
+func (g *Gateway) handleContainerExec(w http.ResponseWriter, r *http.Request, id string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method == http.MethodGet {
-		s.handleContainerExecWebSocket(w, r, id)
+		g.handleContainerExecWebSocket(w, r, id)
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	s.handleContainerExecOnce(w, r, id)
+	g.handleContainerExecOnce(w, r, id)
 }
 
 // handleContainerExecWebSocket upgrades to a WebSocket and attaches an interactive PTY exec session.
-func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Request, id string) {
-	conn, err := logsUpgrader.Upgrade(w, r, nil)
+func (g *Gateway) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Request, id string) {
+	conn, err := httpkit.LogsUpgrader.Upgrade(w, r, nil)
 	if err != nil {
-		s.logger.Error("exec websocket upgrade failed", "error", err)
+		g.logger.Error("exec websocket upgrade failed", "error", err)
 		return
 	}
 	defer conn.Close()
@@ -42,7 +44,7 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	writer := newWSWriter(conn, logsWriteWait)
+	writer := httpkit.NewWSWriter(conn, constants.LogsWriteWait)
 	stdinReader, stdinWriter := io.Pipe()
 	resizeCh := make(chan runtime.ExecResize, 4)
 
@@ -73,13 +75,13 @@ func (s *Server) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Req
 		}
 	}()
 
-	attachErr := s.runtime.AttachExec(ctx, id, stdinReader, func(chunk []byte) {
-		if writeErr := writer.writeMessage(websocket.BinaryMessage, chunk); writeErr != nil {
+	attachErr := g.backend.Runtime.AttachExec(ctx, id, stdinReader, func(chunk []byte) {
+		if writeErr := writer.WriteMessage(websocket.BinaryMessage, chunk); writeErr != nil {
 			cancel()
 		}
 	}, resizeCh)
 	if attachErr != nil && ctx.Err() == nil {
-		_ = writer.writeMessage(websocket.TextMessage, []byte("error: "+attachErr.Error()))
+		_ = writer.WriteMessage(websocket.TextMessage, []byte("error: "+attachErr.Error()))
 	}
 }
 

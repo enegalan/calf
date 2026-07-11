@@ -59,24 +59,45 @@ calf/
 │   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover (cross-platform: lsof/Unix, netstat/Windows)
 │   ├── internal/
 │   │   ├── api/
-│   │   │   ├── server.go                     Server struct, route registration for all /v1/... endpoints
-│   │   │   ├── handlers.go                    Health/status/config endpoints
-│   │   │   ├── middleware.go                  Request logging, panic recovery, CORS
-│   │   │   ├── json.go                        Small JSON decode helper
-│   │   │   ├── ws_writer.go                   Mutex-guarded WebSocket writer with write deadline
-│   │   │   ├── log_broadcaster.go              Fan-out of one nerdctl log stream to N WebSocket subscribers
-│   │   │   ├── runtime_ready.go                Blocks until the runtime is running (used before registry login)
-│   │   │   ├── runtime_errors.go               Maps ErrRuntimeNotRunning -> 503
-│   │   │   ├── builds.go                       In-memory build history, POST triggers RunBuild
-│   │   │   ├── containers.go                   Container CRUD + subresources
-│   │   │   ├── exec.go                         Interactive/one-shot exec endpoints
-│   │   │   ├── images.go                       Image list/inspect/remove endpoints
-│   │   │   ├── logs.go                         Log streaming endpoints (WebSocket)
-│   │   │   ├── volumes.go                      Volume CRUD + subresources
-│   │   │   ├── networks.go                     Network list/inspect/remove endpoints
-│   │   │   ├── migrate.go                       Docker Desktop migration orchestration + status polling
-│   │   │   ├── registry.go                      Registry login/logout
-│   │   │   └── registry_login.go                Docker Hub OAuth device-flow browser login
+│   │   │   ├── gateway.go                     HTTP Gateway: route registration, Run/Shutdown
+│   │   │   ├── health.go                      Health HTTP handler
+│   │   │   ├── status.go                      Status HTTP handler
+│   │   │   ├── config.go                      Config HTTP handler
+│   │   │   ├── builds.go                      Build HTTP handlers
+│   │   │   ├── containers.go                  Container HTTP handlers
+│   │   │   ├── exec.go                        Exec HTTP handlers (WebSocket + one-shot)
+│   │   │   ├── images.go                      Image HTTP handlers
+│   │   │   ├── logs.go                        Log streaming HTTP handlers
+│   │   │   ├── volumes.go                     Volume HTTP handlers
+│   │   │   ├── volume_exports.go              Volume export HTTP handlers
+│   │   │   ├── volume_export_schedules.go     Scheduled export HTTP handlers
+│   │   │   ├── networks.go                    Network HTTP handlers
+│   │   │   ├── migrate.go                     Migration HTTP handlers
+│   │   │   ├── registry.go                    Registry HTTP handlers
+│   │   │   └── registry_login.go              Docker Hub login HTTP handlers
+│   │   ├── httpkit/
+│   │   │   ├── response.go                    JSON response helpers
+│   │   │   ├── json.go                        Request JSON decode helper
+│   │   │   ├── runtime_errors.go              Runtime error to HTTP status mapping
+│   │   │   ├── ws_writer.go                   Mutex-guarded WebSocket writer
+│   │   │   ├── websocket.go                   WebSocket upgrader for log/exec streams
+│   │   │   └── runtime_ready.go               HTTP guard before registry operations
+│   │   ├── middleware/
+│   │   │   ├── middleware.go                  Middleware type and Chain helper
+│   │   │   ├── cors.go                        CORS headers and OPTIONS preflight
+│   │   │   ├── logging.go                     Request logging
+│   │   │   └── recovery.go                    Panic recovery
+│   │   ├── daemon/
+│   │   │   ├── core.go                        Daemon Core struct, lifecycle, shared state
+│   │   │   ├── build_sync.go                  Background buildkit history sync
+│   │   │   ├── builds.go                      In-memory build history and build jobs
+│   │   │   ├── export_runner.go               Volume export execution
+│   │   │   ├── export_scheduler.go            Scheduled volume export background worker
+│   │   │   ├── host.go                        Host CPU/memory capacity probes
+│   │   │   ├── log_broadcaster.go             Fan-out of one nerdctl log stream to N subscribers
+│   │   │   ├── migrate.go                     Docker Desktop migration runner
+│   │   │   ├── registry_login.go              Docker Hub device-flow session manager
+│   │   │   └── runtime_ready.go               Start/wait for runtime (non-HTTP)
 │   │   ├── config/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
@@ -108,6 +129,9 @@ calf/
 │   │   │   └── lines.go                       ParseLines for command output
 │   │   ├── constants/
 │   │   │   └── constants.go                   Shared timeouts, defaults, log tail count, alpine smoke image
+│   │   ├── dockercli/
+│   │   │   ├── context.go                     Docker CLI context create/update/activate
+│   │   │   └── manager.go                     Background context manager loop
 │   │   ├── oauth/dockerhub/
 │   │   │   └── device.go                      Docker Hub OAuth2 device-code flow client, PAT generation
 │   │   └── browser/
@@ -205,20 +229,51 @@ Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` an
 - `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
 
 ### `internal/api/`
-HTTP server built on `net/http.ServeMux`. Every handler follows the same shape: check `OPTIONS` → `204`, switch on method, call into `s.runtime.X(ctx, ...)`, translate errors via `writeRuntimeError` (`503` for `ErrRuntimeNotRunning`, else `500`), otherwise `writeJSON`.
+HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and writes responses via `httpkit`.
 
-- `server.go` — `Server` struct (config, logger, `runtime.Runtime`, build history, migration status, registry sessions, log broadcaster); registers all `/v1/...` routes.
-- `handlers.go` — health/status/config endpoints.
-- `middleware.go` — request logging, panic recovery, CORS (`*`). Composed as `corsMiddleware(recoveryMiddleware(logger(...)))`.
-- `json.go` — small JSON decode helper.
-- `ws_writer.go` — mutex-guarded WebSocket writer with a write deadline.
-- `log_broadcaster.go` — multiplexes one `nerdctl` log stream to N WebSocket subscribers, keeps a 500-line history ring buffer, tears the stream down when the last subscriber disconnects.
-- `runtime_ready.go` — blocks until the runtime is running (3-minute timeout); used before registry login.
-- `runtime_errors.go` — maps runtime errors to HTTP status codes; `writeRuntimeOrFail` for handlers.
-- `builds.go` — in-memory build history; `POST` triggers `RunBuild`.
-- `containers.go` / `exec.go` / `images.go` / `logs.go` / `volumes.go` / `networks.go` — CRUD plus subresources (logs, inspect, mounts, files, exec, stats). Exec/logs use WebSocket; other operations use one-shot HTTP.
-- `migrate.go` — orchestrates the Docker Desktop migration in a background goroutine, exposes status polling.
-- `registry.go` / `registry_login.go` — basic registry login/logout plus Docker Hub OAuth device-flow browser login with session polling.
+- `gateway.go` — `Gateway` struct; registers all `/v1/...` routes; `WithMiddleware`; `Run`/`Shutdown` for the HTTP server.
+- `health.go` — `/v1/health`.
+- `status.go` — `/v1/status`.
+- `config.go` — `/v1/config` handler, response shape, and update logic.
+- `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
+
+### `internal/httpkit/`
+Shared HTTP utilities used by `api` handlers (not route handlers themselves).
+
+- `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`.
+- `json.go` — `JSONDecode`.
+- `runtime_errors.go` — maps runtime errors to HTTP status codes.
+- `ws_writer.go` — mutex-guarded WebSocket writer.
+- `websocket.go` — WebSocket upgrader for log/exec streams.
+- `runtime_ready.go` — `EnsureRuntimeOrFail` HTTP guard before registry operations.
+
+### `internal/middleware/`
+HTTP middleware stack; one file per middleware, registered from `main` via `Gateway.WithMiddleware`.
+
+- `middleware.go` — `Middleware` type and `Chain`.
+- `cors.go` — `CORS`.
+- `logging.go` — `Logging`.
+- `recovery.go` — `Recovery`.
+
+### `internal/daemon/`
+Daemon backend: shared state, background workers, and services used by the HTTP gateway.
+
+- `core.go` — `Core` struct; `New`/`Shutdown`.
+- `build_sync.go` — periodic buildkit history import and enrichment.
+- `builds.go` — in-memory build history, build jobs, persistence.
+- `export_runner.go` — `ExecuteVolumeExport`.
+- `export_scheduler.go` — scheduled volume export worker.
+- `host.go` — host CPU/memory capacity probes.
+- `log_broadcaster.go` — multiplexes one `nerdctl` log stream to N subscribers.
+- `migrate.go` — Docker Desktop migration runner.
+- `registry_login.go` — Docker Hub device-flow session manager.
+- `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
+
+### `internal/dockercli/`
+Docker CLI context management for pointing `docker` at the Calf socket.
+
+- `context.go` — context create/update/activate and status probes.
+- `manager.go` — `Manager` background loop; `Status` and `Activate`.
 
 ### `internal/utils/`
 - `http_response.go` — `WriteOK`.

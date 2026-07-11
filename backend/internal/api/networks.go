@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"context"
 	"net/http"
 	"strings"
@@ -10,7 +11,7 @@ import (
 )
 
 // handleNetworks serves GET /v1/networks with the list of Docker networks.
-func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleNetworks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -21,20 +22,20 @@ func (s *Server) handleNetworks(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
-		networks, err := s.runtime.ListNetworks(ctx)
+		networks, err := g.backend.Runtime.ListNetworks(ctx)
 		if err != nil {
-			writeRuntimeOrFail(w, err)
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, networks)
+		httpkit.WriteJSON(w, http.StatusOK, networks)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleNetworkAction serves GET and DELETE /v1/networks/{name} for inspect and removal.
-func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -43,7 +44,7 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/v1/networks/")
 	name = strings.Trim(name, "/")
 	if name == "" {
-		writeError(w, http.StatusNotFound, "network not found")
+		httpkit.WriteError(w, http.StatusNotFound, "network not found")
 		return
 	}
 
@@ -52,24 +53,24 @@ func (s *Server) handleNetworkAction(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
-		detail, err := s.runtime.InspectNetwork(ctx, name)
+		detail, err := g.backend.Runtime.InspectNetwork(ctx, name)
 		if err != nil {
-			writeRuntimeOrFail(w, err)
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, detail)
+		httpkit.WriteJSON(w, http.StatusOK, detail)
 	case http.MethodDelete:
 		ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 		defer cancel()
 
-		if err := s.runtime.RemoveNetwork(ctx, name); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.RemoveNetwork(ctx, name); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
 		utils.WriteOK(w)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }

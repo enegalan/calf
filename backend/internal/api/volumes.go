@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"net/http"
 	"strings"
 
@@ -8,7 +9,7 @@ import (
 )
 
 // handleVolumes serves GET /v1/volumes and POST /v1/volumes for listing and creating volumes.
-func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleVolumes(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -16,36 +17,36 @@ func (s *Server) handleVolumes(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case http.MethodGet:
-		volumes, err := s.runtime.ListVolumes(r.Context())
+		volumes, err := g.backend.Runtime.ListVolumes(r.Context())
 		if err != nil {
-			writeRuntimeOrFail(w, err)
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
-		writeJSON(w, http.StatusOK, volumes)
+		httpkit.WriteJSON(w, http.StatusOK, volumes)
 	case http.MethodPost:
 		var payload struct {
 			Name string `json:"name"`
 		}
 
-		if err := jsonDecode(r, &payload); err != nil {
-			writeError(w, http.StatusBadRequest, err.Error())
+		if err := httpkit.JSONDecode(r, &payload); err != nil {
+			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
-		if err := s.runtime.CreateVolume(r.Context(), payload.Name); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.CreateVolume(r.Context(), payload.Name); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
 		utils.WriteOK(w)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleVolumeAction routes /v1/volumes/{name} and subresource paths to the appropriate handler.
-func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
+func (g *Gateway) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -54,7 +55,7 @@ func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/v1/volumes/")
 	parts := strings.Split(path, "/")
 	if len(parts) == 0 || parts[0] == "" {
-		writeError(w, http.StatusNotFound, "volume not found")
+		httpkit.WriteError(w, http.StatusNotFound, "volume not found")
 		return
 	}
 
@@ -63,131 +64,131 @@ func (s *Server) handleVolumeAction(w http.ResponseWriter, r *http.Request) {
 	if len(parts) == 2 {
 		switch parts[1] {
 		case "files":
-			s.handleVolumeFiles(w, r, name)
+			g.handleVolumeFiles(w, r, name)
 			return
 		case "containers":
-			s.handleVolumeContainers(w, r, name)
+			g.handleVolumeContainers(w, r, name)
 			return
 		case "clone":
-			s.handleVolumeClone(w, r, name)
+			g.handleVolumeClone(w, r, name)
 			return
 		case "exports":
-			s.handleVolumeExports(w, r, name)
+			g.handleVolumeExports(w, r, name)
 			return
 		case "export-schedules":
-			s.handleVolumeExportSchedules(w, r, name)
+			g.handleVolumeExportSchedules(w, r, name)
 			return
 		}
 	}
 
 	if len(parts) == 3 && parts[1] == "export-schedules" {
-		s.handleVolumeExportScheduleItem(w, r, name, parts[2])
+		g.handleVolumeExportScheduleItem(w, r, name, parts[2])
 		return
 	}
 
 	if len(parts) == 4 && parts[1] == "exports" && parts[3] == "download" {
-		s.handleVolumeExportDownload(w, r, name, parts[2])
+		g.handleVolumeExportDownload(w, r, name, parts[2])
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
 		if len(parts) != 1 {
-			methodNotAllowed(w, r)
+			httpkit.MethodNotAllowed(w, r)
 			return
 		}
 
-		s.handleVolumeDetail(w, r, name)
+		g.handleVolumeDetail(w, r, name)
 	case http.MethodDelete:
 		if len(parts) != 1 {
-			methodNotAllowed(w, r)
+			httpkit.MethodNotAllowed(w, r)
 			return
 		}
 
-		if err := s.runtime.RemoveVolume(r.Context(), name); err != nil {
-			writeRuntimeOrFail(w, err)
+		if err := g.backend.Runtime.RemoveVolume(r.Context(), name); err != nil {
+			httpkit.WriteRuntimeOrFail(w, err)
 			return
 		}
 
 		utils.WriteOK(w)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleVolumeDetail serves GET /v1/volumes/{name} with volume inspect data.
-func (s *Server) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name string) {
+func (g *Gateway) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	detail, err := s.runtime.InspectVolume(r.Context(), name)
+	detail, err := g.backend.Runtime.InspectVolume(r.Context(), name)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, detail)
+	httpkit.WriteJSON(w, http.StatusOK, detail)
 }
 
 // handleVolumeFiles serves GET /v1/volumes/{name}/files for directory listing inside the volume.
-func (s *Server) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name string) {
+func (g *Gateway) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
-	files, err := s.runtime.ListVolumeFiles(r.Context(), name, path)
+	files, err := g.backend.Runtime.ListVolumeFiles(r.Context(), name, path)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, files)
+	httpkit.WriteJSON(w, http.StatusOK, files)
 }
 
 // handleVolumeContainers serves GET /v1/volumes/{name}/containers listing containers using the volume.
-func (s *Server) handleVolumeContainers(w http.ResponseWriter, r *http.Request, name string) {
+func (g *Gateway) handleVolumeContainers(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
-	containers, err := s.runtime.VolumeContainers(r.Context(), name)
+	containers, err := g.backend.Runtime.VolumeContainers(r.Context(), name)
 	if err != nil {
-		writeRuntimeOrFail(w, err)
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, containers)
+	httpkit.WriteJSON(w, http.StatusOK, containers)
 }
 
 // handleVolumeClone serves POST /v1/volumes/{name}/clone to duplicate a volume.
-func (s *Server) handleVolumeClone(w http.ResponseWriter, r *http.Request, name string) {
+func (g *Gateway) handleVolumeClone(w http.ResponseWriter, r *http.Request, name string) {
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	if r.Method != http.MethodPost {
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 		return
 	}
 
@@ -195,22 +196,22 @@ func (s *Server) handleVolumeClone(w http.ResponseWriter, r *http.Request, name 
 		Name string `json:"name"`
 	}
 
-	if err := jsonDecode(r, &payload); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if strings.TrimSpace(payload.Name) == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+		httpkit.WriteError(w, http.StatusBadRequest, "name is required")
 		return
 	}
 
-	if err := s.runtime.CloneVolume(r.Context(), name, payload.Name); err != nil {
-		writeRuntimeOrFail(w, err)
+	if err := g.backend.Runtime.CloneVolume(r.Context(), name, payload.Name); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{
+	httpkit.WriteJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 		"name":   payload.Name,
 	})

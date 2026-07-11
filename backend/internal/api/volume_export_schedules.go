@@ -2,67 +2,48 @@ package api
 
 import (
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/utils"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
-type dayTimePayload struct {
-	Day   int      `json:"day"`
-	Times []string `json:"times"`
-}
-
-type schedulePayload struct {
-	Enabled  *bool            `json:"enabled"`
-	DayTimes []dayTimePayload `json:"day_times"`
-	Type     string           `json:"type"`
-	FileName string           `json:"file_name"`
-	Folder   string           `json:"folder"`
-	ImageRef string           `json:"image_ref"`
-}
-
-// volumeScheduleStore opens the on-disk store for volume export schedules.
-func (s *Server) volumeScheduleStore() (*volumeexport.ScheduleStore, error) {
-	return volumeexport.NewScheduleStore()
-}
-
 // handleVolumeExportSchedules routes GET and POST /v1/volumes/{name}/export-schedules.
-func (s *Server) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Request, volumeName string) {
+func (g *Gateway) handleVolumeExportSchedules(w http.ResponseWriter, r *http.Request, volumeName string) {
 	switch r.Method {
 	case http.MethodGet:
-		s.handleVolumeExportSchedulesList(w, r, volumeName)
+		g.handleVolumeExportSchedulesList(w, r, volumeName)
 	case http.MethodPost:
-		s.handleVolumeExportScheduleCreate(w, r, volumeName)
+		g.handleVolumeExportScheduleCreate(w, r, volumeName)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleVolumeExportSchedulesList serves GET /v1/volumes/{name}/export-schedules.
-func (s *Server) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.Request, volumeName string) {
-	store, err := s.volumeScheduleStore()
+func (g *Gateway) handleVolumeExportSchedulesList(w http.ResponseWriter, r *http.Request, volumeName string) {
+	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
-		s.writeVolumeStoreError(w, "failed to open schedule store", err)
+		g.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
 	schedules, err := store.List(volumeName)
 	if err != nil {
-		s.writeVolumeStoreError(w, "failed to list export schedules", err)
+		g.writeVolumeStoreError(w, "failed to list export schedules", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, schedules)
+	httpkit.WriteJSON(w, http.StatusOK, schedules)
 }
 
 // handleVolumeExportScheduleCreate serves POST /v1/volumes/{name}/export-schedules.
-func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http.Request, volumeName string) {
-	var payload schedulePayload
+func (g *Gateway) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http.Request, volumeName string) {
+	var payload volumeexport.ScheduleInput
 
-	if err := jsonDecode(r, &payload); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -71,15 +52,15 @@ func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http
 		enabled = *payload.Enabled
 	}
 
-	schedule, err := s.buildScheduleFromPayload(volumeName, "", enabled, payload)
+	schedule, err := volumeexport.ScheduleFromInput(volumeName, "", enabled, payload)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	store, err := s.volumeScheduleStore()
+	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
-		s.writeVolumeStoreError(w, "failed to open schedule store", err)
+		g.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
@@ -87,43 +68,43 @@ func (s *Server) handleVolumeExportScheduleCreate(w http.ResponseWriter, r *http
 	schedule.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	if err := store.Save(schedule); err != nil {
-		s.writeVolumeStoreError(w, "failed to save export schedule", err)
+		g.writeVolumeStoreError(w, "failed to save export schedule", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, schedule)
+	httpkit.WriteJSON(w, http.StatusOK, schedule)
 }
 
 // handleVolumeExportScheduleItem routes PUT and DELETE for a single export schedule.
-func (s *Server) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
+func (g *Gateway) handleVolumeExportScheduleItem(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
 	switch r.Method {
 	case http.MethodPut:
-		s.handleVolumeExportScheduleUpdate(w, r, volumeName, scheduleID)
+		g.handleVolumeExportScheduleUpdate(w, r, volumeName, scheduleID)
 	case http.MethodDelete:
-		s.handleVolumeExportScheduleDelete(w, r, volumeName, scheduleID)
+		g.handleVolumeExportScheduleDelete(w, r, volumeName, scheduleID)
 	default:
-		methodNotAllowed(w, r)
+		httpkit.MethodNotAllowed(w, r)
 	}
 }
 
 // handleVolumeExportScheduleUpdate serves PUT /v1/volumes/{name}/export-schedules/{id}.
-func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
-	store, err := s.volumeScheduleStore()
+func (g *Gateway) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
+	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
-		s.writeVolumeStoreError(w, "failed to open schedule store", err)
+		g.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
 	existing, err := store.Get(volumeName, scheduleID)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "schedule not found")
+		httpkit.WriteError(w, http.StatusNotFound, "schedule not found")
 		return
 	}
 
-	var payload schedulePayload
+	var payload volumeexport.ScheduleInput
 
-	if err := jsonDecode(r, &payload); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+	if err := httpkit.JSONDecode(r, &payload); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -134,9 +115,9 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 
 	volumeexport.NormalizeSchedule(&existing)
 
-	merged := schedulePayload{
+	merged := volumeexport.ScheduleInput{
 		Enabled:  &enabled,
-		DayTimes: dayTimesToPayload(existing.DayTimes),
+		DayTimes: volumeexport.DayTimesToInput(existing.DayTimes),
 		Type:     existing.Type,
 		FileName: existing.FileName,
 		Folder:   existing.Folder,
@@ -163,9 +144,9 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 		merged.ImageRef = payload.ImageRef
 	}
 
-	schedule, err := s.buildScheduleFromPayload(volumeName, scheduleID, enabled, merged)
+	schedule, err := volumeexport.ScheduleFromInput(volumeName, scheduleID, enabled, merged)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -176,111 +157,25 @@ func (s *Server) handleVolumeExportScheduleUpdate(w http.ResponseWriter, r *http
 	schedule.LastError = existing.LastError
 
 	if err := store.Save(schedule); err != nil {
-		s.writeVolumeStoreError(w, "failed to save export schedule", err)
+		g.writeVolumeStoreError(w, "failed to save export schedule", err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, schedule)
+	httpkit.WriteJSON(w, http.StatusOK, schedule)
 }
 
 // handleVolumeExportScheduleDelete serves DELETE /v1/volumes/{name}/export-schedules/{id}.
-func (s *Server) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
-	store, err := s.volumeScheduleStore()
+func (g *Gateway) handleVolumeExportScheduleDelete(w http.ResponseWriter, r *http.Request, volumeName, scheduleID string) {
+	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
-		s.writeVolumeStoreError(w, "failed to open schedule store", err)
+		g.writeVolumeStoreError(w, "failed to open schedule store", err)
 		return
 	}
 
 	if err := store.Delete(volumeName, scheduleID); err != nil {
-		writeError(w, http.StatusNotFound, "schedule not found")
+		httpkit.WriteError(w, http.StatusNotFound, "schedule not found")
 		return
 	}
 
 	utils.WriteOK(w)
-}
-
-// buildScheduleFromPayload validates and constructs a Schedule from API input, computing NextRunAt when enabled.
-func (s *Server) buildScheduleFromPayload(
-	volumeName, scheduleID string,
-	enabled bool,
-	payload schedulePayload,
-) (volumeexport.Schedule, error) {
-	exportType := strings.TrimSpace(payload.Type)
-	fileName := strings.TrimSpace(payload.FileName)
-	folder := strings.TrimSpace(payload.Folder)
-	imageRef := strings.TrimSpace(payload.ImageRef)
-
-	if exportType == volumeexport.TypeLocalFile {
-		if fileName == "" {
-			fileName = volumeexport.DefaultFileNamePattern(volumeName)
-		}
-	} else if exportType == volumeexport.TypeNewImage || exportType == volumeexport.TypeRegistry {
-		if imageRef == "" {
-			imageRef = volumeexport.DefaultImageRefPattern(volumeName)
-		}
-	}
-
-	schedule := volumeexport.Schedule{
-		ID:       scheduleID,
-		Volume:   volumeName,
-		Enabled:  enabled,
-		DayTimes: dayTimesFromPayload(payload),
-		Type:     exportType,
-		FileName: fileName,
-		Folder:   folder,
-		ImageRef: imageRef,
-	}
-
-	volumeexport.NormalizeSchedule(&schedule)
-
-	if err := volumeexport.ValidateScheduleInput(schedule); err != nil {
-		return volumeexport.Schedule{}, err
-	}
-
-	if !enabled {
-		schedule.NextRunAt = ""
-		return schedule, nil
-	}
-
-	nextRun, err := volumeexport.ComputeNextRun(schedule, time.Now())
-	if err != nil {
-		return volumeexport.Schedule{}, err
-	}
-
-	schedule.NextRunAt = nextRun.UTC().Format(time.RFC3339)
-	return schedule, nil
-}
-
-// dayTimesFromPayload converts API day/time entries into volumeexport.DayTimeSchedule values.
-func dayTimesFromPayload(payload schedulePayload) []volumeexport.DayTimeSchedule {
-	if len(payload.DayTimes) == 0 {
-		return nil
-	}
-
-	entries := make([]volumeexport.DayTimeSchedule, 0, len(payload.DayTimes))
-	for _, entry := range payload.DayTimes {
-		entries = append(entries, volumeexport.DayTimeSchedule{
-			Day:   entry.Day,
-			Times: append([]string(nil), entry.Times...),
-		})
-	}
-
-	return entries
-}
-
-// dayTimesToPayload converts stored day/time schedules into API payload form.
-func dayTimesToPayload(entries []volumeexport.DayTimeSchedule) []dayTimePayload {
-	if len(entries) == 0 {
-		return nil
-	}
-
-	payload := make([]dayTimePayload, 0, len(entries))
-	for _, entry := range entries {
-		payload = append(payload, dayTimePayload{
-			Day:   entry.Day,
-			Times: append([]string(nil), entry.Times...),
-		})
-	}
-
-	return payload
 }

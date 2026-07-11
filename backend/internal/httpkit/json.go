@@ -1,4 +1,4 @@
-package api
+package httpkit
 
 import (
 	"encoding/json"
@@ -6,8 +6,8 @@ import (
 	"net/http"
 )
 
-// jsonDecode reads and unmarshals the request body into payload, closing the body when done.
-func jsonDecode(r *http.Request, payload any) error {
+// JSONDecode reads and unmarshals the request body into payload, closing the body when done.
+func JSONDecode(r *http.Request, payload any) error {
 	defer r.Body.Close()
 
 	body, err := io.ReadAll(r.Body)
