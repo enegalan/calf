@@ -161,6 +161,7 @@ func (g *Gateway) handleContainerFiles(w http.ResponseWriter, r *http.Request, i
 	httpkit.WriteJSON(w, http.StatusOK, files)
 }
 
+// containerExecRequest represents the JSON payload for POST /v1/containers/{id}/exec.
 type containerExecRequest struct {
 	Command string `json:"command"`
 }

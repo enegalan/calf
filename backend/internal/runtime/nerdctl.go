@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os/exec"
 	"regexp"
@@ -17,15 +16,11 @@ import (
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-const NerdctlBin = "/usr/local/bin/nerdctl"
-
-const defaultExecTerm = "xterm-256color"
-
 var logTailLines = strconv.Itoa(constants.LogTailLineCount)
 
 // NerdctlVMArgs prefixes nerdctl arguments with sudo and the VM binary path.
 func NerdctlVMArgs(args ...string) []string {
-	return append([]string{"sudo", NerdctlBin}, args...)
+	return append([]string{"sudo", constants.NerdctlBin}, args...)
 }
 
 // interactiveExecArgs builds nerdctl exec flags for an interactive shell session.
@@ -33,12 +28,13 @@ func interactiveExecArgs(id string) []string {
 	return []string{
 		"exec",
 		"-it",
-		"-e", "TERM=" + defaultExecTerm,
+		"-e", "TERM=" + constants.DefaultExecTerm,
 		id,
 		"/bin/sh",
 	}
 }
 
+// nerdctlLine represents a line in the nerdctl output.
 type nerdctlLine struct {
 	ID         string            `json:"ID"`
 	Names      string            `json:"Names"`
@@ -55,8 +51,10 @@ type nerdctlLine struct {
 	Size       string            `json:"Size"`
 }
 
+// commandRunner is a function that runs a command and returns the output.
 type commandRunner func(ctx context.Context, command string, args ...string) ([]byte, error)
 
+// stdinCommandRunner is a function that runs a command with stdin and returns the output.
 type stdinCommandRunner func(ctx context.Context, stdin, command string, args ...string) ([]byte, error)
 
 // listContainers runs nerdctl ps and parses JSON lines into Container values.
@@ -123,7 +121,7 @@ func runImage(ctx context.Context, run commandRunner, ref string) (string, error
 func pushImage(ctx context.Context, run commandRunner, ref string) error {
 	_, err := run(ctx, "nerdctl", "push", ref)
 	if err != nil {
-		return wrapPushError(ref, err)
+		return WrapPushError(ref, err)
 	}
 
 	return nil
@@ -264,6 +262,7 @@ func ParseImageLines(output []byte) ([]Image, error) {
 	return images, nil
 }
 
+// historyLine represents a line in the nerdctl history output.
 type historyLine struct {
 	CreatedSince string `json:"CreatedSince"`
 	CreatedBy    string `json:"CreatedBy"`
@@ -332,6 +331,7 @@ func formatLayerCommand(createdBy string) string {
 	return strings.ReplaceAll(createdBy, "#(nop)  ", "")
 }
 
+// volumeLine represents a line in the nerdctl volume ls output.
 type volumeLine struct {
 	Name   string `json:"Name"`
 	Driver string `json:"Driver"`
@@ -368,14 +368,15 @@ func ParseVolumeLines(output []byte) ([]Volume, error) {
 	return volumes, nil
 }
 
+// composeNamePattern is a regular expression for matching compose project and service names.
 var composeNamePattern = regexp.MustCompile(`^(.+)-([^-]+)-(\d+)$`)
 
 // composeFields extracts compose project and service from labels or container name.
 func composeFields(name string, labels map[string]string) (string, string) {
 	if labels != nil {
-		project := labels["com.docker.compose.project"]
+		project := labels[constants.ComposeProjectLabel]
 		if project != "" {
-			return project, labels["com.docker.compose.service"]
+			return project, labels[constants.ComposeServiceLabel]
 		}
 	}
 
@@ -606,12 +607,6 @@ func emitLogLines(output func(string), data []byte) {
 		}
 		output(line)
 	}
-}
-
-// streamLogs tails and follows container logs via a local nerdctl subprocess.
-func streamLogs(ctx context.Context, run commandRunner, id string, output func(string)) error {
-	command := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("nerdctl logs -f --tail %s %q", logTailLines, id))
-	return streamCommandLogs(ctx, command, output)
 }
 
 // pipeLines reads reader line by line and forwards non-noise lines to output.

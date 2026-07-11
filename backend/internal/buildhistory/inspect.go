@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"os"
 	"path"
 	"strings"
 )
 
+// InspectDetail represents the details of a buildx history entry.
 type InspectDetail struct {
 	Context    string
 	Dockerfile string
@@ -83,28 +85,23 @@ func parseInspectDetail(output string) (InspectDetail, error) {
 
 // resolveContextFromLabels infers a build context path from compose-related container labels.
 func resolveContextFromLabels(labels map[string]string) string {
-	if workingDir, ok := labels["com.docker.compose.project.working_dir"]; ok && workingDir != "" {
+	if workingDir, ok := labels[constants.ComposeWorkingDirLabel]; ok && workingDir != "" {
 		if _, err := os.Stat(workingDir); err == nil {
 			return workingDir
 		}
 	}
 
-	if configFiles, ok := labels["com.docker.compose.project.config_files"]; ok {
+	if configFiles, ok := labels[constants.ComposeConfigFilesLabel]; ok {
 		for _, part := range strings.Split(configFiles, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue
 			}
 			if _, err := os.Stat(part); err == nil {
-				return stripLastComponent(part)
+				return path.Dir(part)
 			}
 		}
 	}
 
 	return ""
-}
-
-// stripLastComponent returns the parent directory of a filesystem path.
-func stripLastComponent(p string) string {
-	return path.Dir(p)
 }

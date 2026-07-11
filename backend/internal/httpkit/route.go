@@ -83,7 +83,6 @@ func ServeMethod(method string, handler func(http.ResponseWriter, *http.Request)
 	}
 }
 
-
 // ServeRoutes dispatches requests by trailing path segments and HTTP method under prefix.
 // fallback handles requests with only a resource ID segment, keyed by HTTP method.
 func ServeRoutes(prefix, notFoundMsg string, routes []Route, fallback map[string]PartsHandler) http.HandlerFunc {

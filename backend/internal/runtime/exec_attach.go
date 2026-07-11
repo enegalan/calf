@@ -9,6 +9,7 @@ import (
 	"github.com/creack/pty"
 )
 
+// ExecResize represents a resize event for a PTY.
 type ExecResize struct {
 	Rows uint16
 	Cols uint16

@@ -249,6 +249,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+
             /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Containers', style: theme.textTheme.muted),
@@ -258,6 +259,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               size: 20,
               color: theme.colorScheme.primary,
             ),
+
             /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             Expanded(
@@ -289,6 +291,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+
             /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton(
@@ -306,6 +309,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 color: theme.colorScheme.primaryForeground,
               ),
             ),
+
             /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton.destructive(
@@ -337,6 +341,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             ),
           ),
         ],
+
         /// Creates a [_ComposeGroupDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
@@ -360,6 +365,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   busy: _busy,
                 ),
               ),
+
               /// Creates a [_ComposeGroupDetailViewState] widget.
               const SizedBox(width: 16),
               Expanded(
@@ -481,6 +487,7 @@ class _ComposeContainerRow extends StatelessWidget {
                   : Border.all(color: theme.colorScheme.mutedForeground),
             ),
           ),
+
           /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Icon(
@@ -488,6 +495,7 @@ class _ComposeContainerRow extends StatelessWidget {
             size: 18,
             color: theme.colorScheme.mutedForeground,
           ),
+
           /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Expanded(

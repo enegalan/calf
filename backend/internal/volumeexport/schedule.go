@@ -8,20 +8,17 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/enegalan/calf/backend/internal/config"
 )
 
-const (
-	// ScheduleRunGrace is how long after the scheduled minute a run slot stays open.
-	// It matches the scheduler tick interval so a once-per-minute poll cannot miss the slot.
-	ScheduleRunGrace = time.Minute
-)
-
+// DayTimeSchedule represents a day and time schedule.
 type DayTimeSchedule struct {
 	Day   int      `json:"day"`
 	Times []string `json:"times"`
 }
 
+// Schedule represents an export schedule.
 type Schedule struct {
 	ID         string            `json:"id"`
 	Volume     string            `json:"volume"`
@@ -38,20 +35,16 @@ type Schedule struct {
 	LastError  string            `json:"last_error,omitempty"`
 }
 
+// ScheduleStore represents a store of export schedules.
 type ScheduleStore struct {
 	root string
 }
 
 // NewScheduleStore creates a ScheduleStore rooted at ~/.config/calf/mounts/volume-export-schedules.
 func NewScheduleStore() (*ScheduleStore, error) {
-	home, err := os.UserHomeDir()
+	root, err := config.MountsSubdir("volume-export-schedules")
 	if err != nil {
-		return nil, fmt.Errorf("resolve home dir: %w", err)
-	}
-
-	root := filepath.Join(home, ".config", "calf", "mounts", "volume-export-schedules")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, fmt.Errorf("create schedule root: %w", err)
+		return nil, err
 	}
 
 	return &ScheduleStore{root: root}, nil
@@ -206,7 +199,7 @@ func (s *ScheduleStore) Delete(volumeName, id string) error {
 
 // NewID generates a unique schedule identifier for volumeName.
 func (s *ScheduleStore) NewID(volumeName string) string {
-	return fmt.Sprintf("schedule-%s-%d", sanitizeName(volumeName), time.Now().UnixNano())
+	return newResourceID("schedule", volumeName)
 }
 
 // writeVolume persists the schedule list for volumeName as JSON.

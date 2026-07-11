@@ -9,14 +9,17 @@ import (
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// attachmentRow represents a row in the buildx history inspect attachment format.
 type attachmentRow struct {
 	Type     string
 	Platform string
 	Digest   string
 }
 
+// ociManifest represents an OCI image manifest.
 type ociManifest struct {
 	Config struct {
 		MediaType string `json:"mediaType"`
@@ -38,13 +41,13 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 	}
 
 	artifacts := make([]runtime.BuildArtifact, 0, len(attachments)+1)
-	manifestPlatform := platformArch(platform)
+	manifestPlatform := runtime.PlatformArch(platform)
 
 	for _, attachment := range attachments {
 		switch attachment.Type {
 		case "application/vnd.oci.image.manifest.v1+json":
 			if attachment.Platform != "" {
-				manifestPlatform = platformArch(attachment.Platform)
+				manifestPlatform = runtime.PlatformArch(attachment.Platform)
 			}
 
 			manifestArtifacts, err := manifestArtifacts(ctx, socket, historyID, attachment.Digest, manifestPlatform)
@@ -98,13 +101,12 @@ func parseAttachmentRows(output string) []attachmentRow {
 
 		row := attachmentRow{}
 		for _, part := range strings.Split(line, "|") {
-			switch {
-			case strings.HasPrefix(part, "TYPE="):
-				row.Type = strings.TrimPrefix(part, "TYPE=")
-			case strings.HasPrefix(part, "PLATFORM="):
-				row.Platform = strings.TrimPrefix(part, "PLATFORM=")
-			case strings.HasPrefix(part, "DIGEST="):
-				row.Digest = strings.TrimPrefix(part, "DIGEST=")
+			if val, ok := strings.CutPrefix(part, "TYPE="); ok {
+				row.Type = val
+			} else if val, ok := strings.CutPrefix(part, "PLATFORM="); ok {
+				row.Platform = val
+			} else if val, ok := strings.CutPrefix(part, "DIGEST="); ok {
+				row.Digest = val
 			}
 		}
 
@@ -139,7 +141,7 @@ func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform 
 			Name:     manifest.Config.MediaType,
 			Platform: platform,
 			Digest:   manifest.Config.Digest,
-			Size:     runtime.FormatBytes(manifest.Config.Size),
+			Size:     utils.FormatBytes(manifest.Config.Size),
 		},
 	}, nil
 }
@@ -162,7 +164,7 @@ func attachmentArtifact(
 		Name:     name,
 		Platform: artifactPlatform,
 		Digest:   digestForBytes(output),
-		Size:     runtime.FormatBytes(int64(len(output))),
+		Size:     utils.FormatBytes(int64(len(output))),
 	}, nil
 }
 
@@ -173,7 +175,7 @@ func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]by
 		return nil, err
 	}
 
-	return bytesTrim(output), nil
+	return utils.TrimOutputBytes(output), nil
 }
 
 // digestForBytes returns a sha256 content digest prefixed for OCI-style artifact display.
@@ -217,27 +219,4 @@ func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtif
 	}
 
 	return ordered
-}
-
-// platformArch extracts the architecture segment from a docker platform string.
-func platformArch(platform string) string {
-	if platform == "" {
-		return ""
-	}
-
-	parts := strings.Split(platform, "/")
-	if len(parts) == 2 {
-		return parts[1]
-	}
-
-	if strings.HasPrefix(platform, "linux/") {
-		return strings.TrimPrefix(platform, "linux/")
-	}
-
-	return platform
-}
-
-// bytesTrim returns command output with surrounding whitespace removed.
-func bytesTrim(output []byte) []byte {
-	return []byte(strings.TrimSpace(string(output)))
 }

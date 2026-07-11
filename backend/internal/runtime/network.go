@@ -9,14 +9,18 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// networkLine represents a line in the nerdctl network list output.
 type networkLine struct {
 	ID     string `json:"ID"`
 	Name   string `json:"Name"`
 	Driver string `json:"Driver"`
 }
 
+// networkInspectRow represents a row in the nerdctl network inspect output.
 type networkInspectRow struct {
 	ID      string            `json:"Id"`
 	Name    string            `json:"Name"`
@@ -28,24 +32,29 @@ type networkInspectRow struct {
 	Labels  map[string]string `json:"Labels"`
 }
 
+// networkIPAM represents the IPAM configuration for a network.
 type networkIPAM struct {
 	Config []networkIPAMConfig `json:"Config"`
 }
 
+// networkIPAMConfig represents a configuration for a network IPAM.
 type networkIPAMConfig struct {
 	Subnet  string `json:"Subnet"`
 	Gateway string `json:"Gateway"`
 }
 
+// nativeNetworkInspect represents the inspect output for a native network.
 type nativeNetworkInspect struct {
 	CNI nativeNetworkCNI `json:"CNI"`
 }
 
+// nativeNetworkCNI represents the CNI configuration for a native network.
 type nativeNetworkCNI struct {
 	Name    string            `json:"name"`
 	Plugins []nativeCNIPlugin `json:"plugins"`
 }
 
+// nativeCNIPlugin represents a plugin in the CNI configuration.
 type nativeCNIPlugin struct {
 	Type        string        `json:"type"`
 	Bridge      string        `json:"bridge"`
@@ -56,28 +65,25 @@ type nativeCNIPlugin struct {
 	IPAM        nativeCNIIPAM `json:"ipam"`
 }
 
+// nativeCNIIPAM represents the IPAM configuration for a native CNI plugin.
 type nativeCNIIPAM struct {
 	Ranges [][][]nativeCNIIPAMRange `json:"ranges"`
 }
 
+// nativeCNIIPAMRange represents a range in the IPAM configuration for a native CNI plugin.
 type nativeCNIIPAMRange struct {
 	Subnet  string `json:"subnet"`
 	Gateway string `json:"gateway"`
 }
 
-// isPseudoNetwork reports whether name is a built-in pseudo network (host, none, or null).
-func isPseudoNetwork(name string) bool {
+// IsPseudoNetwork reports whether name refers to a built-in Docker pseudo network.
+func IsPseudoNetwork(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "host", "none", "null":
 		return true
 	default:
 		return false
 	}
-}
-
-// IsPseudoNetwork reports whether name refers to a built-in Docker pseudo network.
-func IsPseudoNetwork(name string) bool {
-	return isPseudoNetwork(name)
 }
 
 // listNetworks returns all user-defined networks, enriching list output with inspect metadata when available.
@@ -115,7 +121,7 @@ func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 		row, ok := metadata[networks[index].Name]
 		if !ok {
 			if networks[index].Scope == "" {
-				networks[index].Scope = defaultNetworkScope()
+				networks[index].Scope = constants.DefaultNetworkScope
 			}
 			continue
 		}
@@ -131,7 +137,7 @@ func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 		if scope := strings.TrimSpace(row.Scope); scope != "" {
 			networks[index].Scope = scope
 		} else {
-			networks[index].Scope = defaultNetworkScope()
+			networks[index].Scope = constants.DefaultNetworkScope
 		}
 		networks[index].Subnet = firstSubnet(row)
 		if networks[index].Subnet == "" {
@@ -147,7 +153,7 @@ func listNetworks(ctx context.Context, run commandRunner) ([]Network, error) {
 
 // inspectNetwork returns detailed metadata for a single network by name.
 func inspectNetwork(ctx context.Context, run commandRunner, name string) (NetworkDetail, error) {
-	if isPseudoNetwork(name) {
+	if IsPseudoNetwork(name) {
 		return NetworkDetail{}, fmt.Errorf("built-in network %q cannot be inspected", name)
 	}
 
@@ -167,7 +173,7 @@ func inspectNetwork(ctx context.Context, run commandRunner, name string) (Networ
 
 	scope := strings.TrimSpace(row.Scope)
 	if scope == "" {
-		scope = defaultNetworkScope()
+		scope = constants.DefaultNetworkScope
 	}
 
 	subnet := firstSubnet(row)
@@ -194,14 +200,14 @@ func inspectNetwork(ctx context.Context, run commandRunner, name string) (Networ
 		Scope:   scope,
 		Subnet:  subnet,
 		Gateway: gateway,
-		Created: humanizeNetworkCreated(row.Created),
+		Created: humanizeTime(strings.TrimSpace(row.Created)),
 		Options: options,
 	}, nil
 }
 
 // removeNetwork deletes a user-defined network via nerdctl, falling back to docker.
 func removeNetwork(ctx context.Context, run commandRunner, name string) error {
-	if isPseudoNetwork(name) {
+	if IsPseudoNetwork(name) {
 		return fmt.Errorf("built-in network %q cannot be removed", name)
 	}
 
@@ -212,6 +218,7 @@ func removeNetwork(ctx context.Context, run commandRunner, name string) error {
 	return err
 }
 
+// enrichedNetworkInspectRow represents a row in the enriched network inspect output.
 type enrichedNetworkInspectRow struct {
 	networkInspectRow
 	NativeDriver  string
@@ -261,7 +268,7 @@ func inspectNetworkMetadata(ctx context.Context, run commandRunner, name string)
 func networkInspectMetadataBatch(ctx context.Context, run commandRunner, names []string) (map[string]enrichedNetworkInspectRow, error) {
 	rows := make(map[string]enrichedNetworkInspectRow, len(names))
 	for _, name := range names {
-		if isPseudoNetwork(name) {
+		if IsPseudoNetwork(name) {
 			continue
 		}
 
@@ -369,7 +376,7 @@ func ParseNetworkLines(output []byte) ([]Network, error) {
 			continue
 		}
 
-		if row.Name == "" || isPseudoNetwork(row.Name) {
+		if row.Name == "" || IsPseudoNetwork(row.Name) {
 			continue
 		}
 
@@ -377,7 +384,7 @@ func ParseNetworkLines(output []byte) ([]Network, error) {
 			ID:     shortNetworkID(row.ID),
 			Name:   row.Name,
 			Driver: row.Driver,
-			Scope:  defaultNetworkScope(),
+			Scope:  constants.DefaultNetworkScope,
 		})
 	}
 
@@ -416,11 +423,6 @@ func firstGateway(row enrichedNetworkInspectRow) string {
 	return ""
 }
 
-// defaultNetworkScope returns the scope used when inspect output omits one.
-func defaultNetworkScope() string {
-	return "local"
-}
-
 // firstNonEmpty returns the first non-blank string from values.
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
@@ -444,16 +446,6 @@ func shortNetworkID(value string) string {
 	}
 
 	return value
-}
-
-// humanizeNetworkCreated formats a network creation timestamp for display.
-func humanizeNetworkCreated(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-
-	return humanizeTime(value)
 }
 
 // queryNerdctlNetworks lists networks via nerdctl JSON output.

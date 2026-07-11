@@ -3,12 +3,11 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/limavm"
 	"github.com/enegalan/calf/backend/internal/migration"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
@@ -31,7 +30,7 @@ func (s *Core) TryStartMigration() (migration.Status, bool) {
 
 	s.migrateRunning = true
 	s.migrateStatus = migration.Status{
-		Phase:    migration.PhaseRunning,
+		Phase:    migration.Phase(constants.MigrationPhaseRunning),
 		Step:     "starting",
 		Progress: 0,
 		Message:  "Starting migration",
@@ -41,7 +40,7 @@ func (s *Core) TryStartMigration() (migration.Status, bool) {
 
 // RunDockerDesktopMigration executes the Docker Desktop migration workflow in a background goroutine.
 func (s *Core) RunDockerDesktopMigration() {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.BuildJobTimeout)
 	defer cancel()
 
 	defer func() {
@@ -80,7 +79,7 @@ func (s *Core) RunDockerDesktopMigration() {
 	managed := s.Cfg.DockerContextManaged
 	s.CfgMu.RUnlock()
 
-	if status.Phase == migration.PhaseCompleted && managed {
+	if status.Phase == migration.Phase(constants.MigrationPhaseCompleted) && managed {
 		activateCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
 		defer cancel()
 		if err := s.DockerCLI.Activate(activateCtx); err != nil {
@@ -93,12 +92,11 @@ func (s *Core) RunDockerDesktopMigration() {
 func (s *Core) runNerdctl(ctx context.Context, args ...string) error {
 	vmName := s.Cfg.VMName
 	if vmName == "" {
-		vmName = "calf"
+		vmName = constants.DefaultVMName
 	}
 
-	shellArgs := append([]string{"shell", vmName, "--"}, runtime.NerdctlVMArgs(args...)...)
-	command := exec.CommandContext(ctx, "limactl", shellArgs...)
-	output, err := command.CombinedOutput()
+	shellArgs := runtime.NerdctlVMArgs(args...)
+	output, err := limavm.Shell(ctx, vmName, shellArgs...)
 	if err != nil {
 		return fmt.Errorf("nerdctl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}

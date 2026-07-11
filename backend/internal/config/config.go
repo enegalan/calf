@@ -14,6 +14,7 @@ import (
 //go:embed config.yaml
 var defaultConfigYAML []byte
 
+// Config represents the configuration for the application.
 type Config struct {
 	ListenAddr           string `yaml:"listen_addr"`
 	LogLevel             string `yaml:"log_level"`
@@ -44,12 +45,12 @@ func defaultFromYAML() Config {
 
 // Path returns the absolute path to ~/.config/calf/config.yaml.
 func Path() (string, error) {
-	home, err := os.UserHomeDir()
+	dir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(home, ".config", "calf", "config.yaml"), nil
+	return filepath.Join(dir, "config.yaml"), nil
 }
 
 // Load reads config from disk, writing defaults on first run, and backfills zero values.
@@ -122,7 +123,7 @@ func withDefaults(cfg Config) Config {
 	}
 
 	if cfg.VMName == "" {
-		cfg.VMName = defaults.VMName
+		cfg.VMName = constants.DefaultVMName
 	}
 
 	if cfg.PollIntervalMs <= 0 {

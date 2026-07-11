@@ -383,6 +383,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
           segments: ['Volumes', widget.volumeName],
           onBack: widget.onBack,
         ),
+
         /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 12),
         Row(
@@ -399,6 +400,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                         size: 20,
                         color: theme.colorScheme.foreground,
                       ),
+
                       /// Creates a [_VolumeDetailViewState] widget.
                       const SizedBox(width: 8),
                       Expanded(
@@ -410,6 +412,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       ),
                     ],
                   ),
+
                   /// Creates a [_VolumeDetailViewState] widget.
                   const SizedBox(height: 8),
                   if (_detailLoading)
@@ -434,6 +437,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                             shape: BoxShape.circle,
                           ),
                         ),
+
                         /// Creates a [_VolumeDetailViewState] widget.
                         const SizedBox(width: 8),
                         Text(
@@ -466,6 +470,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
             ),
           ],
         ),
+
         /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 16),
         CalfTabBar(
@@ -474,6 +479,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_VolumeDetailTab.values[index]),
         ),
+
         /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
@@ -583,6 +589,7 @@ class _ExportsTab extends StatelessWidget {
                       size: 28,
                       color: theme.colorScheme.mutedForeground,
                     ),
+
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 12),
                     Text(
@@ -591,6 +598,7 @@ class _ExportsTab extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 8),
                     Text(
@@ -619,6 +627,7 @@ class _ExportsTab extends StatelessWidget {
                   ],
                 ),
         ),
+
         /// Creates a [_ExportsTab] widget.
         const SizedBox(height: 16),
         _ExportSectionCard(
@@ -646,6 +655,7 @@ class _ExportsTab extends StatelessWidget {
                       size: 28,
                       color: theme.colorScheme.mutedForeground,
                     ),
+
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 12),
                     Text(
@@ -654,6 +664,7 @@ class _ExportsTab extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 8),
                     Text(
@@ -673,6 +684,7 @@ class _ExportsTab extends StatelessWidget {
                           color: theme.colorScheme.destructive,
                         ),
                       ),
+
                       /// Creates a [_ExportsTab] widget.
                       const SizedBox(height: 12),
                     ],
@@ -738,6 +750,7 @@ class _ExportSectionCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+
                     /// Creates a [_ExportSectionCard] widget.
                     const SizedBox(height: 4),
                     Text(subtitle, style: theme.textTheme.muted),
@@ -747,6 +760,7 @@ class _ExportSectionCard extends StatelessWidget {
               ?action,
             ],
           ),
+
           /// Creates a [_ExportSectionCard] widget.
           const SizedBox(height: 20),
           child,
@@ -818,6 +832,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
             ),
             child: Icon(_typeIcon, size: 18, color: theme.colorScheme.primary),
           ),
+
           /// Creates a [_ScheduleHistoryRow] widget.
           const SizedBox(width: 14),
           Expanded(
@@ -830,6 +845,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+
                 /// Creates a [_ScheduleHistoryRow] widget.
                 const SizedBox(height: 10),
                 if (schedule.dayTimes.isNotEmpty) ...[
@@ -854,6 +870,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                           ),
                       ],
                     ),
+
                     /// Creates a [_ScheduleHistoryRow] widget.
                     const SizedBox(height: 8),
                   ],
@@ -870,6 +887,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                         size: 14,
                         color: theme.colorScheme.mutedForeground,
                       ),
+
                       /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 6),
                       Expanded(
@@ -892,6 +910,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                         size: 14,
                         color: theme.colorScheme.mutedForeground,
                       ),
+
                       /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 6),
                       Text(
@@ -907,6 +926,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                   Row(
                     children: [
                       Text('Last run', style: theme.textTheme.small),
+
                       /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 8),
                       _ScheduleBadge(
@@ -931,6 +951,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
               ],
             ),
           ),
+
           /// Creates a [_ScheduleHistoryRow] widget.
           const SizedBox(width: 12),
           Row(
@@ -941,12 +962,14 @@ class _ScheduleHistoryRow extends StatelessWidget {
                 enabled ? 'Enabled' : 'Paused',
                 style: theme.textTheme.small.copyWith(color: enabledColor),
               ),
+
               /// Creates a [_ScheduleHistoryRow] widget.
               const SizedBox(width: 8),
               ShadSwitch(
                 value: enabled,
                 onChanged: toggling ? null : onEnabledChanged,
               ),
+
               /// Creates a [_ScheduleHistoryRow] widget.
               const SizedBox(width: 12),
               CalfButton.outline(onPressed: onEdit, child: const Text('Edit')),
@@ -1030,6 +1053,7 @@ class _ScheduleMiniChip extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, size: 12, color: foreground),
+
             /// Creates a [_ScheduleMiniChip] widget.
             const SizedBox(width: 4),
           ],
@@ -1066,6 +1090,7 @@ class _ExportHistoryRow extends StatelessWidget {
     final statusColor = switch (export.status) {
       'completed' => CalfColors.success,
       'failed' => theme.colorScheme.destructive,
+
       /// .
       _ => theme.colorScheme.mutedForeground,
     };
@@ -1084,6 +1109,7 @@ class _ExportHistoryRow extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+
                 /// Creates a [_ExportHistoryRow] widget.
                 const SizedBox(height: 4),
                 Text(
@@ -1107,10 +1133,12 @@ class _ExportHistoryRow extends StatelessWidget {
           ),
           if (export.size.isNotEmpty) ...[
             Text(export.size, style: theme.textTheme.muted),
+
             /// Creates a [_ExportHistoryRow] widget.
             const SizedBox(width: 16),
           ],
           Text(export.createdAt, style: theme.textTheme.muted),
+
           /// Creates a [_ExportHistoryRow] widget.
           const SizedBox(width: 16),
           Container(
@@ -1198,6 +1226,7 @@ class _ContainersInUseTab extends StatelessWidget {
             ],
           ),
         ),
+
         /// Creates a [_ContainersInUseTab] widget.
         const SizedBox(height: 8),
         Expanded(
@@ -1220,6 +1249,7 @@ class _ContainersInUseTab extends StatelessWidget {
                       size: 16,
                       color: theme.colorScheme.primary,
                     ),
+
                     /// Creates a [_ContainersInUseTab] widget.
                     const SizedBox(width: 8),
                     Expanded(

@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
@@ -13,6 +12,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// configView represents the JSON payload for GET /v1/config.
 type configView struct {
 	PollIntervalMs       int    `json:"poll_interval_ms"`
 	CPUs                 int    `json:"cpus"`
@@ -117,7 +117,7 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 
 	if proxyChanged {
 		go func() {
-			proxyCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			proxyCtx, cancel := context.WithTimeout(context.Background(), constants.DockerCLITimeout)
 			defer cancel()
 			if err := g.backend.Runtime.ApplyProxy(proxyCtx, runtime.ProxyConfig{
 				HTTPProxy:  saved.HTTPProxy,

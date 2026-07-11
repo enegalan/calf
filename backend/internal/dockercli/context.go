@@ -13,8 +13,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-const ContextName = "calf"
-
+// Status represents the current state of the docker CLI context.
 type Status struct {
 	Available      bool   `json:"available"`
 	CurrentContext string `json:"current_context"`
@@ -24,6 +23,7 @@ type Status struct {
 	Socket         string `json:"socket"`
 }
 
+// dockerConfig represents the current context of the docker CLI.
 type dockerConfig struct {
 	CurrentContext string `json:"currentContext"`
 }
@@ -41,11 +41,11 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	}
 
 	status.Available = true
-	status.CalfActive = status.CurrentContext == ContextName
+	status.CalfActive = status.CurrentContext == constants.DockerContextName
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
 	defer cancel()
-	status.CalfExists = contextExists(ctx, ContextName)
+	status.CalfExists = contextExists(ctx, constants.DockerContextName)
 
 	return status, nil
 }
@@ -97,11 +97,11 @@ func EnsureContext(ctx context.Context, socket string) error {
 	}
 
 	host := "unix://" + absSocket
-	if contextExists(ctx, ContextName) {
+	if contextExists(ctx, constants.DockerContextName) {
 		return updateContext(ctx, host)
 	}
 
-	command := exec.CommandContext(ctx, "docker", "context", "create", ContextName, "--docker", "host="+host)
+	command := exec.CommandContext(ctx, "docker", "context", "create", constants.DockerContextName, "--docker", "host="+host)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context create: %w: %s", err, strings.TrimSpace(string(output)))
@@ -112,7 +112,7 @@ func EnsureContext(ctx context.Context, socket string) error {
 
 // updateContext changes the docker host endpoint for an existing calf context.
 func updateContext(ctx context.Context, host string) error {
-	command := exec.CommandContext(ctx, "docker", "context", "update", ContextName, "--docker", "host="+host)
+	command := exec.CommandContext(ctx, "docker", "context", "update", constants.DockerContextName, "--docker", "host="+host)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context update: %w: %s", err, strings.TrimSpace(string(output)))
@@ -127,7 +127,7 @@ func ActivateContext(ctx context.Context) error {
 		return fmt.Errorf("docker CLI not found")
 	}
 
-	command := exec.CommandContext(ctx, "docker", "context", "use", ContextName)
+	command := exec.CommandContext(ctx, "docker", "context", "use", constants.DockerContextName)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context use: %w: %s", err, strings.TrimSpace(string(output)))
@@ -142,7 +142,7 @@ func EnsureAndActivate(ctx context.Context, socket string) error {
 		return err
 	}
 
-	if readCurrentContext() == ContextName {
+	if readCurrentContext() == constants.DockerContextName {
 		return nil
 	}
 

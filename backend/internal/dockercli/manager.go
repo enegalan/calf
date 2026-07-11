@@ -64,6 +64,7 @@ func (m *Manager) Activate(ctx context.Context) error {
 	return EnsureAndActivate(ctx, socket)
 }
 
+// ensure periodically ensures the Calf docker CLI context is active while managed mode is on.
 func (m *Manager) ensure(ctx context.Context) {
 	if !m.managed() {
 		return
@@ -79,7 +80,7 @@ func (m *Manager) ensure(ctx context.Context) {
 	}
 
 	status, err := m.runtime.Status(ctx)
-	if err != nil || status.State != runtime.StateRunning {
+	if err != nil || status.State != runtime.State(constants.RuntimeStateRunning) {
 		return
 	}
 

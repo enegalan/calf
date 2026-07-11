@@ -1,6 +1,7 @@
 package volumeexport
 
 import (
+	"github.com/enegalan/calf/backend/internal/constants"
 	"strings"
 	"time"
 )
@@ -28,11 +29,12 @@ func ScheduleFromInput(volumeName, scheduleID string, enabled bool, input Schedu
 	folder := strings.TrimSpace(input.Folder)
 	imageRef := strings.TrimSpace(input.ImageRef)
 
-	if exportType == TypeLocalFile {
+	switch exportType {
+	case constants.VolumeExportTypeLocalFile:
 		if fileName == "" {
 			fileName = DefaultFileNamePattern(volumeName)
 		}
-	} else if exportType == TypeNewImage || exportType == TypeRegistry {
+	case constants.VolumeExportTypeNewImage, constants.VolumeExportTypeRegistry:
 		if imageRef == "" {
 			imageRef = DefaultImageRefPattern(volumeName)
 		}
@@ -69,11 +71,6 @@ func ScheduleFromInput(volumeName, scheduleID string, enabled bool, input Schedu
 	return schedule, nil
 }
 
-// DayTimesFromInput converts API day/time entries into DayTimeSchedule values.
-func DayTimesFromInput(input ScheduleInput) []DayTimeSchedule {
-	return dayTimesFromInput(input)
-}
-
 // DayTimesToInput converts stored day/time schedules into API input form.
 func DayTimesToInput(entries []DayTimeSchedule) []DayTimeInput {
 	if len(entries) == 0 {
@@ -91,6 +88,7 @@ func DayTimesToInput(entries []DayTimeSchedule) []DayTimeInput {
 	return payload
 }
 
+// dayTimesFromInput converts ScheduleInput day/time entries into DayTimeSchedule values.
 func dayTimesFromInput(input ScheduleInput) []DayTimeSchedule {
 	if len(input.DayTimes) == 0 {
 		return nil

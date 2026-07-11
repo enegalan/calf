@@ -14,21 +14,21 @@ import (
 
 // Core holds daemon state, background workers, and services used by the HTTP API.
 type Core struct {
-	Cfg              config.Config
-	CfgMu            sync.RWMutex
-	Logger           *slog.Logger
-	Runtime          runtime.Runtime
-	StartTime        time.Time
-	BuildsMu         sync.RWMutex
-	Builds           []runtime.Build
-	BuildSeq         int
-	migrateMu        sync.RWMutex
-	migrateStatus    migration.Status
-	migrateRunning   bool
+	Cfg                   config.Config
+	CfgMu                 sync.RWMutex
+	Logger                *slog.Logger
+	Runtime               runtime.Runtime
+	StartTime             time.Time
+	BuildsMu              sync.RWMutex
+	Builds                []runtime.Build
+	BuildSeq              int
+	migrateMu             sync.RWMutex
+	migrateStatus         migration.Status
+	migrateRunning        bool
 	registryLoginSessions *sync.Map
-	logBroadcaster   *logBroadcaster
-	exportScheduler  *exportScheduler
-	DockerCLI        *dockercli.Manager
+	logBroadcaster        *logBroadcaster
+	exportScheduler       *exportScheduler
+	DockerCLI             *dockercli.Manager
 }
 
 // New constructs a Core, starts the export scheduler, and loads persisted build history.

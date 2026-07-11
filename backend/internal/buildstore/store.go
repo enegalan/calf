@@ -6,29 +6,20 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-const maxBuilds = 200
-
+// File represents a build store file.
 type File struct {
 	Builds []runtime.Build `json:"builds"`
 	Seq    int             `json:"seq"`
 }
 
-// Path returns the on-disk location of the persisted build history file.
-func Path() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(home, ".config", "calf", "builds.json"), nil
-}
-
 // Load reads the build history file, returning an empty file when it does not exist.
 func Load() (File, error) {
-	path, err := Path()
+	path, err := config.BuildsFilePath()
 	if err != nil {
 		return File{}, err
 	}
@@ -56,7 +47,7 @@ func Load() (File, error) {
 
 // Save atomically writes the build list and sequence counter to disk.
 func Save(builds []runtime.Build, seq int) error {
-	path, err := Path()
+	path, err := config.BuildsFilePath()
 	if err != nil {
 		return err
 	}
@@ -83,11 +74,11 @@ func Save(builds []runtime.Build, seq int) error {
 	return os.Rename(tmpPath, path)
 }
 
-// trimBuilds keeps the newest maxBuilds entries. Callers must maintain builds in newest-first order.
+// trimBuilds keeps at most MaxBuilds newest entries. Callers must maintain builds in newest-first order.
 func trimBuilds(builds []runtime.Build) []runtime.Build {
-	if len(builds) <= maxBuilds {
+	if len(builds) <= constants.MaxBuilds {
 		return builds
 	}
 
-	return builds[:maxBuilds]
+	return builds[:constants.MaxBuilds]
 }

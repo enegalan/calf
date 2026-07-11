@@ -23,6 +23,7 @@ func newLogBroadcaster() *logBroadcaster {
 	}
 }
 
+// sharedLogStream represents a shared log stream for a container.
 type sharedLogStream struct {
 	containerID string
 	subscribers map[chan string]struct{}

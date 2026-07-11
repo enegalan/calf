@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
@@ -15,7 +16,7 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 		return err
 	}
 
-	if status.State == runtime.StateRunning {
+	if status.State == runtime.State(constants.RuntimeStateRunning) {
 		return nil
 	}
 
@@ -35,7 +36,7 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 			return err
 		}
 
-		if status.State == runtime.StateRunning {
+		if status.State == runtime.State(constants.RuntimeStateRunning) {
 			return nil
 		}
 

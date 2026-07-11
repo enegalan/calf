@@ -8,20 +8,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
-const (
-	TypeLocalFile  = "local_file"
-	TypeLocalImage = "local_image"
-	TypeNewImage   = "new_image"
-	TypeRegistry   = "registry"
-
-	StatusRunning   = "running"
-	StatusCompleted = "completed"
-	StatusFailed    = "failed"
-)
-
+// Export represents an export.
 type Export struct {
 	ID           string `json:"id"`
 	Volume       string `json:"volume"`
@@ -36,20 +28,16 @@ type Export struct {
 	Downloadable bool   `json:"downloadable"`
 }
 
+// Store represents a store of exports.
 type Store struct {
 	root string
 }
 
 // NewStore creates a Store rooted at ~/.config/calf/mounts/volume-exports.
 func NewStore() (*Store, error) {
-	home, err := os.UserHomeDir()
+	root, err := config.MountsSubdir("volume-exports")
 	if err != nil {
-		return nil, fmt.Errorf("resolve home dir: %w", err)
-	}
-
-	root := filepath.Join(home, ".config", "calf", "mounts", "volume-exports")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, fmt.Errorf("create export root: %w", err)
+		return nil, err
 	}
 
 	return &Store{root: root}, nil
@@ -125,7 +113,7 @@ func (s *Store) Save(export Export) error {
 
 // NewID generates a unique export identifier for volumeName.
 func (s *Store) NewID(volumeName string) string {
-	return fmt.Sprintf("%s-%d", sanitizeName(volumeName), time.Now().UnixNano())
+	return newResourceID("", volumeName)
 }
 
 // ArchivePath returns the on-disk path for an export's archive.tar.gz file.
@@ -181,8 +169,7 @@ func sanitizeName(value string) string {
 		return "unknown"
 	}
 
-	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
-	value = replacer.Replace(value)
+	value = utils.SanitizeFileName(value)
 	if value == "." || value == ".." || strings.Contains(value, "..") {
 		return "unknown"
 	}

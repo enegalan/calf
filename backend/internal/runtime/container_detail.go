@@ -5,13 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os/exec"
 	"path"
 	"strings"
 	"unicode"
 )
 
+// ContainerMount represents a mount in a container.
 type ContainerMount struct {
 	Type        string `json:"type"`
 	Name        string `json:"name,omitempty"`
@@ -21,6 +20,7 @@ type ContainerMount struct {
 	RW          bool   `json:"rw"`
 }
 
+// ContainerFileEntry represents a file entry in a container.
 type ContainerFileEntry struct {
 	Name     string `json:"name"`
 	Path     string `json:"path"`
@@ -31,6 +31,7 @@ type ContainerFileEntry struct {
 	Note     string `json:"note,omitempty"`
 }
 
+// ContainerStats represents the stats of a container.
 type ContainerStats struct {
 	CPUPerc  string `json:"cpu_percent"`
 	MemUsage string `json:"mem_usage"`
@@ -40,6 +41,7 @@ type ContainerStats struct {
 	PIDs     string `json:"pids"`
 }
 
+// nerdctlStatsLine represents the stats of a container from nerdctl stats output.
 type nerdctlStatsLine struct {
 	CPUPerc  string `json:"CPUPerc"`
 	MemUsage string `json:"MemUsage"`
@@ -227,11 +229,6 @@ func execInContainer(ctx context.Context, run commandRunner, id string, command 
 	return strings.TrimSpace(string(output)), nil
 }
 
-// attachExecInContainer wires an interactive PTY exec to stdin, output, and resize channels.
-func attachExecInContainer(ctx context.Context, command *exec.Cmd, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
-	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
-}
-
 // containerStats fetches a single nerdctl stats snapshot for a container.
 func containerStats(ctx context.Context, run commandRunner, id string) (ContainerStats, error) {
 	output, err := run(ctx, "nerdctl", "stats", "--no-stream", "--format", "{{json .}}", id)
@@ -263,16 +260,6 @@ func containerStats(ctx context.Context, run commandRunner, id string) (Containe
 func restartContainer(ctx context.Context, run commandRunner, id string) error {
 	_, err := run(ctx, "nerdctl", "restart", id)
 	return err
-}
-
-// prettyInspectJSON reformats raw inspect JSON with indentation.
-func prettyInspectJSON(raw json.RawMessage) (string, error) {
-	var buffer bytes.Buffer
-	if err := json.Indent(&buffer, raw, "", "  "); err != nil {
-		return "", err
-	}
-
-	return buffer.String(), nil
 }
 
 // InspectSection returns one top-level inspect key, matching case-insensitively when needed.

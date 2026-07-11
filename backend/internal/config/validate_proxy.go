@@ -52,6 +52,7 @@ func ValidateProxyUpdate(req UpdateRequest) error {
 	return nil
 }
 
+// validateProxyURL validates a proxy URL against a list of allowed schemes.
 func validateProxyURL(raw string, allowedSchemes ...string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -85,10 +86,7 @@ func validateNoProxyEntry(entry string) error {
 		return fmt.Errorf("invalid no_proxy entry %q: must not contain a path", entry)
 	}
 
-	host := entry
-	if strings.HasPrefix(host, ".") {
-		host = host[1:]
-	}
+	host := strings.TrimPrefix(entry, ".")
 
 	if net.ParseIP(host) != nil {
 		return nil

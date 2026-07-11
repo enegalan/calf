@@ -8,24 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
-const composeProjectLabel = "com.docker.compose.project"
-const composeServiceLabel = "com.docker.compose.service"
-const composeWorkingDirLabel = "com.docker.compose.project.working_dir"
-const composeConfigFilesLabel = "com.docker.compose.project.config_files"
-
-var composeStageSkipDirs = map[string]struct{}{
-	".git":         {},
-	"node_modules": {},
-	"vendor":       {},
-	".next":        {},
-	"dist":         {},
-	"build":        {},
-	"__pycache__":  {},
-}
-
+// composeProjectGroup represents a compose project with its containers and metadata.
 type composeProjectGroup struct {
 	Name        string
 	WorkingDir  string
@@ -51,7 +40,7 @@ func groupContainersByComposeProject(inspects []containerInspect, running map[st
 		if !ok {
 			group = &composeProjectGroup{
 				Name:       project,
-				WorkingDir: inspect.Config.Labels[composeWorkingDirLabel],
+				WorkingDir: inspect.Config.Labels[constants.ComposeWorkingDirLabel],
 				WasRunning: make(map[string]bool),
 			}
 			group.ConfigFiles = composeConfigFiles(inspect)
@@ -59,7 +48,7 @@ func groupContainersByComposeProject(inspects []containerInspect, running map[st
 		}
 
 		if group.WorkingDir == "" {
-			group.WorkingDir = inspect.Config.Labels[composeWorkingDirLabel]
+			group.WorkingDir = inspect.Config.Labels[constants.ComposeWorkingDirLabel]
 		}
 		if len(group.ConfigFiles) == 0 {
 			group.ConfigFiles = composeConfigFiles(inspect)
@@ -87,7 +76,7 @@ func composeProjectName(inspect containerInspect) string {
 		return ""
 	}
 
-	return inspect.Config.Labels[composeProjectLabel]
+	return inspect.Config.Labels[constants.ComposeProjectLabel]
 }
 
 // composeConfigFiles parses the comma-separated compose config file list from container labels.
@@ -96,7 +85,7 @@ func composeConfigFiles(inspect containerInspect) []string {
 		return nil
 	}
 
-	raw := strings.TrimSpace(inspect.Config.Labels[composeConfigFilesLabel])
+	raw := strings.TrimSpace(inspect.Config.Labels[constants.ComposeConfigFilesLabel])
 	if raw == "" {
 		return nil
 	}
@@ -121,7 +110,7 @@ func composeServiceImages(containers []containerInspect) map[string]string {
 			continue
 		}
 
-		service := inspect.Config.Labels[composeServiceLabel]
+		service := inspect.Config.Labels[constants.ComposeServiceLabel]
 		if service == "" || inspect.Config.Image == "" {
 			continue
 		}
@@ -142,7 +131,7 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", fmt.Errorf("compose working dir %s: %w", group.WorkingDir, err)
 	}
 
-	destDir := filepath.Join(mountsRoot, "compose", sanitizeFileName(group.Name))
+	destDir := filepath.Join(mountsRoot, "compose", utils.SanitizeFileName(group.Name))
 	if err := os.RemoveAll(destDir); err != nil {
 		return "", "", err
 	}
@@ -164,8 +153,8 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", err
 	}
 
-	vmDir := VMPath(destDir)
-	vmComposePath := VMPath(composePath)
+	vmDir := config.HostMountToVMPath(destDir)
+	vmComposePath := config.HostMountToVMPath(composePath)
 	return vmDir, vmComposePath, nil
 }
 
@@ -318,7 +307,7 @@ func copyDir(source, dest string) error {
 
 		if rel != "." {
 			parts := strings.Split(rel, string(os.PathSeparator))
-			if _, skip := composeStageSkipDirs[parts[0]]; skip {
+			if _, skip := constants.ComposeStageSkipDirs[parts[0]]; skip {
 				if info.IsDir() {
 					return filepath.SkipDir
 				}

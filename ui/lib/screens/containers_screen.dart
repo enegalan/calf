@@ -301,6 +301,7 @@ class _ContainersScreenState extends State<ContainersScreen>
         Row(
           children: [
             Text('Containers', style: theme.textTheme.h3),
+
             /// Creates a [_ContainersScreenState] widget.
             const SizedBox(width: 12),
             Text(
@@ -309,6 +310,7 @@ class _ContainersScreenState extends State<ContainersScreen>
             ),
           ],
         ),
+
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
@@ -320,12 +322,14 @@ class _ContainersScreenState extends State<ContainersScreen>
             color: theme.colorScheme.mutedForeground,
           ),
         ),
+
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 12),
         RunningFilterSwitch(
           value: _runningOnly,
           onChanged: (value) => setState(() => _runningOnly = value),
         ),
+
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
         if (_runtime?.portConflicts.isNotEmpty == true)
@@ -490,6 +494,7 @@ class _ComposeGroupTile extends StatelessWidget {
                   size: 16,
                 ),
               ),
+
               /// Creates a [_ComposeGroupTile] widget.
               const SizedBox(width: 4),
               Expanded(
@@ -499,6 +504,7 @@ class _ComposeGroupTile extends StatelessWidget {
                   child: Row(
                     children: [
                       _ComposeStackIcon(containers: containers, theme: theme),
+
                       /// Creates a [_ComposeGroupTile] widget.
                       const SizedBox(width: 10),
                       Expanded(

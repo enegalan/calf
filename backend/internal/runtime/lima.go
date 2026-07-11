@@ -20,13 +20,18 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// limaLogger is the logger for the Lima runtime.
 var limaLogger = slog.Default()
 
 //go:embed lima.yaml
 var limaTemplate string
 
+// Lima represents a Lima VM runtime.
 type Lima struct {
 	mu sync.Mutex
 
@@ -50,11 +55,11 @@ type Lima struct {
 // NewLima constructs a Lima VM runtime with resource limits and proxy settings.
 func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
 	if vmName == "" {
-		vmName = "calf"
+		vmName = constants.DefaultVMName
 	}
 
 	if dockerSocket == "" {
-		dockerSocket = defaultDockerSocket()
+		dockerSocket = config.DefaultDockerSocketPath()
 	}
 
 	lima := &Lima{
@@ -98,7 +103,7 @@ func (l *Lima) Start(ctx context.Context) error {
 		}
 	}
 
-	if _, err := runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
+	if _, err := runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
 		return err
 	}
 
@@ -154,8 +159,8 @@ func (l *Lima) Stop(ctx context.Context) error {
 // Status reports VM mode, running state, socket health, and port conflicts.
 func (l *Lima) Status(ctx context.Context) (Status, error) {
 	status := Status{
-		Mode:         ModeVM,
-		State:        StateStopped,
+		Mode:         Mode(constants.RuntimeModeVM),
+		State:        State(constants.RuntimeStateStopped),
 		DockerSocket: l.dockerSocket,
 		VMName:       l.vmName,
 	}
@@ -183,7 +188,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 		found = true
 
 		if strings.Contains(strings.ToLower(fields[1]), "running") {
-			status.State = StateRunning
+			status.State = State(constants.RuntimeStateRunning)
 		} else {
 			limaLogger.Warn("vm not running", "vm", l.vmName, "status", fields[1])
 		}
@@ -193,7 +198,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 		status.Log = "VM not found in limactl list"
 	}
 
-	if status.State == StateRunning && l.dockerSocket != "" {
+	if status.State == State(constants.RuntimeStateRunning) && l.dockerSocket != "" {
 		conn, err := net.DialTimeout("unix", l.dockerSocket, 100*time.Millisecond)
 		if err != nil {
 			if errors.Is(err, syscall.ENOENT) {
@@ -205,7 +210,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 			tcpConn, tcpErr := net.DialTimeout("tcp", "127.0.0.1:2375", 100*time.Millisecond)
 			if tcpErr != nil {
 				limaLogger.Warn("tcp fallback also failed", "error", tcpErr)
-				status.State = StateStopped
+				status.State = State(constants.RuntimeStateStopped)
 				status.Log = fmt.Sprintf("socket dial failed: %v", err)
 			} else {
 				tcpConn.Close()
@@ -216,7 +221,7 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 	}
 
 	l.mu.Lock()
-	if status.State == StateRunning && l.lastState != StateRunning {
+	if status.State == State(constants.RuntimeStateRunning) && l.lastState != State(constants.RuntimeStateRunning) {
 		l.started.Store(true)
 		l.proxyResync.Store(true)
 	}
@@ -325,7 +330,7 @@ func (l *Lima) watchPortProxies(ctx context.Context) {
 			return
 		case <-ticker.C:
 			status, err := l.Status(ctx)
-			if err != nil || status.State != StateRunning || !l.started.Load() {
+			if err != nil || status.State != State(constants.RuntimeStateRunning) || !l.started.Load() {
 				continue
 			}
 
@@ -570,7 +575,7 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", interactiveExecArgs(id)...)...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
-	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
+	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 
 // ContainerStats returns CPU and memory usage for a running container.
@@ -594,24 +599,24 @@ func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 // runInVM executes a command inside the Lima VM via limactl shell.
 func (l *Lima) runInVM(ctx context.Context, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", "limactl", shellArgs...)
+	return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", shellArgs...)
 }
 
 // runInVMWithStdin executes a command inside the VM with stdin via limactl shell.
 func (l *Lima) runInVMWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, "limactl", shellArgs...)
+	return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, stdin, "limactl", shellArgs...)
 }
 
 // RegistryStatus reports whether the VM root user is logged in to the default registry.
 func (l *Lima) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
-		return RegistryStatus{Server: defaultRegistryServer}, nil
+		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 
 	output, err := l.runInVM(ctx, "sudo", "cat", "/root/.docker/config.json")
 	if err != nil {
-		return RegistryStatus{Server: defaultRegistryServer}, nil
+		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 
 	return RegistryStatusFromConfig(output), nil
@@ -655,7 +660,7 @@ func limaShellEnv() []string {
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	for time.Now().Before(deadline) {
-		_, err := runCommandOnce(ctx, "", "limactl", "shell", l.vmName, "--", "sudo", NerdctlBin, "info")
+		_, err := runCommandOnce(ctx, "", "limactl", "shell", l.vmName, "--", "sudo", constants.NerdctlBin, "info")
 		if err == nil {
 			return nil
 		}
@@ -722,32 +727,12 @@ func (l *Lima) ensureTemplate() error {
 
 // templateFile returns the path to the generated lima.yaml in the config dir.
 func (l *Lima) templateFile() (string, error) {
-	configDir, err := configDir()
+	configDir, err := config.ConfigDir()
 	if err != nil {
 		return "", err
 	}
 
 	return filepath.Join(configDir, "lima.yaml"), nil
-}
-
-// configDir returns ~/.config/calf, creating the path components as needed.
-func configDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(home, ".config", "calf"), nil
-}
-
-// defaultDockerSocket returns the default Calf Docker socket path under ~/.config/calf.
-func defaultDockerSocket() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-
-	return filepath.Join(home, ".config", "calf", "docker.sock")
 }
 
 // dockerCLISocketPath returns ~/.docker/run/docker.sock used by the Docker CLI.

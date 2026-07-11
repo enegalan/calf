@@ -1,9 +1,9 @@
 package api
 
 import (
-	"github.com/enegalan/calf/backend/internal/httpkit"
 	"context"
 	"fmt"
+	"github.com/enegalan/calf/backend/internal/httpkit"
 	"io"
 	"net/http"
 	"os"
@@ -12,7 +12,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/daemon"
-	"github.com/enegalan/calf/backend/internal/volumeexport"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // writeVolumeStoreError logs err and writes a generic 500 JSON error response.
@@ -61,9 +61,9 @@ func (g *Gateway) handleVolumeExportCreate(w http.ResponseWriter, r *http.Reques
 	folder := strings.TrimSpace(payload.Folder)
 	imageRef := strings.TrimSpace(payload.ImageRef)
 
-	if exportType == volumeexport.TypeLocalFile {
+	if exportType == constants.VolumeExportTypeLocalFile {
 		if fileName == "" {
-			fileName = volumeexport.SanitizeExportFileName(volumeName) + ".tar.gz"
+			fileName = utils.SanitizeExportFileName(volumeName) + ".tar.gz"
 		}
 
 		if folder == "" {
@@ -111,7 +111,7 @@ func (g *Gateway) handleVolumeExportDownload(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if !export.Downloadable || export.Status != volumeexport.StatusCompleted {
+	if !export.Downloadable || export.Status != constants.JobStatusCompleted {
 		httpkit.WriteError(w, http.StatusBadRequest, "export is not downloadable")
 		return
 	}

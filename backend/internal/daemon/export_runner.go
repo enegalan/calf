@@ -5,10 +5,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/internal/utils"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
+// VolumeExportRequest represents a request to export a volume.
 type VolumeExportRequest struct {
 	Type     string
 	FileName string
@@ -47,15 +50,15 @@ func (s *Core) ExecuteVolumeExport(ctx context.Context, volumeName string, reque
 		ID:        exportID,
 		Volume:    volumeName,
 		Type:      exportType,
-		Status:    volumeexport.StatusRunning,
+		Status:    constants.JobStatusRunning,
 		CreatedAt: createdAt,
 		FileName:  request.FileName,
 		FilePath:  request.Folder,
 		ImageRef:  request.ImageRef,
 	}
 
-	if exportType == volumeexport.TypeLocalFile && export.FileName == "" {
-		export.FileName = volumeexport.SanitizeExportFileName(volumeName) + ".tar.gz"
+	if exportType == constants.VolumeExportTypeLocalFile && export.FileName == "" {
+		export.FileName = utils.SanitizeExportFileName(volumeName) + ".tar.gz"
 	}
 
 	if _, err := store.EnsureExportDir(volumeName, exportID); err != nil {
@@ -77,25 +80,25 @@ func (s *Core) ExecuteVolumeExport(ctx context.Context, volumeName string, reque
 
 	resultPath, err := s.Runtime.ExportVolume(ctx, opts)
 	if err != nil {
-		export.Status = volumeexport.StatusFailed
+		export.Status = constants.JobStatusFailed
 		export.Error = err.Error()
 		_ = store.Save(export)
 		return export, err
 	}
 
-	export.Status = volumeexport.StatusCompleted
-	export.Downloadable = exportType == volumeexport.TypeLocalFile
+	export.Status = constants.JobStatusCompleted
+	export.Downloadable = exportType == constants.VolumeExportTypeLocalFile
 
 	switch exportType {
-	case volumeexport.TypeLocalFile:
+	case constants.VolumeExportTypeLocalFile:
 		export.FilePath = resultPath
 		if info, statErr := os.Stat(archivePath); statErr == nil {
-			export.Size = runtime.FormatBytes(info.Size())
+			export.Size = utils.FormatBytes(info.Size())
 		}
-	case volumeexport.TypeLocalImage, volumeexport.TypeNewImage, volumeexport.TypeRegistry:
+	case constants.VolumeExportTypeLocalImage, constants.VolumeExportTypeNewImage, constants.VolumeExportTypeRegistry:
 		export.ImageRef = resultPath
 		if info, statErr := os.Stat(archivePath); statErr == nil {
-			export.Size = runtime.FormatBytes(info.Size())
+			export.Size = utils.FormatBytes(info.Size())
 		}
 	}
 

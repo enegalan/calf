@@ -48,7 +48,7 @@ func (s *Core) syncBuildHistory(ctx context.Context) {
 	}
 
 	status, err := s.Runtime.Status(ctx)
-	if err != nil || status.State != runtime.StateRunning {
+	if err != nil || status.State != runtime.State(constants.RuntimeStateRunning) {
 		return
 	}
 

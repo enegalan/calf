@@ -11,6 +11,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/oauth/dockerhub"
 )
 
+// registryLoginSession represents a Docker Hub OAuth device-code login session.
 type registryLoginSession struct {
 	mu              sync.RWMutex
 	id              string
@@ -89,6 +90,7 @@ func (s *Core) RegistryDeviceLoginStatus(sessionID string) (RegistryDeviceLoginS
 	}, true
 }
 
+// loginSessions returns the sync.Map of registry login sessions.
 func (s *Core) loginSessions() *sync.Map {
 	if s.registryLoginSessions == nil {
 		s.registryLoginSessions = &sync.Map{}
@@ -96,6 +98,7 @@ func (s *Core) loginSessions() *sync.Map {
 	return s.registryLoginSessions
 }
 
+// completeRegistryDeviceLogin completes a Docker Hub OAuth device-code flow.
 func (s *Core) completeRegistryDeviceLogin(ctx context.Context, client *dockerhub.Client, session *registryLoginSession, state dockerhub.DeviceCode) {
 	defer session.cancel()
 
@@ -159,6 +162,7 @@ func (s *Core) completeRegistryDeviceLogin(ctx context.Context, client *dockerhu
 	})
 }
 
+// newRegistrySessionID generates a random 16-byte hex string for a registry login session.
 func newRegistrySessionID() string {
 	var bytes [16]byte
 	_, _ = rand.Read(bytes[:])

@@ -7,8 +7,11 @@ import (
 	"io"
 	"path/filepath"
 	"sync"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// Mock represents a mock runtime.
 type Mock struct {
 	mu sync.Mutex
 
@@ -36,10 +39,10 @@ type Mock struct {
 func NewMock() *Mock {
 	return &Mock{
 		StatusValue: Status{
-			Mode:         ModeVM,
-			State:        StateRunning,
+			Mode:         Mode(constants.RuntimeModeVM),
+			State:        State(constants.RuntimeStateRunning),
 			DockerSocket: "/tmp/calf-test.sock",
-			VMName:       "calf",
+			VMName:       constants.DefaultVMName,
 		},
 		Containers: []Container{
 			{
@@ -83,7 +86,7 @@ func (m *Mock) Start(_ context.Context) error {
 	}
 
 	m.Started = true
-	m.StatusValue.State = StateRunning
+	m.StatusValue.State = State(constants.RuntimeStateRunning)
 	return nil
 }
 
@@ -97,7 +100,7 @@ func (m *Mock) Stop(_ context.Context) error {
 	}
 
 	m.Started = false
-	m.StatusValue.State = StateStopped
+	m.StatusValue.State = State(constants.RuntimeStateStopped)
 	return nil
 }
 
@@ -146,7 +149,7 @@ func (m *Mock) ImageHistory(_ context.Context, ref string) ([]ImageLayer, error)
 		return nil, m.ImagesErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -163,7 +166,7 @@ func (m *Mock) ListVolumes(_ context.Context) ([]Volume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return []Volume{}, nil
 	}
 
@@ -269,7 +272,7 @@ func (m *Mock) InspectVolume(_ context.Context, name string) (VolumeDetail, erro
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return VolumeDetail{}, ErrRuntimeNotRunning
 	}
 
@@ -295,7 +298,7 @@ func (m *Mock) ListVolumeFiles(_ context.Context, name, path string) ([]Containe
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -335,7 +338,7 @@ func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContain
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -361,7 +364,7 @@ func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContain
 			ID:     container.ID,
 			Name:   container.Name,
 			Image:  container.Image,
-			Port:   extractHostPort(container.Ports),
+			Port:   ExtractHostTCPPort(container.Ports),
 			Target: "/data",
 		},
 	}, nil
@@ -486,7 +489,7 @@ func (m *Mock) RunImage(_ context.Context, ref string) (string, error) {
 		return "", m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return "", ErrRuntimeNotRunning
 	}
 
@@ -649,15 +652,15 @@ func (m *Mock) RegistryStatus(_ context.Context) (RegistryStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
-		return RegistryStatus{Server: defaultRegistryServer}, nil
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 
 	if m.registryLoggedIn {
-		return RegistryStatus{LoggedIn: true, Server: defaultRegistryServer, Username: "demo"}, nil
+		return RegistryStatus{LoggedIn: true, Server: constants.DefaultRegistryServer, Username: "demo"}, nil
 	}
 
-	return RegistryStatus{Server: defaultRegistryServer}, nil
+	return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 }
 
 // RegistryLogin marks the mock runtime as logged in to the registry.
@@ -669,7 +672,7 @@ func (m *Mock) RegistryLogin(_ context.Context, _, username, password string) er
 		return m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 
@@ -690,7 +693,7 @@ func (m *Mock) RegistryLogout(_ context.Context, _ string) error {
 		return m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 
@@ -703,7 +706,7 @@ func (m *Mock) ListNetworks(_ context.Context) ([]Network, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return []Network{}, nil
 	}
 
@@ -719,7 +722,7 @@ func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, er
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return NetworkDetail{}, ErrRuntimeNotRunning
 	}
 
@@ -754,7 +757,7 @@ func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 

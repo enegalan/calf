@@ -5,6 +5,8 @@ import (
 	goruntime "runtime"
 	"strconv"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // HostCPUs returns the number of logical CPUs on the host.
@@ -22,7 +24,7 @@ func HostMemoryGB() int {
 	if err != nil {
 		return 8
 	}
-	gb := int(bytes / (1024 * 1024 * 1024))
+	gb := int(bytes / constants.BytesPerGiB)
 	if gb < 1 {
 		return 1
 	}

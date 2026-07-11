@@ -188,12 +188,14 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Images', style: theme.textTheme.h3),
+
         /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+
         /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
@@ -391,6 +393,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+
             /// Creates a [_ImageDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Images', style: theme.textTheme.muted),
@@ -404,6 +407,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
             ),
           ],
         ),
+
         /// Creates a [_ImageDetailViewState] widget.
         const SizedBox(height: 12),
         Row(
@@ -418,6 +422,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     style: theme.textTheme.h3,
                     overflow: TextOverflow.ellipsis,
                   ),
+
                   /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 8),
                   Text(image.shortId, style: theme.textTheme.muted),
@@ -432,6 +437,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     ),
                     Text(image.created, style: theme.textTheme.large),
                   ],
+
                   /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 12),
                   Text(
@@ -464,6 +470,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     color: theme.colorScheme.foreground,
                   ),
                 ),
+
                 /// Creates a [_ImageDetailViewState] widget.
                 const SizedBox(width: 8),
                 CalfButton.destructive(
@@ -480,6 +487,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
             ),
           ],
         ),
+
         /// Creates a [_ImageDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
@@ -515,6 +523,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   style: theme.textTheme.large,
                 ),
               ),
+
               /// Creates a [_ImageDetailViewState] widget.
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
               _buildLayersSliver(theme, layers, layersLoading, layersError),
@@ -580,6 +589,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+
               /// Creates a [_ImageDetailViewState] widget.
               const SizedBox(width: 16),
               SizedBox(

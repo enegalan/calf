@@ -237,6 +237,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
           segments: ['Builds', detail?.tag ?? widget.buildId],
           onBack: widget.onBack,
         ),
+
         /// Creates a [_BuildDetailViewState] widget.
         const SizedBox(height: 12),
         if (_detailLoading)
@@ -257,11 +258,13 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(detail.tag, style: theme.textTheme.h3),
+
                     /// Creates a [_BuildDetailViewState] widget.
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Text(detail.id, style: theme.textTheme.muted),
+
                         /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
                         CalfButton.ghost(
@@ -284,6 +287,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                 value: _statusLabel(detail.status),
                 color: _statusColor(detail.status, theme),
               ),
+
               /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
               _SummaryColumn(
@@ -291,6 +295,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                 label: 'Duration',
                 value: _formatDuration(detail.durationMs),
               ),
+
               /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
               _SummaryColumn(
@@ -301,6 +306,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
               ),
             ],
           ),
+
           /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
           CalfTabBar(
@@ -310,6 +316,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
             labelStyle: theme.textTheme.large,
             onSelected: (index) => _selectTab(_BuildDetailTab.values[index]),
           ),
+
           /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
           Expanded(child: _buildTabContent(theme, detail)),
@@ -399,6 +406,7 @@ class _SummaryColumn extends StatelessWidget {
             color: theme.colorScheme.mutedForeground,
           ),
         ),
+
         /// Creates a [_SummaryColumn] widget.
         const SizedBox(height: 4),
         Text(
@@ -482,9 +490,11 @@ class _InfoTab extends StatelessWidget {
         ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
         _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
+
         /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
+
         /// Creates a [_InfoTab] widget.
         const SizedBox(height: 12),
         _TimingCharts(
@@ -494,6 +504,7 @@ class _InfoTab extends StatelessWidget {
           cachedSteps: detail.cachedSteps,
           totalSteps: detail.totalSteps,
         ),
+
         /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Dependencies'),
@@ -505,6 +516,7 @@ class _InfoTab extends StatelessWidget {
               .toList(),
           onCopy: onCopy,
         ),
+
         /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build results'),
@@ -517,6 +529,7 @@ class _InfoTab extends StatelessWidget {
               .toList(),
           onCopy: onCopy,
         ),
+
         /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Tags'),
@@ -552,6 +565,7 @@ class _PlatformFilter extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('Filter by platform', style: theme.textTheme.small),
+
         /// Creates a [_PlatformFilter] widget.
         const SizedBox(width: 8),
         CalfButton.outline(
@@ -587,6 +601,7 @@ class _PlatformFilter extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(value, style: theme.textTheme.small),
+
               /// Creates a [_PlatformFilter] widget.
               const SizedBox(width: 4),
               Icon(
@@ -675,6 +690,7 @@ class _TimingCharts extends StatelessWidget {
             _TimingSlice(
               'Active',
               activeMs > 0 ? activeMs.toDouble() : 1,
+
               /// Creates a [_TimingCharts] widget.
               const Color(0xFF3B82F6),
             ),
@@ -696,30 +712,35 @@ class _TimingCharts extends StatelessWidget {
       _TimingSlice(
         'Local file transfers',
         timing.localTransfersMs.toDouble(),
+
         /// Creates a [_TimingCharts] widget.
         const Color(0xFF166534),
       ),
       _TimingSlice(
         'Image pulls',
         timing.imagePullsMs.toDouble(),
+
         /// Creates a [_TimingCharts] widget.
         const Color(0xFF4ADE80),
       ),
       _TimingSlice(
         'Executions',
         timing.executionsMs.toDouble(),
+
         /// Creates a [_TimingCharts] widget.
         const Color(0xFF3B82F6),
       ),
       _TimingSlice(
         'File operations',
         timing.fileOperationsMs.toDouble(),
+
         /// Creates a [_TimingCharts] widget.
         const Color(0xFFEF4444),
       ),
       _TimingSlice(
         'Result exports',
         timing.resultExportsMs.toDouble(),
+
         /// Creates a [_TimingCharts] widget.
         const Color(0xFFA855F7),
       ),
@@ -795,6 +816,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
               fontWeight: FontWeight.w600,
             ),
           ),
+
           /// Creates a [_TimingChartCardState] widget.
           const SizedBox(height: 8),
           Expanded(
@@ -875,6 +897,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+
                                 /// Creates a [_TimingChartCardState] widget.
                                 const SizedBox(height: 2),
                                 Text(
@@ -1009,10 +1032,12 @@ class _DataTable extends StatelessWidget {
                 ),
               ),
             ],
+
             /// Creates a [_DataTable] widget.
             const SizedBox(width: 32),
           ],
         ),
+
         /// Creates a [_DataTable] widget.
         const SizedBox(height: 8),
         for (final row in rows)
@@ -1101,17 +1126,20 @@ class _SourceTab extends StatelessWidget {
               size: 16,
               color: theme.colorScheme.foreground,
             ),
+
             /// Creates a [_SourceTab] widget.
             const SizedBox(width: 8),
             Text(
               source?.filename ?? detail.dockerfile,
               style: theme.textTheme.large,
             ),
+
             /// Creates a [_SourceTab] widget.
             const SizedBox(width: 12),
             Text(_platformArch(detail.platform), style: theme.textTheme.muted),
           ],
         ),
+
         /// Creates a [_SourceTab] widget.
         const SizedBox(height: 12),
         Expanded(
@@ -1198,6 +1226,7 @@ class _LogsTab extends StatelessWidget {
             onPressed: () => onTogglePlain(false),
             child: Text('Step view', style: theme.textTheme.small),
           ),
+
           /// Creates a [_LogsTab] widget.
           const SizedBox(height: 8),
           Expanded(
@@ -1237,6 +1266,7 @@ class _LogsTab extends StatelessWidget {
             ),
           ],
         ),
+
         /// Creates a [_LogsTab] widget.
         const SizedBox(height: 8),
         Expanded(
@@ -1265,6 +1295,7 @@ class _LogsTab extends StatelessWidget {
                       child: Row(
                         children: [
                           _StepBadge(theme: theme, label: badge),
+
                           /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Expanded(
@@ -1294,6 +1325,7 @@ class _LogsTab extends StatelessWidget {
                                 ),
                               ),
                             ),
+
                           /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Text(
@@ -1420,12 +1452,14 @@ class _HistoryTab extends StatelessWidget {
           'Build history',
           style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
         ),
+
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
           style: theme.textTheme.muted,
         ),
+
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         SizedBox(
@@ -1512,12 +1546,14 @@ class _HistoryTab extends StatelessWidget {
                   ),
                 ),
         ),
+
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 24),
         Text(
           'Past builds',
           style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
         ),
+
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         if (history.isEmpty)
@@ -1541,24 +1577,28 @@ class _HistoryTab extends StatelessWidget {
                     ),
                   ),
                   Text(item.builder, style: theme.textTheme.muted),
+
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _platformArch(item.platform),
                     style: theme.textTheme.muted,
                   ),
+
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     '${item.cachedSteps}/${item.totalSteps}',
                     style: theme.textTheme.muted,
                   ),
+
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _formatDuration(item.durationMs),
                     style: theme.textTheme.muted,
                   ),
+
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(item.createdAt, style: theme.textTheme.muted),

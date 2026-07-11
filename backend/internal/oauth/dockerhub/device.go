@@ -13,17 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/version"
 )
 
-const (
-	TenantURL = "https://login.docker.com"
-	Audience  = "https://hub.docker.com"
-	ClientID  = "L4v0dmlNBpYUjGGab0C2JtgTgXr1Qz4d"
-)
-
+// ErrDeviceLoginTimeout is returned when the device login times out.
 var ErrDeviceLoginTimeout = errors.New("timed out waiting for browser login")
 
+// Client represents a Docker Hub OAuth device-flow client.
 type Client struct {
 	HTTP      *http.Client
 	UserAgent string
@@ -36,8 +33,8 @@ func NewClient() *Client {
 	return &Client{
 		HTTP:      http.DefaultClient,
 		UserAgent: fmt.Sprintf("calf:%s:%s-%s", version.Version, runtime.GOOS, runtime.GOARCH),
-		TenantURL: TenantURL,
-		HubURL:    Audience,
+		TenantURL: constants.DockerHubOAuthTenantURL,
+		HubURL:    constants.DockerHubOAuthAudience,
 	}
 }
 
@@ -46,7 +43,7 @@ func (c *Client) tenantURL() string {
 	if c.TenantURL != "" {
 		return c.TenantURL
 	}
-	return TenantURL
+	return constants.DockerHubOAuthTenantURL
 }
 
 // hubURL returns the configured Docker Hub API base URL, falling back to the package default.
@@ -54,9 +51,10 @@ func (c *Client) hubURL() string {
 	if c.HubURL != "" {
 		return c.HubURL
 	}
-	return Audience
+	return constants.DockerHubOAuthAudience
 }
 
+// DeviceCode represents the device code for a Docker Hub OAuth device-flow.
 type DeviceCode struct {
 	DeviceCode      string `json:"device_code"`
 	UserCode        string `json:"user_code"`
@@ -65,6 +63,7 @@ type DeviceCode struct {
 	Interval        int    `json:"interval"`
 }
 
+// tokenResponse represents the response from the Docker Hub OAuth token endpoint.
 type tokenResponse struct {
 	AccessToken      string  `json:"access_token"`
 	RefreshToken     string  `json:"refresh_token"`
@@ -72,15 +71,18 @@ type tokenResponse struct {
 	ErrorDescription string  `json:"error_description,omitempty"`
 }
 
+// domainClaims represents the claims for a Docker Hub OAuth access token.
 type domainClaims struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 }
 
+// accessTokenClaims represents the claims for a Docker Hub OAuth access token.
 type accessTokenClaims struct {
 	Hub domainClaims `json:"https://hub.docker.com"`
 }
 
+// patGenerateResponse represents the response from the Docker Hub OAuth personal access token endpoint.
 type patGenerateResponse struct {
 	Data struct {
 		Token string `json:"token"`
@@ -90,8 +92,8 @@ type patGenerateResponse struct {
 // StartDeviceLogin requests a device authorization code for browser-based Docker Hub sign-in.
 func (c *Client) StartDeviceLogin(ctx context.Context) (DeviceCode, error) {
 	data := url.Values{
-		"client_id": {ClientID},
-		"audience":  {Audience},
+		"client_id": {constants.DockerHubOAuthClientID},
+		"audience":  {constants.DockerHubOAuthAudience},
 		"scope":     {"openid offline_access"},
 	}
 
@@ -153,7 +155,7 @@ func (c *Client) WaitForDeviceToken(ctx context.Context, state DeviceCode) (stri
 // pollDeviceToken exchanges a device code for an access token, returning pending when authorization is not finished.
 func (c *Client) pollDeviceToken(ctx context.Context, deviceCode string) (string, bool, error) {
 	data := url.Values{
-		"client_id":   {ClientID},
+		"client_id":   {constants.DockerHubOAuthClientID},
 		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 		"device_code": {deviceCode},
 	}

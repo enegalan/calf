@@ -6,6 +6,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/httpkit"
 )
 
+// registryDeviceLoginStartResponse represents the JSON payload for POST /v1/registry/login.
 type registryDeviceLoginStartResponse struct {
 	SessionID       string `json:"session_id"`
 	UserCode        string `json:"user_code"`
@@ -13,6 +14,7 @@ type registryDeviceLoginStartResponse struct {
 	ExpiresIn       int    `json:"expires_in"`
 }
 
+// registryDeviceLoginStatusResponse represents the JSON payload for GET /v1/registry/login/{sessionID}.
 type registryDeviceLoginStatusResponse struct {
 	Status   string `json:"status"`
 	Username string `json:"username,omitempty"`

@@ -185,6 +185,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                 color: theme.colorScheme.mutedForeground,
               ),
             ),
+
             /// Creates a [_VolumesScreenState] widget.
             const SizedBox(height: 8),
             ShadInput(
@@ -237,18 +238,21 @@ class _VolumesScreenState extends State<VolumesScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Volumes', style: theme.textTheme.h3),
+
         /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+
         /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 12),
         RunningFilterSwitch(
           value: _runningOnly,
           onChanged: (value) => setState(() => _runningOnly = value),
         ),
+
         /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
         if (_loading)
@@ -288,6 +292,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                   child: Row(
                     children: [
                       StatusDot(active: volume.inUse, hollow: !volume.inUse),
+
                       /// Creates a [_VolumesScreenState] widget.
                       const SizedBox(width: 10),
                       Expanded(
@@ -315,6 +320,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                           ),
                         ),
                       ),
+
                       /// Creates a [_VolumesScreenState] widget.
                       const SizedBox(width: 8),
                       CalfButton.outline(

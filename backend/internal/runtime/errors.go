@@ -3,9 +3,14 @@ package runtime
 import (
 	"context"
 	"errors"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// ErrRuntimeNotRunning is returned when the runtime is not running.
 var ErrRuntimeNotRunning = errors.New("runtime is not running")
+
+// ErrNetworkNotFound is returned when a network is not found.
 var ErrNetworkNotFound = errors.New("network not found")
 
 // emptyIfStopped runs listFn only when the runtime is running; otherwise returns an empty slice so list endpoints stay 200 while the VM is starting.
@@ -19,7 +24,7 @@ func emptyIfStopped[T any](
 		return nil, err
 	}
 
-	if status.State != StateRunning {
+	if status.State != State(constants.RuntimeStateRunning) {
 		return []T{}, nil
 	}
 
@@ -33,7 +38,7 @@ func requireRunning(ctx context.Context, statusFn func(context.Context) (Status,
 		return err
 	}
 
-	if status.State != StateRunning {
+	if status.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 

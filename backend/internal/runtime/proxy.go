@@ -6,6 +6,7 @@ import (
 	"strings"
 )
 
+// ProxyConfig represents the proxy configuration for the runtime.
 type ProxyConfig struct {
 	HTTPProxy  string
 	HTTPSProxy string

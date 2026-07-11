@@ -8,8 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// Native represents a native runtime.
 type Native struct {
 	dockerSocket string
 	proxy        ProxyConfig
@@ -52,24 +55,24 @@ func (n *Native) Stop(_ context.Context) error {
 // Status reports native mode and whether the docker socket responds.
 func (n *Native) Status(ctx context.Context) (Status, error) {
 	status := Status{
-		Mode:         ModeNative,
-		State:        StateStopped,
+		Mode:         Mode(constants.RuntimeModeNative),
+		State:        State(constants.RuntimeStateStopped),
 		DockerSocket: n.dockerSocket,
 	}
 
 	if _, err := os.Stat(n.dockerSocket); err == nil {
-		status.State = StateRunning
+		status.State = State(constants.RuntimeStateRunning)
 	}
 
 	if _, err := runCommand(ctx, "nerdctl", "info"); err != nil {
-		if status.State == StateRunning {
+		if status.State == State(constants.RuntimeStateRunning) {
 			return status, nil
 		}
 
 		return status, err
 	}
 
-	status.State = StateRunning
+	status.State = State(constants.RuntimeStateRunning)
 	return status, nil
 }
 
@@ -372,7 +375,7 @@ func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onO
 	}
 
 	command := exec.CommandContext(ctx, "nerdctl", interactiveExecArgs(id)...)
-	return attachExecInContainer(ctx, command, stdin, onOutput, resizeCh)
+	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 
 // ContainerStats returns CPU and memory usage for a running container.
@@ -396,7 +399,7 @@ func (n *Native) RestartContainer(ctx context.Context, id string) error {
 // runLocal executes a host command, retrying transient nerdctl failures.
 func (n *Native) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
-		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, "", command, args...)
+		return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", command, args...)
 	}
 
 	return runCommand(ctx, command, args...)
@@ -405,7 +408,7 @@ func (n *Native) runLocal(ctx context.Context, command string, args ...string) (
 // runLocalWithStdin executes a host command with stdin, retrying nerdctl on transient errors.
 func (n *Native) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
-		return runCommandWithRetry(ctx, defaultCommandRetries, defaultCommandRetryDelay, stdin, command, args...)
+		return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, stdin, command, args...)
 	}
 
 	return runCommandWithStdin(ctx, stdin, command, args...)
@@ -427,7 +430,7 @@ func (n *Native) registryConfigPaths() []string {
 // RegistryStatus reports whether the user is logged in to the default registry.
 func (n *Native) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	if err := requireRunning(ctx, n.Status); err != nil {
-		return RegistryStatus{Server: defaultRegistryServer}, nil
+		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 
 	return registryStatus(ctx, n.runLocal, n.registryConfigPaths()...)

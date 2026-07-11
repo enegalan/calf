@@ -6,12 +6,14 @@ import (
 	"strings"
 )
 
+// Regular expression for stripping ANSI escape sequences from command output.
 var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
 
+// Regular expression for extracting the fatal message from nerdctl/shell command output.
 var nerdctlFatalMessagePattern = regexp.MustCompile(`level=fatal msg="([^"]+)"`)
 
-// formatCommandError extracts a concise human-readable message from nerdctl/shell command output.
-func formatCommandError(output string) string {
+// FormatCommandError extracts a concise human-readable message from nerdctl/shell command output.
+func FormatCommandError(output string) string {
 	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
 	lines := strings.Split(cleaned, "\n")
 
@@ -75,8 +77,8 @@ func imageRepositoryName(ref string) string {
 	return name
 }
 
-// wrapPushError augments registry authorization failures with Docker Hub sign-in or tagging hints.
-func wrapPushError(ref string, err error) error {
+// WrapPushError augments registry authorization failures with Docker Hub sign-in or tagging hints.
+func WrapPushError(ref string, err error) error {
 	message := err.Error()
 	lower := strings.ToLower(message)
 	if !strings.Contains(lower, "authorization") &&
@@ -97,18 +99,8 @@ func wrapPushError(ref string, err error) error {
 	return fmt.Errorf("%s. Sign in to Docker Hub from Settings (browser login), then push again", message)
 }
 
-// FormatCommandError is the exported alias for formatCommandError.
-func FormatCommandError(output string) string {
-	return formatCommandError(output)
-}
-
 // IsTransientCommandError reports whether err is likely temporary and worth retrying.
 func IsTransientCommandError(err error) bool {
-	return isTransientCommandError(err)
-}
-
-// isTransientCommandError classifies runtime/CLI errors that may resolve after a short retry.
-func isTransientCommandError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -156,9 +148,4 @@ func isTransientCommandError(err error) bool {
 	}
 
 	return false
-}
-
-// WrapPushError is the exported alias for wrapPushError.
-func WrapPushError(ref string, err error) error {
-	return wrapPushError(ref, err)
 }

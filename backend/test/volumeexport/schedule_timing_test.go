@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
@@ -16,7 +17,7 @@ func TestComputeNextRunCronSameDay(t *testing.T) {
 		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(now.Weekday()), Times: []string{"15:04", "18:30"}},
 		},
-		Type:   volumeexport.TypeLocalFile,
+		Type:   constants.VolumeExportTypeLocalFile,
 		Folder: "/tmp",
 	}
 
@@ -40,7 +41,7 @@ func TestComputeNextRunCronRollsToNextSelectedDay(t *testing.T) {
 		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(time.Monday), Times: []string{"09:30"}},
 		},
-		Type:   volumeexport.TypeLocalFile,
+		Type:   constants.VolumeExportTypeLocalFile,
 		Folder: "/tmp",
 	}
 
@@ -78,7 +79,7 @@ func TestComputeNextRunPerDayDifferentTimes(t *testing.T) {
 			{Day: int(time.Monday), Times: []string{"15:04", "18:30"}},
 			{Day: int(time.Tuesday), Times: []string{"09:30"}},
 		},
-		Type:   volumeexport.TypeLocalFile,
+		Type:   constants.VolumeExportTypeLocalFile,
 		Folder: "/tmp",
 	}
 
@@ -102,7 +103,7 @@ func TestComputeNextRunIncludesCurrentMinuteSlot(t *testing.T) {
 		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(now.Weekday()), Times: []string{"17:11", "17:20"}},
 		},
-		Type:   volumeexport.TypeLocalFile,
+		Type:   constants.VolumeExportTypeLocalFile,
 		Folder: "/tmp",
 	}
 
@@ -126,7 +127,7 @@ func TestComputeNextRunAfterRunSkipsCurrentSlot(t *testing.T) {
 		DayTimes: []volumeexport.DayTimeSchedule{
 			{Day: int(now.Weekday()), Times: []string{"17:11", "17:20"}},
 		},
-		Type:   volumeexport.TypeLocalFile,
+		Type:   constants.VolumeExportTypeLocalFile,
 		Folder: "/tmp",
 	}
 

@@ -1,8 +1,6 @@
 package migration
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,12 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/buildhistory"
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/dockerexec"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// Options represents the configuration for running a Docker Desktop migration.
 type Options struct {
 	CalfSocket string
 	VMName     string
@@ -29,18 +30,21 @@ type Options struct {
 	Logger     *slog.Logger
 }
 
+// dockerSettings represents the CPU, memory, and swap settings from Docker Desktop settings files on macOS.
 type dockerSettings struct {
 	CPUs      int `json:"Cpus"`
 	MemoryMiB int `json:"MemoryMiB"`
 	SwapMiB   int `json:"SwapMiB"`
 }
 
+// parsedSettings represents the CPU, memory, and swap settings from Docker Desktop settings files on macOS.
 type parsedSettings struct {
 	CPUs     int
 	MemoryGB int
 	SwapGB   int
 }
 
+// containerInspect represents the inspect JSON for a container.
 type containerInspect struct {
 	Name   string `json:"Name"`
 	Config struct {
@@ -78,12 +82,6 @@ type containerInspect struct {
 	} `json:"State"`
 }
 
-type buildHistoryRow struct {
-	Name      string `json:"Name"`
-	Status    string `json:"Status"`
-	CreatedAt string `json:"CreatedAt"`
-}
-
 // DockerDesktopSocket returns the first existing Docker Desktop unix socket path on the host.
 func DockerDesktopSocket() string {
 	home, err := os.UserHomeDir()
@@ -107,33 +105,7 @@ func DockerDesktopSocket() string {
 
 // StagingDir returns the host directory used for temporary migration tar exports.
 func StagingDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	dir := filepath.Join(home, ".config", "calf", "mounts", "migrate")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-
-	return dir, nil
-}
-
-// VMPath maps a host path under ~/.config/calf/mounts to its Lima VM mount equivalent.
-func VMPath(hostPath string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return hostPath
-	}
-
-	mountsRoot := filepath.Join(home, ".config", "calf", "mounts")
-	rel, err := filepath.Rel(mountsRoot, hostPath)
-	if err != nil {
-		return hostPath
-	}
-
-	return "/mnt/calf/" + filepath.ToSlash(rel)
+	return config.MountsSubdir("migrate")
 }
 
 // RunFromDockerDesktop migrates images, volumes, containers, config, and build history from Docker Desktop to Calf.
@@ -142,7 +114,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 		opts.Logger.Info("starting docker desktop migration")
 	}
 
-	status := Status{Phase: PhaseRunning, Step: "preflight", Progress: 0, Message: "Checking Docker Desktop"}
+	status := Status{Phase: Phase(constants.MigrationPhaseRunning), Step: "preflight", Progress: 0, Message: "Checking Docker Desktop"}
 	emit := func(update Status) {
 		status = update
 		if opts.OnStatus != nil {
@@ -153,35 +125,35 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 
 	ddSocket := DockerDesktopSocket()
 	if ddSocket == "" {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = "Docker Desktop socket not found"
 		emit(status)
 		return status
 	}
 
 	if _, err := exec.LookPath("docker"); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = "docker CLI not found in PATH"
 		emit(status)
 		return status
 	}
 
-	if _, err := runDocker(ctx, ddSocket, "info"); err != nil {
-		status.Phase = PhaseFailed
+	if _, err := dockerexec.Run(ctx, ddSocket, "info"); err != nil {
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = "Docker Desktop is not running"
 		emit(status)
 		return status
 	}
 
 	if opts.CalfSocket == "" {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = "Calf docker socket is not configured"
 		emit(status)
 		return status
 	}
 
 	if _, err := os.Stat(opts.CalfSocket); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = "Calf runtime is not running"
 		emit(status)
 		return status
@@ -189,7 +161,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 
 	staging, err := StagingDir()
 	if err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
@@ -197,7 +169,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 
 	vmName := opts.VMName
 	if vmName == "" {
-		vmName = "calf"
+		vmName = constants.DefaultVMName
 	}
 
 	status.Step = "preflight"
@@ -206,35 +178,35 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 	emit(status)
 
 	if err := checkMigrationDiskSpace(ctx, vmName, ddSocket); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
 	}
 
 	if err := migrateConfig(ctx, ddSocket, opts, &status, emit); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
 	}
 
 	if err := migrateImages(ctx, ddSocket, opts, staging, &status, emit); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
 	}
 
 	if err := migrateVolumes(ctx, ddSocket, opts, staging, &status, emit); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
 	}
 
 	if err := migrateContainers(ctx, ddSocket, opts, &status, emit); err != nil {
-		status.Phase = PhaseFailed
+		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)
 		return status
@@ -242,7 +214,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 
 	migrateBuilds(ctx, ddSocket, opts, &status, emit)
 
-	status.Phase = PhaseCompleted
+	status.Phase = Phase(constants.MigrationPhaseCompleted)
 	status.Step = "done"
 	status.Progress = 100
 	status.Message = formatCompletionMessage(status.Summary)
@@ -308,12 +280,12 @@ func migrateImages(ctx context.Context, ddSocket string, opts Options, staging s
 	emit(*status)
 
 	for index, ref := range refs {
-		status.Progress = 10 + (index*35)/max(len(refs), 1)
+		status.Progress = 10 + (index*35)/utils.MaxInt(len(refs), 1)
 		status.Message = fmt.Sprintf("Migrating image %s", ref)
 		emit(*status)
 
 		tarPath := filepath.Join(staging, fmt.Sprintf("image-%d.tar", index))
-		if _, err := runDocker(ctx, ddSocket, "save", "-o", tarPath, ref); err != nil {
+		if _, err := dockerexec.Run(ctx, ddSocket, "save", "-o", tarPath, ref); err != nil {
 			if opts.Logger != nil {
 				opts.Logger.Warn("image export failed", "ref", ref, "error", err)
 			}
@@ -336,10 +308,10 @@ func migrateImages(ctx context.Context, ddSocket string, opts Options, staging s
 // loadImageOnCalf imports a saved image tar into the Calf runtime via nerdctl or docker.
 func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	if opts.RunNerdctl != nil {
-		return opts.RunNerdctl(ctx, "load", "-i", VMPath(tarPath))
+		return opts.RunNerdctl(ctx, "load", "-i", config.HostMountToVMPath(tarPath))
 	}
 
-	return runDockerError(ctx, opts.CalfSocket, "load", "-i", tarPath)
+	return dockerexec.RunError(ctx, opts.CalfSocket, "load", "-i", tarPath)
 }
 
 // migrateVolumes exports each Docker Desktop volume and recreates it on Calf.
@@ -349,7 +321,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 	status.Message = "Migrating volumes"
 	emit(*status)
 
-	_, _ = runDocker(ctx, ddSocket, "pull", constants.AlpineSmokeImage)
+	_, _ = dockerexec.Run(ctx, ddSocket, "pull", constants.AlpineSmokeImage)
 	if opts.RunNerdctl != nil {
 		_ = opts.RunNerdctl(ctx, "pull", constants.AlpineSmokeImage)
 	}
@@ -363,13 +335,12 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 	emit(*status)
 
 	for index, name := range names {
-		status.Progress = 50 + (index*20)/max(len(names), 1)
+		status.Progress = 50 + (index*20)/utils.MaxInt(len(names), 1)
 		status.Message = fmt.Sprintf("Migrating volume %s", name)
 		emit(*status)
 
-		tarName := sanitizeFileName(name) + ".tar.gz"
+		tarName := utils.SanitizeFileName(name) + ".tar.gz"
 		tarPath := filepath.Join(staging, tarName)
-		vmTarPath := VMPath(tarPath)
 
 		exportArgs := []string{
 			"run", "--rm",
@@ -378,7 +349,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 			constants.AlpineSmokeImage,
 			"tar", "czf", "/to/" + tarName, "-C", "/from", ".",
 		}
-		if _, err := runDocker(ctx, ddSocket, exportArgs...); err != nil {
+		if _, err := dockerexec.Run(ctx, ddSocket, exportArgs...); err != nil {
 			if opts.Logger != nil {
 				opts.Logger.Warn("volume export failed", "volume", name, "error", err)
 			}
@@ -393,7 +364,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 			continue
 		}
 
-		if err := importVolumeOnCalf(ctx, opts, name, vmTarPath, tarName); err == nil {
+		if err := importVolumeOnCalf(ctx, opts, name, tarName); err == nil {
 			status.Summary.VolumesOK++
 		} else if opts.Logger != nil {
 			opts.Logger.Warn("volume import failed", "volume", name, "error", err)
@@ -412,11 +383,11 @@ func createVolumeOnCalf(ctx context.Context, opts Options, name string) error {
 		return opts.RunNerdctl(ctx, "volume", "create", name)
 	}
 
-	return runDockerError(ctx, opts.CalfSocket, "volume", "create", name)
+	return dockerexec.RunError(ctx, opts.CalfSocket, "volume", "create", name)
 }
 
 // importVolumeOnCalf restores a staged volume tar archive into a Calf volume.
-func importVolumeOnCalf(ctx context.Context, opts Options, name, vmTarPath, tarName string) error {
+func importVolumeOnCalf(ctx context.Context, opts Options, name, tarName string) error {
 	importArgs := []string{
 		"run", "--rm",
 		"-v", name + ":/to",
@@ -429,7 +400,7 @@ func importVolumeOnCalf(ctx context.Context, opts Options, name, vmTarPath, tarN
 		return opts.RunNerdctl(ctx, importArgs...)
 	}
 
-	return runDockerError(ctx, opts.CalfSocket, importArgs...)
+	return dockerexec.RunError(ctx, opts.CalfSocket, importArgs...)
 }
 
 // migrateContainers recreates standalone and compose-group containers on Calf, preserving run state.
@@ -469,7 +440,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 			continue
 		}
 
-		if _, err := runDocker(ctx, ddSocket, "stop", name); err == nil {
+		if _, err := dockerexec.Run(ctx, ddSocket, "stop", name); err == nil {
 			stoppedOnSource = append(stoppedOnSource, name)
 		}
 	}
@@ -482,7 +453,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 				continue
 			}
 
-			_, _ = runDocker(ctx, ddSocket, "start", name)
+			_, _ = dockerexec.Run(ctx, ddSocket, "start", name)
 		}
 	}()
 
@@ -523,7 +494,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 
 	for index, inspect := range remaining {
 		name := strings.TrimPrefix(inspect.Name, "/")
-		status.Progress = 75 + (index*20)/max(len(remaining), 1)
+		status.Progress = 75 + (index*20)/utils.MaxInt(len(remaining), 1)
 		status.Message = fmt.Sprintf("Migrating container %s", name)
 		emit(*status)
 
@@ -539,7 +510,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 			if opts.RunNerdctl != nil {
 				startErr = opts.RunNerdctl(ctx, "start", name)
 			} else {
-				_, startErr = runDocker(ctx, opts.CalfSocket, "start", name)
+				_, startErr = dockerexec.Run(ctx, opts.CalfSocket, "start", name)
 			}
 			if startErr != nil {
 				if opts.Logger != nil {
@@ -558,17 +529,7 @@ func migrateContainers(ctx context.Context, ddSocket string, opts Options, statu
 
 // composeMountsRoot returns the host mounts root directory, creating it when missing.
 func composeMountsRoot() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	root := filepath.Join(home, ".config", "calf", "mounts")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return "", err
-	}
-
-	return root, nil
+	return config.EnsureMountsDir()
 }
 
 // migrateComposeProject stages a compose project and runs compose up on Calf.
@@ -591,7 +552,7 @@ func migrateComposeProject(ctx context.Context, opts Options, group composeProje
 			return err
 		}
 	} else {
-		if err := runDockerError(ctx, opts.CalfSocket, args...); err != nil {
+		if err := dockerexec.RunError(ctx, opts.CalfSocket, args...); err != nil {
 			return err
 		}
 	}
@@ -601,7 +562,7 @@ func migrateComposeProject(ctx context.Context, opts Options, group composeProje
 			if opts.RunNerdctl != nil {
 				_ = opts.RunNerdctl(ctx, "stop", name)
 			} else {
-				_, _ = runDocker(ctx, opts.CalfSocket, "stop", name)
+				_, _ = dockerexec.Run(ctx, opts.CalfSocket, "stop", name)
 			}
 		}
 	}
@@ -620,30 +581,55 @@ func migrateBuilds(ctx context.Context, ddSocket string, opts Options, status *S
 		return
 	}
 
-	output, err := runDocker(ctx, ddSocket, "buildx", "history", "ls", "--format", "{{json .}}")
+	historyRows, err := buildhistory.List(ctx, ddSocket)
 	if err != nil {
-		output, err = runDocker(ctx, ddSocket, "buildx", "ls", "--format", "{{json .}}")
+		output, err := dockerexec.Run(ctx, ddSocket, "buildx", "ls", "--format", "{{json .}}")
 		if err != nil {
 			return
 		}
-	}
 
-	rows := parseBuildHistory(output)
-	status.Summary.BuildsTotal = len(rows)
-	emit(*status)
+		rows := buildhistory.ParsePlaintextRows(output)
+		status.Summary.BuildsTotal = len(rows)
+		emit(*status)
 
-	for _, row := range rows {
-		tag := row.Name
-		if tag == "" {
-			tag = "migrated-build"
+		for _, row := range rows {
+			tag := buildhistory.NormalizeTag(row.BuildName())
+
+			createdAt := row.BuildCreatedAt()
+			if createdAt == "" {
+				createdAt = time.Now().UTC().Format(time.RFC3339)
+			}
+
+			buildStatus := row.BuildStatus()
+			if buildStatus == "" {
+				buildStatus = "migrated"
+			}
+
+			opts.AddBuild(runtime.Build{
+				Tag:       tag,
+				Context:   "docker-desktop",
+				Status:    buildStatus,
+				CreatedAt: createdAt,
+			})
+			status.Summary.BuildsOK++
 		}
 
-		createdAt := row.CreatedAt
+		emit(*status)
+		return
+	}
+
+	status.Summary.BuildsTotal = len(historyRows)
+	emit(*status)
+
+	for _, row := range historyRows {
+		tag := buildhistory.NormalizeTag(row.BuildName())
+
+		createdAt := row.BuildCreatedAt()
 		if createdAt == "" {
 			createdAt = time.Now().UTC().Format(time.RFC3339)
 		}
 
-		buildStatus := row.Status
+		buildStatus := row.BuildStatus()
 		if buildStatus == "" {
 			buildStatus = "migrated"
 		}
@@ -694,7 +680,7 @@ func readDockerDesktopSettings() (parsedSettings, bool) {
 		if raw.MemoryMiB <= 0 {
 			settings.MemoryGB = defaults.MemoryGB
 		} else {
-			settings.MemoryGB = max(raw.MemoryMiB/1024, 1)
+			settings.MemoryGB = utils.MaxInt(raw.MemoryMiB/1024, 1)
 		}
 		if raw.SwapMiB <= 0 {
 			settings.SwapGB = defaults.MemorySwapGB
@@ -710,7 +696,7 @@ func readDockerDesktopSettings() (parsedSettings, bool) {
 
 // listImageRefs returns repository:tag refs from Docker Desktop, excluding dangling entries.
 func listImageRefs(ctx context.Context, socket string) ([]string, error) {
-	output, err := runDocker(ctx, socket, "images", "--format", "{{.Repository}}:{{.Tag}}")
+	output, err := dockerexec.Run(ctx, socket, "images", "--format", "{{.Repository}}:{{.Tag}}")
 	if err != nil {
 		return nil, err
 	}
@@ -722,7 +708,7 @@ func listImageRefs(ctx context.Context, socket string) ([]string, error) {
 
 // listVolumeNames returns volume names from the given docker socket.
 func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
-	output, err := runDocker(ctx, socket, "volume", "ls", "--format", "{{.Name}}")
+	output, err := dockerexec.Run(ctx, socket, "volume", "ls", "--format", "{{.Name}}")
 	if err != nil {
 		return nil, err
 	}
@@ -732,7 +718,7 @@ func listVolumeNames(ctx context.Context, socket string) ([]string, error) {
 
 // listContainerIDs returns all container IDs from the given docker socket.
 func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
-	output, err := runDocker(ctx, socket, "ps", "-a", "--format", "{{.ID}}")
+	output, err := dockerexec.Run(ctx, socket, "ps", "-a", "--format", "{{.ID}}")
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +728,7 @@ func listContainerIDs(ctx context.Context, socket string) ([]string, error) {
 
 // inspectContainer fetches inspect JSON for one container and whether it was running.
 func inspectContainer(ctx context.Context, socket, id string) (containerInspect, bool, error) {
-	output, err := runDocker(ctx, socket, "inspect", id)
+	output, err := dockerexec.Run(ctx, socket, "inspect", id)
 	if err != nil {
 		return containerInspect{}, false, err
 	}
@@ -829,7 +815,7 @@ func createContainerOnCalf(ctx context.Context, opts Options, inspect containerI
 		return opts.RunNerdctl(ctx, args...)
 	}
 
-	return runDockerError(ctx, opts.CalfSocket, args...)
+	return dockerexec.RunError(ctx, opts.CalfSocket, args...)
 }
 
 // containerBindMounts returns -v mount specs from HostConfig.Binds or Mounts when binds are absent.
@@ -876,65 +862,4 @@ func containerBindMounts(inspect containerInspect) []string {
 	}
 
 	return binds
-}
-
-// parseBuildHistory decodes newline-delimited or plain-text buildx history list output.
-func parseBuildHistory(output []byte) []buildHistoryRow {
-	rows := make([]buildHistoryRow, 0)
-	scanner := bufio.NewScanner(bytes.NewReader(output))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
-
-		var row buildHistoryRow
-		if err := json.Unmarshal([]byte(line), &row); err != nil {
-			name := line
-			if name != "" {
-				rows = append(rows, buildHistoryRow{Name: name, Status: "migrated"})
-			}
-			continue
-		}
-
-		if row.Name == "" {
-			continue
-		}
-
-		rows = append(rows, row)
-	}
-
-	return rows
-}
-
-// runDocker executes docker against the given unix socket and returns combined output.
-func runDocker(ctx context.Context, socket string, args ...string) ([]byte, error) {
-	command := exec.CommandContext(ctx, "docker", args...)
-	command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-	}
-
-	return output, nil
-}
-
-// runDockerError runs docker and discards output, returning only the error.
-func runDockerError(ctx context.Context, socket string, args ...string) error {
-	_, err := runDocker(ctx, socket, args...)
-	return err
-}
-
-// sanitizeFileName replaces path separators in a name so it is safe for staging file paths.
-func sanitizeFileName(name string) string {
-	replacer := strings.NewReplacer("/", "_", ":", "_", "\\", "_")
-	return replacer.Replace(name)
-}
-
-// max returns the larger of two integers.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }

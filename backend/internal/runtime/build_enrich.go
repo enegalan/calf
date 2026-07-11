@@ -4,17 +4,23 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/dockerexec"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// Regular expressions for parsing Dockerfile dependencies and build image names.
 var fromLineRe = regexp.MustCompile(`(?i)^FROM\s+(\S+)`)
+
+// Regular expression for parsing the last image name reported in a build log's "naming to" lines.
 var buildImageNameRe = regexp.MustCompile(`(?i)naming to\s+(\S+)`)
 
+// imageInspectRow represents the inspect JSON for an image.
 type imageInspectRow struct {
 	ID       string   `json:"Id"`
 	Digest   string   `json:"Digest"`
@@ -76,7 +82,7 @@ func parseDockerfileDependencies(contextPath, dockerfile, platform string) []Bui
 		seen[source] = struct{}{}
 		dependencies = append(dependencies, BuildDependency{
 			Source:   source,
-			Platform: platformArch(platform),
+			Platform: PlatformArch(platform),
 		})
 	}
 
@@ -92,7 +98,7 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 		}
 
 		var row imageInspectRow
-		if err := json.Unmarshal(bytesTrim(output), &row); err != nil {
+		if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
 			continue
 		}
 
@@ -103,7 +109,7 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 
 		result.Dependencies[index].Digest = digest
 		if result.Dependencies[index].Platform == "" {
-			result.Dependencies[index].Platform = platformArch(platform)
+			result.Dependencies[index].Platform = PlatformArch(platform)
 		}
 	}
 
@@ -118,7 +124,7 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 	}
 
 	var row imageInspectRow
-	if err := json.Unmarshal(bytesTrim(output), &row); err != nil {
+	if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
 		return nil, nil
 	}
 
@@ -127,8 +133,8 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 		digest = row.ID
 	}
 
-	size := formatBytes(row.Size)
-	arch := platformArch(platform)
+	size := utils.FormatBytes(row.Size)
+	arch := PlatformArch(platform)
 
 	artifacts := []BuildArtifact{
 		{
@@ -196,7 +202,7 @@ func ReadBuildSource(contextPath, dockerfile, platform string) (BuildSource, err
 		Path:     rel,
 		Filename: filepath.Base(absSource),
 		Content:  string(content),
-		Platform: platformArch(platform),
+		Platform: PlatformArch(platform),
 	}, nil
 }
 
@@ -218,8 +224,8 @@ func CollectGitMetadata(contextPath string) (revision, remote string) {
 	return revision, remote
 }
 
-// platformArch extracts the architecture component from an OCI platform string (e.g. linux/amd64 -> amd64).
-func platformArch(platform string) string {
+// PlatformArch extracts the architecture segment from an OCI platform string (e.g. linux/amd64 -> amd64).
+func PlatformArch(platform string) string {
 	if platform == "" {
 		return ""
 	}
@@ -229,39 +235,11 @@ func platformArch(platform string) string {
 		return parts[1]
 	}
 
+	if arch, ok := strings.CutPrefix(platform, "linux/"); ok {
+		return arch
+	}
+
 	return platform
-}
-
-// formatBytes renders a byte count as a human-readable size string.
-func formatBytes(size int64) string {
-	if size <= 0 {
-		return "0 B"
-	}
-
-	const unit = 1024
-	if size < unit {
-		return fmt.Sprintf("%d B", size)
-	}
-
-	div, exp := int64(unit), 0
-	for numerator := size / unit; numerator >= unit; numerator /= unit {
-		div *= unit
-		exp++
-	}
-
-	value := float64(size) / float64(div)
-	suffix := []string{"KB", "MB", "GB", "TB"}[exp]
-	return fmt.Sprintf("%.1f %s", value, suffix)
-}
-
-// FormatBytes is the exported alias for formatBytes.
-func FormatBytes(size int64) string {
-	return formatBytes(size)
-}
-
-// bytesTrim trims leading and trailing whitespace from command output bytes.
-func bytesTrim(output []byte) []byte {
-	return []byte(strings.TrimSpace(string(output)))
 }
 
 // NormalizeDockerfilePath picks the first existing Dockerfile candidate within contextPath.
@@ -373,13 +351,6 @@ func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 // dockerCLIRunner returns a commandRunner that invokes docker with DOCKER_HOST set to socket.
 func dockerCLIRunner(socket string) commandRunner {
 	return func(ctx context.Context, _ string, args ...string) ([]byte, error) {
-		command := exec.CommandContext(ctx, "docker", args...)
-		command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
-		output, err := command.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-		}
-
-		return output, nil
+		return dockerexec.Run(ctx, socket, args...)
 	}
 }

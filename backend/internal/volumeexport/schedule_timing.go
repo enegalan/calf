@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // NormalizeSchedule sorts day entries and times within each day for stable storage and comparison.
@@ -59,11 +61,11 @@ func ValidateScheduleInput(schedule Schedule) error {
 	}
 
 	exportType := strings.TrimSpace(schedule.Type)
-	if exportType != TypeLocalFile && exportType != TypeLocalImage && exportType != TypeNewImage && exportType != TypeRegistry {
+	if exportType != constants.VolumeExportTypeLocalFile && exportType != constants.VolumeExportTypeLocalImage && exportType != constants.VolumeExportTypeNewImage && exportType != constants.VolumeExportTypeRegistry {
 		return fmt.Errorf("unsupported export type %q", exportType)
 	}
 
-	if exportType == TypeLocalFile {
+	if exportType == constants.VolumeExportTypeLocalFile {
 		if strings.TrimSpace(schedule.Folder) == "" {
 			return fmt.Errorf("folder is required")
 		}
@@ -107,7 +109,7 @@ func ScheduleDue(nextRunAt string, now time.Time) bool {
 
 // slotStillRunnable reports whether now is still within the grace window after candidate.
 func slotStillRunnable(candidate, now time.Time) bool {
-	return !now.After(candidate.Add(ScheduleRunGrace))
+	return !now.After(candidate.Add(constants.ScheduleRunGrace))
 }
 
 // computeNextRun scans up to 14 days ahead for the earliest matching slot.

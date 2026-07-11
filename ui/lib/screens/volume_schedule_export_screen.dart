@@ -475,18 +475,21 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
           onBack: widget.onBack,
           onBackEnabled: !_busy,
         ),
+
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 16),
         Text(
           widget.isEditing ? 'Edit schedule' : 'Schedule export',
           style: theme.textTheme.h3,
         ),
+
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 8),
         Text(
           'Choose which days and times Calf should export this volume automatically.',
           style: theme.textTheme.muted,
         ),
+
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 20),
         Expanded(
@@ -509,12 +512,14 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 8),
                       Text(
                         'Select the days of the week when exports should run.',
                         style: theme.textTheme.muted,
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 16),
                       Wrap(
@@ -568,12 +573,14 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                     ),
                                   ],
                                 ),
+
                                 /// Creates a [_VolumeScheduleExportViewState] widget.
                                 const SizedBox(height: 8),
                                 Text(
                                   'Set one or more export times for ${_weekdayLabel(sortedDays[dayIndex])}.',
                                   style: theme.textTheme.muted,
                                 ),
+
                                 /// Creates a [_VolumeScheduleExportViewState] widget.
                                 const SizedBox(height: 12),
                                 for (
@@ -643,6 +650,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                     ],
                   ),
                 ),
+
                 /// Creates a [_VolumeScheduleExportViewState] widget.
                 const SizedBox(height: 16),
                 Container(
@@ -660,6 +668,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 16),
                       VolumeExportOptionTile(
@@ -695,6 +704,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                           token,
                                         ),
                                   ),
+
                                   /// Creates a [_VolumeScheduleExportViewState] widget.
                                   const SizedBox(height: 12),
                                   Row(
@@ -708,6 +718,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                           onChanged: (_) => setState(() {}),
                                         ),
                                       ),
+
                                       /// Creates a [_VolumeScheduleExportViewState] widget.
                                       const SizedBox(width: 8),
                                       CalfButton.outline(
@@ -720,6 +731,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               )
                             : null,
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 16),
                       VolumeExportOptionTile(
@@ -747,6 +759,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               )
                             : null,
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 16),
                       VolumeExportOptionTile(
@@ -781,6 +794,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                               )
                             : null,
                       ),
+
                       /// Creates a [_VolumeScheduleExportViewState] widget.
                       const SizedBox(height: 16),
                       VolumeExportOptionTile(
@@ -801,6 +815,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     _DockerHubRegistryNotice(theme: theme),
+
                                     /// Creates a [_VolumeScheduleExportViewState] widget.
                                     const SizedBox(height: 12),
                                     ShadInput(
@@ -832,6 +847,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
             ),
           ),
         ],
+
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 16),
         Row(
@@ -842,6 +858,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                 onPressed: _confirmDelete,
                 child: const Text('Delete schedule'),
               ),
+
             /// Creates a [_VolumeScheduleExportViewState] widget.
             const Spacer(),
             CalfButton.outline(
@@ -849,6 +866,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
               onPressed: widget.onBack,
               child: const Text('Cancel'),
             ),
+
             /// Creates a [_VolumeScheduleExportViewState] widget.
             const SizedBox(width: 8),
             CalfButton(
@@ -1053,6 +1071,7 @@ class _DockerHubRegistryNotice extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(LucideIcons.info, size: 16, color: theme.colorScheme.primary),
+
           /// Creates a [_DockerHubRegistryNotice] widget.
           const SizedBox(width: 8),
           Expanded(
@@ -1107,6 +1126,7 @@ class _ExportNamePatternField extends StatelessWidget {
           label,
           style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
         ),
+
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
         ShadInput(
@@ -1114,9 +1134,11 @@ class _ExportNamePatternField extends StatelessWidget {
           placeholder: Text(placeholder),
           onChanged: (_) => onChanged(),
         ),
+
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
         Text(helperText, style: theme.textTheme.muted),
+
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
         Wrap(
@@ -1149,6 +1171,7 @@ class _ExportNamePatternField extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
+
                 /// Creates a [_ExportNamePatternField] widget.
                 const SizedBox(height: 4),
                 Text(preview, style: theme.textTheme.small),

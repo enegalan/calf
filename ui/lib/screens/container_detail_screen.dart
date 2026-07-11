@@ -346,6 +346,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           segments: ['Containers', _container.displayName],
           onBack: widget.onBack,
         ),
+
         /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
         Row(
@@ -356,6 +357,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               size: 28,
               color: _containerIconColor(_container, theme),
             ),
+
             /// Creates a [_ContainerDetailViewState] widget.
             const SizedBox(width: 12),
             Expanded(
@@ -363,6 +365,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_container.displayName, style: theme.textTheme.h3),
+
                   /// Creates a [_ContainerDetailViewState] widget.
                   const SizedBox(height: 4),
                   Wrap(
@@ -405,6 +408,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                   ),
                 ),
                 Text(_container.status, style: theme.textTheme.small),
+
                 /// Creates a [_ContainerDetailViewState] widget.
                 const SizedBox(height: 8),
                 Row(
@@ -424,6 +428,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.foreground,
                       ),
                     ),
+
                     /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
@@ -442,6 +447,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.primaryForeground,
                       ),
                     ),
+
                     /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
@@ -456,6 +462,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         color: theme.colorScheme.primaryForeground,
                       ),
                     ),
+
                     /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton.destructive(
@@ -491,6 +498,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             ),
           ),
         ],
+
         /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
         CalfTabBar(
@@ -506,6 +514,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
         ),
+
         /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 12),
         Expanded(child: _buildTabContent(theme)),
@@ -618,11 +627,13 @@ class _InspectTab extends StatelessWidget {
             /// Creates a [_InspectTab] widget.
             const Spacer(),
             Text('Raw JSON', style: theme.textTheme.small),
+
             /// Creates a [_InspectTab] widget.
             const SizedBox(width: 8),
             ShadSwitch(value: rawJson, onChanged: onToggleRaw),
           ],
         ),
+
         /// Creates a [_InspectTab] widget.
         const SizedBox(height: 8),
         Expanded(
@@ -690,6 +701,7 @@ class _InspectFormattedView extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+
             /// Creates a [_InspectFormattedView] widget.
             const SizedBox(height: 12),
             for (
@@ -699,6 +711,7 @@ class _InspectFormattedView extends StatelessWidget {
             ) ...[
               if (rowIndex > 0)
                 Divider(color: theme.colorScheme.border, height: 1),
+
               /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
               _InspectRow(
@@ -706,6 +719,7 @@ class _InspectFormattedView extends StatelessWidget {
                 label: section.rows[rowIndex].label,
                 value: section.rows[rowIndex].value,
               ),
+
               /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
             ],
@@ -910,6 +924,7 @@ class _MountsTab extends StatelessWidget {
               ),
             ],
           ),
+
           /// Creates a [_MountsTab] widget.
           const SizedBox(height: 8),
           Divider(color: theme.colorScheme.border, height: 1),
@@ -1213,6 +1228,7 @@ class _StatsChartCard extends StatelessWidget {
             title,
             style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
           ),
+
           /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 12),
           Expanded(
@@ -1264,6 +1280,7 @@ class _StatsChartCard extends StatelessWidget {
               ),
             ),
           ),
+
           /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 8),
           Wrap(
@@ -1274,6 +1291,7 @@ class _StatsChartCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(width: 10, height: 10, color: item.color),
+
                     /// Creates a [_StatsChartCard] widget.
                     const SizedBox(width: 6),
                     Text(item.label, style: theme.textTheme.muted),

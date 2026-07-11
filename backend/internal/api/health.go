@@ -6,6 +6,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/httpkit"
 )
 
+// healthResponse represents the JSON payload for GET /v1/health.
 type healthResponse struct {
 	Status string `json:"status"`
 }

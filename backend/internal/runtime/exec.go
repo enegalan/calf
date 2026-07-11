@@ -8,9 +8,6 @@ import (
 	"time"
 )
 
-const defaultCommandRetries = 4
-const defaultCommandRetryDelay = 200 * time.Millisecond
-
 // runCommand executes a subprocess and returns combined stdout/stderr.
 func runCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
 	return runCommandOnce(ctx, "", name, args...)
@@ -35,7 +32,7 @@ func runCommandWithRetry(ctx context.Context, retries int, delay time.Duration, 
 		}
 
 		lastErr = err
-		if !isTransientCommandError(err) || attempt == retries {
+		if !IsTransientCommandError(err) || attempt == retries {
 			return nil, err
 		}
 
@@ -62,7 +59,7 @@ func runCommandOnce(ctx context.Context, stdin, name string, args ...string) ([]
 
 	output, err := command.CombinedOutput()
 	if err != nil {
-		if formatted := formatCommandError(string(output)); formatted != "" {
+		if formatted := FormatCommandError(string(output)); formatted != "" {
 			return nil, fmt.Errorf("%s", formatted)
 		}
 

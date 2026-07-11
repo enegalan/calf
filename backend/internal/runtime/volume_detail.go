@@ -5,20 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 )
 
+// volumeInspectRow represents a row in the nerdctl volume inspect output.
 type volumeInspectRow struct {
 	CreatedAt  string `json:"CreatedAt"`
 	Driver     string `json:"Driver"`
 	Mountpoint string `json:"Mountpoint"`
 	Name       string `json:"Name"`
 }
-
-var hostPortPattern = regexp.MustCompile(`:(\d+)->`)
 
 // volumeInspectMetadata returns inspect metadata for a single volume.
 func volumeInspectMetadata(ctx context.Context, run commandRunner, name string) (volumeInspectRow, error) {
@@ -244,7 +242,7 @@ func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName st
 				ID:     container.ID,
 				Name:   container.Name,
 				Image:  container.Image,
-				Port:   extractHostPort(container.Ports),
+				Port:   ExtractHostTCPPort(container.Ports),
 				Target: mount.Destination,
 			})
 		}
@@ -369,16 +367,6 @@ func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume
 	})
 
 	return volumes, nil
-}
-
-// extractHostPort parses the first host port from a nerdctl ports string.
-func extractHostPort(ports string) string {
-	match := hostPortPattern.FindStringSubmatch(ports)
-	if len(match) < 2 {
-		return ""
-	}
-
-	return match[1]
 }
 
 // humanizeTime parses an RFC3339 timestamp and returns a relative phrase.

@@ -9,6 +9,7 @@ import (
 	"github.com/enegalan/calf/backend/version"
 )
 
+// statusResponse represents the JSON payload for GET /v1/status.
 type statusResponse struct {
 	Version       string         `json:"version"`
 	UptimeSeconds int64          `json:"uptime_seconds"`

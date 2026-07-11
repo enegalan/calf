@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Regular expressions for parsing build log lines into steps and timing buckets.
 var (
 	buildStepHeaderRe = regexp.MustCompile(`^#(\d+)\s+(\[[^\]]+\]\s+)?(.+)$`)
 	buildStepDoneRe   = regexp.MustCompile(`^#(\d+)\s+DONE\s+([\d.]+)s`)
@@ -33,7 +34,7 @@ func ParseBuildOutput(output string) BuildResult {
 
 		if matches := buildStepDoneRe.FindStringSubmatch(trimmed); len(matches) == 3 {
 			stepID, _ := strconv.Atoi(matches[1])
-			durationMs := parseDurationMs(matches[2])
+			durationMs := parseBuildLogStepDurationMs(matches[2])
 			step := ensureStep(stepsByID, &stepOrder, stepID)
 			step.DurationMs = durationMs
 			classifyTiming(&result.Timing, step.Name, durationMs)
@@ -143,8 +144,8 @@ func ensureStep(steps map[int]*BuildStep, order *[]int, stepID int) *BuildStep {
 	return step
 }
 
-// parseDurationMs converts a build-log duration string (e.g. "1.23s") to milliseconds.
-func parseDurationMs(value string) int64 {
+// parseBuildLogStepDurationMs converts a build-log duration string (e.g. "1.23s") to milliseconds.
+func parseBuildLogStepDurationMs(value string) int64 {
 	value = strings.TrimSuffix(value, "s")
 	seconds, err := strconv.ParseFloat(value, 64)
 	if err != nil {

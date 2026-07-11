@@ -5,13 +5,13 @@ import (
 	"io"
 	"net"
 	"os/exec"
-	"regexp"
 	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
 )
 
+// localhostProxies represents the localhost proxies for the runtime.
 type localhostProxies struct {
 	mu        sync.Mutex
 	listeners map[int]net.Listener
@@ -204,7 +204,7 @@ func publishedTCPPorts(containers []Container) map[int]struct{} {
 			continue
 		}
 
-		for port := range parsePublishedTCPPorts(container.Ports) {
+		for port := range ParsePublishedTCPPorts(container.Ports) {
 			ports[port] = struct{}{}
 		}
 	}
@@ -220,29 +220,6 @@ func containerIsRunning(container Container) bool {
 	}
 
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(container.Status)), "up")
-}
-
-var publishedTCPPortPattern = regexp.MustCompile(`:(\d+)->\d+/tcp`)
-
-// ParsePublishedTCPPorts parses nerdctl port mappings into host TCP port numbers.
-func ParsePublishedTCPPorts(value string) map[int]struct{} {
-	return parsePublishedTCPPorts(value)
-}
-
-// parsePublishedTCPPorts extracts host TCP ports from a nerdctl Ports string.
-func parsePublishedTCPPorts(value string) map[int]struct{} {
-	ports := make(map[int]struct{})
-
-	for _, match := range publishedTCPPortPattern.FindAllStringSubmatch(value, -1) {
-		port, err := strconv.Atoi(match[1])
-		if err != nil || port <= 0 {
-			continue
-		}
-
-		ports[port] = struct{}{}
-	}
-
-	return ports
 }
 
 // localhostPortConflict builds a PortConflict for a port that cannot be proxied.

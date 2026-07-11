@@ -121,12 +121,14 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Builds', style: theme.textTheme.h3),
+
         /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 16),
         ShadInput(
           controller: _searchController,
           placeholder: const Text('Search'),
         ),
+
         /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
@@ -171,6 +173,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                           shape: BoxShape.circle,
                         ),
                       ),
+
                       /// Creates a [_BuildsScreenState] widget.
                       const SizedBox(width: 12),
                       Expanded(

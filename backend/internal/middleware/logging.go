@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// statusRecorder records the status code and delegates to the wrapped ResponseWriter.
 type statusRecorder struct {
 	http.ResponseWriter
 	status int

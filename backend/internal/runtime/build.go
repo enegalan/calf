@@ -1,5 +1,6 @@
 package runtime
 
+// BuildStep represents a step in a build.
 type BuildStep struct {
 	Index      int    `json:"index"`
 	Total      int    `json:"total"`
@@ -9,12 +10,14 @@ type BuildStep struct {
 	Log        string `json:"log,omitempty"`
 }
 
+// BuildDependency represents a dependency in a build.
 type BuildDependency struct {
 	Source   string `json:"source"`
 	Platform string `json:"platform"`
 	Digest   string `json:"digest"`
 }
 
+// BuildArtifact represents an artifact in a build.
 type BuildArtifact struct {
 	Name     string `json:"name"`
 	Platform string `json:"platform"`
@@ -22,11 +25,13 @@ type BuildArtifact struct {
 	Size     string `json:"size"`
 }
 
+// BuildTag represents a tag in a build.
 type BuildTag struct {
 	Tag    string `json:"tag"`
 	Digest string `json:"digest"`
 }
 
+// BuildTiming represents the timing of a build.
 type BuildTiming struct {
 	ImagePullsMs     int64 `json:"image_pulls_ms"`
 	LocalTransfersMs int64 `json:"local_transfers_ms"`
@@ -36,6 +41,7 @@ type BuildTiming struct {
 	IdleMs           int64 `json:"idle_ms"`
 }
 
+// Build represents a build.
 type Build struct {
 	ID             string            `json:"id"`
 	HistoryRef     string            `json:"history_ref,omitempty"`
@@ -61,6 +67,7 @@ type Build struct {
 	RawLog         string            `json:"raw_log,omitempty"`
 }
 
+// BuildResult represents the result of a build.
 type BuildResult struct {
 	RawLog       string
 	Steps        []BuildStep
@@ -72,6 +79,7 @@ type BuildResult struct {
 	Tags         []BuildTag
 }
 
+// BuildSource represents the source of a build.
 type BuildSource struct {
 	Path     string `json:"path"`
 	Filename string `json:"filename"`

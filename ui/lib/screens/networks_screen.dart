@@ -287,6 +287,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                 color: theme.colorScheme.foreground,
               ),
             ),
+
             /// Creates a [_NetworkDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Networks', style: theme.textTheme.muted),
@@ -304,6 +305,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
             ),
           ],
         ),
+
         /// Creates a [_NetworkDetailViewState] widget.
         const SizedBox(height: 24),
         if (_loading)
@@ -340,6 +342,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                       ),
                     ],
                   ),
+
                   /// Creates a [_NetworkDetailViewState] widget.
                   const SizedBox(height: 16),
                   _InfoCard(
@@ -359,6 +362,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                     /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 24),
                     Text('Options', style: theme.textTheme.h4),
+
                     /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 12),
                     _OptionsTable(theme: theme, options: _detail!.options),

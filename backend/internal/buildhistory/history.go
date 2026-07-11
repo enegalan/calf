@@ -5,13 +5,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
 
+// Row represents a row in the buildx history list output.
 type Row struct {
 	ID             string `json:"ID"`
 	Ref            string `json:"ref"`
@@ -97,6 +95,38 @@ func List(ctx context.Context, socket string) ([]Row, error) {
 	return parseRows(output), nil
 }
 
+// ParsePlaintextRows decodes newline-delimited buildx output, accepting plain-text lines when JSON parsing fails.
+func ParsePlaintextRows(output []byte) []Row {
+	rows := make([]Row, 0)
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var row Row
+		if err := json.Unmarshal([]byte(line), &row); err != nil {
+			rows = append(rows, Row{
+				Name:        line,
+				NameLower:   line,
+				Status:      "migrated",
+				StatusLower: "migrated",
+			})
+			continue
+		}
+
+		if row.BuildName() == "" {
+			continue
+		}
+
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
 // parseRows decodes newline-delimited JSON buildx history list output into rows.
 func parseRows(output []byte) []Row {
 	rows := make([]Row, 0)
@@ -180,8 +210,6 @@ func NormalizeTag(name string) string {
 	return tag
 }
 
-const dockerCLITimeout = 2 * time.Minute
-
 // ParseDurationMs converts a Go duration string to milliseconds, returning 0 on parse failure.
 func ParseDurationMs(value string) int64 {
 	value = strings.TrimSpace(value)
@@ -196,19 +224,4 @@ func ParseDurationMs(value string) int64 {
 	}
 
 	return duration.Milliseconds()
-}
-
-// runDocker executes docker against the given unix socket with a bounded timeout.
-func runDocker(ctx context.Context, socket string, args ...string) ([]byte, error) {
-	runCtx, cancel := context.WithTimeout(ctx, dockerCLITimeout)
-	defer cancel()
-
-	command := exec.CommandContext(runCtx, "docker", args...)
-	command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
-	output, err := command.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-	}
-
-	return output, nil
 }

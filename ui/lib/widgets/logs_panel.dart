@@ -57,6 +57,7 @@ const double _logRowMinContentWidth = 40;
 /// Formats [receivedAt] as a local `YYYY-MM-DD HH:MM:SS` string.
 String formatLogTimestamp(DateTime receivedAt) {
   final local = receivedAt.toLocal();
+
   /// Pads a number to two digits for timestamp formatting.
   String two(int value) => value.toString().padLeft(2, '0');
 

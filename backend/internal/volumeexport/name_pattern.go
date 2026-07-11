@@ -3,6 +3,9 @@ package volumeexport
 import (
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // HasUniqueNameToken reports whether pattern includes tokens that make each expanded name unique.
@@ -61,7 +64,7 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 
 	expanded := replacer.Replace(pattern)
 	if forFileExport {
-		return SanitizeExportFileName(expanded)
+		return utils.SanitizeExportFileName(expanded)
 	}
 
 	return strings.ToLower(strings.TrimSpace(expanded))
@@ -70,16 +73,16 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 // ResolveScheduledExportNames expands file and image names for a scheduled export at runTime.
 func ResolveScheduledExportNames(schedule Schedule, runTime time.Time) (fileName, imageRef string) {
 	switch strings.TrimSpace(schedule.Type) {
-	case TypeLocalFile:
+	case constants.VolumeExportTypeLocalFile:
 		pattern := schedule.FileName
 		if strings.TrimSpace(pattern) == "" {
 			pattern = DefaultFileNamePattern(schedule.Volume)
 		}
 
 		return ExpandExportNamePattern(pattern, schedule.Volume, runTime), ""
-	case TypeLocalImage:
+	case constants.VolumeExportTypeLocalImage:
 		return "", schedule.ImageRef
-	case TypeNewImage, TypeRegistry:
+	case constants.VolumeExportTypeNewImage, constants.VolumeExportTypeRegistry:
 		pattern := schedule.ImageRef
 		if strings.TrimSpace(pattern) == "" {
 			pattern = DefaultImageRefPattern(schedule.Volume)
@@ -93,12 +96,5 @@ func ResolveScheduledExportNames(schedule Schedule, runTime time.Time) (fileName
 
 // sanitizeVolumeToken replaces path separators in a volume name for use in name patterns.
 func sanitizeVolumeToken(value string) string {
-	replacer := strings.NewReplacer("/", "_", "\\", "_")
-	return replacer.Replace(strings.TrimSpace(value))
-}
-
-// SanitizeExportFileName replaces characters that are unsafe in file names.
-func SanitizeExportFileName(value string) string {
-	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "-")
-	return replacer.Replace(strings.TrimSpace(value))
+	return utils.SanitizeFileName(strings.TrimSpace(value))
 }

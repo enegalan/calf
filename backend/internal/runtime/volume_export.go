@@ -9,9 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// VolumeExportOptions represents the options for a volume export.
 type VolumeExportOptions struct {
 	VolumeName  string
 	Type        string
@@ -37,7 +39,7 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 
 	stagingDir := filepath.Dir(archivePath)
 	archiveName := filepath.Base(archivePath)
-	vmStagingDir := mountsVMPath(stagingDir)
+	vmStagingDir := config.HostMountToVMPath(stagingDir)
 
 	args := []string{
 		"run", "--rm",
@@ -85,7 +87,7 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 		_, _ = run(cleanupCtx, "nerdctl", "rm", "-f", containerName)
 	}()
 
-	vmArchivePath := mountsVMPath(archivePath)
+	vmArchivePath := config.HostMountToVMPath(archivePath)
 	if _, err := run(ctx, "nerdctl", "cp", vmArchivePath, containerName+":/tmp/archive.tar.gz"); err != nil {
 		return fmt.Errorf("copy archive into export container: %w", err)
 	}
@@ -147,45 +149,6 @@ func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
 	}
 
 	return destPath, nil
-}
-
-// archiveSize returns a human-readable size string for a file, or empty if stat fails.
-func archiveSize(path string) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return ""
-	}
-
-	bytes := info.Size()
-	if bytes < 1024 {
-		return fmt.Sprintf("%d B", bytes)
-	}
-
-	if bytes < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	}
-
-	if bytes < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
-	}
-
-	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
-}
-
-// mountsVMPath translates a host path under ~/.config/calf/mounts to the Lima VM mount path.
-func mountsVMPath(hostPath string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return hostPath
-	}
-
-	mountsRoot := filepath.Join(home, ".config", "calf", "mounts")
-	rel, err := filepath.Rel(mountsRoot, hostPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return hostPath
-	}
-
-	return "/mnt/calf/" + filepath.ToSlash(rel)
 }
 
 // RunVolumeExport orchestrates a volume export according to opts.Type.

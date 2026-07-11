@@ -1,14 +1,11 @@
 package migration
 
+import "github.com/enegalan/calf/backend/internal/constants"
+
+// Phase represents the current phase of the migration.
 type Phase string
 
-const (
-	PhaseIdle      Phase = "idle"
-	PhaseRunning   Phase = "running"
-	PhaseCompleted Phase = "completed"
-	PhaseFailed    Phase = "failed"
-)
-
+// Summary represents the summary of the migration.
 type Summary struct {
 	ConfigApplied   bool `json:"config_applied"`
 	ImagesTotal     int  `json:"images_total"`
@@ -21,6 +18,7 @@ type Summary struct {
 	BuildsOK        int  `json:"builds_ok"`
 }
 
+// Status represents the current status of the migration.
 type Status struct {
 	Phase    Phase   `json:"phase"`
 	Step     string  `json:"step"`
@@ -32,5 +30,5 @@ type Status struct {
 
 // IdleStatus returns the default migration status shown before a run starts.
 func IdleStatus() Status {
-	return Status{Phase: PhaseIdle, Step: "idle", Message: "Ready to migrate"}
+	return Status{Phase: Phase(constants.MigrationPhaseIdle), Step: "idle", Message: "Ready to migrate"}
 }
