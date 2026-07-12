@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.2] - 2026-07-12
+## [0.9.3] - 2026-07-12
 
 ### Changed
 
@@ -17,13 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shutdown** — background migration and Docker Hub sign-in stop cleanly when the app closes.
 - **Error messages** — container operations no longer expose low-level runtime output in API responses.
 
-## [0.9.0] - 2026-07-09
+## [0.9.2] - 2026-07-09
 
 ### Added
 
 - **Update notifications** — Calf checks for updates on launch and in Settings, shows when a newer version is available, and opens the right installer for your platform.
 - **macOS menu bar** — Settings, section navigation, Docker Hub sign-in, update checks, and help links are available from the native menu bar.
 - **Open at login** — optional setting in Settings to start Calf automatically when you sign in.
+- **Branded macOS installer** — the `.dmg` uses a drag-to-Applications layout with a custom background.
+- **Installation guide** — step-by-step install instructions for macOS (including Homebrew), Windows, and Linux are in the README.
+
+### Changed
+
+- **Sidebar** — collapses manually and automatically when the window is narrow.
+- **Linux AppImage builds** — packaging downloads and validates the build tool more reliably on CI.
 
 ### Fixed
 
@@ -32,6 +39,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Container exec** — opening the Exec tab no longer shows a Lima provisioning warning on startup.
 - **Build source tab** — the Source tab in build details now shows the Dockerfile for builds imported from build history.
 
+## [0.9.1] - 2026-07-08
+
+### Fixed
+
+- **Windows installer** — the `.exe` packaging script resolves paths correctly so release builds produce the installer reliably.
+- **Linux `.rpm` installer** — the RPM build step uses a stable working directory so packaging no longer fails on CI.
+
+## [0.9.0] - 2026-07-08
+
+### Added
+
+- **Automated releases** — bumping the version on `main` builds and publishes macOS, Windows, and Linux installers to GitHub Releases.
 
 ## [0.8.0] - 2026-07-08
 
