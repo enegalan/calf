@@ -63,10 +63,23 @@ func (s *Core) Shutdown(ctx context.Context) error {
 	if s.lifecycleCancel != nil {
 		s.lifecycleCancel()
 	}
+	s.stopRegistryLoginSessions()
 	if s.exportScheduler != nil {
 		s.exportScheduler.Stop()
 	}
 	return nil
+}
+
+// stopRegistryLoginSessions cancels in-flight Docker Hub device-login flows during shutdown.
+func (s *Core) stopRegistryLoginSessions() {
+	s.loginSessions().Range(func(key, value any) bool {
+		session := value.(*registryLoginSession)
+		if session.cancel != nil {
+			session.cancel()
+		}
+		s.loginSessions().Delete(key)
+		return true
+	})
 }
 
 func (s *Core) dockerContextManaged() bool {

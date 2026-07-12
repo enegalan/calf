@@ -28,5 +28,5 @@ func WriteRuntimeOrFail(w http.ResponseWriter, err error) {
 		return
 	}
 
-	WriteError(w, http.StatusInternalServerError, err.Error())
+	WriteError(w, http.StatusInternalServerError, "operation failed")
 }

@@ -222,21 +222,12 @@ func isCalfListenerWindows(pid int) bool {
 	return looksLikeCalfProcess(string(out))
 }
 
-// looksLikeCalfProcess reports whether a ps/tasklist line refers to calf-daemon or go run calf.
+// looksLikeCalfProcess reports whether a ps/tasklist line refers to calf-daemon or go run ./cmd/calf.
 func looksLikeCalfProcess(command string) bool {
 	lower := strings.ToLower(strings.TrimSpace(command))
-	if strings.Contains(lower, "calf-daemon") ||
+	return strings.Contains(lower, "calf-daemon") ||
 		strings.Contains(lower, "cmd/calf") ||
-		strings.Contains(lower, `cmd\calf`) ||
-		strings.Contains(lower, "/exe/calf") {
-		return true
-	}
-	fields := strings.Fields(lower)
-	if len(fields) == 0 {
-		return false
-	}
-	exe := fields[0]
-	return strings.HasSuffix(exe, "/calf") || strings.HasSuffix(exe, `\calf`) || exe == "calf"
+		strings.Contains(lower, `cmd\calf`)
 }
 
 // findPidOnPort returns the PID listening on port, excluding this process and its parent.

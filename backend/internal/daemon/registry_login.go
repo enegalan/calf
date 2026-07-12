@@ -47,7 +47,7 @@ func (s *Core) StartRegistryDeviceLogin(ctx context.Context) (RegistryDeviceLogi
 	}
 
 	sessionID := newRegistrySessionID()
-	flowCtx, cancel := context.WithTimeout(context.Background(), time.Duration(state.ExpiresIn)*time.Second)
+	flowCtx, cancel := context.WithTimeout(s.Lifecycle(), time.Duration(state.ExpiresIn)*time.Second)
 
 	session := &registryLoginSession{
 		id:              sessionID,

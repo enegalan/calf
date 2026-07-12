@@ -40,7 +40,7 @@ func (s *Core) TryStartMigration() (migration.Status, bool) {
 
 // RunDockerDesktopMigration executes the Docker Desktop migration workflow in a background goroutine.
 func (s *Core) RunDockerDesktopMigration() {
-	ctx, cancel := context.WithTimeout(context.Background(), constants.BuildJobTimeout)
+	ctx, cancel := context.WithTimeout(s.Lifecycle(), constants.BuildJobTimeout)
 	defer cancel()
 
 	defer func() {

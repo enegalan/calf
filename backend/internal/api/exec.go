@@ -61,7 +61,8 @@ func (g *Gateway) handleContainerExecWebSocket(w http.ResponseWriter, r *http.Re
 		}
 	}, resizeCh)
 	if attachErr != nil && ctx.Err() == nil {
-		_ = writer.WriteMessage(websocket.TextMessage, []byte("error: "+attachErr.Error()))
+		g.logger.Error("container exec attach failed", "container", id, "error", attachErr)
+		_ = writer.WriteMessage(websocket.TextMessage, []byte("error: failed to attach to container"))
 	}
 }
 

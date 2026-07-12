@@ -107,6 +107,11 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := config.ValidateResourceUpdate(req, daemon.HostCPUs(), daemon.HostMemoryGB()); err != nil {
+		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	proxyChanged := req.HTTPProxy != nil || req.HTTPSProxy != nil || req.NoProxy != nil
 	saved, err := g.applyConfigUpdate(req)
 	if err != nil {
@@ -151,9 +156,12 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if saved.DockerContextManaged {
-		activateCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+		activateCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
 		defer cancel()
 		if err := g.backend.DockerCLI.Activate(activateCtx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
 			g.logger.Warn("failed to activate docker context", "error", err)
 		}
 	}

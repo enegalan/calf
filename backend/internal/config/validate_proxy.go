@@ -18,6 +18,37 @@ type UpdateRequest struct {
 	NoProxy              *string `json:"no_proxy,omitempty"`
 }
 
+// ValidateResourceUpdate checks CPU and memory fields in a config update against host capacity.
+func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB int) error {
+	if hostCPUs < 1 {
+		hostCPUs = 1
+	}
+	if hostMemoryGB < 1 {
+		hostMemoryGB = 1
+	}
+
+	if req.CPUs != nil {
+		cpus := *req.CPUs
+		if cpus < 1 || cpus > hostCPUs {
+			return fmt.Errorf("cpus: must be between 1 and %d", hostCPUs)
+		}
+	}
+	if req.MemoryGB != nil {
+		memoryGB := *req.MemoryGB
+		if memoryGB < 1 || memoryGB > hostMemoryGB {
+			return fmt.Errorf("memory_gb: must be between 1 and %d", hostMemoryGB)
+		}
+	}
+	if req.MemorySwapGB != nil {
+		swapGB := *req.MemorySwapGB
+		if swapGB < 0 || swapGB > hostMemoryGB {
+			return fmt.Errorf("memory_swap_gb: must be between 0 and %d", hostMemoryGB)
+		}
+	}
+
+	return nil
+}
+
 // ValidateProxyUpdate checks http_proxy, https_proxy, and no_proxy fields in a config update request.
 func ValidateProxyUpdate(req UpdateRequest) error {
 	if req.HTTPProxy != nil {

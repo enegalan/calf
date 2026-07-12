@@ -38,3 +38,29 @@ func TestValidateProxyUpdateNoProxyInvalidCIDR(t *testing.T) {
 		t.Fatalf("expected path error for invalid CIDR, got: %v", err)
 	}
 }
+
+func TestValidateResourceUpdateWithinBounds(t *testing.T) {
+	cpus := 4
+	memoryGB := 8
+	swapGB := 4
+	req := config.UpdateRequest{
+		CPUs:         &cpus,
+		MemoryGB:     &memoryGB,
+		MemorySwapGB: &swapGB,
+	}
+	if err := config.ValidateResourceUpdate(req, 8, 16); err != nil {
+		t.Fatalf("ValidateResourceUpdate() error: %v", err)
+	}
+}
+
+func TestValidateResourceUpdateCPUsOutOfRange(t *testing.T) {
+	cpus := 32
+	req := config.UpdateRequest{CPUs: &cpus}
+	err := config.ValidateResourceUpdate(req, 8, 16)
+	if err == nil {
+		t.Fatal("expected error for cpus above host capacity")
+	}
+	if !strings.Contains(err.Error(), "cpus:") {
+		t.Fatalf("expected cpus error, got: %v", err)
+	}
+}
