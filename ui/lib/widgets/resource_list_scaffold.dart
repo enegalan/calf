@@ -45,7 +45,7 @@ class ResourceListScaffold extends StatelessWidget {
         Row(
           children: [
             Expanded(child: Text(title, style: theme.textTheme.h3)),
-            if (headerActions != null) headerActions!,
+            ?headerActions,
           ],
         ),
         if (subtitle != null) ...[

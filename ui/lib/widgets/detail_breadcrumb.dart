@@ -49,7 +49,7 @@ class DetailBreadcrumb extends StatelessWidget {
           else
             Text(segments[index], style: theme.textTheme.muted),
         ],
-        if (trailing != null) trailing!,
+        ?trailing,
       ],
     );
   }
