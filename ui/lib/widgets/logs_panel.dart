@@ -94,12 +94,13 @@ class LogsPanel extends StatefulWidget {
   State<LogsPanel> createState() => _LogsPanelState();
 }
 
-class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
-  final _searchController = TextEditingController();
-  bool _searchOpen = false;
-  bool _regexEnabled = false;
-  bool _settingsOpen = false;
-  int _currentMatchIndex = 0;
+class _LogsPanelState extends State<LogsPanel>
+    with LogViewerPreferencesMixin, _LogsSearchMixin {
+  @override
+  ScrollController get logsScrollController => widget.scrollController;
+
+  @override
+  double get logsMatchLineHeight => 18.0;
 
   /// Loads persisted log viewer preferences.
   @override
@@ -111,29 +112,8 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
   /// Disposes controllers and listeners owned by this state.
   @override
   void dispose() {
-    _searchController.dispose();
+    disposeLogsSearch();
     super.dispose();
-  }
-
-  /// Toggles the search bar open or closed.
-  void _toggleSearch() {
-    setState(() {
-      _searchOpen = !_searchOpen;
-      if (!_searchOpen) {
-        _searchController.clear();
-        _currentMatchIndex = 0;
-      }
-    });
-  }
-
-  /// Toggles the settings popover open or closed.
-  void _toggleSettings() {
-    setState(() => _settingsOpen = !_settingsOpen);
-  }
-
-  /// Resets the current match index when the search query changes.
-  void _onSearchChanged(String _) {
-    setState(() => _currentMatchIndex = 0);
   }
 
   /// Plain-text representation of visible log lines for copy and search.
@@ -147,69 +127,9 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
         .join('\n');
   }
 
-  /// Builds the current search [RegExp], or null when search is inactive.
-  RegExp? _searchPattern() {
-    final query = _searchController.text;
-    if (query.isEmpty) {
-      return null;
-    }
-
-    try {
-      if (_regexEnabled) {
-        return RegExp(query);
-      }
-
-      return RegExp(RegExp.escape(query), caseSensitive: false);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Finds all search matches across visible log lines.
-  List<_LogMatch> _findMatches() {
-    final pattern = _searchPattern();
-    if (pattern == null) {
-      return const [];
-    }
-
-    final matches = <_LogMatch>[];
-    for (var lineIndex = 0; lineIndex < widget.lines.length; lineIndex++) {
-      for (final match in pattern.allMatches(widget.lines[lineIndex].text)) {
-        matches.add(
-          _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
-        );
-      }
-    }
-
-    return matches;
-  }
-
-  /// Moves to the previous or next search match and scrolls it into view.
-  void _goToMatch(int direction, List<_LogMatch> matches) {
-    if (matches.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _currentMatchIndex = (_currentMatchIndex + direction) % matches.length;
-      if (_currentMatchIndex < 0) {
-        _currentMatchIndex = matches.length - 1;
-      }
-    });
-
-    final match = matches[_currentMatchIndex];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!widget.scrollController.hasClients) {
-        return;
-      }
-
-      final target = match.lineIndex * 18.0;
-      widget.scrollController.animateTo(
-        target.clamp(0, widget.scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-    });
+  @override
+  List<_LogMatch> findLogMatches() {
+    return _findLogMatchesInLines(widget.lines, searchPattern());
   }
 
   /// Copies the visible log text to the clipboard.
@@ -221,26 +141,21 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final matches = _searchOpen ? _findMatches() : const <_LogMatch>[];
-    if (matches.isNotEmpty && _currentMatchIndex >= matches.length) {
-      _currentMatchIndex = 0;
-    }
+    final matches = activeMatches();
+    syncMatchIndex(matches);
 
     return _LogsViewerChrome(
       theme: theme,
-      searchOpen: _searchOpen,
-      settingsOpen: _settingsOpen,
-      regexEnabled: _regexEnabled,
-      searchController: _searchController,
-      onToggleSearch: _toggleSearch,
-      onToggleSettings: _toggleSettings,
-      onSearchChanged: _onSearchChanged,
-      onRegexChanged: (value) => setState(() {
-        _regexEnabled = value;
-        _currentMatchIndex = 0;
-      }),
-      onPreviousMatch: matches.isEmpty ? null : () => _goToMatch(-1, matches),
-      onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
+      searchOpen: searchOpen,
+      settingsOpen: settingsOpen,
+      regexEnabled: regexEnabled,
+      searchController: searchController,
+      onToggleSearch: toggleSearch,
+      onToggleSettings: toggleSettings,
+      onSearchChanged: onSearchChanged,
+      onRegexChanged: onRegexChanged,
+      onPreviousMatch: matches.isEmpty ? null : () => goToMatch(-1, matches),
+      onNextMatch: matches.isEmpty ? null : () => goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
       showTimestamp: showTimestamp,
@@ -264,7 +179,7 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
               showTimestamp: showTimestamp,
               wrapLines: wrapLines,
               matches: matches,
-              currentMatchIndex: _currentMatchIndex,
+              currentMatchIndex: displayMatchIndex(matches),
               scrollController: widget.scrollController,
             ),
       primaryListView:
@@ -294,12 +209,12 @@ class MixedLogsPanel extends StatefulWidget {
 }
 
 class _MixedLogsPanelState extends State<MixedLogsPanel>
-    with LogViewerPreferencesMixin {
-  final _searchController = TextEditingController();
-  bool _searchOpen = false;
-  bool _regexEnabled = false;
-  bool _settingsOpen = false;
-  int _currentMatchIndex = 0;
+    with LogViewerPreferencesMixin, _LogsSearchMixin {
+  @override
+  ScrollController get logsScrollController => widget.scrollController;
+
+  @override
+  double get logsMatchLineHeight => 22.0;
 
   /// Loads persisted log viewer preferences.
   @override
@@ -311,29 +226,8 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
   /// Disposes controllers and listeners owned by this state.
   @override
   void dispose() {
-    _searchController.dispose();
+    disposeLogsSearch();
     super.dispose();
-  }
-
-  /// Toggles the search bar open or closed.
-  void _toggleSearch() {
-    setState(() {
-      _searchOpen = !_searchOpen;
-      if (!_searchOpen) {
-        _searchController.clear();
-        _currentMatchIndex = 0;
-      }
-    });
-  }
-
-  /// Toggles the settings popover open or closed.
-  void _toggleSettings() {
-    setState(() => _settingsOpen = !_settingsOpen);
-  }
-
-  /// Resets the current match index when the search query changes.
-  void _onSearchChanged(String _) {
-    setState(() => _currentMatchIndex = 0);
   }
 
   /// Plain-text representation of visible log lines for copy and search.
@@ -348,73 +242,14 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
     return parts.join('\n');
   }
 
-  /// Builds the current search [RegExp], or null when search is inactive.
-  RegExp? _searchPattern() {
-    final query = _searchController.text;
-    if (query.isEmpty) {
-      return null;
-    }
-
-    try {
-      if (_regexEnabled) {
-        return RegExp(query);
-      }
-
-      return RegExp(RegExp.escape(query), caseSensitive: false);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Finds all search matches across visible log lines.
-  List<_LogMatch> _findMatches() {
-    final pattern = _searchPattern();
-    if (pattern == null) {
-      return const [];
-    }
-
-    final matches = <_LogMatch>[];
-    var lineIndex = 0;
+  @override
+  List<_LogMatch> findLogMatches() {
+    final lines = <LogLine>[];
     for (final block in widget.blocks) {
-      for (final line in block.lines) {
-        for (final match in pattern.allMatches(line.text)) {
-          matches.add(
-            _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
-          );
-        }
-        lineIndex++;
-      }
+      lines.addAll(block.lines);
     }
 
-    return matches;
-  }
-
-  /// Moves to the previous or next search match and scrolls it into view.
-  void _goToMatch(int direction, List<_LogMatch> matches) {
-    if (matches.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _currentMatchIndex = (_currentMatchIndex + direction) % matches.length;
-      if (_currentMatchIndex < 0) {
-        _currentMatchIndex = matches.length - 1;
-      }
-    });
-
-    final match = matches[_currentMatchIndex];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!widget.scrollController.hasClients) {
-        return;
-      }
-
-      final target = match.lineIndex * 22.0;
-      widget.scrollController.animateTo(
-        target.clamp(0, widget.scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-    });
+    return _findLogMatchesInLines(lines, searchPattern());
   }
 
   /// Copies the visible log text to the clipboard.
@@ -436,10 +271,9 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final matches = _searchOpen ? _findMatches() : const <_LogMatch>[];
-    if (matches.isNotEmpty && _currentMatchIndex >= matches.length) {
-      _currentMatchIndex = 0;
-    }
+    final matches = activeMatches();
+    syncMatchIndex(matches);
+    final displayIndex = displayMatchIndex(matches);
 
     final emptyMessage = widget.runningCount == 0
         ? 'No running containers in this stack.'
@@ -447,19 +281,16 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
 
     return _LogsViewerChrome(
       theme: theme,
-      searchOpen: _searchOpen,
-      settingsOpen: _settingsOpen,
-      regexEnabled: _regexEnabled,
-      searchController: _searchController,
-      onToggleSearch: _toggleSearch,
-      onToggleSettings: _toggleSettings,
-      onSearchChanged: _onSearchChanged,
-      onRegexChanged: (value) => setState(() {
-        _regexEnabled = value;
-        _currentMatchIndex = 0;
-      }),
-      onPreviousMatch: matches.isEmpty ? null : () => _goToMatch(-1, matches),
-      onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
+      searchOpen: searchOpen,
+      settingsOpen: settingsOpen,
+      regexEnabled: regexEnabled,
+      searchController: searchController,
+      onToggleSearch: toggleSearch,
+      onToggleSettings: toggleSettings,
+      onSearchChanged: onSearchChanged,
+      onRegexChanged: onRegexChanged,
+      onPreviousMatch: matches.isEmpty ? null : () => goToMatch(-1, matches),
+      onNextMatch: matches.isEmpty ? null : () => goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
       showTimestamp: showTimestamp,
@@ -523,7 +354,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
                                 showTimestamp: showTimestamp,
                                 wrapLines: wrapLines,
                                 matches: matches,
-                                currentMatchIndex: _currentMatchIndex,
+                                currentMatchIndex: displayIndex,
                                 lineOffset: lineOffset,
                               ),
                             ),
@@ -551,6 +382,162 @@ class _LogMatch {
   final int lineIndex;
   final int start;
   final int end;
+}
+
+/// Finds all [pattern] matches across [lines].
+List<_LogMatch> _findLogMatchesInLines(List<LogLine> lines, RegExp? pattern) {
+  if (pattern == null) {
+    return const [];
+  }
+
+  final matches = <_LogMatch>[];
+  for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    for (final match in pattern.allMatches(lines[lineIndex].text)) {
+      matches.add(
+        _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
+      );
+    }
+  }
+
+  return matches;
+}
+
+/// Shared search state and navigation for single- and mixed-log panels.
+mixin _LogsSearchMixin<T extends StatefulWidget> on State<T> {
+  final TextEditingController searchController = TextEditingController();
+  bool searchOpen = false;
+  bool regexEnabled = false;
+  bool settingsOpen = false;
+  int currentMatchIndex = 0;
+
+  /// Scroll controller used to bring the active match into view.
+  ScrollController get logsScrollController;
+
+  /// Estimated row height for scroll-to-match calculations.
+  double get logsMatchLineHeight;
+
+  /// Returns all search matches in the current log content.
+  List<_LogMatch> findLogMatches();
+
+  /// Disposes the search controller; call from [State.dispose].
+  void disposeLogsSearch() {
+    searchController.dispose();
+  }
+
+  /// Toggles the search bar open or closed.
+  void toggleSearch() {
+    setState(() {
+      searchOpen = !searchOpen;
+      if (!searchOpen) {
+        searchController.clear();
+        currentMatchIndex = 0;
+      }
+    });
+  }
+
+  /// Toggles the settings popover open or closed.
+  void toggleSettings() {
+    setState(() => settingsOpen = !settingsOpen);
+  }
+
+  /// Resets the current match index when the search query changes.
+  void onSearchChanged(String _) {
+    setState(() => currentMatchIndex = 0);
+  }
+
+  /// Resets the current match index when the regex toggle changes.
+  void onRegexChanged(bool value) {
+    setState(() {
+      regexEnabled = value;
+      currentMatchIndex = 0;
+    });
+  }
+
+  /// Builds the current search [RegExp], or null when search is inactive.
+  RegExp? searchPattern() {
+    final query = searchController.text;
+    if (query.isEmpty) {
+      return null;
+    }
+
+    try {
+      if (regexEnabled) {
+        return RegExp(query);
+      }
+
+      return RegExp(RegExp.escape(query), caseSensitive: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns active matches when search is open, otherwise an empty list.
+  List<_LogMatch> activeMatches() {
+    if (!searchOpen) {
+      return const [];
+    }
+
+    return findLogMatches();
+  }
+
+  /// Schedules a post-frame [setState] when [currentMatchIndex] is out of range.
+  void syncMatchIndex(List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      if (currentMatchIndex != 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => currentMatchIndex = 0);
+          }
+        });
+      }
+      return;
+    }
+
+    if (currentMatchIndex >= matches.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => currentMatchIndex = 0);
+        }
+      });
+    }
+  }
+
+  /// Returns a clamped match index safe for the current frame's [matches].
+  int displayMatchIndex(List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      return 0;
+    }
+
+    return math.min(currentMatchIndex, matches.length - 1);
+  }
+
+  /// Moves to the previous or next search match and scrolls it into view.
+  void goToMatch(int direction, List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      currentMatchIndex = (currentMatchIndex + direction) % matches.length;
+      if (currentMatchIndex < 0) {
+        currentMatchIndex = matches.length - 1;
+      }
+    });
+
+    final match = matches[currentMatchIndex];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!logsScrollController.hasClients) {
+        return;
+      }
+
+      final target = match.lineIndex * logsMatchLineHeight;
+      logsScrollController.animateTo(
+        target.clamp(0, logsScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    });
+  }
 }
 
 class _LogsViewerChrome extends StatelessWidget {

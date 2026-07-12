@@ -26,6 +26,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  bool _refreshInFlight = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   ImageItem? _selectedImage;
@@ -56,6 +57,11 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
 
   /// Fetches images from the API, optionally skipping the loading indicator.
   Future<void> _loadImages({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -73,6 +79,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
         _runtime = status.runtime;
         _images = images;
         _loading = false;
+        _syncSelectedImage(images);
       });
     } catch (error) {
       if (!mounted) {
@@ -84,7 +91,29 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
+  }
+
+  /// Updates [_selectedImage] from a fresh poll when detail view is open.
+  void _syncSelectedImage(List<ImageItem> images) {
+    final selected = _selectedImage;
+    if (selected == null) {
+      return;
+    }
+
+    for (final image in images) {
+      if (image.id == selected.id) {
+        _selectedImage = image;
+        return;
+      }
+    }
+
+    _selectedImage = null;
+    _layers = null;
+    _layersError = null;
+    _layersLoading = false;
   }
 
   /// Navigates to or opens the selected image.

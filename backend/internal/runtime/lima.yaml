@@ -39,11 +39,7 @@ provision:
       DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io curl ca-certificates socat
       systemctl enable --now containerd
       systemctl enable --now docker
-      if [ -f /mnt/lima-cidata/lima.env ]; then
-        # shellcheck disable=SC1091
-        . /mnt/lima-cidata/lima.env
-        usermod -aG docker "${LIMA_CIDATA_USER}"
-      fi
+      usermod -aG docker "{{.User}}"
       ARCH="$(uname -m)"
       case "$ARCH" in
         aarch64|arm64) NERD_ARCH=arm64 ;;

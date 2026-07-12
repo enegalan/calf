@@ -249,7 +249,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     setState(() {
       if (_dayTimes.containsKey(day)) {
         _dayTimes.remove(day);
-        _timeRowKeys.removeWhere((key, _) => key.startsWith('$day-'));
+        _rebuildTimeRowKeys(day);
       } else {
         _dayTimes[day] = [const TimeOfDay(hour: 3, minute: 0)];
       }
@@ -270,13 +270,27 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
     }
 
     setState(() {
+      _commitPendingTimes();
       _dayTimes[day]!.removeAt(index);
+      _rebuildTimeRowKeys(day);
     });
   }
 
   /// Updates the corresponding form field in state.
   void _updateExportTime(int day, int index, TimeOfDay time) {
     setState(() => _dayTimes[day]![index] = time);
+  }
+
+  /// Switches export type and clears the shared image reference field.
+  void _setExportType(VolumeQuickExportType type) {
+    if (_type == type) {
+      return;
+    }
+
+    setState(() {
+      _type = type;
+      _imageRefController.clear();
+    });
   }
 
   /// Opens a folder picker and stores the selected path.
@@ -324,6 +338,11 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   GlobalKey<_ExportTimeRowState> _timeRowKey(int day, int index) {
     final keyId = '$day-$index';
     return _timeRowKeys.putIfAbsent(keyId, GlobalKey<_ExportTimeRowState>.new);
+  }
+
+  /// Discards cached row keys for [day] after indices shift.
+  void _rebuildTimeRowKeys(int day) {
+    _timeRowKeys.removeWhere((key, _) => key.startsWith('$day-'));
   }
 
   /// Flushes pending editor values into committed state.
@@ -679,8 +698,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         selected: _type == VolumeQuickExportType.localFile,
                         onSelect: _busy
                             ? null
-                            : () => setState(
-                                () => _type = VolumeQuickExportType.localFile,
+                            : () => _setExportType(
+                                VolumeQuickExportType.localFile,
                               ),
                         child: _type == VolumeQuickExportType.localFile
                             ? Column(
@@ -742,8 +761,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         selected: _type == VolumeQuickExportType.localImage,
                         onSelect: _busy
                             ? null
-                            : () => setState(
-                                () => _type = VolumeQuickExportType.localImage,
+                            : () => _setExportType(
+                                VolumeQuickExportType.localImage,
                               ),
                         child: _type == VolumeQuickExportType.localImage
                             ? Padding(
@@ -770,8 +789,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         selected: _type == VolumeQuickExportType.newImage,
                         onSelect: _busy
                             ? null
-                            : () => setState(
-                                () => _type = VolumeQuickExportType.newImage,
+                            : () => _setExportType(
+                                VolumeQuickExportType.newImage,
                               ),
                         child: _type == VolumeQuickExportType.newImage
                             ? Padding(
@@ -804,8 +823,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         selected: _type == VolumeQuickExportType.registry,
                         onSelect: _busy
                             ? null
-                            : () => setState(
-                                () => _type = VolumeQuickExportType.registry,
+                            : () => _setExportType(
+                                VolumeQuickExportType.registry,
                               ),
                         child: _type == VolumeQuickExportType.registry
                             ? Padding(

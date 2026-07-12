@@ -308,7 +308,12 @@ func migrateImages(ctx context.Context, ddSocket string, opts Options, staging s
 // loadImageOnCalf imports a saved image tar into the Calf runtime via nerdctl or docker.
 func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	if opts.RunNerdctl != nil {
-		return opts.RunNerdctl(ctx, "load", "-i", config.HostMountToVMPath(tarPath))
+		vmTarPath, err := config.HostMountToVMPath(tarPath)
+		if err != nil {
+			return fmt.Errorf("map image tar path to VM path: %w", err)
+		}
+
+		return opts.RunNerdctl(ctx, "load", "-i", vmTarPath)
 	}
 
 	return dockerexec.RunError(ctx, opts.CalfSocket, "load", "-i", tarPath)

@@ -9,6 +9,9 @@ const (
 	LogTailLineCount      = 500
 )
 
+// Host defaults apply when total memory cannot be read from the OS.
+const DefaultHostMemoryGB = 8
+
 // Build defaults cap persisted build history and bound build-related work.
 const (
 	MaxBuilds                = 200
@@ -102,9 +105,11 @@ const (
 
 // LogsWebSocket defaults control ping/pong keep-alive and write deadlines for log streams.
 const (
-	LogsPongWait   = 60 * time.Second
-	LogsPingPeriod = (LogsPongWait * 9) / 10
-	LogsWriteWait  = 10 * time.Second
+	LogsPongWait       = 60 * time.Second
+	LogsPingPeriod     = (LogsPongWait * 9) / 10
+	LogsWriteWait      = 10 * time.Second
+	LogStreamRetryBase = 500 * time.Millisecond
+	LogStreamRetryMax  = 5 * time.Second
 )
 
 // Byte unit conversions used for disk-space checks and human-readable size formatting.
@@ -112,6 +117,13 @@ const (
 	BytesPerKiB = 1024
 	BytesPerMiB = 1024 * 1024
 	BytesPerGiB = 1024 * 1024 * 1024
+)
+
+// Docker byte unit conversions match decimal (1000-based) sizes from docker system df.
+const (
+	DockerBytesPerKB = 1000
+	DockerBytesPerMB = 1000 * DockerBytesPerKB
+	DockerBytesPerGB = 1000 * DockerBytesPerMB
 )
 
 // MigrationPhase values track Docker Desktop migration progress in the API.

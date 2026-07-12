@@ -65,6 +65,36 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     _loadDetail();
   }
 
+  /// Resets all cached state when navigating to a different build.
+  @override
+  void didUpdateWidget(covariant BuildDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.buildId != widget.buildId) {
+      _resetState();
+      _loadDetail();
+    }
+  }
+
+  /// Clears tab-specific cached data for a fresh build load.
+  void _resetState() {
+    _tab = _BuildDetailTab.info;
+    _detail = null;
+    _source = null;
+    _history = [];
+    _detailLoading = true;
+    _sourceLoading = false;
+    _historyLoading = false;
+    _detailError = null;
+    _sourceError = null;
+    _historyError = null;
+    _logsLoading = false;
+    _logsError = null;
+    _logs = null;
+    _platformFilter = '';
+    _expandedSteps.clear();
+    _plainLogs = false;
+  }
+
   /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
     setState(() {
@@ -169,11 +199,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         (detail.rawLog.isNotEmpty || detail.steps.isNotEmpty)) {
       return;
     }
-    if (_logs != null || _logsLoading) {
+    if (_logsLoading) {
       return;
     }
 
     setState(() {
+      _logs = null;
       _logsLoading = true;
       _logsError = null;
     });

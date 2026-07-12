@@ -77,16 +77,19 @@ func EnsureMountsDir() (string, error) {
 }
 
 // HostMountToVMPath maps a host path under MountsDir to its Lima VM mount at /mnt/calf/...
-func HostMountToVMPath(hostPath string) string {
+func HostMountToVMPath(hostPath string) (string, error) {
 	mountsRoot, err := MountsDir()
 	if err != nil {
-		return hostPath
+		return "", fmt.Errorf("resolve mounts directory: %w", err)
 	}
 
 	rel, err := filepath.Rel(mountsRoot, hostPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return hostPath
+	if err != nil {
+		return "", fmt.Errorf("map host path %q to VM path: %w", hostPath, err)
+	}
+	if strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("host path %q is outside mounts directory %q", hostPath, mountsRoot)
 	}
 
-	return "/mnt/calf/" + filepath.ToSlash(rel)
+	return "/mnt/calf/" + filepath.ToSlash(rel), nil
 }

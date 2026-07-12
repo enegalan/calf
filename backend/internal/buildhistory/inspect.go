@@ -7,6 +7,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/constants"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -32,17 +33,17 @@ func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, erro
 		"inspect",
 		historyID,
 		"--format",
-		"{{json .}}",
+		"json",
 	)
 	if err != nil {
 		return InspectDetail{}, err
 	}
 
-	return parseInspectDetail(string(output))
+	return ParseInspectDetail(string(output))
 }
 
-// parseInspectDetail decodes buildx history inspect JSON into InspectDetail fields.
-func parseInspectDetail(output string) (InspectDetail, error) {
+// ParseInspectDetail decodes buildx history inspect JSON into InspectDetail fields.
+func ParseInspectDetail(output string) (InspectDetail, error) {
 	detail := InspectDetail{Dockerfile: "Dockerfile", Labels: make(map[string]string)}
 
 	output = strings.TrimSpace(output)
@@ -66,21 +67,50 @@ func parseInspectDetail(output string) (InspectDetail, error) {
 				detail.Dockerfile = s
 			}
 		case "labels":
-			if labels, ok := value.(map[string]any); ok {
-				for lk, lv := range labels {
-					if s, ok := lv.(string); ok {
-						detail.Labels[lk] = s
-					}
-				}
-			}
+			parseInspectLabels(value, detail.Labels)
 		}
 	}
 
-	if detail.Context == "" {
-		detail.Context = resolveContextFromLabels(detail.Labels)
+	if detail.Context == "" || detail.Context == "." || !filepath.IsAbs(detail.Context) {
+		if resolved := resolveContextFromLabels(detail.Labels); resolved != "" {
+			detail.Context = resolved
+		}
 	}
 
 	return detail, nil
+}
+
+// parseInspectLabels decodes buildx label metadata from either a map or a Name/Value array.
+func parseInspectLabels(value any, labels map[string]string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, raw := range typed {
+			if label, ok := raw.(string); ok {
+				labels[key] = label
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			name, _ := entry["Name"].(string)
+			if name == "" {
+				name, _ = entry["name"].(string)
+			}
+
+			label, _ := entry["Value"].(string)
+			if label == "" {
+				label, _ = entry["value"].(string)
+			}
+
+			if name != "" {
+				labels[name] = label
+			}
+		}
+	}
 }
 
 // resolveContextFromLabels infers a build context path from compose-related container labels.

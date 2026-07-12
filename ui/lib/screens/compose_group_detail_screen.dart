@@ -10,6 +10,8 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
 
+const _maxLogLines = 2000;
+
 const _mixedLogColors = [
   Color(0xFFE91E8C),
   Color(0xFF9B5DE5),
@@ -146,6 +148,31 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     }
   }
 
+  /// Drops oldest log lines when the mixed buffer exceeds [_maxLogLines].
+  void _trimMixedLogBlocks() {
+    var total = 0;
+    for (final block in _mixedLogBlocks) {
+      total += block.lines.length;
+    }
+    if (total <= _maxLogLines) {
+      return;
+    }
+
+    var toRemove = total - _maxLogLines;
+    while (toRemove > 0 && _mixedLogBlocks.isNotEmpty) {
+      final first = _mixedLogBlocks.first;
+      if (first.lines.length <= toRemove) {
+        toRemove -= first.lines.length;
+        _mixedLogBlocks.removeAt(0);
+      } else {
+        _mixedLogBlocks[0] = first.copyWith(
+          lines: first.lines.sublist(toRemove),
+        );
+        toRemove = 0;
+      }
+    }
+  }
+
   /// Appends a value to the rolling history buffer.
   void _appendLogLine(ContainerItem container, Color color, String line) {
     if (!mounted) {
@@ -171,6 +198,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
           ),
         );
       }
+      _trimMixedLogBlocks();
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -523,7 +551,7 @@ class _ComposeContainerRow extends StatelessWidget {
                     GestureDetector(
                       onTap: () => onOpenPort(port),
                       child: Text(
-                        '$port:$port',
+                        'localhost:$port',
                         style: theme.textTheme.small.copyWith(
                           color: theme.colorScheme.primary,
                         ),

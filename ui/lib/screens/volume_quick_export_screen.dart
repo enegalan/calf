@@ -99,6 +99,18 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
     }
   }
 
+  /// Switches export type and clears the shared image reference field.
+  void _setExportType(VolumeQuickExportType type) {
+    if (_type == type) {
+      return;
+    }
+
+    setState(() {
+      _type = type;
+      _imageRefController.clear();
+    });
+  }
+
   /// Opens a folder picker and stores the selected path.
   Future<void> _browseFolder() async {
     try {
@@ -204,7 +216,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         'Create a compressed file (.tar.gz) in a selected directory with the content of this volume.',
                     selected: _type == VolumeQuickExportType.localFile,
                     onSelect: () =>
-                        setState(() => _type = VolumeQuickExportType.localFile),
+                        _setExportType(VolumeQuickExportType.localFile),
                     child: _type == VolumeQuickExportType.localFile
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -250,9 +262,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                     description:
                         'Copy the volume content to an existing image in the /volume-data directory.',
                     selected: _type == VolumeQuickExportType.localImage,
-                    onSelect: () => setState(
-                      () => _type = VolumeQuickExportType.localImage,
-                    ),
+                    onSelect: () =>
+                        _setExportType(VolumeQuickExportType.localImage),
                     child: _type == VolumeQuickExportType.localImage
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -285,7 +296,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                         'Create a new image and copy the volume contents into it.',
                     selected: _type == VolumeQuickExportType.newImage,
                     onSelect: () =>
-                        setState(() => _type = VolumeQuickExportType.newImage),
+                        _setExportType(VolumeQuickExportType.newImage),
                     child: _type == VolumeQuickExportType.newImage
                         ? Padding(
                             padding: const EdgeInsets.only(top: 12),
@@ -306,7 +317,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                     description: 'Push the volume content to Docker Hub.',
                     selected: _type == VolumeQuickExportType.registry,
                     onSelect: () =>
-                        setState(() => _type = VolumeQuickExportType.registry),
+                        _setExportType(VolumeQuickExportType.registry),
                     child: _type == VolumeQuickExportType.registry
                         ? Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,

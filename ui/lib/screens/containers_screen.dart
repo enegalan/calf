@@ -33,6 +33,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  bool _refreshInFlight = false;
   String? _selectedId;
   ContainerItem? _detailContainer;
   String? _detailProject;
@@ -66,6 +67,11 @@ class _ContainersScreenState extends State<ContainersScreen>
 
   /// Fetches runtime status and containers, optionally skipping the loading indicator.
   Future<void> _loadContainers({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -107,6 +113,8 @@ class _ContainersScreenState extends State<ContainersScreen>
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -268,6 +276,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   Widget build(BuildContext context) {
     if (_detailContainer != null) {
       return ContainerDetailView(
+        key: ValueKey(_detailContainer!.id),
         container: _detailContainer!,
         apiClient: widget.apiClient,
         onBack: _closeContainerDetail,

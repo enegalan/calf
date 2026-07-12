@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -117,14 +118,34 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 
 	if proxyChanged {
 		go func() {
-			proxyCtx, cancel := context.WithTimeout(context.Background(), constants.DockerCLITimeout)
-			defer cancel()
-			if err := g.backend.Runtime.ApplyProxy(proxyCtx, runtime.ProxyConfig{
+			proxyCfg := runtime.ProxyConfig{
 				HTTPProxy:  saved.HTTPProxy,
 				HTTPSProxy: saved.HTTPSProxy,
 				NoProxy:    saved.NoProxy,
-			}); err != nil {
-				g.logger.Warn("failed to apply proxy settings", "error", err)
+			}
+			proxyCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DockerCLITimeout)
+			defer cancel()
+			if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil {
+				if errors.Is(err, context.Canceled) {
+					return
+				}
+				if !errors.Is(err, runtime.ErrRuntimeNotRunning) {
+					g.logger.Warn("failed to apply proxy settings", "error", err)
+					return
+				}
+				if startErr := g.backend.EnsureRuntimeRunning(proxyCtx); startErr != nil {
+					if errors.Is(startErr, context.Canceled) {
+						return
+					}
+					g.logger.Warn("failed to start runtime for proxy settings", "error", startErr)
+					return
+				}
+				if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
+					g.logger.Warn("failed to apply proxy settings after runtime start", "error", err)
+				}
 			}
 		}()
 	}

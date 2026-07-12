@@ -109,7 +109,7 @@ dev-backend:
 	cd backend && CGO_ENABLED=0 go run ./cmd/calf
 
 dev-ui-macos:
-	cd ui && flutter run -d macos
+	cd ui && flutter run -d macos --dart-define=CALF_EXTERNAL_DAEMON=true
 
 dev-ui-linux:
 	cd ui && flutter run -d linux

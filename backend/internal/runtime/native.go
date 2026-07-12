@@ -141,7 +141,7 @@ func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	n.proxy = proxy
 
 	if err := requireRunning(ctx, n.Status); err != nil {
-		return nil
+		return err
 	}
 
 	return applyProxyInVM(ctx, n.runLocal, proxy)

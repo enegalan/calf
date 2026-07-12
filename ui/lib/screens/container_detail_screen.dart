@@ -68,6 +68,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   String? _statsError;
   Timer? _statsTimer;
   final _statsHistory = _StatsHistory();
+  bool _statsRefreshInFlight = false;
+  int _statsRefreshGeneration = 0;
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -75,6 +77,26 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     super.initState();
     _container = widget.container;
     _loadTabData();
+  }
+
+  /// Refreshes local state when the parent widget changes.
+  @override
+  void didUpdateWidget(covariant ContainerDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idChanged = oldWidget.container.id != widget.container.id;
+    final runningChanged =
+        oldWidget.container.isRunning != widget.container.isRunning;
+
+    setState(() {
+      _container = widget.container;
+    });
+
+    if (idChanged || runningChanged) {
+      if (_tab == _ContainerDetailTab.logs ||
+          _tab == _ContainerDetailTab.stats) {
+        _loadTabData();
+      }
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -138,8 +160,11 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   void _stopTabBackgroundWork() {
     _logsSubscription?.cancel();
     _logsSubscription = null;
-    _statsTimer?.cancel();
-    _statsTimer = null;
+    if (_statsTimer != null) {
+      _statsTimer?.cancel();
+      _statsTimer = null;
+      _statsRefreshGeneration++;
+    }
   }
 
   /// Fetches TabData from the API and updates state.
@@ -260,16 +285,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   void _startStats() {
     _logsSubscription?.cancel();
     _statsTimer?.cancel();
-    _refreshStats();
-    _statsTimer = Timer.periodic(
-      /// Creates a [_ContainerDetailViewState] widget.
-      const Duration(seconds: 2),
-      (_) => _refreshStats(),
-    );
-  }
+    _statsTimer = null;
 
-  /// Refreshes the latest data from the API.
-  Future<void> _refreshStats() async {
     if (!_container.isRunning) {
       if (!mounted) {
         return;
@@ -282,6 +299,37 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       return;
     }
 
+    _refreshStats();
+    _statsTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshStats(),
+    );
+  }
+
+  /// Refreshes the latest data from the API.
+  Future<void> _refreshStats() async {
+    if (_statsRefreshInFlight) {
+      return;
+    }
+
+    if (!_container.isRunning) {
+      _statsTimer?.cancel();
+      _statsTimer = null;
+      _statsRefreshGeneration++;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _stats = null;
+        _statsError = 'Stats are available only for running containers.';
+        _statsLoading = false;
+      });
+      return;
+    }
+
+    _statsRefreshInFlight = true;
+    final generation = _statsRefreshGeneration;
+
     setState(() {
       _statsLoading = _stats == null;
       _statsError = null;
@@ -289,7 +337,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
 
     try {
       final stats = await widget.apiClient.fetchContainerStats(_container.id);
-      if (!mounted) {
+      if (!mounted || generation != _statsRefreshGeneration) {
         return;
       }
       setState(() {
@@ -298,13 +346,15 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         _statsLoading = false;
       });
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || generation != _statsRefreshGeneration) {
         return;
       }
       setState(() {
         _statsError = error.toString();
         _statsLoading = false;
       });
+    } finally {
+      _statsRefreshInFlight = false;
     }
   }
 

@@ -26,6 +26,7 @@ class _NetworksScreenState extends State<NetworksScreen>
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  bool _refreshInFlight = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedNetwork;
@@ -53,6 +54,11 @@ class _NetworksScreenState extends State<NetworksScreen>
 
   /// Fetches networks from the API, optionally skipping the loading indicator.
   Future<void> _loadNetworks({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -83,6 +89,8 @@ class _NetworksScreenState extends State<NetworksScreen>
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 

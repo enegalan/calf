@@ -29,17 +29,22 @@ type Core struct {
 	logBroadcaster        *logBroadcaster
 	exportScheduler       *exportScheduler
 	DockerCLI             *dockercli.Manager
+	lifecycleCtx          context.Context
+	lifecycleCancel       context.CancelFunc
 }
 
 // New constructs a Core, starts the export scheduler, and loads persisted build history.
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	srv := &Core{
-		Cfg:            cfg,
-		Logger:         logger,
-		Runtime:        rt,
-		StartTime:      time.Now(),
-		migrateStatus:  migration.IdleStatus(),
-		logBroadcaster: newLogBroadcaster(),
+		Cfg:             cfg,
+		Logger:          logger,
+		Runtime:         rt,
+		StartTime:       time.Now(),
+		migrateStatus:   migration.IdleStatus(),
+		logBroadcaster:  newLogBroadcaster(logger),
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
 	}
 	srv.exportScheduler = newExportScheduler(srv, logger)
 	srv.exportScheduler.Start()
@@ -48,8 +53,16 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 	return srv
 }
 
+// Lifecycle returns the daemon context canceled during Shutdown.
+func (s *Core) Lifecycle() context.Context {
+	return s.lifecycleCtx
+}
+
 // Shutdown stops background workers owned by the daemon.
 func (s *Core) Shutdown(ctx context.Context) error {
+	if s.lifecycleCancel != nil {
+		s.lifecycleCancel()
+	}
 	if s.exportScheduler != nil {
 		s.exportScheduler.Stop()
 	}

@@ -18,9 +18,10 @@ import (
 
 var logTailLines = strconv.Itoa(constants.LogTailLineCount)
 
-// NerdctlVMArgs prefixes nerdctl arguments with sudo and the VM binary path.
+// NerdctlVMArgs builds Lima VM shell arguments for container CLI operations.
+// nerdctl is redirected to sudo docker because the VM runs Docker Engine.
 func NerdctlVMArgs(args ...string) []string {
-	return append([]string{"sudo", constants.NerdctlBin}, args...)
+	return append([]string{"sudo", "docker"}, args...)
 }
 
 // interactiveExecArgs builds nerdctl exec flags for an interactive shell session.

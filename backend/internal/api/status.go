@@ -26,11 +26,15 @@ func (g *Gateway) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	g.backend.CfgMu.RLock()
+	cfg := g.backend.Cfg
+	g.backend.CfgMu.RUnlock()
+
 	httpkit.WriteJSON(w, http.StatusOK, statusResponse{
 		Version:       version.Version,
 		UptimeSeconds: int64(time.Since(g.backend.StartTime).Seconds()),
-		ListenAddr:    g.backend.Cfg.ListenAddr,
-		LogLevel:      g.backend.Cfg.LogLevel,
+		ListenAddr:    cfg.ListenAddr,
+		LogLevel:      cfg.LogLevel,
 		Runtime:       runtimeStatus,
 	})
 }

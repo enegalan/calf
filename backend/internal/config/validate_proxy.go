@@ -83,6 +83,9 @@ func validateProxyURL(raw string, allowedSchemes ...string) error {
 
 func validateNoProxyEntry(entry string) error {
 	if strings.Contains(entry, "/") {
+		if _, _, err := net.ParseCIDR(entry); err == nil {
+			return nil
+		}
 		return fmt.Errorf("invalid no_proxy entry %q: must not contain a path", entry)
 	}
 

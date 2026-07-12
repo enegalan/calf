@@ -25,6 +25,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
+  bool _refreshInFlight = false;
   String? _selectedBuildId;
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -52,6 +53,11 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
 
   /// Fetches builds from the API, optionally skipping the loading indicator.
   Future<void> _loadBuilds({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -80,6 +86,8 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
@@ -98,6 +106,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   Widget build(BuildContext context) {
     if (_selectedBuildId != null) {
       return BuildDetailView(
+        key: ValueKey(_selectedBuildId),
         buildId: _selectedBuildId!,
         apiClient: widget.apiClient,
         onBack: _closeBuild,

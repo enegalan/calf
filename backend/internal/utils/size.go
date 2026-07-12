@@ -19,9 +19,10 @@ func ParseDockerHumanSize(value string) (int64, error) {
 		suffix string
 		mult   int64
 	}{
-		{"GB", constants.BytesPerGiB},
-		{"MB", constants.BytesPerMiB},
-		{"KB", constants.BytesPerKiB},
+		{"GB", constants.DockerBytesPerGB},
+		{"MB", constants.DockerBytesPerMB},
+		{"kB", constants.DockerBytesPerKB},
+		{"KB", constants.DockerBytesPerKB},
 		{"B", 1},
 	}
 

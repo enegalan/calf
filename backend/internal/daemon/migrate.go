@@ -88,7 +88,7 @@ func (s *Core) RunDockerDesktopMigration() {
 	}
 }
 
-// runNerdctl runs nerdctl inside the Lima VM via limactl shell for migration operations.
+// runNerdctl runs the Lima VM container CLI via limactl shell for migration operations.
 func (s *Core) runNerdctl(ctx context.Context, args ...string) error {
 	vmName := s.Cfg.VMName
 	if vmName == "" {

@@ -60,7 +60,8 @@ func run() int {
 	)
 
 	if err := ensurePort(cfg.ListenAddr); err != nil {
-		logger.Warn("cleaned up previous instance", "error", err)
+		logger.Error("listen port unavailable", "error", err)
+		return 1
 	}
 
 	writePidFile()
@@ -79,6 +80,9 @@ func run() int {
 	go func() {
 		logger.Info("starting runtime")
 		if err := rt.Start(rtCtx); err != nil {
+			if rtCtx.Err() != nil {
+				return
+			}
 			logger.Warn("runtime start failed (non-fatal)", "error", err)
 		} else {
 			logger.Info("runtime started", "socket", rt.DockerSocket())
@@ -137,27 +141,26 @@ func removePidFile() {
 }
 
 // ensurePort frees the listen address when a previous calf instance left it
-// occupied. Only the PID recorded in calf.pid is terminated automatically.
+// occupied. Reclaims the port when the listener is calf-daemon or matches calf.pid.
 func ensurePort(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
-	if err == nil {
-		ln.Close()
+	if portAvailable(host, port) {
 		return nil
 	}
 
 	pid, err := findPidOnPort(port)
 	if err != nil || pid == 0 {
-		return fmt.Errorf("port %s is in use; run: pkill -f calf", addr)
+		return fmt.Errorf("port %s is in use; close the Calf app or stop the other process", addr)
 	}
 
 	calfPID, pidErr := readPidFile()
-	if pidErr != nil || calfPID != pid {
-		return fmt.Errorf("port %s is in use by pid %d", addr, pid)
+	canReclaim := pidErr == nil && calfPID == pid
+	if !canReclaim && !isCalfListener(pid) {
+		return fmt.Errorf("port %s is in use by pid %d; close the Calf app or stop that process", addr, pid)
 	}
 
 	proc, err := os.FindProcess(pid)
@@ -173,14 +176,67 @@ func ensurePort(addr string) error {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(300 * time.Millisecond)
-		ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
-		if err == nil {
-			ln.Close()
+		if portAvailable(host, port) {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("port %s is still in use after cleanup; run: pkill -f calf", addr)
+	return fmt.Errorf("port %s is still in use after cleanup; close the Calf app and retry", addr)
+}
+
+// portAvailable reports whether the TCP listen address can be bound right now.
+func portAvailable(host, port string) bool {
+	ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// isCalfListener reports whether pid is a previous calf or calf-daemon instance.
+func isCalfListener(pid int) bool {
+	switch goRuntime.GOOS {
+	case "windows":
+		return isCalfListenerWindows(pid)
+	default:
+		return isCalfListenerUnix(pid)
+	}
+}
+
+// isCalfListenerUnix checks the process command line on Unix-like systems.
+func isCalfListenerUnix(pid int) bool {
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "args=").Output()
+	if err != nil {
+		return false
+	}
+	return looksLikeCalfProcess(string(out))
+}
+
+// isCalfListenerWindows checks the process image name on Windows.
+func isCalfListenerWindows(pid int) bool {
+	out, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH").Output()
+	if err != nil {
+		return false
+	}
+	return looksLikeCalfProcess(string(out))
+}
+
+// looksLikeCalfProcess reports whether a ps/tasklist line refers to calf-daemon or go run calf.
+func looksLikeCalfProcess(command string) bool {
+	lower := strings.ToLower(strings.TrimSpace(command))
+	if strings.Contains(lower, "calf-daemon") ||
+		strings.Contains(lower, "cmd/calf") ||
+		strings.Contains(lower, `cmd\calf`) ||
+		strings.Contains(lower, "/exe/calf") {
+		return true
+	}
+	fields := strings.Fields(lower)
+	if len(fields) == 0 {
+		return false
+	}
+	exe := fields[0]
+	return strings.HasSuffix(exe, "/calf") || strings.HasSuffix(exe, `\calf`) || exe == "calf"
 }
 
 // findPidOnPort returns the PID listening on port, excluding this process and its parent.

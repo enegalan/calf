@@ -72,7 +72,7 @@ func (r Row) BuildDurationMs() int64 {
 		return duration
 	}
 
-	created, err := time.Parse(time.RFC3339Nano, r.CreatedAtLower)
+	created, err := time.Parse(time.RFC3339Nano, r.BuildCreatedAt())
 	if err != nil {
 		return 0
 	}

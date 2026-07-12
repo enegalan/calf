@@ -32,6 +32,9 @@ Timer? _daemonRestartTimer;
 int _daemonRestartAttempts = 0;
 const _maxDaemonRestarts = 5;
 
+/// When true, `make dev-ui-*` connects to an already-running `make dev-backend`.
+const _externalDaemon = bool.fromEnvironment('CALF_EXTERNAL_DAEMON');
+
 /// Spawns the embedded calf-daemon subprocess and wires restart on exit.
 Future<void> _startDaemon() async {
   if (_daemonShutdown) {
@@ -138,7 +141,9 @@ Future<void> _stopDaemon() async {
 
 /// Application entry point; starts the daemon and runs the Flutter app.
 void main() {
-  _startDaemon();
+  if (!_externalDaemon) {
+    _startDaemon();
+  }
   runApp(const MainApp());
 }
 

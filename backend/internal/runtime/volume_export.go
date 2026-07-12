@@ -39,7 +39,10 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 
 	stagingDir := filepath.Dir(archivePath)
 	archiveName := filepath.Base(archivePath)
-	vmStagingDir := config.HostMountToVMPath(stagingDir)
+	vmStagingDir, err := config.HostMountToVMPath(stagingDir)
+	if err != nil {
+		return fmt.Errorf("map staging directory to VM path: %w", err)
+	}
 
 	args := []string{
 		"run", "--rm",
@@ -87,7 +90,10 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 		_, _ = run(cleanupCtx, "nerdctl", "rm", "-f", containerName)
 	}()
 
-	vmArchivePath := config.HostMountToVMPath(archivePath)
+	vmArchivePath, err := config.HostMountToVMPath(archivePath)
+	if err != nil {
+		return fmt.Errorf("map archive path to VM path: %w", err)
+	}
 	if _, err := run(ctx, "nerdctl", "cp", vmArchivePath, containerName+":/tmp/archive.tar.gz"); err != nil {
 		return fmt.Errorf("copy archive into export container: %w", err)
 	}

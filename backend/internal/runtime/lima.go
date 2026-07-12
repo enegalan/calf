@@ -23,6 +23,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/limavm"
 )
 
 // limaLogger is the logger for the Lima runtime.
@@ -152,8 +153,42 @@ func (l *Lima) Stop(ctx context.Context) error {
 	l.removeDockerCLISocket()
 	l.started.Store(false)
 
+	status, err := l.limaVMStatus(ctx)
+	if err != nil {
+		if isIgnorableLimaStopError(err) {
+			return nil
+		}
+		return err
+	}
+	if status == "" || strings.EqualFold(status, "Stopped") {
+		return nil
+	}
+
 	_, err = runCommand(ctx, "limactl", "stop", l.vmName)
+	if isIgnorableLimaStopError(err) {
+		return nil
+	}
 	return err
+}
+
+// limaVMStatus returns the limactl status string for the configured VM instance.
+func (l *Lima) limaVMStatus(ctx context.Context) (string, error) {
+	output, err := runCommand(ctx, "limactl", "list", "--format", "{{.Status}}", l.vmName)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// isIgnorableLimaStopError reports whether Stop can ignore a limactl stop failure during shutdown.
+func isIgnorableLimaStopError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "expected status")
 }
 
 // Status reports VM mode, running state, socket health, and port conflicts.
@@ -201,17 +236,23 @@ func (l *Lima) Status(ctx context.Context) (Status, error) {
 	if status.State == State(constants.RuntimeStateRunning) && l.dockerSocket != "" {
 		conn, err := net.DialTimeout("unix", l.dockerSocket, 100*time.Millisecond)
 		if err != nil {
-			if errors.Is(err, syscall.ENOENT) {
-				limaLogger.Debug("socket not ready yet (expected during startup)", "socket", l.dockerSocket)
+			if isTransientSocketDialError(err) {
+				limaLogger.Debug("socket not ready yet (expected during startup)", "socket", l.dockerSocket, "error", err)
 			} else {
 				limaLogger.Warn("socket dial failed", "socket", l.dockerSocket, "error", err)
 			}
 			// Fall back to TCP on port 2375 (via Lima port forward + socat inside VM)
 			tcpConn, tcpErr := net.DialTimeout("tcp", "127.0.0.1:2375", 100*time.Millisecond)
 			if tcpErr != nil {
-				limaLogger.Warn("tcp fallback also failed", "error", tcpErr)
-				status.State = State(constants.RuntimeStateStopped)
-				status.Log = fmt.Sprintf("socket dial failed: %v", err)
+				if isTransientSocketDialError(tcpErr) {
+					limaLogger.Debug("docker tcp proxy not ready yet (expected during startup)", "error", tcpErr)
+				} else {
+					limaLogger.Warn("tcp fallback also failed", "error", tcpErr)
+				}
+				if !isTransientSocketDialError(err) && !isTransientSocketDialError(tcpErr) {
+					status.State = State(constants.RuntimeStateStopped)
+					status.Log = fmt.Sprintf("socket dial failed: %v", err)
+				}
 			} else {
 				tcpConn.Close()
 			}
@@ -313,7 +354,7 @@ func (l *Lima) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	l.mu.Unlock()
 
 	if err := requireRunning(ctx, l.Status); err != nil {
-		return nil
+		return err
 	}
 
 	return applyProxyInVM(ctx, l.runInVM, proxy)
@@ -521,8 +562,8 @@ func (l *Lima) StreamLogsFollow(ctx context.Context, id string, output func(stri
 
 // streamLogsFollow runs nerdctl logs -f inside the VM and pipes lines to output.
 func (l *Lima) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
-	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", "logs", "-f", "--since", since, id)...)...)
-	command.Env = limaShellEnv()
+	command := exec.CommandContext(ctx, "limactl", append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("logs", "-f", "--since", since, id)...)...)
+	command.Env = limavm.ShellEnv()
 	return streamCommandLogs(ctx, command, output)
 }
 
@@ -573,8 +614,9 @@ func (l *Lima) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 		return err
 	}
 
-	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand("nerdctl", interactiveExecArgs(id)...)...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs(interactiveExecArgs(id)...)...)
 	command := exec.CommandContext(ctx, "limactl", shellArgs...)
+	command.Env = limavm.ShellEnv()
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 
@@ -598,14 +640,14 @@ func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 
 // runInVM executes a command inside the Lima VM via limactl shell.
 func (l *Lima) runInVM(ctx context.Context, command string, args ...string) ([]byte, error) {
-	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", shellArgs...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, limaVMCommand(command, args...)...)
+	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, limavm.ShellEnv(), "", "limactl", shellArgs...)
 }
 
 // runInVMWithStdin executes a command inside the VM with stdin via limactl shell.
 func (l *Lima) runInVMWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
-	shellArgs := append([]string{"shell", l.vmName, "--"}, vmCommand(command, args...)...)
-	return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, stdin, "limactl", shellArgs...)
+	shellArgs := append([]string{"shell", l.vmName, "--"}, limaVMCommand(command, args...)...)
+	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, limavm.ShellEnv(), stdin, "limactl", shellArgs...)
 }
 
 // RegistryStatus reports whether the VM root user is logged in to the default registry.
@@ -640,27 +682,40 @@ func (l *Lima) RegistryLogout(ctx context.Context, server string) error {
 	return registryLogout(ctx, l.runInVM, server)
 }
 
-// vmCommand routes commands for the Lima VM. "nerdctl" is transparently
-// redirected to "docker" because the VM runs Docker Engine — containers
-// live in its moby namespace, not containerd's default namespace.
-func vmCommand(command string, args ...string) []string {
+// limaVMCommand builds the in-VM command argv for limactl shell.
+func limaVMCommand(command string, args ...string) []string {
 	if command == "nerdctl" {
-		return append([]string{"sudo", "docker"}, args...)
+		return NerdctlVMArgs(args...)
 	}
 
+	return vmCommand(command, args...)
+}
+
+// vmCommand builds argv for non-container CLI commands run inside the Lima VM.
+func vmCommand(command string, args ...string) []string {
 	return append([]string{command}, args...)
 }
 
-// limaShellEnv returns environment variables for limactl shell SSH sessions.
-func limaShellEnv() []string {
-	return append(os.Environ(), "SSH=ssh -o ControlMaster=no -o ControlPath=none")
+// isTransientSocketDialError reports whether a dial failure is expected while the docker proxy starts.
+func isTransientSocketDialError(err error) bool {
+	if errors.Is(err, syscall.ENOENT) {
+		return true
+	}
+
+	var opErr *net.OpError
+	if errors.As(err, &opErr) && errors.Is(opErr.Err, syscall.ECONNREFUSED) {
+		return true
+	}
+
+	return false
 }
 
 // waitForNerdctl blocks until nerdctl info succeeds inside the VM or times out.
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	for time.Now().Before(deadline) {
-		_, err := runCommandOnce(ctx, "", "limactl", "shell", l.vmName, "--", "sudo", constants.NerdctlBin, "info")
+		shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("info")...)
+		_, err := runCommandOnceEnv(ctx, limavm.ShellEnv(), "", "limactl", shellArgs...)
 		if err == nil {
 			return nil
 		}
@@ -721,8 +776,54 @@ func (l *Lima) ensureTemplate() error {
 		return err
 	}
 
+	if err := patchLegacyLimaCIDATAProvision(l.vmName); err != nil {
+		limaLogger.Warn("failed to patch legacy Lima provision script", "error", err)
+	}
+
 	l.templatePath = path
 	return nil
+}
+
+const legacyLimaCIDATAProvision = `      if [ -f /mnt/lima-cidata/lima.env ]; then
+        # shellcheck disable=SC1091
+        . /mnt/lima-cidata/lima.env
+        usermod -aG docker "${LIMA_CIDATA_USER}"
+      fi`
+
+const modernLimaUserProvision = `      usermod -aG docker "{{.User}}"`
+
+// patchLegacyLimaCIDATAProvision rewrites deprecated LIMA_CIDATA references in an existing Lima instance config.
+func patchLegacyLimaCIDATAProvision(vmName string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	path := filepath.Join(home, ".lima", vmName, "lima.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "LIMA_CIDATA") {
+		return nil
+	}
+
+	if strings.Contains(content, legacyLimaCIDATAProvision) {
+		content = strings.Replace(content, legacyLimaCIDATAProvision, modernLimaUserProvision, 1)
+	} else {
+		content = strings.ReplaceAll(content, `usermod -aG docker "${LIMA_CIDATA_USER}"`, `usermod -aG docker "{{.User}}"`)
+	}
+
+	if content == string(data) {
+		return nil
+	}
+
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 // templateFile returns the path to the generated lima.yaml in the config dir.

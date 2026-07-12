@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Image push errors** — pushing an image to a registry now shows a clearer message when authentication fails.
 - **Volume export file names** — quick exports and scheduled exports now sanitize file names the same way.
+- **Container exec** — opening the Exec tab no longer shows a Lima provisioning warning on startup.
+- **Build source tab** — the Source tab in build details now shows the Dockerfile for builds imported from build history.
+
 
 ## [0.8.0] - 2026-07-08
 

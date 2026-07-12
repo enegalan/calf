@@ -14,14 +14,7 @@ import (
 
 // StartBuildSync periodically imports and enriches build history from the Docker socket until ctx is canceled.
 func (s *Core) StartBuildSync(ctx context.Context) {
-	interval := constants.DefaultBuildSyncInterval
-	s.CfgMu.RLock()
-	if s.Cfg.PollIntervalMs > 0 {
-		interval = time.Duration(s.Cfg.PollIntervalMs) * time.Millisecond
-	}
-	s.CfgMu.RUnlock()
-
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(constants.DefaultBuildSyncInterval)
 	defer ticker.Stop()
 
 	s.syncBuildHistory(ctx)

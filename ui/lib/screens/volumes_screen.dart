@@ -218,6 +218,22 @@ class _VolumesScreenState extends State<VolumesScreen> {
     }
   }
 
+  /// Removes [volume] via the API and refreshes the list.
+  Future<void> _removeVolume(VolumeItem volume) async {
+    try {
+      await widget.apiClient.removeVolume(volume.name);
+      if (!mounted) {
+        return;
+      }
+      await _loadVolumes();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
+  }
+
   /// Builds the volume list or the selected volume detail view.
   /// Builds the widget tree for the current screen state.
   @override
@@ -324,10 +340,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                       /// Creates a [_VolumesScreenState] widget.
                       const SizedBox(width: 8),
                       CalfButton.outline(
-                        onPressed: () async {
-                          await widget.apiClient.removeVolume(volume.name);
-                          await _loadVolumes();
-                        },
+                        onPressed: () => _removeVolume(volume),
                         child: const Text('Remove'),
                       ),
                     ],

@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -12,13 +14,15 @@ import (
 // logBroadcaster multiplexes one nerdctl log stream per container onto N
 // WebSocket subscribers and tears the stream down when the last one leaves.
 type logBroadcaster struct {
+	logger  *slog.Logger
 	mu      sync.Mutex
 	streams map[string]*sharedLogStream
 }
 
 // newLogBroadcaster creates an empty logBroadcaster ready to multiplex container log streams.
-func newLogBroadcaster() *logBroadcaster {
+func newLogBroadcaster(logger *slog.Logger) *logBroadcaster {
 	return &logBroadcaster{
+		logger:  logger,
 		streams: make(map[string]*sharedLogStream),
 	}
 }
@@ -115,6 +119,7 @@ func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stre
 	defer b.cleanupStream(stream.containerID, stream)
 
 	sentHistory := false
+	retryDelay := constants.LogStreamRetryBase
 	for {
 		if ctx.Err() != nil {
 			return
@@ -125,24 +130,84 @@ func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stre
 		}
 
 		var err error
+		phase := "follow"
 		if !sentHistory {
+			phase = "history"
 			err = rt.StreamLogs(ctx, stream.containerID, stream.publish)
 			sentHistory = true
 		} else {
 			err = rt.StreamLogsFollow(ctx, stream.containerID, stream.publish)
 		}
-		_ = err
 
 		if ctx.Err() != nil {
 			return
 		}
 
-		select {
-		case <-ctx.Done():
+		if err != nil {
+			b.logStreamError(stream.containerID, phase, err)
+			if !b.waitBeforeLogStreamRetry(ctx, retryDelay) {
+				return
+			}
+			retryDelay = nextLogStreamRetryDelay(retryDelay)
+			continue
+		}
+
+		retryDelay = constants.LogStreamRetryBase
+		if !b.waitBeforeLogStreamRetry(ctx, constants.LogStreamRetryBase) {
 			return
-		case <-time.After(500 * time.Millisecond):
 		}
 	}
+}
+
+// logStreamError records a failed container log stream attempt at the appropriate log level.
+func (b *logBroadcaster) logStreamError(containerID, phase string, err error) {
+	switch {
+	case errors.Is(err, runtime.ErrRuntimeNotRunning):
+		b.logger.Warn(
+			"container log stream paused while runtime is not running",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	case runtime.IsTransientCommandError(err):
+		b.logger.Warn(
+			"container log stream failed with transient error",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	default:
+		b.logger.Error(
+			"container log stream failed",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	}
+}
+
+// waitBeforeLogStreamRetry blocks for delay or until ctx is canceled.
+func (b *logBroadcaster) waitBeforeLogStreamRetry(ctx context.Context, delay time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(delay):
+		return true
+	}
+}
+
+// nextLogStreamRetryDelay doubles the current delay up to LogStreamRetryMax.
+func nextLogStreamRetryDelay(current time.Duration) time.Duration {
+	if current >= constants.LogStreamRetryMax {
+		return constants.LogStreamRetryMax
+	}
+
+	next := current * 2
+	if next > constants.LogStreamRetryMax {
+		return constants.LogStreamRetryMax
+	}
+
+	return next
 }
 
 // cleanupStream removes a finished stream from the broadcaster map and resets its lifecycle state.

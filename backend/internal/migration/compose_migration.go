@@ -153,8 +153,16 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", err
 	}
 
-	vmDir := config.HostMountToVMPath(destDir)
-	vmComposePath := config.HostMountToVMPath(composePath)
+	vmDir, err := config.HostMountToVMPath(destDir)
+	if err != nil {
+		return "", "", fmt.Errorf("map compose project directory to VM path: %w", err)
+	}
+
+	vmComposePath, err := config.HostMountToVMPath(composePath)
+	if err != nil {
+		return "", "", fmt.Errorf("map compose file to VM path: %w", err)
+	}
+
 	return vmDir, vmComposePath, nil
 }
 
