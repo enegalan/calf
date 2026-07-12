@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Regular expressions for parsing build log lines into steps and timing buckets.
 var (
 	buildStepHeaderRe = regexp.MustCompile(`^#(\d+)\s+(\[[^\]]+\]\s+)?(.+)$`)
 	buildStepDoneRe   = regexp.MustCompile(`^#(\d+)\s+DONE\s+([\d.]+)s`)
@@ -14,6 +15,7 @@ var (
 	buildStepIndexRe  = regexp.MustCompile(`^#(\d+)\s+\[(\d+)/(\d+)\]`)
 )
 
+// ParseBuildOutput parses nerdctl/docker build log output into structured steps and timing buckets.
 func ParseBuildOutput(output string) BuildResult {
 	result := BuildResult{
 		Steps: make([]BuildStep, 0),
@@ -32,7 +34,7 @@ func ParseBuildOutput(output string) BuildResult {
 
 		if matches := buildStepDoneRe.FindStringSubmatch(trimmed); len(matches) == 3 {
 			stepID, _ := strconv.Atoi(matches[1])
-			durationMs := parseDurationMs(matches[2])
+			durationMs := parseBuildLogStepDurationMs(matches[2])
 			step := ensureStep(stepsByID, &stepOrder, stepID)
 			step.DurationMs = durationMs
 			classifyTiming(&result.Timing, step.Name, durationMs)
@@ -112,6 +114,7 @@ func ParseBuildOutput(output string) BuildResult {
 	return result
 }
 
+// ApplyBuildLogs updates build with parsed steps, timing, and counts from raw build log output.
 func ApplyBuildLogs(build *Build, logs string) {
 	if build == nil || strings.TrimSpace(logs) == "" {
 		return
@@ -129,6 +132,7 @@ func ApplyBuildLogs(build *Build, logs string) {
 	}
 }
 
+// ensureStep returns the build step for stepID, creating and tracking it on first use.
 func ensureStep(steps map[int]*BuildStep, order *[]int, stepID int) *BuildStep {
 	if step, ok := steps[stepID]; ok {
 		return step
@@ -140,7 +144,8 @@ func ensureStep(steps map[int]*BuildStep, order *[]int, stepID int) *BuildStep {
 	return step
 }
 
-func parseDurationMs(value string) int64 {
+// parseBuildLogStepDurationMs converts a build-log duration string (e.g. "1.23s") to milliseconds.
+func parseBuildLogStepDurationMs(value string) int64 {
 	value = strings.TrimSuffix(value, "s")
 	seconds, err := strconv.ParseFloat(value, 64)
 	if err != nil {
@@ -150,6 +155,7 @@ func parseDurationMs(value string) int64 {
 	return int64(seconds * float64(time.Second/time.Millisecond))
 }
 
+// classifyTiming accumulates step duration into the appropriate BuildTiming category by step name.
 func classifyTiming(timing *BuildTiming, stepName string, durationMs int64) {
 	lower := strings.ToLower(stepName)
 	switch {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
+import 'package:flutter/material.dart'
+    show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
@@ -8,9 +9,11 @@ import 'package:ui/api/client.dart';
 import 'package:ui/platform/macos_menu.dart';
 import 'package:ui/platform/launch_at_login.dart';
 import 'package:ui/platform/open_url.dart';
+import 'package:ui/screens/builds_screen.dart';
 import 'package:ui/screens/containers_screen.dart';
+import 'package:ui/screens/images_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
-import 'package:ui/screens/resources_screen.dart';
+import 'package:ui/screens/volumes_screen.dart';
 import 'package:ui/storage/sidebar_preferences.dart';
 import 'package:ui/storage/update_preferences.dart';
 import 'package:ui/updates/update_checker.dart';
@@ -20,6 +23,7 @@ import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class AppShell extends StatefulWidget {
+  /// Creates a [AppShell] instance.
   AppShell({
     super.key,
     CalfClient? apiClient,
@@ -31,6 +35,7 @@ class AppShell extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
 
+  /// Creates the state object for [AppShell].
   @override
   State<AppShell> createState() => _AppShellState();
 }
@@ -52,14 +57,17 @@ class _AppShellState extends State<AppShell> {
   bool? _lastWidthWasSmall;
   bool _sidebarPrefLoaded = false;
 
+  /// Whether the sidebar collapse toggle should be visible.
   bool get _showSidebarToggle => _isHoveringSidebar || _isHoveringToggle;
 
+  /// Releases resources when the widget is removed.
   @override
   void dispose() {
     _updateChecker.close();
     super.dispose();
   }
 
+  /// Initializes state and starts async loading.
   @override
   void initState() {
     super.initState();
@@ -68,6 +76,7 @@ class _AppShellState extends State<AppShell> {
     loadAppVersion();
   }
 
+  /// Loads the persisted sidebar collapsed preference.
   Future<void> _loadSidebarPreference() async {
     final collapsed = await SidebarPreferences.loadCollapsed();
     if (!mounted) return;
@@ -77,6 +86,7 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Loads the app version from the daemon and checks for updates.
   Future<void> loadAppVersion() async {
     try {
       final status = await widget.apiClient.fetchStatus();
@@ -98,6 +108,7 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Checks GitHub for a newer release.
   Future<void> checkForUpdates({required bool force}) async {
     if (_appVersion.isEmpty) {
       return;
@@ -113,7 +124,10 @@ class _AppShellState extends State<AppShell> {
 
     setState(() => _updateCheckResult = result);
 
-    if (!force && !_updateDialogShown && result.hasUpdate && result.latest != null) {
+    if (!force &&
+        !_updateDialogShown &&
+        result.hasUpdate &&
+        result.latest != null) {
       _updateDialogShown = true;
       await showUpdateAvailableDialog(
         context: context,
@@ -136,6 +150,7 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Loads the current Docker Hub registry login status.
   Future<void> loadRegistryStatus() async {
     setState(() => _registryLoading = true);
 
@@ -152,6 +167,7 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Starts a Docker Hub browser-based login flow.
   Future<void> startRegistryBrowserLogin() async {
     setState(() => _registryBrowserLoginPending = true);
 
@@ -189,6 +205,7 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Logs out from a container registry.
   Future<void> logoutRegistry() async {
     try {
       await widget.apiClient.logoutRegistry();
@@ -197,10 +214,12 @@ class _AppShellState extends State<AppShell> {
     } catch (_) {}
   }
 
+  /// Switches the main content area to the settings screen.
   void openSettings() {
     setState(() => _showSettings = true);
   }
 
+  /// Navigates to a sidebar section by index.
   void navigateToSection(int index) {
     setState(() {
       _selectedIndex = index;
@@ -208,6 +227,7 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Toggles sidebar collapsed state and persists the preference.
   void toggleSidebar() {
     setState(() {
       _isCollapsed = !_isCollapsed;
@@ -215,6 +235,7 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Opens the Docker Hub account settings page in the browser.
   Future<void> openAccountSettings() async {
     final username = _registryStatus?.username ?? '';
     if (username.isEmpty) {
@@ -225,6 +246,7 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -287,18 +309,24 @@ class _AppShellState extends State<AppShell> {
                       padding: const EdgeInsets.all(16),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final isCurrentlyCollapsed = constraints.maxWidth < 150;
+                          final isCurrentlyCollapsed =
+                              constraints.maxWidth < 150;
                           return Column(
                             crossAxisAlignment: isCurrentlyCollapsed
                                 ? CrossAxisAlignment.center
                                 : CrossAxisAlignment.start,
                             children: [
-                              for (var index = 0; index < navItems.length; index++) ...[
+                              for (
+                                var index = 0;
+                                index < navItems.length;
+                                index++
+                              ) ...[
                                 if (index > 0) const SizedBox(height: 8),
                                 _NavItem(
                                   label: navItems[index].label,
                                   icon: navItems[index].icon,
-                                  selected: !_showSettings && _selectedIndex == index,
+                                  selected:
+                                      !_showSettings && _selectedIndex == index,
                                   collapsed: isCurrentlyCollapsed,
                                   onTap: () => setState(() {
                                     _selectedIndex = index;
@@ -322,13 +350,16 @@ class _AppShellState extends State<AppShell> {
                               themeMode: widget.themeMode,
                               onThemeModeChanged: widget.onThemeModeChanged,
                               initialUpdateCheckResult: _updateCheckResult,
-                              onCheckForUpdates: () => checkForUpdates(force: true),
+                              onCheckForUpdates: () =>
+                                  checkForUpdates(force: true),
                               onUpdateCheckResultChanged: (result) {
                                 setState(() => _updateCheckResult = result);
                               },
                             )
                           : switch (_selectedIndex) {
-                              0 => ContainersScreen(apiClient: widget.apiClient),
+                              0 => ContainersScreen(
+                                apiClient: widget.apiClient,
+                              ),
                               1 => ImagesScreen(apiClient: widget.apiClient),
                               2 => VolumesScreen(apiClient: widget.apiClient),
                               3 => NetworksScreen(apiClient: widget.apiClient),
@@ -358,7 +389,9 @@ class _AppShellState extends State<AppShell> {
                             ? () {
                                 setState(() {
                                   _isCollapsed = !_isCollapsed;
-                                  SidebarPreferences.saveCollapsed(_isCollapsed);
+                                  SidebarPreferences.saveCollapsed(
+                                    _isCollapsed,
+                                  );
                                 });
                               }
                             : null,
@@ -377,7 +410,8 @@ class _AppShellState extends State<AppShell> {
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
-                          shadowColor: theme.colorScheme.popoverForeground.withValues(alpha: 0.15),
+                          shadowColor: theme.colorScheme.popoverForeground
+                              .withValues(alpha: 0.15),
                         ),
                       ),
                     ),
@@ -410,6 +444,7 @@ class _AppShellState extends State<AppShell> {
 }
 
 class _NavItem extends StatelessWidget {
+  /// Creates a sidebar navigation row.
   const _NavItem({
     required this.label,
     required this.icon,
@@ -424,10 +459,13 @@ class _NavItem extends StatelessWidget {
   final VoidCallback onTap;
   final bool collapsed;
 
+  /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final color = selected ? theme.colorScheme.accentForeground : theme.colorScheme.foreground;
+    final color = selected
+        ? theme.colorScheme.accentForeground
+        : theme.colorScheme.foreground;
     final effectivePadding = collapsed
         ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
@@ -440,7 +478,9 @@ class _NavItem extends StatelessWidget {
       child: Align(
         alignment: collapsed ? Alignment.center : Alignment.centerLeft,
         child: Row(
-          mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+          mainAxisAlignment: collapsed
+              ? MainAxisAlignment.center
+              : MainAxisAlignment.start,
           mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
           children: [
             Icon(icon, size: 18, color: color),
@@ -462,6 +502,7 @@ class _NavItem extends StatelessWidget {
 }
 
 class SettingsScreen extends StatefulWidget {
+  /// Creates a [SettingsScreen] instance.
   const SettingsScreen({
     super.key,
     required this.apiClient,
@@ -481,6 +522,7 @@ class SettingsScreen extends StatefulWidget {
   final Future<void> Function()? onCheckForUpdates;
   final ValueChanged<UpdateCheckResult>? onUpdateCheckResultChanged;
 
+  /// Creates the state object for [SettingsScreen].
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
@@ -510,7 +552,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   UpdateCheckResult? _updateCheckResult;
   bool _updateChecking = false;
 
-  bool get _dirty => _config != null &&
+  /// Whether any settings differ from the saved config.
+  bool get _dirty =>
+      _config != null &&
       (_draftCpus.toInt() != _config!.cpus ||
           _draftMemory.toInt() != _config!.memoryGB ||
           _draftSwap.toInt() != _config!.memorySwapGB ||
@@ -518,6 +562,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _httpsProxyController.text.trim() != _config!.httpsProxy ||
           _noProxyEntries.join(',') != _config!.noProxy);
 
+  /// Releases resources when the widget is removed.
   @override
   void dispose() {
     _httpProxyController.dispose();
@@ -526,6 +571,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  /// Initializes state and starts async loading.
   @override
   void initState() {
     super.initState();
@@ -534,6 +580,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     loadLaunchAtLogin();
   }
 
+  /// Syncs local state when the parent widget configuration changes.
   @override
   void didUpdateWidget(covariant SettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -542,6 +589,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Checks GitHub for a newer release.
   Future<void> checkForUpdates() async {
     if (widget.appVersion.isEmpty || widget.onCheckForUpdates == null) {
       return;
@@ -566,10 +614,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Opens the update download URL in the browser.
   Future<void> downloadUpdate(UpdateInfo update) async {
     await openExternalUrl(update.downloadUrl);
   }
 
+  /// Records the given version as skipped and clears the update prompt.
   Future<void> skipUpdateVersion(UpdateInfo update) async {
     await UpdatePreferences.saveSkippedVersion(update.version);
     if (!mounted) {
@@ -584,6 +634,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     widget.onUpdateCheckResultChanged?.call(result);
   }
 
+  /// Loads daemon configuration into the settings form.
   Future<void> loadConfig() async {
     setState(() {
       _configLoading = true;
@@ -619,6 +670,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Saves changed resource and proxy settings to the daemon.
   Future<void> applyConfig() async {
     final current = _config;
     if (current == null) return;
@@ -659,6 +711,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Starts migration from Docker Desktop.
   Future<void> startDockerDesktopMigration() async {
     setState(() {
       _migrating = true;
@@ -696,6 +749,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Polls migration status until it completes or fails.
   Future<void> _pollMigrationStatus() async {
     while (mounted) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -722,6 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Loads whether open-at-login is enabled.
   Future<void> loadLaunchAtLogin() async {
     setState(() {
       _launchAtLoginLoading = true;
@@ -748,6 +803,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Enables or disables open-at-login.
   Future<void> setLaunchAtLoginEnabled(bool value) async {
     setState(() {
       _launchAtLoginSaving = true;
@@ -786,6 +842,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Toggles whether Calf manages the Docker CLI context.
   Future<void> setDockerContextManaged(bool value) async {
     final current = _config;
     if (current == null) return;
@@ -815,6 +872,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -839,8 +897,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _config!.dockerContextActive
                   ? 'Active context: calf'
                   : _config!.dockerContextName.isEmpty
-                      ? 'Docker CLI context not set to calf'
-                      : 'Active context: ${_config!.dockerContextName}',
+                  ? 'Docker CLI context not set to calf'
+                  : 'Active context: ${_config!.dockerContextName}',
               style: theme.textTheme.muted,
             ),
           ],
@@ -849,14 +907,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Open at login',
             ShadSwitch(
               value: _launchAtLoginEnabled ?? false,
-              onChanged: _launchAtLoginLoading || _launchAtLoginSaving ? null : setLaunchAtLoginEnabled,
+              onChanged: _launchAtLoginLoading || _launchAtLoginSaving
+                  ? null
+                  : setLaunchAtLoginEnabled,
             ),
           ),
           if (_launchAtLoginError != null) ...[
             const SizedBox(height: 8),
             Text(
               _launchAtLoginError!,
-              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              style: theme.textTheme.large.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
             ),
           ],
           const SizedBox(height: 16),
@@ -875,22 +937,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _sectionHeader('Updates', theme),
           const SizedBox(height: 12),
           Text(
-            widget.appVersion.isEmpty ? 'Loading version...' : 'Current version: ${widget.appVersion}',
+            widget.appVersion.isEmpty
+                ? 'Loading version...'
+                : 'Current version: ${widget.appVersion}',
             style: theme.textTheme.muted,
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               CalfButton(
-                onPressed: _updateChecking || widget.appVersion.isEmpty ? null : checkForUpdates,
+                onPressed: _updateChecking || widget.appVersion.isEmpty
+                    ? null
+                    : checkForUpdates,
                 enabled: !_updateChecking && widget.appVersion.isNotEmpty,
-                child: Text(_updateChecking ? 'Checking...' : 'Check for updates'),
+                child: Text(
+                  _updateChecking ? 'Checking...' : 'Check for updates',
+                ),
               ),
-              if (_updateCheckResult?.hasUpdate == true && _updateCheckResult!.latest != null) ...[
+              if (_updateCheckResult?.hasUpdate == true &&
+                  _updateCheckResult!.latest != null) ...[
                 const SizedBox(width: 12),
                 CalfButton(
                   onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
-                  child: Text('Download ${_updateCheckResult!.latest!.version}'),
+                  child: Text(
+                    'Download ${_updateCheckResult!.latest!.version}',
+                  ),
                 ),
               ],
             ],
@@ -900,9 +971,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (_updateCheckResult!.error != null)
               Text(
                 _updateCheckResult!.error!,
-                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+                style: theme.textTheme.large.copyWith(
+                  color: theme.colorScheme.destructive,
+                ),
               )
-            else if (_updateCheckResult!.hasUpdate && _updateCheckResult!.latest != null) ...[
+            else if (_updateCheckResult!.hasUpdate &&
+                _updateCheckResult!.latest != null) ...[
               Text(
                 'Version ${_updateCheckResult!.latest!.version} is available.',
                 style: theme.textTheme.large,
@@ -920,10 +994,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('Skip this version'),
               ),
             ] else
-              Text(
-                'You are up to date.',
-                style: theme.textTheme.muted,
-              ),
+              Text('You are up to date.', style: theme.textTheme.muted),
           ],
           const SizedBox(height: 24),
           _sectionHeader('Migration', theme),
@@ -936,17 +1007,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CalfButton(
             onPressed: _migrating ? null : startDockerDesktopMigration,
             enabled: !_migrating,
-            child: Text(_migrating ? 'Migrating...' : 'Migrate from Docker Desktop'),
+            child: Text(
+              _migrating ? 'Migrating...' : 'Migrate from Docker Desktop',
+            ),
           ),
           if (_migrationStatus != null) ...[
             const SizedBox(height: 16),
             ShadProgress(value: _migrationStatus!.progress / 100),
             const SizedBox(height: 8),
             Text(_migrationStatus!.message, style: theme.textTheme.large),
-            if (_migrationStatus!.error != null && _migrationStatus!.error!.isNotEmpty)
+            if (_migrationStatus!.error != null &&
+                _migrationStatus!.error!.isNotEmpty)
               Text(
                 _migrationStatus!.error!,
-                style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+                style: theme.textTheme.large.copyWith(
+                  color: theme.colorScheme.destructive,
+                ),
               ),
             if (_migrationStatus!.phase == 'completed') ...[
               const SizedBox(height: 8),
@@ -972,9 +1048,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _config!.noProxy.isNotEmpty))
                   const Padding(
                     padding: EdgeInsets.only(left: 8),
-                    child: ShadBadge.secondary(
-                      child: Text('Configured'),
-                    ),
+                    child: ShadBadge.secondary(child: Text('Configured')),
                   ),
               ],
             ),
@@ -1017,7 +1091,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           else if (_configError != null)
             Text(
               _configError!,
-              style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+              style: theme.textTheme.large.copyWith(
+                color: theme.colorScheme.destructive,
+              ),
             )
           else if (_config != null) ...[
             _sliderRow(
@@ -1048,10 +1124,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 24),
             CalfButton(
-              onPressed: _dirty && !_saving && _httpProxyError == null && _httpsProxyError == null
+              onPressed:
+                  _dirty &&
+                      !_saving &&
+                      _httpProxyError == null &&
+                      _httpsProxyError == null
                   ? applyConfig
                   : null,
-              enabled: _dirty && _httpProxyError == null && _httpsProxyError == null,
+              enabled:
+                  _dirty && _httpProxyError == null && _httpsProxyError == null,
               child: Text(_saving ? 'Saving...' : 'Apply'),
             ),
           ],
@@ -1060,6 +1141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Builds a theme mode selection checkbox.
   Widget _themeCheckbox(ThemeMode option, String label) {
     return ShadCheckbox(
       value: widget.themeMode == option,
@@ -1074,20 +1156,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Builds a settings section header label.
   Widget _sectionHeader(String label, ShadThemeData theme) {
-    return Text(label, style: theme.textTheme.h4.copyWith(color: theme.colorScheme.mutedForeground));
+    return Text(
+      label,
+      style: theme.textTheme.h4.copyWith(
+        color: theme.colorScheme.mutedForeground,
+      ),
+    );
   }
 
+  /// Builds a label-control row for a settings toggle.
   Widget _settingRow(String label, Widget control) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(child: Text(label, style: ShadTheme.of(context).textTheme.large)),
+        Expanded(
+          child: Text(label, style: ShadTheme.of(context).textTheme.large),
+        ),
         control,
       ],
     );
   }
 
+  /// Builds a labeled slider row for a numeric setting.
   Widget _sliderRow(
     String label,
     double value,
@@ -1121,24 +1213,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 thumbBorderColor: primary,
               ),
             ),
-            if (trailing != null) ...[
-              const SizedBox(width: 12),
-              trailing,
-            ],
+            if (trailing != null) ...[const SizedBox(width: 12), trailing],
           ],
         ),
       ],
     );
   }
 
+  /// Validates the HTTP proxy field and updates the error state.
   void _validateHttpProxy(String value) {
     setState(() => _httpProxyError = _validateProxyUrl(value, ['http']));
   }
 
+  /// Validates the HTTPS proxy field and updates the error state.
   void _validateHttpsProxy(String value) {
-    setState(() => _httpsProxyError = _validateProxyUrl(value, ['http', 'https']));
+    setState(
+      () => _httpsProxyError = _validateProxyUrl(value, ['http', 'https']),
+    );
   }
 
+  /// Returns a validation error for an invalid proxy URL, or null.
   String? _validateProxyUrl(String value, List<String> allowedSchemes) {
     final v = value.trim();
     if (v.isEmpty) return null;
@@ -1155,11 +1249,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return null;
   }
 
+  /// Builds the no-proxy host list editor section.
   Widget _noProxySection(ShadThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('No proxy', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          'No proxy',
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         const SizedBox(height: 8),
         if (_noProxyEntries.isNotEmpty) ...[
           Wrap(
@@ -1167,7 +1267,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             runSpacing: 6,
             children: _noProxyEntries.map((entry) {
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.muted,
                   borderRadius: BorderRadius.circular(6),
@@ -1181,7 +1284,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onTap: () {
                         setState(() => _noProxyEntries.remove(entry));
                       },
-                      child: Icon(LucideIcons.x, size: 12, color: theme.colorScheme.mutedForeground),
+                      child: Icon(
+                        LucideIcons.x,
+                        size: 12,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
                     ),
                   ],
                 ),
@@ -1196,7 +1303,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ShadInput(
                 controller: _noProxyInputController,
                 placeholder: const Text('localhost'),
-                leading: Icon(LucideIcons.ban, size: 16, color: theme.colorScheme.mutedForeground),
+                leading: Icon(
+                  LucideIcons.ban,
+                  size: 16,
+                  color: theme.colorScheme.mutedForeground,
+                ),
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (value) {
                   _addNoProxyEntry(value, theme);
@@ -1226,6 +1337,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// Adds a validated host to the no-proxy list.
   void _addNoProxyEntry(String rawValue, ShadThemeData theme) {
     final value = rawValue.trim();
     if (value.isEmpty || _noProxyEntries.contains(value)) return;
@@ -1236,6 +1348,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
+  /// Whether the entry is a valid hostname, IP, or host:port.
   bool _isValidNoProxyEntry(String entry) {
     if (entry.isEmpty) return false;
     if (entry.contains('/')) return false;
@@ -1251,10 +1364,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _isValidHostname(host);
   }
 
+  /// Whether [host] looks like an IPv4 address.
   bool _isIpAddress(String host) {
     return RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host);
   }
 
+  /// Whether [host] is a valid DNS hostname.
   bool _isValidHostname(String host) {
     if (host.isEmpty || host.length > 253) return false;
     final parts = host.split('.');
@@ -1266,6 +1381,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return true;
   }
 
+  /// Builds a labeled proxy URL input field.
   Widget _proxyField({
     required String label,
     required TextEditingController controller,
@@ -1278,12 +1394,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
         const SizedBox(height: 8),
         ShadInput(
           controller: controller,
           placeholder: Text(placeholder),
-          leading: Icon(icon, size: 16, color: theme.colorScheme.mutedForeground),
+          leading: Icon(
+            icon,
+            size: 16,
+            color: theme.colorScheme.mutedForeground,
+          ),
           trailing: controller.text.isNotEmpty
               ? GestureDetector(
                   onTap: () {
@@ -1292,7 +1417,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(4),
-                    child: Icon(LucideIcons.x, size: 14, color: theme.colorScheme.mutedForeground),
+                    child: Icon(
+                      LucideIcons.x,
+                      size: 14,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
                   ),
                 )
               : null,

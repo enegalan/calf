@@ -8,20 +8,12 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
-const (
-	TypeLocalFile  = "local_file"
-	TypeLocalImage = "local_image"
-	TypeNewImage   = "new_image"
-	TypeRegistry   = "registry"
-
-	StatusRunning   = "running"
-	StatusCompleted = "completed"
-	StatusFailed    = "failed"
-)
-
+// Export represents an export.
 type Export struct {
 	ID           string `json:"id"`
 	Volume       string `json:"volume"`
@@ -36,24 +28,22 @@ type Export struct {
 	Downloadable bool   `json:"downloadable"`
 }
 
+// Store represents a store of exports.
 type Store struct {
 	root string
 }
 
+// NewStore creates a Store rooted at ~/.config/calf/mounts/volume-exports.
 func NewStore() (*Store, error) {
-	home, err := os.UserHomeDir()
+	root, err := config.MountsSubdir("volume-exports")
 	if err != nil {
-		return nil, fmt.Errorf("resolve home dir: %w", err)
-	}
-
-	root := filepath.Join(home, ".config", "calf", "mounts", "volume-exports")
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, fmt.Errorf("create export root: %w", err)
+		return nil, err
 	}
 
 	return &Store{root: root}, nil
 }
 
+// List returns all exports for volumeName, sorted newest first.
 func (s *Store) List(volumeName string) ([]Export, error) {
 	volumeDir := s.volumeDir(volumeName)
 	entries, err := os.ReadDir(volumeDir)
@@ -88,10 +78,12 @@ func (s *Store) List(volumeName string) ([]Export, error) {
 	return exports, errors.Join(skipped...)
 }
 
+// Get returns the export metadata for volumeName and id.
 func (s *Store) Get(volumeName, id string) (Export, error) {
 	return s.readMeta(volumeName, id)
 }
 
+// Save persists export metadata to disk, creating the export directory when needed.
 func (s *Store) Save(export Export) error {
 	if strings.TrimSpace(export.Volume) == "" {
 		return fmt.Errorf("volume is required")
@@ -119,18 +111,22 @@ func (s *Store) Save(export Export) error {
 	return nil
 }
 
+// NewID generates a unique export identifier for volumeName.
 func (s *Store) NewID(volumeName string) string {
-	return fmt.Sprintf("%s-%d", sanitizeName(volumeName), time.Now().UnixNano())
+	return newResourceID("", volumeName)
 }
 
+// ArchivePath returns the on-disk path for an export's archive.tar.gz file.
 func (s *Store) ArchivePath(volumeName, id string) string {
 	return filepath.Join(s.exportDir(volumeName, id), "archive.tar.gz")
 }
 
+// EnsureExportDir creates and returns the directory for volumeName and id.
 func (s *Store) EnsureExportDir(volumeName, id string) (string, error) {
 	return s.ensureExportDir(volumeName, id)
 }
 
+// ensureExportDir creates and returns the export directory for volumeName and id.
 func (s *Store) ensureExportDir(volumeName, id string) (string, error) {
 	dir := s.exportDir(volumeName, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -140,6 +136,7 @@ func (s *Store) ensureExportDir(volumeName, id string) (string, error) {
 	return dir, nil
 }
 
+// readMeta loads export metadata from disk for volumeName and id.
 func (s *Store) readMeta(volumeName, id string) (Export, error) {
 	metaPath := filepath.Join(s.exportDir(volumeName, id), "meta.json")
 	payload, err := os.ReadFile(metaPath)
@@ -155,22 +152,24 @@ func (s *Store) readMeta(volumeName, id string) (Export, error) {
 	return export, nil
 }
 
+// volumeDir returns the on-disk directory for all exports of volumeName.
 func (s *Store) volumeDir(volumeName string) string {
 	return filepath.Join(s.root, sanitizeName(volumeName))
 }
 
+// exportDir returns the on-disk directory for a single export.
 func (s *Store) exportDir(volumeName, id string) string {
 	return filepath.Join(s.volumeDir(volumeName), sanitizeName(id))
 }
 
+// sanitizeName makes a value safe for use as a directory or file name component.
 func sanitizeName(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return "unknown"
 	}
 
-	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_")
-	value = replacer.Replace(value)
+	value = utils.SanitizeFileName(value)
 	if value == "." || value == ".." || strings.Contains(value, "..") {
 		return "unknown"
 	}

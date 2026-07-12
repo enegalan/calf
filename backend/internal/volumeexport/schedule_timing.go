@@ -5,64 +5,26 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// NormalizeSchedule sorts day entries and times within each day for stable storage and comparison.
 func NormalizeSchedule(schedule *Schedule) {
-	if len(schedule.DayTimes) == 0 && len(schedule.DaysOfWeek) > 0 && len(schedule.Times) > 0 {
-		schedule.DayTimes = make([]DayTimeSchedule, 0, len(schedule.DaysOfWeek))
-		for _, day := range schedule.DaysOfWeek {
-			times := append([]string(nil), schedule.Times...)
-			sort.Strings(times)
-			schedule.DayTimes = append(schedule.DayTimes, DayTimeSchedule{
-				Day:   day,
-				Times: times,
-			})
-		}
-	}
-
 	if len(schedule.DayTimes) == 0 {
-		times := make([]string, 0, 1)
-		if strings.TrimSpace(schedule.TimeOfDay) != "" {
-			times = append(times, strings.TrimSpace(schedule.TimeOfDay))
-		}
-
-		days := make([]int, 0)
-		switch strings.TrimSpace(schedule.Frequency) {
-		case FrequencyWeekly:
-			days = append(days, schedule.DayOfWeek)
-		case FrequencyMonthly:
-			// Legacy monthly schedules have no cron equivalent; leave days empty.
-		default:
-			days = []int{0, 1, 2, 3, 4, 5, 6}
-		}
-
-		if len(days) > 0 && len(times) > 0 {
-			schedule.DayTimes = make([]DayTimeSchedule, 0, len(days))
-			for _, day := range days {
-				dayTimes := append([]string(nil), times...)
-				sort.Strings(dayTimes)
-				schedule.DayTimes = append(schedule.DayTimes, DayTimeSchedule{
-					Day:   day,
-					Times: dayTimes,
-				})
-			}
-		}
+		return
 	}
 
-	if len(schedule.DayTimes) > 0 {
-		sort.Slice(schedule.DayTimes, func(i, j int) bool {
-			return schedule.DayTimes[i].Day < schedule.DayTimes[j].Day
-		})
+	sort.Slice(schedule.DayTimes, func(i, j int) bool {
+		return schedule.DayTimes[i].Day < schedule.DayTimes[j].Day
+	})
 
-		for index := range schedule.DayTimes {
-			sort.Strings(schedule.DayTimes[index].Times)
-		}
-
-		schedule.DaysOfWeek = uniqueDaysFromDayTimes(schedule.DayTimes)
-		schedule.Times = unionTimesFromDayTimes(schedule.DayTimes)
+	for index := range schedule.DayTimes {
+		sort.Strings(schedule.DayTimes[index].Times)
 	}
 }
 
+// ValidateScheduleInput checks that an enabled schedule has valid days, times, and export targets.
 func ValidateScheduleInput(schedule Schedule) error {
 	NormalizeSchedule(&schedule)
 
@@ -99,11 +61,11 @@ func ValidateScheduleInput(schedule Schedule) error {
 	}
 
 	exportType := strings.TrimSpace(schedule.Type)
-	if exportType != TypeLocalFile && exportType != TypeLocalImage && exportType != TypeNewImage && exportType != TypeRegistry {
+	if exportType != constants.VolumeExportTypeLocalFile && exportType != constants.VolumeExportTypeLocalImage && exportType != constants.VolumeExportTypeNewImage && exportType != constants.VolumeExportTypeRegistry {
 		return fmt.Errorf("unsupported export type %q", exportType)
 	}
 
-	if exportType == TypeLocalFile {
+	if exportType == constants.VolumeExportTypeLocalFile {
 		if strings.TrimSpace(schedule.Folder) == "" {
 			return fmt.Errorf("folder is required")
 		}
@@ -114,14 +76,18 @@ func ValidateScheduleInput(schedule Schedule) error {
 	return nil
 }
 
+// ComputeNextRun returns the earliest upcoming run time, including the current minute when still within grace.
 func ComputeNextRun(schedule Schedule, now time.Time) (time.Time, error) {
 	return computeNextRun(schedule, now, false)
 }
 
+// ComputeNextRunAfterRun returns the next run strictly after now, used after a schedule has just fired.
 func ComputeNextRunAfterRun(schedule Schedule, now time.Time) (time.Time, error) {
 	return computeNextRun(schedule, now, true)
 }
 
+// ScheduleDue reports whether a scheduled export should run on this tick.
+// The run window spans the scheduled minute plus ScheduleRunGrace so a once-per-minute scheduler cannot skip a slot.
 func ScheduleDue(nextRunAt string, now time.Time) bool {
 	if strings.TrimSpace(nextRunAt) == "" {
 		return false
@@ -141,10 +107,13 @@ func ScheduleDue(nextRunAt string, now time.Time) bool {
 	return slotStillRunnable(nextRun, now)
 }
 
+// slotStillRunnable reports whether now is still within the grace window after candidate.
 func slotStillRunnable(candidate, now time.Time) bool {
-	return !now.After(candidate.Add(ScheduleRunGrace))
+	return !now.After(candidate.Add(constants.ScheduleRunGrace))
 }
 
+// computeNextRun scans up to 14 days ahead for the earliest matching slot.
+// afterRun skips slots at or before now; the initial schedule uses slotStillRunnable so a missed minute can still run within grace.
 func computeNextRun(schedule Schedule, now time.Time, afterRun bool) (time.Time, error) {
 	NormalizeSchedule(&schedule)
 
@@ -204,6 +173,7 @@ func computeNextRun(schedule Schedule, now time.Time, afterRun bool) (time.Time,
 	return next, nil
 }
 
+// parseTimeOfDay parses an HH:MM export time string.
 func parseTimeOfDay(value string) (hour int, minute int, err error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -218,6 +188,7 @@ func parseTimeOfDay(value string) (hour int, minute int, err error) {
 	return parsed.Hour(), parsed.Minute(), nil
 }
 
+// timesForDay returns the configured export times for the given weekday, or nil when none are set.
 func timesForDay(dayTimes []DayTimeSchedule, day int) []string {
 	for _, entry := range dayTimes {
 		if entry.Day == day {
@@ -226,45 +197,4 @@ func timesForDay(dayTimes []DayTimeSchedule, day int) []string {
 	}
 
 	return nil
-}
-
-func uniqueDaysFromDayTimes(dayTimes []DayTimeSchedule) []int {
-	days := make([]int, 0, len(dayTimes))
-	for _, entry := range dayTimes {
-		days = append(days, entry.Day)
-	}
-
-	sort.Ints(days)
-
-	unique := make([]int, 0, len(days))
-	for _, day := range days {
-		if len(unique) == 0 || unique[len(unique)-1] != day {
-			unique = append(unique, day)
-		}
-	}
-
-	return unique
-}
-
-func unionTimesFromDayTimes(dayTimes []DayTimeSchedule) []string {
-	seen := make(map[string]struct{})
-	times := make([]string, 0)
-	for _, entry := range dayTimes {
-		for _, value := range entry.Times {
-			key := strings.TrimSpace(value)
-			if key == "" {
-				continue
-			}
-
-			if _, ok := seen[key]; ok {
-				continue
-			}
-
-			seen[key] = struct{}{}
-			times = append(times, key)
-		}
-	}
-
-	sort.Strings(times)
-	return times
 }

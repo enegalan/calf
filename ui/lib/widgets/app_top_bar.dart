@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart' show
-    CircularProgressIndicator,
-    PopupMenuDivider,
-    PopupMenuItem,
-    RelativeRect,
-    RoundedRectangleBorder,
-    showMenu;
+import 'package:flutter/material.dart'
+    show
+        CircularProgressIndicator,
+        PopupMenuDivider,
+        PopupMenuItem,
+        RelativeRect,
+        RoundedRectangleBorder,
+        showMenu;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -14,6 +15,7 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class AppTopBar extends StatelessWidget {
+  /// Renders the app header with branding, settings, and registry sign-in.
   const AppTopBar({
     super.key,
     required this.registryStatus,
@@ -35,10 +37,13 @@ class AppTopBar extends StatelessWidget {
   final Future<void> Function() onSignOut;
   final VoidCallback onOpenWhatsNew;
 
+  /// Whether the user is signed in to Docker Hub.
   bool get _loggedIn => registryStatus?.loggedIn == true;
 
+  /// The signed-in Docker Hub username, if any.
   String get _username => registryStatus?.username ?? '';
 
+  /// The first letter of the username for the avatar, or "?".
   String get _initial {
     final name = _username.trim();
     if (name.isEmpty) {
@@ -47,9 +52,11 @@ class AppTopBar extends StatelessWidget {
     return name[0].toUpperCase();
   }
 
+  /// URL to the Docker Hub account settings page for the signed-in user.
   String get _accountSettingsUrl =>
       'https://app.docker.com/accounts/$_username/settings/account-information';
 
+  /// Builds the top bar with settings and registry controls.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -74,7 +81,11 @@ class AppTopBar extends StatelessWidget {
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(LucideIcons.settings, size: 18, color: theme.colorScheme.foreground),
+                Icon(
+                  LucideIcons.settings,
+                  size: 18,
+                  color: theme.colorScheme.foreground,
+                ),
                 if (updateAvailable)
                   Positioned(
                     top: -2,
@@ -85,7 +96,10 @@ class AppTopBar extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(color: theme.colorScheme.background, width: 1.5),
+                        border: Border.all(
+                          color: theme.colorScheme.background,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -121,10 +135,12 @@ class AppTopBar extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
+  /// Renders the Calf logo and wordmark.
   const _BrandMark({required this.theme});
 
   final ShadThemeData theme;
 
+  /// Builds the logo and wordmark row.
   @override
   Widget build(BuildContext context) {
     final logoAsset = theme.brightness == Brightness.dark
@@ -142,13 +158,17 @@ class _BrandMark extends StatelessWidget {
           excludeFromSemantics: true,
         ),
         const SizedBox(width: 5),
-        Text('calf', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'calf',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
       ],
     );
   }
 }
 
 class _AccountMenuButton extends StatefulWidget {
+  /// Button that opens the signed-in account popup menu.
   const _AccountMenuButton({
     required this.initial,
     required this.username,
@@ -165,6 +185,7 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback onOpenWhatsNew;
   final Future<void> Function() onSignOut;
 
+  /// Creates the state for the account menu button.
   @override
   State<_AccountMenuButton> createState() => _AccountMenuButtonState();
 }
@@ -172,6 +193,7 @@ class _AccountMenuButton extends StatefulWidget {
 class _AccountMenuButtonState extends State<_AccountMenuButton> {
   final _buttonKey = GlobalKey();
 
+  /// Opens the account popup menu and handles the selected action.
   Future<void> _openMenu() async {
     final buttonContext = _buttonKey.currentContext;
     if (buttonContext == null || !buttonContext.mounted) {
@@ -179,7 +201,8 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     }
 
     final box = buttonContext.findRenderObject()! as RenderBox;
-    final overlayBox = Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
+    final overlayBox =
+        Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
     final offset = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     const menuWidth = 240.0;
     final theme = ShadTheme.of(buttonContext);
@@ -206,7 +229,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
           child: Row(
             children: [
-              _UserAvatar(initial: widget.initial, size: 32, theme: widget.theme),
+              _UserAvatar(
+                initial: widget.initial,
+                size: 32,
+                theme: widget.theme,
+              ),
               const SizedBox(width: 10),
               Flexible(
                 child: Column(
@@ -215,7 +242,9 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   children: [
                     Text(
                       widget.username,
-                      style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.large.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -275,6 +304,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     }
   }
 
+  /// Builds the avatar button that opens the account menu.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -300,6 +330,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
 }
 
 class _AccountMenuRow extends StatelessWidget {
+  /// Renders one icon-and-label row inside the account popup menu.
   const _AccountMenuRow({
     required this.icon,
     required this.label,
@@ -312,6 +343,7 @@ class _AccountMenuRow extends StatelessWidget {
   final Color color;
   final Widget? trailing;
 
+  /// Builds the menu row with icon, label, and optional trailing widget.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -337,6 +369,7 @@ class _AccountMenuRow extends StatelessWidget {
 }
 
 class _UserAvatar extends StatelessWidget {
+  /// Renders a circular avatar showing the user's initial.
   const _UserAvatar({
     required this.initial,
     required this.size,
@@ -347,6 +380,7 @@ class _UserAvatar extends StatelessWidget {
   final double size;
   final ShadThemeData theme;
 
+  /// Builds the circular user initial avatar.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -359,15 +393,17 @@ class _UserAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: (size >= 32 ? theme.textTheme.large : theme.textTheme.small).copyWith(
-          color: theme.colorScheme.primaryForeground,
-          fontWeight: FontWeight.w600,
-        ),
+        style: (size >= 32 ? theme.textTheme.large : theme.textTheme.small)
+            .copyWith(
+              color: theme.colorScheme.primaryForeground,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }
 }
 
+/// Shows a modal dialog that polls until Docker Hub browser login completes.
 Future<void> showRegistryLoginDialog({
   required BuildContext context,
   required CalfClient apiClient,
@@ -388,6 +424,7 @@ Future<void> showRegistryLoginDialog({
 }
 
 class _RegistryLoginDialog extends StatefulWidget {
+  /// Dialog that guides the user through Docker Hub browser login.
   const _RegistryLoginDialog({
     required this.apiClient,
     required this.start,
@@ -400,6 +437,7 @@ class _RegistryLoginDialog extends StatefulWidget {
   final ValueChanged<String?> onComplete;
   final ValueChanged<String> onFailed;
 
+  /// Creates the state for the registry login dialog.
   @override
   State<_RegistryLoginDialog> createState() => _RegistryLoginDialogState();
 }
@@ -407,6 +445,7 @@ class _RegistryLoginDialog extends StatefulWidget {
 class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   String? _error;
 
+  /// Opens the verification URL and starts polling for login completion.
   @override
   void initState() {
     super.initState();
@@ -414,12 +453,15 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     _poll();
   }
 
+  /// Polls the backend until browser login succeeds or fails.
   Future<void> _poll() async {
     while (mounted) {
       await Future<void>.delayed(const Duration(seconds: 2));
 
       try {
-        final status = await widget.apiClient.fetchRegistryBrowserLogin(widget.start.sessionId);
+        final status = await widget.apiClient.fetchRegistryBrowserLogin(
+          widget.start.sessionId,
+        );
         if (!mounted) {
           return;
         }
@@ -452,14 +494,17 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     }
   }
 
+  /// Reopens the Docker Hub verification page in the browser.
   Future<void> _openLoginPage() async {
     await openExternalUrl(widget.start.verificationUrl);
   }
 
+  /// Copies the device login confirmation code to the clipboard.
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.start.userCode));
   }
 
+  /// Builds the browser login waiting dialog with confirmation code.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -469,7 +514,9 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
       constraints: const BoxConstraints(maxWidth: 420),
       gap: 16,
       title: const Text('Sign in to Docker Hub'),
-      description: const Text('Complete sign-in in your browser. This dialog closes when you are done.'),
+      description: const Text(
+        'Complete sign-in in your browser. This dialog closes when you are done.',
+      ),
       actions: [
         CalfButton.ghost(
           onPressed: () => Navigator.of(context).pop(),
@@ -480,93 +527,106 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.muted,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Waiting for browser sign-in...',
-                      style: theme.textTheme.small,
-                    ),
-                  ),
-                ],
-              ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.muted,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Confirmation code',
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.border),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.start.userCode,
-                      style: theme.textTheme.h4.copyWith(letterSpacing: 2),
-                    ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
                   ),
-                  CalfButton.ghost(
-                    onPressed: _copyCode,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.foreground),
-                        const SizedBox(width: 6),
-                        const Text('Copy'),
-                      ],
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Waiting for browser sign-in...',
+                    style: theme.textTheme.small,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Confirmation code',
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.border),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.start.userCode,
+                    style: theme.textTheme.h4.copyWith(letterSpacing: 2),
+                  ),
+                ),
+                CalfButton.ghost(
+                  onPressed: _copyCode,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.copy,
+                        size: 14,
+                        color: theme.colorScheme.foreground,
+                      ),
+                      const SizedBox(width: 6),
+                      const Text('Copy'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          CalfButton.outline(
+            onPressed: _openLoginPage,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.externalLink,
+                  size: 14,
+                  color: theme.colorScheme.foreground,
+                ),
+                const SizedBox(width: 8),
+                const Text('Open login page'),
+              ],
+            ),
+          ),
+          if (_error != null) ...[
             const SizedBox(height: 12),
-            CalfButton.outline(
-              onPressed: _openLoginPage,
-              width: double.infinity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.externalLink, size: 14, color: theme.colorScheme.foreground),
-                  const SizedBox(width: 8),
-                  const Text('Open login page'),
-                ],
+            Text(
+              _error!,
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.destructive,
               ),
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
-              ),
-            ],
+          ],
         ],
       ),
     );
   }
 }
 
+/// Shows a dialog listing recent Calf release highlights.
 void showWhatsNewDialog(BuildContext context, String appVersion) {
   final theme = ShadTheme.of(context);
 
@@ -588,27 +648,28 @@ void showWhatsNewDialog(BuildContext context, String appVersion) {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.logIn,
-              title: 'Docker Hub login',
-              description: 'Browser sign-in with Google, GitHub and SSO.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.layers,
-              title: 'Image management',
-              description: 'Layers, run, pull and push from the Images screen.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.globe,
-              title: 'localhost proxy',
-              description: 'Published container ports work on localhost, not just 127.0.0.1.',
-            ),
-            const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.logIn,
+            title: 'Docker Hub login',
+            description: 'Browser sign-in with Google, GitHub and SSO.',
+          ),
+          const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.layers,
+            title: 'Image management',
+            description: 'Layers, run, pull and push from the Images screen.',
+          ),
+          const SizedBox(height: 8),
+          _ReleaseNote(
+            theme: theme,
+            icon: LucideIcons.globe,
+            title: 'localhost proxy',
+            description:
+                'Published container ports work on localhost, not just 127.0.0.1.',
+          ),
+          const SizedBox(height: 8),
           _ReleaseNote(
             theme: theme,
             icon: LucideIcons.download,
@@ -622,6 +683,7 @@ void showWhatsNewDialog(BuildContext context, String appVersion) {
 }
 
 class _ReleaseNote extends StatelessWidget {
+  /// Renders one icon, title, and description row in the What's New dialog.
   const _ReleaseNote({
     required this.theme,
     required this.icon,
@@ -634,6 +696,7 @@ class _ReleaseNote extends StatelessWidget {
   final String title;
   final String description;
 
+  /// Builds one release highlight row with icon and text.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -656,7 +719,12 @@ class _ReleaseNote extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  title,
+                  style: theme.textTheme.large.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(description, style: theme.textTheme.muted),
               ],

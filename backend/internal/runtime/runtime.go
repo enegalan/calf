@@ -7,27 +7,20 @@ import (
 	goruntime "runtime"
 )
 
+// Mode represents the mode of the runtime.
 type Mode string
 
-const (
-	ModeVM     Mode = "vm"
-	ModeNative Mode = "native"
-)
-
+// State represents the state of the runtime.
 type State string
 
-const (
-	StateRunning State = "running"
-	StateStopped State = "stopped"
-	StateUnknown State = "unknown"
-)
-
+// PortConflict represents a port conflict.
 type PortConflict struct {
 	Port    int    `json:"port"`
 	Process string `json:"process"`
 	Hint    string `json:"hint"`
 }
 
+// Status represents the status of the runtime.
 type Status struct {
 	Mode          Mode           `json:"mode"`
 	State         State          `json:"state"`
@@ -37,6 +30,7 @@ type Status struct {
 	Log           string         `json:"log,omitempty"`
 }
 
+// Container represents a container.
 type Container struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`
@@ -49,6 +43,7 @@ type Container struct {
 	ComposeService string `json:"compose_service"`
 }
 
+// Image represents an image.
 type Image struct {
 	ID         string `json:"id"`
 	Repository string `json:"repository"`
@@ -57,6 +52,7 @@ type Image struct {
 	Created    string `json:"created"`
 }
 
+// ImageLayer represents a layer of an image.
 type ImageLayer struct {
 	Index     int    `json:"index"`
 	CreatedBy string `json:"created_by"`
@@ -64,6 +60,7 @@ type ImageLayer struct {
 	Created   string `json:"created,omitempty"`
 }
 
+// Volume represents a volume.
 type Volume struct {
 	Name    string `json:"name"`
 	Driver  string `json:"driver"`
@@ -72,6 +69,7 @@ type Volume struct {
 	Created string `json:"created"`
 }
 
+// VolumeDetail represents the details of a volume.
 type VolumeDetail struct {
 	Name       string `json:"name"`
 	Driver     string `json:"driver"`
@@ -80,6 +78,7 @@ type VolumeDetail struct {
 	Mountpoint string `json:"mountpoint,omitempty"`
 }
 
+// VolumeContainerUsage represents the usage of a volume by a container.
 type VolumeContainerUsage struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
@@ -88,6 +87,7 @@ type VolumeContainerUsage struct {
 	Target string `json:"target"`
 }
 
+// Network represents a network.
 type Network struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -97,6 +97,7 @@ type Network struct {
 	Created string `json:"created"`
 }
 
+// NetworkDetail represents the details of a network.
 type NetworkDetail struct {
 	ID      string            `json:"id"`
 	Name    string            `json:"name"`
@@ -108,6 +109,7 @@ type NetworkDetail struct {
 	Options map[string]string `json:"options"`
 }
 
+// Runtime represents a runtime.
 type Runtime interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
@@ -150,6 +152,7 @@ type Runtime interface {
 	ApplyProxy(ctx context.Context, proxy ProxyConfig) error
 }
 
+// New returns the platform-appropriate Runtime implementation.
 func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, proxy)

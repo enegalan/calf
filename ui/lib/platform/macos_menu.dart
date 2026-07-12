@@ -4,9 +4,11 @@ import 'package:flutter/widgets.dart';
 
 import 'package:ui/widgets/about_dialog.dart';
 
+/// Whether the current platform supports a native macOS menu bar.
 bool get supportsNativeMacosMenu =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
 
+/// Returns a platform-provided menu item when [type] is available on this OS.
 PlatformMenuItem? _platformMenu(PlatformProvidedMenuItemType type) {
   if (!PlatformProvidedMenuItem.hasMenu(type)) {
     return null;
@@ -16,6 +18,7 @@ PlatformMenuItem? _platformMenu(PlatformProvidedMenuItemType type) {
 
 /// Wraps [child] with a native macOS menu bar. Returns [child] unchanged on other platforms.
 class MacosMenuScope extends StatelessWidget {
+  /// Creates a scope that wires native macOS menus to app callbacks.
   const MacosMenuScope({
     super.key,
     required this.child,
@@ -57,6 +60,7 @@ class MacosMenuScope extends StatelessWidget {
     'Builds',
   ];
 
+  /// Builds the full native menu tree for the macOS menu bar.
   List<PlatformMenuItem> _buildMenus(BuildContext context) {
     final appMenuItems = <PlatformMenuItem>[
       PlatformMenuItem(
@@ -67,17 +71,17 @@ class MacosMenuScope extends StatelessWidget {
         members: [
           PlatformMenuItem(
             label: 'Preferences…',
-            shortcut: const SingleActivator(LogicalKeyboardKey.comma, meta: true),
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.comma,
+              meta: true,
+            ),
             onSelected: onOpenSettings,
           ),
           PlatformMenuItem(
             label: 'Check for Updates…',
             onSelected: onCheckForUpdates,
           ),
-          PlatformMenuItem(
-            label: "What's New…",
-            onSelected: onOpenWhatsNew,
-          ),
+          PlatformMenuItem(label: "What's New…", onSelected: onOpenWhatsNew),
         ],
       ),
       ?_platformMenu(PlatformProvidedMenuItemType.servicesSubmenu),
@@ -155,10 +159,7 @@ class MacosMenuScope extends StatelessWidget {
       PlatformMenu(
         label: 'Help',
         menus: [
-          PlatformMenuItem(
-            label: 'Report an Issue',
-            onSelected: onReportIssue,
-          ),
+          PlatformMenuItem(label: 'Report an Issue', onSelected: onReportIssue),
           PlatformMenuItem(
             label: 'GitHub Repository',
             onSelected: onOpenRepository,
@@ -168,15 +169,13 @@ class MacosMenuScope extends StatelessWidget {
     ];
   }
 
+  /// Wraps [child] in a [PlatformMenuBar] on macOS, or returns [child] unchanged.
   @override
   Widget build(BuildContext context) {
     if (!supportsNativeMacosMenu) {
       return child;
     }
 
-    return PlatformMenuBar(
-      menus: _buildMenus(context),
-      child: child,
-    );
+    return PlatformMenuBar(menus: _buildMenus(context), child: child);
   }
 }

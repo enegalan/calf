@@ -6,11 +6,14 @@ import (
 	"strings"
 )
 
+// Regular expression for stripping ANSI escape sequences from command output.
 var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
 
+// Regular expression for extracting the fatal message from nerdctl/shell command output.
 var nerdctlFatalMessagePattern = regexp.MustCompile(`level=fatal msg="([^"]+)"`)
 
-func formatCommandError(output string) string {
+// FormatCommandError extracts a concise human-readable message from nerdctl/shell command output.
+func FormatCommandError(output string) string {
 	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
 	lines := strings.Split(cleaned, "\n")
 
@@ -43,12 +46,14 @@ func formatCommandError(output string) string {
 	return cleaned
 }
 
+// isProgressLine reports whether a log line is build/pull progress noise rather than an error.
 func isProgressLine(line string) bool {
 	return strings.Contains(line, "elapsed:") ||
 		strings.Contains(line, "waiting") ||
 		strings.Contains(line, "--------------------------------------")
 }
 
+// isNamespacedImageReference reports whether ref includes a registry namespace (e.g. user/repo).
 func isNamespacedImageReference(ref string) bool {
 	name := strings.TrimSpace(ref)
 	if colon := strings.LastIndex(name, ":"); colon > strings.LastIndex(name, "/") {
@@ -58,6 +63,7 @@ func isNamespacedImageReference(ref string) bool {
 	return strings.Contains(name, "/")
 }
 
+// imageRepositoryName returns the repository component of an image reference without tag or registry prefix.
 func imageRepositoryName(ref string) string {
 	name := strings.TrimSpace(ref)
 	if colon := strings.LastIndex(name, ":"); colon > strings.LastIndex(name, "/") {
@@ -71,7 +77,8 @@ func imageRepositoryName(ref string) string {
 	return name
 }
 
-func wrapPushError(ref string, err error) error {
+// WrapPushError augments registry authorization failures with Docker Hub sign-in or tagging hints.
+func WrapPushError(ref string, err error) error {
 	message := err.Error()
 	lower := strings.ToLower(message)
 	if !strings.Contains(lower, "authorization") &&
@@ -92,15 +99,8 @@ func wrapPushError(ref string, err error) error {
 	return fmt.Errorf("%s. Sign in to Docker Hub from Settings (browser login), then push again", message)
 }
 
-func FormatCommandError(output string) string {
-	return formatCommandError(output)
-}
-
+// IsTransientCommandError reports whether err is likely temporary and worth retrying.
 func IsTransientCommandError(err error) bool {
-	return isTransientCommandError(err)
-}
-
-func isTransientCommandError(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -148,8 +148,4 @@ func isTransientCommandError(err error) bool {
 	}
 
 	return false
-}
-
-func WrapPushError(ref string, err error) error {
-	return wrapPushError(ref, err)
 }

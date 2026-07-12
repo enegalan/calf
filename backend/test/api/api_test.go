@@ -13,11 +13,24 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/middleware"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/gorilla/websocket"
 )
 
+func newTestGateway(cfg config.Config, logger *slog.Logger, mock *runtime.Mock) *api.Gateway {
+	return api.New(cfg, logger, mock).WithMiddleware(
+		middleware.CORS(),
+		middleware.Recovery(logger),
+		middleware.Logging(logger),
+	)
+}
+
 func newTestServer(t *testing.T) *httptest.Server {
+	return newTestServerWithMock(t, runtime.NewMock())
+}
+
+func newTestServerWithMock(t *testing.T, mock *runtime.Mock) *httptest.Server {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -28,10 +41,11 @@ func newTestServer(t *testing.T) *httptest.Server {
 		LogLevel:   "info",
 	}
 
-	apiServer := api.New(cfg, slog.Default(), runtime.NewMock())
+	apiServer := newTestGateway(cfg, slog.Default(), mock)
 	server := httptest.NewServer(apiServer.Handler())
 	t.Cleanup(func() {
 		apiServer.Shutdown(context.Background())
+		server.Close()
 	})
 	return server
 }
@@ -786,15 +800,9 @@ func TestHealthMethodNotAllowedReturnsJSONError(t *testing.T) {
 }
 
 func TestContainerLogsWebSocketStreamsLines(t *testing.T) {
-	cfg := config.Config{
-		ListenAddr: ":8765",
-		LogLevel:   "info",
-	}
-
 	mock := runtime.NewMock()
 	mock.LogLines = []string{"alpha", "beta", "gamma"}
-	server := httptest.NewServer(api.New(cfg, slog.Default(), mock).Handler())
-	defer server.Close()
+	server := newTestServerWithMock(t, mock)
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/v1/containers/mock-id/logs"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)

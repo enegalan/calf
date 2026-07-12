@@ -4,24 +4,31 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/dockerexec"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// Regular expressions for parsing Dockerfile dependencies and build image names.
 var fromLineRe = regexp.MustCompile(`(?i)^FROM\s+(\S+)`)
+
+// Regular expression for parsing the last image name reported in a build log's "naming to" lines.
 var buildImageNameRe = regexp.MustCompile(`(?i)naming to\s+(\S+)`)
 
+// imageInspectRow represents the inspect JSON for an image.
 type imageInspectRow struct {
-	ID       string `json:"Id"`
-	Digest   string `json:"Digest"`
-	Size     int64  `json:"Size"`
+	ID       string   `json:"Id"`
+	Digest   string   `json:"Digest"`
+	Size     int64    `json:"Size"`
 	RepoTags []string `json:"RepoTags"`
 }
 
+// enrichBuildResult fills build dependencies, artifacts, and tags from the Dockerfile and built image.
 func enrichBuildResult(ctx context.Context, run commandRunner, contextPath, dockerfile, tag, platform string, result BuildResult) BuildResult {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -43,6 +50,7 @@ func enrichBuildResult(ctx context.Context, run commandRunner, contextPath, dock
 	return result
 }
 
+// parseDockerfileDependencies collects unique FROM image references declared in the Dockerfile.
 func parseDockerfileDependencies(contextPath, dockerfile, platform string) []BuildDependency {
 	path := filepath.Join(contextPath, dockerfile)
 	file, err := os.Open(path)
@@ -74,13 +82,14 @@ func parseDockerfileDependencies(contextPath, dockerfile, platform string) []Bui
 		seen[source] = struct{}{}
 		dependencies = append(dependencies, BuildDependency{
 			Source:   source,
-			Platform: platformArch(platform),
+			Platform: PlatformArch(platform),
 		})
 	}
 
 	return dependencies
 }
 
+// enrichDependenciesWithInspect adds digest and platform details to each dependency via image inspect.
 func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, result BuildResult, platform string) BuildResult {
 	for index, dependency := range result.Dependencies {
 		output, err := run(ctx, "nerdctl", "image", "inspect", dependency.Source, "--format", "{{json .}}")
@@ -89,7 +98,7 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 		}
 
 		var row imageInspectRow
-		if err := json.Unmarshal(bytesTrim(output), &row); err != nil {
+		if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
 			continue
 		}
 
@@ -100,13 +109,14 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 
 		result.Dependencies[index].Digest = digest
 		if result.Dependencies[index].Platform == "" {
-			result.Dependencies[index].Platform = platformArch(platform)
+			result.Dependencies[index].Platform = PlatformArch(platform)
 		}
 	}
 
 	return result
 }
 
+// inspectBuildImage returns build artifacts and tags for the image produced at tag.
 func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform string) ([]BuildArtifact, []BuildTag) {
 	output, err := run(ctx, "nerdctl", "image", "inspect", tag, "--format", "{{json .}}")
 	if err != nil {
@@ -114,7 +124,7 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 	}
 
 	var row imageInspectRow
-	if err := json.Unmarshal(bytesTrim(output), &row); err != nil {
+	if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
 		return nil, nil
 	}
 
@@ -123,8 +133,8 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 		digest = row.ID
 	}
 
-	size := formatBytes(row.Size)
-	arch := platformArch(platform)
+	size := utils.FormatBytes(row.Size)
+	arch := PlatformArch(platform)
 
 	artifacts := []BuildArtifact{
 		{
@@ -147,6 +157,7 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 	return artifacts, tags
 }
 
+// IsResolvableBuildContext reports whether contextPath is an absolute local directory accessible on disk.
 func IsResolvableBuildContext(contextPath string) bool {
 	if contextPath == "" || contextPath == "docker-cli" {
 		return false
@@ -160,6 +171,7 @@ func IsResolvableBuildContext(contextPath string) bool {
 	return err == nil
 }
 
+// ReadBuildSource loads the Dockerfile content and metadata from a local build context.
 func ReadBuildSource(contextPath, dockerfile, platform string) (BuildSource, error) {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -190,10 +202,11 @@ func ReadBuildSource(contextPath, dockerfile, platform string) (BuildSource, err
 		Path:     rel,
 		Filename: filepath.Base(absSource),
 		Content:  string(content),
-		Platform: platformArch(platform),
+		Platform: PlatformArch(platform),
 	}, nil
 }
 
+// CollectGitMetadata returns the short HEAD revision and origin remote URL when contextPath is a git repo.
 func CollectGitMetadata(contextPath string) (revision, remote string) {
 	gitDir := filepath.Join(contextPath, ".git")
 	if _, err := os.Stat(gitDir); err != nil {
@@ -211,7 +224,8 @@ func CollectGitMetadata(contextPath string) (revision, remote string) {
 	return revision, remote
 }
 
-func platformArch(platform string) string {
+// PlatformArch extracts the architecture segment from an OCI platform string (e.g. linux/amd64 -> amd64).
+func PlatformArch(platform string) string {
 	if platform == "" {
 		return ""
 	}
@@ -221,38 +235,14 @@ func platformArch(platform string) string {
 		return parts[1]
 	}
 
+	if arch, ok := strings.CutPrefix(platform, "linux/"); ok {
+		return arch
+	}
+
 	return platform
 }
 
-func formatBytes(size int64) string {
-	if size <= 0 {
-		return "0 B"
-	}
-
-	const unit = 1024
-	if size < unit {
-		return fmt.Sprintf("%d B", size)
-	}
-
-	div, exp := int64(unit), 0
-	for numerator := size / unit; numerator >= unit; numerator /= unit {
-		div *= unit
-		exp++
-	}
-
-	value := float64(size) / float64(div)
-	suffix := []string{"KB", "MB", "GB", "TB"}[exp]
-	return fmt.Sprintf("%.1f %s", value, suffix)
-}
-
-func FormatBytes(size int64) string {
-	return formatBytes(size)
-}
-
-func bytesTrim(output []byte) []byte {
-	return []byte(strings.TrimSpace(string(output)))
-}
-
+// NormalizeDockerfilePath picks the first existing Dockerfile candidate within contextPath.
 func NormalizeDockerfilePath(contextPath, dockerfile string) string {
 	if dockerfile == "" {
 		dockerfile = "Dockerfile"
@@ -287,6 +277,7 @@ func NormalizeDockerfilePath(contextPath, dockerfile string) string {
 	return dockerfile
 }
 
+// ParseImageRefFromBuildLog extracts the last image name reported in a build log's "naming to" lines.
 func ParseImageRefFromBuildLog(rawLog string) string {
 	matches := buildImageNameRe.FindAllStringSubmatch(rawLog, -1)
 	for index := len(matches) - 1; index >= 0; index-- {
@@ -306,12 +297,14 @@ func ParseImageRefFromBuildLog(rawLog string) string {
 	return ""
 }
 
+// normalizeImageRef strips docker.io/library prefixes for consistent display.
 func normalizeImageRef(imageRef string) string {
 	imageRef = strings.TrimPrefix(imageRef, "docker.io/library/")
 	imageRef = strings.TrimPrefix(imageRef, "library/")
 	return imageRef
 }
 
+// EnrichSyncedBuild backfills missing build metadata from the local context and build log via the Docker CLI.
 func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 	if build == nil || socket == "" {
 		return
@@ -355,15 +348,9 @@ func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 	}
 }
 
+// dockerCLIRunner returns a commandRunner that invokes docker with DOCKER_HOST set to socket.
 func dockerCLIRunner(socket string) commandRunner {
 	return func(ctx context.Context, _ string, args ...string) ([]byte, error) {
-		command := exec.CommandContext(ctx, "docker", args...)
-		command.Env = append(os.Environ(), "DOCKER_HOST=unix://"+socket)
-		output, err := command.CombinedOutput()
-		if err != nil {
-			return nil, fmt.Errorf("docker %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-		}
-
-		return output, nil
+		return dockerexec.Run(ctx, socket, args...)
 	}
 }

@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 
+/// Shows the About Calf dialog with version info and links.
 void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
   final theme = ShadTheme.of(context);
   final logoAsset = theme.brightness == Brightness.dark
@@ -33,7 +34,9 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
           Text(
             'A lightweight alternative to Docker Desktop.',
             textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -41,12 +44,8 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
             children: [
               _AboutLink(
                 label: 'GitHub',
-                onPressed: () => _openExternalLink(dialogContext, calfRepositoryUrl),
-              ),
-              Text(' · ', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
-              _AboutLink(
-                label: 'Documentation',
-                onPressed: () => _openExternalLink(dialogContext, calfDocumentationUrl),
+                onPressed: () =>
+                    _openExternalLink(dialogContext, calfRepositoryUrl),
               ),
             ],
           ),
@@ -54,7 +53,9 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
           Text(
             'MIT License · © ${DateTime.now().year}',
             textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ],
       ),
@@ -62,6 +63,7 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
   );
 }
 
+/// Opens [url] externally and shows an error dialog if that fails.
 Future<void> _openExternalLink(BuildContext context, String url) async {
   final opened = await openExternalUrl(url);
   if (!opened && context.mounted) {
@@ -69,7 +71,9 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
       context: context,
       builder: (errorContext) => ShadDialog(
         title: const Text('Could not open link'),
-        description: const Text('Your system could not open the URL in a browser.'),
+        description: const Text(
+          'Your system could not open the URL in a browser.',
+        ),
         actions: [
           CalfButton(
             onPressed: () => Navigator.of(errorContext).pop(),
@@ -82,14 +86,13 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
 }
 
 class _AboutLink extends StatelessWidget {
-  const _AboutLink({
-    required this.label,
-    required this.onPressed,
-  });
+  /// Renders a text link styled for the About dialog.
+  const _AboutLink({required this.label, required this.onPressed});
 
   final String label;
   final VoidCallback onPressed;
 
+  /// Builds the styled text link button.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);

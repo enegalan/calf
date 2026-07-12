@@ -8,24 +8,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/utils"
 	"gopkg.in/yaml.v3"
 )
 
-const composeProjectLabel = "com.docker.compose.project"
-const composeServiceLabel = "com.docker.compose.service"
-const composeWorkingDirLabel = "com.docker.compose.project.working_dir"
-const composeConfigFilesLabel = "com.docker.compose.project.config_files"
-
-var composeStageSkipDirs = map[string]struct{}{
-	".git":         {},
-	"node_modules": {},
-	"vendor":       {},
-	".next":        {},
-	"dist":         {},
-	"build":        {},
-	"__pycache__":  {},
-}
-
+// composeProjectGroup represents a compose project with its containers and metadata.
 type composeProjectGroup struct {
 	Name        string
 	WorkingDir  string
@@ -34,6 +23,7 @@ type composeProjectGroup struct {
 	WasRunning  map[string]bool
 }
 
+// groupContainersByComposeProject splits inspected containers into compose projects and standalone entries.
 func groupContainersByComposeProject(inspects []containerInspect, running map[string]bool) ([]composeProjectGroup, []containerInspect) {
 	byProject := make(map[string]*composeProjectGroup)
 	standalone := make([]containerInspect, 0)
@@ -50,7 +40,7 @@ func groupContainersByComposeProject(inspects []containerInspect, running map[st
 		if !ok {
 			group = &composeProjectGroup{
 				Name:       project,
-				WorkingDir: inspect.Config.Labels[composeWorkingDirLabel],
+				WorkingDir: inspect.Config.Labels[constants.ComposeWorkingDirLabel],
 				WasRunning: make(map[string]bool),
 			}
 			group.ConfigFiles = composeConfigFiles(inspect)
@@ -58,7 +48,7 @@ func groupContainersByComposeProject(inspects []containerInspect, running map[st
 		}
 
 		if group.WorkingDir == "" {
-			group.WorkingDir = inspect.Config.Labels[composeWorkingDirLabel]
+			group.WorkingDir = inspect.Config.Labels[constants.ComposeWorkingDirLabel]
 		}
 		if len(group.ConfigFiles) == 0 {
 			group.ConfigFiles = composeConfigFiles(inspect)
@@ -80,20 +70,22 @@ func groupContainersByComposeProject(inspects []containerInspect, running map[st
 	return groups, standalone
 }
 
+// composeProjectName reads the compose project label from a container inspect payload.
 func composeProjectName(inspect containerInspect) string {
 	if inspect.Config.Labels == nil {
 		return ""
 	}
 
-	return inspect.Config.Labels[composeProjectLabel]
+	return inspect.Config.Labels[constants.ComposeProjectLabel]
 }
 
+// composeConfigFiles parses the comma-separated compose config file list from container labels.
 func composeConfigFiles(inspect containerInspect) []string {
 	if inspect.Config.Labels == nil {
 		return nil
 	}
 
-	raw := strings.TrimSpace(inspect.Config.Labels[composeConfigFilesLabel])
+	raw := strings.TrimSpace(inspect.Config.Labels[constants.ComposeConfigFilesLabel])
 	if raw == "" {
 		return nil
 	}
@@ -109,6 +101,7 @@ func composeConfigFiles(inspect containerInspect) []string {
 	return files
 }
 
+// composeServiceImages maps compose service names to the image refs from migrated containers.
 func composeServiceImages(containers []containerInspect) map[string]string {
 	images := make(map[string]string, len(containers))
 
@@ -117,7 +110,7 @@ func composeServiceImages(containers []containerInspect) map[string]string {
 			continue
 		}
 
-		service := inspect.Config.Labels[composeServiceLabel]
+		service := inspect.Config.Labels[constants.ComposeServiceLabel]
 		if service == "" || inspect.Config.Image == "" {
 			continue
 		}
@@ -128,6 +121,7 @@ func composeServiceImages(containers []containerInspect) map[string]string {
 	return images
 }
 
+// stageComposeProject copies a compose project into the mounts tree and patches it for Calf import.
 func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, string, error) {
 	if group.WorkingDir == "" {
 		return "", "", fmt.Errorf("compose project %s has no working dir", group.Name)
@@ -137,7 +131,7 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", fmt.Errorf("compose working dir %s: %w", group.WorkingDir, err)
 	}
 
-	destDir := filepath.Join(mountsRoot, "compose", sanitizeFileName(group.Name))
+	destDir := filepath.Join(mountsRoot, "compose", utils.SanitizeFileName(group.Name))
 	if err := os.RemoveAll(destDir); err != nil {
 		return "", "", err
 	}
@@ -159,11 +153,20 @@ func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, 
 		return "", "", err
 	}
 
-	vmDir := VMPath(destDir)
-	vmComposePath := VMPath(composePath)
+	vmDir, err := config.HostMountToVMPath(destDir)
+	if err != nil {
+		return "", "", fmt.Errorf("map compose project directory to VM path: %w", err)
+	}
+
+	vmComposePath, err := config.HostMountToVMPath(composePath)
+	if err != nil {
+		return "", "", fmt.Errorf("map compose file to VM path: %w", err)
+	}
+
 	return vmDir, vmComposePath, nil
 }
 
+// resolveComposeFile locates or copies the compose YAML file inside a staged project directory.
 func resolveComposeFile(group composeProjectGroup, destDir string) (string, error) {
 	candidates := make([]string, 0, len(group.ConfigFiles)+4)
 
@@ -197,6 +200,9 @@ func resolveComposeFile(group composeProjectGroup, destDir string) (string, erro
 	return "", fmt.Errorf("compose file not found for project %s", group.Name)
 }
 
+// patchComposeForMigration rewrites build: to image: using the image that was
+// already built in Docker Desktop. Calf cannot replay the original build context
+// from the staged compose directory alone.
 func patchComposeForMigration(composePath string, serviceImages map[string]string) error {
 	if len(serviceImages) == 0 {
 		return nil
@@ -237,88 +243,7 @@ func patchComposeForMigration(composePath string, serviceImages map[string]strin
 	return os.WriteFile(composePath, patched, 0o644)
 }
 
-func patchComposeServiceEnv(composePath string, containers []containerInspect) error {
-	serviceEnv := make(map[string][]string)
-	for _, inspect := range containers {
-		if inspect.Config.Labels == nil || len(inspect.Config.Env) == 0 {
-			continue
-		}
-
-		service := inspect.Config.Labels[composeServiceLabel]
-		if service == "" {
-			continue
-		}
-
-		serviceEnv[service] = inspect.Config.Env
-	}
-
-	if len(serviceEnv) == 0 {
-		return nil
-	}
-
-	data, err := os.ReadFile(composePath)
-	if err != nil {
-		return err
-	}
-
-	var root yaml.Node
-	if err := yaml.Unmarshal(data, &root); err != nil {
-		return err
-	}
-
-	servicesNode := findComposeServicesNode(&root)
-	if servicesNode == nil || servicesNode.Kind != yaml.MappingNode {
-		return nil
-	}
-
-	for index := 0; index < len(servicesNode.Content); index += 2 {
-		serviceName := servicesNode.Content[index].Value
-		env, ok := serviceEnv[serviceName]
-		if !ok {
-			continue
-		}
-
-		setComposeMappingValueList(servicesNode.Content[index+1], "environment", env)
-	}
-
-	patched, err := yaml.Marshal(&root)
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(composePath, patched, 0o644)
-}
-
-func setComposeMappingValueList(serviceNode *yaml.Node, key string, values []string) {
-	if serviceNode == nil || serviceNode.Kind != yaml.MappingNode {
-		return
-	}
-
-	listNode := &yaml.Node{
-		Kind: yaml.SequenceNode,
-	}
-
-	for _, value := range values {
-		listNode.Content = append(listNode.Content, &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Tag:   "!!str",
-			Value: value,
-		})
-	}
-
-	for index := 0; index < len(serviceNode.Content); index += 2 {
-		if serviceNode.Content[index].Value == key {
-			serviceNode.Content[index+1] = listNode
-			return
-		}
-	}
-
-	serviceNode.Content = append(serviceNode.Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Value: key},
-		listNode,
-	)
-}
-
+// findComposeServicesNode recursively locates the services mapping node in a compose YAML tree.
 func findComposeServicesNode(root *yaml.Node) *yaml.Node {
 	if root == nil {
 		return nil
@@ -341,6 +266,7 @@ func findComposeServicesNode(root *yaml.Node) *yaml.Node {
 	return nil
 }
 
+// removeComposeMappingKey deletes a key from a YAML mapping node when present.
 func removeComposeMappingKey(serviceNode *yaml.Node, key string) {
 	if serviceNode == nil || serviceNode.Kind != yaml.MappingNode {
 		return
@@ -356,6 +282,7 @@ func removeComposeMappingKey(serviceNode *yaml.Node, key string) {
 	}
 }
 
+// setComposeMappingValue sets or appends a scalar key/value pair on a YAML mapping node.
 func setComposeMappingValue(serviceNode *yaml.Node, key, value string) {
 	if serviceNode == nil || serviceNode.Kind != yaml.MappingNode {
 		return
@@ -374,6 +301,7 @@ func setComposeMappingValue(serviceNode *yaml.Node, key, value string) {
 	)
 }
 
+// copyDir recursively copies a directory tree, skipping known heavy or generated subdirectories.
 func copyDir(source, dest string) error {
 	return filepath.Walk(source, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -387,7 +315,7 @@ func copyDir(source, dest string) error {
 
 		if rel != "." {
 			parts := strings.Split(rel, string(os.PathSeparator))
-			if _, skip := composeStageSkipDirs[parts[0]]; skip {
+			if _, skip := constants.ComposeStageSkipDirs[parts[0]]; skip {
 				if info.IsDir() {
 					return filepath.SkipDir
 				}
@@ -408,6 +336,7 @@ func copyDir(source, dest string) error {
 	})
 }
 
+// copyFile copies a single regular file, creating parent directories as needed.
 func copyFile(source, dest string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
@@ -432,6 +361,7 @@ func copyFile(source, dest string) error {
 	return out.Close()
 }
 
+// migrationLabels returns sorted non-empty container labels for nerdctl create arguments.
 func migrationLabels(inspect containerInspect) [][2]string {
 	if len(inspect.Config.Labels) == 0 {
 		return nil

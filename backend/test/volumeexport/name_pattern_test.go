@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
@@ -36,7 +37,7 @@ func TestResolveScheduledExportNames(t *testing.T) {
 	runTime := time.Date(2026, 7, 5, 8, 0, 0, 0, time.UTC)
 	schedule := volumeexport.Schedule{
 		Volume:   "calf-data",
-		Type:     volumeexport.TypeLocalFile,
+		Type:     constants.VolumeExportTypeLocalFile,
 		FileName: "{volume}-{timestamp}.tar.gz",
 	}
 
@@ -51,7 +52,7 @@ func TestResolveScheduledExportNames(t *testing.T) {
 
 	staticSchedule := volumeexport.Schedule{
 		Volume:   "calf-data",
-		Type:     volumeexport.TypeLocalFile,
+		Type:     constants.VolumeExportTypeLocalFile,
 		FileName: "backup.tar.gz",
 	}
 

@@ -6,17 +6,21 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// attachmentRow represents a row in the buildx history inspect attachment format.
 type attachmentRow struct {
 	Type     string
 	Platform string
 	Digest   string
 }
 
+// ociManifest represents an OCI image manifest.
 type ociManifest struct {
 	Config struct {
 		MediaType string `json:"mediaType"`
@@ -25,6 +29,7 @@ type ociManifest struct {
 	} `json:"config"`
 }
 
+// BuildArtifacts lists OCI manifest and provenance attachments for a buildx history entry.
 func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]runtime.BuildArtifact, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
@@ -37,23 +42,25 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 	}
 
 	artifacts := make([]runtime.BuildArtifact, 0, len(attachments)+1)
-	manifestPlatform := platformArch(platform)
+	manifestPlatform := runtime.PlatformArch(platform)
 
 	for _, attachment := range attachments {
 		switch attachment.Type {
 		case "application/vnd.oci.image.manifest.v1+json":
 			if attachment.Platform != "" {
-				manifestPlatform = platformArch(attachment.Platform)
+				manifestPlatform = runtime.PlatformArch(attachment.Platform)
 			}
 
 			manifestArtifacts, err := manifestArtifacts(ctx, socket, historyID, attachment.Digest, manifestPlatform)
 			if err != nil {
+				slog.Warn("skipping manifest attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
 				continue
 			}
 			artifacts = append(artifacts, manifestArtifacts...)
 		case "https://slsa.dev/provenance/v0.2":
 			artifact, err := attachmentArtifact(ctx, socket, historyID, attachment, "Provenance v1", manifestPlatform)
 			if err != nil {
+				slog.Debug("skipping provenance attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
 				continue
 			}
 			artifacts = append(artifacts, artifact)
@@ -67,6 +74,7 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 	return orderBuildArtifacts(artifacts), nil
 }
 
+// listAttachments queries buildx history inspect for attachment metadata rows.
 func listAttachments(ctx context.Context, socket, historyID string) ([]attachmentRow, error) {
 	output, err := runDocker(
 		ctx,
@@ -85,6 +93,7 @@ func listAttachments(ctx context.Context, socket, historyID string) ([]attachmen
 	return parseAttachmentRows(string(output)), nil
 }
 
+// parseAttachmentRows parses buildx attachment format lines into structured rows.
 func parseAttachmentRows(output string) []attachmentRow {
 	rows := make([]attachmentRow, 0)
 	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
@@ -95,13 +104,12 @@ func parseAttachmentRows(output string) []attachmentRow {
 
 		row := attachmentRow{}
 		for _, part := range strings.Split(line, "|") {
-			switch {
-			case strings.HasPrefix(part, "TYPE="):
-				row.Type = strings.TrimPrefix(part, "TYPE=")
-			case strings.HasPrefix(part, "PLATFORM="):
-				row.Platform = strings.TrimPrefix(part, "PLATFORM=")
-			case strings.HasPrefix(part, "DIGEST="):
-				row.Digest = strings.TrimPrefix(part, "DIGEST=")
+			if val, ok := strings.CutPrefix(part, "TYPE="); ok {
+				row.Type = val
+			} else if val, ok := strings.CutPrefix(part, "PLATFORM="); ok {
+				row.Platform = val
+			} else if val, ok := strings.CutPrefix(part, "DIGEST="); ok {
+				row.Digest = val
 			}
 		}
 
@@ -115,6 +123,7 @@ func parseAttachmentRows(output string) []attachmentRow {
 	return rows
 }
 
+// manifestArtifacts builds artifact entries from an OCI image manifest attachment body.
 func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform string) ([]runtime.BuildArtifact, error) {
 	output, err := attachmentBody(ctx, socket, historyID, digest)
 	if err != nil {
@@ -135,11 +144,12 @@ func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform 
 			Name:     manifest.Config.MediaType,
 			Platform: platform,
 			Digest:   manifest.Config.Digest,
-			Size:     runtime.FormatBytes(manifest.Config.Size),
+			Size:     utils.FormatBytes(manifest.Config.Size),
 		},
 	}, nil
 }
 
+// attachmentArtifact builds a single artifact entry from a non-manifest history attachment.
 func attachmentArtifact(
 	ctx context.Context,
 	socket, historyID string,
@@ -157,19 +167,21 @@ func attachmentArtifact(
 		Name:     name,
 		Platform: artifactPlatform,
 		Digest:   digestForBytes(output),
-		Size:     runtime.FormatBytes(int64(len(output))),
+		Size:     utils.FormatBytes(int64(len(output))),
 	}, nil
 }
 
+// attachmentBody fetches the raw bytes of a buildx history attachment by digest.
 func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]byte, error) {
 	output, err := runDocker(ctx, socket, "buildx", "history", "inspect", "attachment", historyID, digest)
 	if err != nil {
 		return nil, err
 	}
 
-	return bytesTrim(output), nil
+	return utils.TrimOutputBytes(output), nil
 }
 
+// digestForBytes returns a sha256 content digest prefixed for OCI-style artifact display.
 func digestForBytes(data []byte) string {
 	if len(data) == 0 {
 		return ""
@@ -179,6 +191,7 @@ func digestForBytes(data []byte) string {
 	return "sha256:" + hex.EncodeToString(hash[:])
 }
 
+// orderBuildArtifacts returns artifacts with config and provenance entries first.
 func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtifact {
 	byName := make(map[string]runtime.BuildArtifact, len(artifacts))
 	for _, artifact := range artifacts {
@@ -209,25 +222,4 @@ func orderBuildArtifacts(artifacts []runtime.BuildArtifact) []runtime.BuildArtif
 	}
 
 	return ordered
-}
-
-func platformArch(platform string) string {
-	if platform == "" {
-		return ""
-	}
-
-	parts := strings.Split(platform, "/")
-	if len(parts) == 2 {
-		return parts[1]
-	}
-
-	if strings.HasPrefix(platform, "linux/") {
-		return strings.TrimPrefix(platform, "linux/")
-	}
-
-	return platform
-}
-
-func bytesTrim(output []byte) []byte {
-	return []byte(strings.TrimSpace(string(output)))
 }

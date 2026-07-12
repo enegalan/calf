@@ -6,61 +6,59 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
 
 class NetworksScreen extends StatefulWidget {
+  /// Creates a [NetworksScreen] widget.
   const NetworksScreen({super.key, required this.apiClient});
 
   final CalfClient apiClient;
 
+  /// Creates the mutable state for [NetworksScreen].
   @override
   State<NetworksScreen> createState() => _NetworksScreenState();
 }
 
-class _NetworksScreenState extends State<NetworksScreen> {
+class _NetworksScreenState extends State<NetworksScreen>
+    with PollIntervalMixin {
   List<NetworkItem> _networks = [];
   RuntimeStatus? _runtime;
   String? _error;
   bool _loading = true;
-  Timer? _timer;
-  int _pollIntervalMs = 3000;
+  bool _refreshInFlight = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedNetwork;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
     _loadNetworks();
-    _loadConfig();
+    startPollInterval(widget.apiClient, _loadNetworks);
     _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim().toLowerCase());
+      setState(
+        () => _searchQuery = _searchController.text.trim().toLowerCase(),
+      );
     });
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
-    _timer?.cancel();
+    disposePollInterval();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadConfig() async {
-    try {
-      final config = await widget.apiClient.fetchConfig();
-      if (!mounted) {
-        return;
-      }
-      _pollIntervalMs = config.pollIntervalMs;
-      _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadNetworks(silent: true));
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      _timer = Timer.periodic(Duration(milliseconds: _pollIntervalMs), (_) => _loadNetworks(silent: true));
-    }
-  }
-
+  /// Fetches networks from the API, optionally skipping the loading indicator.
   Future<void> _loadNetworks({bool silent = false}) async {
+    if (_refreshInFlight) {
+      return;
+    }
+
+    _refreshInFlight = true;
     if (!silent) {
       setState(() {
         _loading = true;
@@ -70,8 +68,9 @@ class _NetworksScreenState extends State<NetworksScreen> {
 
     try {
       final status = await widget.apiClient.fetchStatus();
-      final networks = List<NetworkItem>.from(await widget.apiClient.fetchNetworks())
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final networks = List<NetworkItem>.from(
+        await widget.apiClient.fetchNetworks(),
+      )..sort((a, b) => a.name.compareTo(b.name));
       if (!mounted) {
         return;
       }
@@ -90,30 +89,38 @@ class _NetworksScreenState extends State<NetworksScreen> {
           _loading = false;
         });
       }
+    } finally {
+      _refreshInFlight = false;
     }
   }
 
+  /// Navigates to or opens the selected network.
   void _openNetwork(NetworkItem network) {
     setState(() => _selectedNetwork = network.name);
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeNetwork() {
     setState(() => _selectedNetwork = null);
   }
 
+  /// Returns items matching the active search and filter criteria.
   List<NetworkItem> _filteredNetworks() {
     if (_searchQuery.isEmpty) {
       return _networks;
     }
 
     return _networks
-        .where((network) =>
-            network.name.toLowerCase().contains(_searchQuery) ||
-            network.subnet.toLowerCase().contains(_searchQuery) ||
-            network.driver.toLowerCase().contains(_searchQuery))
+        .where(
+          (network) =>
+              network.name.toLowerCase().contains(_searchQuery) ||
+              network.subnet.toLowerCase().contains(_searchQuery) ||
+              network.driver.toLowerCase().contains(_searchQuery),
+        )
         .toList();
   }
 
+  /// Removes the selected resource via the API.
   Future<void> _removeNetwork(NetworkItem network) async {
     try {
       await widget.apiClient.removeNetwork(network.name);
@@ -129,6 +136,7 @@ class _NetworksScreenState extends State<NetworksScreen> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_selectedNetwork != null) {
@@ -140,79 +148,59 @@ class _NetworksScreenState extends State<NetworksScreen> {
       );
     }
 
-    final theme = ShadTheme.of(context);
     final filtered = _filteredNetworks();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Networks', style: theme.textTheme.h3),
-        const SizedBox(height: 16),
-        ShadInput(
-          controller: _searchController,
-          placeholder: const Text('Search'),
-        ),
-        const SizedBox(height: 16),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
-        else if (_error != null)
-          Text(
-            _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No networks match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                    ? 'No networks. Runtime is stopped.'
-                    : 'No networks.',
-            style: theme.textTheme.muted,
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final network = filtered[index];
+    return ResourceListScaffold(
+      title: 'Networks',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No networks match "$_searchQuery".'
+          : _runtime?.state == 'stopped'
+          ? 'No networks. Runtime is stopped.'
+          : 'No networks.',
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final network = filtered[index];
+        final theme = ShadTheme.of(context);
 
-                return HoverListRow(
-                  theme: theme,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                  onTap: () => _openNetwork(network),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(network.name, style: theme.textTheme.large),
-                            if (network.subnet.isNotEmpty)
-                              Text(network.subnet, style: theme.textTheme.muted),
-                          ],
-                        ),
-                      ),
-                      CalfButton.ghost(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        onPressed: () => _removeNetwork(network),
-                        child: Icon(
-                          LucideIcons.trash2,
-                          size: 16,
-                          color: theme.colorScheme.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: () => _openNetwork(network),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(network.name, style: theme.textTheme.large),
+                    if (network.subnet.isNotEmpty)
+                      Text(network.subnet, style: theme.textTheme.muted),
+                  ],
+                ),
+              ),
+              CalfButton.ghost(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                onPressed: () => _removeNetwork(network),
+                child: Icon(
+                  LucideIcons.trash2,
+                  size: 16,
+                  color: theme.colorScheme.mutedForeground,
+                ),
+              ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }
 
 class NetworkDetailView extends StatefulWidget {
+  /// Creates a [NetworkDetailView] widget.
   const NetworkDetailView({
     super.key,
     required this.networkName,
@@ -226,6 +214,7 @@ class NetworkDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onRemoved;
 
+  /// Creates the mutable state for [NetworkDetailView].
   @override
   State<NetworkDetailView> createState() => _NetworkDetailViewState();
 }
@@ -235,12 +224,14 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
   String? _error;
   bool _loading = true;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
     _loadDetail();
   }
 
+  /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
     setState(() {
       _loading = true;
@@ -248,7 +239,9 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     });
 
     try {
-      final detail = await widget.apiClient.fetchNetworkDetail(widget.networkName);
+      final detail = await widget.apiClient.fetchNetworkDetail(
+        widget.networkName,
+      );
       if (!mounted) {
         return;
       }
@@ -267,6 +260,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     }
   }
 
+  /// Removes the selected resource via the API.
   Future<void> _removeNetwork() async {
     try {
       await widget.apiClient.removeNetwork(widget.networkName);
@@ -283,6 +277,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -294,8 +289,14 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
           children: [
             CalfButton.ghost(
               onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
+              child: Icon(
+                LucideIcons.chevronLeft,
+                size: 18,
+                color: theme.colorScheme.foreground,
+              ),
             ),
+
+            /// Creates a [_NetworkDetailViewState] widget.
             const SizedBox(width: 4),
             Text('Networks', style: theme.textTheme.muted),
             Text(' / ', style: theme.textTheme.muted),
@@ -312,13 +313,17 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
             ),
           ],
         ),
+
+        /// Creates a [_NetworkDetailViewState] widget.
         const SizedBox(height: 24),
         if (_loading)
           Text('Loading...', style: theme.textTheme.large)
         else if (_error != null)
           Text(
             _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive),
+            style: theme.textTheme.large.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
           )
         else if (_detail != null)
           Expanded(
@@ -331,22 +336,42 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                     rows: [
                       _InfoRow(label: 'Name', value: _detail!.name),
                       _InfoRow(label: 'ID', value: _detail!.id),
-                      _InfoRow(label: 'Created', value: _displayValue(_detail!.created)),
-                      _InfoRow(label: 'Subnet', value: _displayValue(_detail!.subnet)),
-                      _InfoRow(label: 'Gateway', value: _displayValue(_detail!.gateway)),
+                      _InfoRow(
+                        label: 'Created',
+                        value: _displayValue(_detail!.created),
+                      ),
+                      _InfoRow(
+                        label: 'Subnet',
+                        value: _displayValue(_detail!.subnet),
+                      ),
+                      _InfoRow(
+                        label: 'Gateway',
+                        value: _displayValue(_detail!.gateway),
+                      ),
                     ],
                   ),
+
+                  /// Creates a [_NetworkDetailViewState] widget.
                   const SizedBox(height: 16),
                   _InfoCard(
                     theme: theme,
                     rows: [
-                      _InfoRow(label: 'Driver', value: _displayValue(_detail!.driver)),
-                      _InfoRow(label: 'Scope', value: _displayValue(_detail!.scope)),
+                      _InfoRow(
+                        label: 'Driver',
+                        value: _displayValue(_detail!.driver),
+                      ),
+                      _InfoRow(
+                        label: 'Scope',
+                        value: _displayValue(_detail!.scope),
+                      ),
                     ],
                   ),
                   if (_detail!.options.isNotEmpty) ...[
+                    /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 24),
                     Text('Options', style: theme.textTheme.h4),
+
+                    /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 12),
                     _OptionsTable(theme: theme, options: _detail!.options),
                   ],
@@ -358,17 +383,20 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     );
   }
 
+  /// Returns a display-friendly string, using a placeholder when empty.
   String _displayValue(String value) {
     return value.isEmpty ? '—' : value;
   }
 }
 
 class _InfoCard extends StatelessWidget {
+  /// Creates a [_InfoCard] widget.
   const _InfoCard({required this.theme, required this.rows});
 
   final ShadThemeData theme;
   final List<_InfoRow> rows;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -385,7 +413,9 @@ class _InfoCard extends StatelessWidget {
             if (index > 0) const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: Text(rows[index].label, style: theme.textTheme.large)),
+                Expanded(
+                  child: Text(rows[index].label, style: theme.textTheme.large),
+                ),
                 Expanded(
                   child: Text(
                     rows[index].value,
@@ -403,6 +433,7 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _InfoRow {
+  /// Creates a [_InfoRow] widget.
   const _InfoRow({required this.label, required this.value});
 
   final String label;
@@ -410,14 +441,17 @@ class _InfoRow {
 }
 
 class _OptionsTable extends StatelessWidget {
+  /// Creates a [_OptionsTable] widget.
   const _OptionsTable({required this.theme, required this.options});
 
   final ShadThemeData theme;
   final Map<String, String> options;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final entries = options.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+    final entries = options.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
 
     return Container(
       width: double.infinity,
@@ -431,7 +465,9 @@ class _OptionsTable extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: theme.colorScheme.muted,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(7),
+              ),
             ),
             child: Row(
               children: [
@@ -445,7 +481,9 @@ class _OptionsTable extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 border: index < entries.length - 1
-                    ? Border(bottom: BorderSide(color: theme.colorScheme.border))
+                    ? Border(
+                        bottom: BorderSide(color: theme.colorScheme.border),
+                      )
                     : null,
               ),
               child: Row(

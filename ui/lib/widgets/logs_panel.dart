@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show SelectableText, SelectionArea, Tooltip;
+import 'package:flutter/material.dart'
+    show SelectableText, SelectionArea, Tooltip;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -10,16 +11,15 @@ import 'package:ui/storage/logs_viewer_preferences.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 class LogLine {
-  const LogLine({
-    required this.text,
-    required this.receivedAt,
-  });
+  /// A single log line with its receive timestamp.
+  const LogLine({required this.text, required this.receivedAt});
 
   final String text;
   final DateTime receivedAt;
 }
 
 class MixedLogBlock {
+  /// A color-coded block of log lines from one container in a compose stack.
   const MixedLogBlock({
     required this.containerId,
     required this.containerName,
@@ -32,6 +32,7 @@ class MixedLogBlock {
   final Color color;
   final List<LogLine> lines;
 
+  /// Returns a copy of this block with an optional new [lines] list.
   MixedLogBlock copyWith({List<LogLine>? lines}) {
     return MixedLogBlock(
       containerId: containerId,
@@ -42,6 +43,7 @@ class MixedLogBlock {
   }
 }
 
+/// Returns the muted background color used by log panels.
 Color logsPanelBackground(ShadThemeData theme) {
   return Color.alphaBlend(
     theme.colorScheme.muted.withValues(alpha: 0.2),
@@ -52,14 +54,18 @@ Color logsPanelBackground(ShadThemeData theme) {
 const double _logTimestampColumnWidth = 184;
 const double _logRowMinContentWidth = 40;
 
+/// Formats [receivedAt] as a local `YYYY-MM-DD HH:MM:SS` string.
 String formatLogTimestamp(DateTime receivedAt) {
   final local = receivedAt.toLocal();
+
+  /// Pads a number to two digits for timestamp formatting.
   String two(int value) => value.toString().padLeft(2, '0');
 
   return '${local.year}-${two(local.month)}-${two(local.day)} '
       '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
 }
 
+/// Formats a [LogLine] with an optional leading timestamp.
 String formatLogPlainLine(LogLine line, {required bool showTimestamp}) {
   if (!showTimestamp) {
     return line.text;
@@ -69,6 +75,7 @@ String formatLogPlainLine(LogLine line, {required bool showTimestamp}) {
 }
 
 class LogsPanel extends StatefulWidget {
+  /// Scrollable log viewer for a single container with search and settings.
   const LogsPanel({
     super.key,
     required this.lines,
@@ -82,47 +89,34 @@ class LogsPanel extends StatefulWidget {
   final ScrollController scrollController;
   final VoidCallback onClear;
 
+  /// Creates the state for this single-container log panel.
   @override
   State<LogsPanel> createState() => _LogsPanelState();
 }
 
-class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
-  final _searchController = TextEditingController();
-  bool _searchOpen = false;
-  bool _regexEnabled = false;
-  bool _settingsOpen = false;
-  int _currentMatchIndex = 0;
+class _LogsPanelState extends State<LogsPanel>
+    with LogViewerPreferencesMixin, _LogsSearchMixin {
+  @override
+  ScrollController get logsScrollController => widget.scrollController;
 
+  @override
+  double get logsMatchLineHeight => 18.0;
+
+  /// Loads persisted log viewer preferences.
   @override
   void initState() {
     super.initState();
     initLogViewerPreferences();
   }
 
+  /// Disposes controllers and listeners owned by this state.
   @override
   void dispose() {
-    _searchController.dispose();
+    disposeLogsSearch();
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() {
-      _searchOpen = !_searchOpen;
-      if (!_searchOpen) {
-        _searchController.clear();
-        _currentMatchIndex = 0;
-      }
-    });
-  }
-
-  void _toggleSettings() {
-    setState(() => _settingsOpen = !_settingsOpen);
-  }
-
-  void _onSearchChanged(String _) {
-    setState(() => _currentMatchIndex = 0);
-  }
-
+  /// Plain-text representation of visible log lines for copy and search.
   String get _plainText {
     if (widget.error != null) {
       return widget.error!;
@@ -133,93 +127,35 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
         .join('\n');
   }
 
-  RegExp? _searchPattern() {
-    final query = _searchController.text;
-    if (query.isEmpty) {
-      return null;
-    }
-
-    try {
-      if (_regexEnabled) {
-        return RegExp(query);
-      }
-
-      return RegExp(RegExp.escape(query), caseSensitive: false);
-    } catch (_) {
-      return null;
-    }
+  @override
+  List<_LogMatch> findLogMatches() {
+    return _findLogMatchesInLines(widget.lines, searchPattern());
   }
 
-  List<_LogMatch> _findMatches() {
-    final pattern = _searchPattern();
-    if (pattern == null) {
-      return const [];
-    }
-
-    final matches = <_LogMatch>[];
-    for (var lineIndex = 0; lineIndex < widget.lines.length; lineIndex++) {
-      for (final match in pattern.allMatches(widget.lines[lineIndex].text)) {
-        matches.add(_LogMatch(lineIndex: lineIndex, start: match.start, end: match.end));
-      }
-    }
-
-    return matches;
-  }
-
-  void _goToMatch(int direction, List<_LogMatch> matches) {
-    if (matches.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _currentMatchIndex = (_currentMatchIndex + direction) % matches.length;
-      if (_currentMatchIndex < 0) {
-        _currentMatchIndex = matches.length - 1;
-      }
-    });
-
-    final match = matches[_currentMatchIndex];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!widget.scrollController.hasClients) {
-        return;
-      }
-
-      final target = match.lineIndex * 18.0;
-      widget.scrollController.animateTo(
-        target.clamp(0, widget.scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
+  /// Copies the visible log text to the clipboard.
   Future<void> _copyToClipboard() async {
     await Clipboard.setData(ClipboardData(text: _plainText));
   }
 
+  /// Builds the single-container log viewer UI.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final matches = _searchOpen ? _findMatches() : const <_LogMatch>[];
-    if (matches.isNotEmpty && _currentMatchIndex >= matches.length) {
-      _currentMatchIndex = 0;
-    }
+    final matches = activeMatches();
+    syncMatchIndex(matches);
 
     return _LogsViewerChrome(
       theme: theme,
-      searchOpen: _searchOpen,
-      settingsOpen: _settingsOpen,
-      regexEnabled: _regexEnabled,
-      searchController: _searchController,
-      onToggleSearch: _toggleSearch,
-      onToggleSettings: _toggleSettings,
-      onSearchChanged: _onSearchChanged,
-      onRegexChanged: (value) => setState(() {
-        _regexEnabled = value;
-        _currentMatchIndex = 0;
-      }),
-      onPreviousMatch: matches.isEmpty ? null : () => _goToMatch(-1, matches),
-      onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
+      searchOpen: searchOpen,
+      settingsOpen: settingsOpen,
+      regexEnabled: regexEnabled,
+      searchController: searchController,
+      onToggleSearch: toggleSearch,
+      onToggleSettings: toggleSettings,
+      onSearchChanged: onSearchChanged,
+      onRegexChanged: onRegexChanged,
+      onPreviousMatch: matches.isEmpty ? null : () => goToMatch(-1, matches),
+      onNextMatch: matches.isEmpty ? null : () => goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
       showTimestamp: showTimestamp,
@@ -236,22 +172,24 @@ class _LogsPanelState extends State<LogsPanel> with LogViewerPreferencesMixin {
               ),
             )
           : widget.lines.isEmpty
-              ? const SizedBox.shrink()
-              : _LogTextView(
-                  theme: theme,
-                  logLines: widget.lines,
-                  showTimestamp: showTimestamp,
-                  wrapLines: wrapLines,
-                  matches: matches,
-                  currentMatchIndex: _currentMatchIndex,
-                  scrollController: widget.scrollController,
-                ),
-      primaryListView: widget.error == null && widget.lines.isNotEmpty && wrapLines,
+          ? const SizedBox.shrink()
+          : _LogTextView(
+              theme: theme,
+              logLines: widget.lines,
+              showTimestamp: showTimestamp,
+              wrapLines: wrapLines,
+              matches: matches,
+              currentMatchIndex: displayMatchIndex(matches),
+              scrollController: widget.scrollController,
+            ),
+      primaryListView:
+          widget.error == null && widget.lines.isNotEmpty && wrapLines,
     );
   }
 }
 
 class MixedLogsPanel extends StatefulWidget {
+  /// Log viewer that merges color-coded blocks from multiple containers.
   const MixedLogsPanel({
     super.key,
     required this.blocks,
@@ -265,47 +203,34 @@ class MixedLogsPanel extends StatefulWidget {
   final int runningCount;
   final VoidCallback onClear;
 
+  /// Creates the state for this multi-container log panel.
   @override
   State<MixedLogsPanel> createState() => _MixedLogsPanelState();
 }
 
-class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferencesMixin {
-  final _searchController = TextEditingController();
-  bool _searchOpen = false;
-  bool _regexEnabled = false;
-  bool _settingsOpen = false;
-  int _currentMatchIndex = 0;
+class _MixedLogsPanelState extends State<MixedLogsPanel>
+    with LogViewerPreferencesMixin, _LogsSearchMixin {
+  @override
+  ScrollController get logsScrollController => widget.scrollController;
 
+  @override
+  double get logsMatchLineHeight => 22.0;
+
+  /// Loads persisted log viewer preferences.
   @override
   void initState() {
     super.initState();
     initLogViewerPreferences();
   }
 
+  /// Disposes controllers and listeners owned by this state.
   @override
   void dispose() {
-    _searchController.dispose();
+    disposeLogsSearch();
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() {
-      _searchOpen = !_searchOpen;
-      if (!_searchOpen) {
-        _searchController.clear();
-        _currentMatchIndex = 0;
-      }
-    });
-  }
-
-  void _toggleSettings() {
-    setState(() => _settingsOpen = !_settingsOpen);
-  }
-
-  void _onSearchChanged(String _) {
-    setState(() => _currentMatchIndex = 0);
-  }
-
+  /// Plain-text representation of visible log lines for copy and search.
   String get _plainText {
     final parts = <String>[];
     for (final block in widget.blocks) {
@@ -317,74 +242,22 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
     return parts.join('\n');
   }
 
-  RegExp? _searchPattern() {
-    final query = _searchController.text;
-    if (query.isEmpty) {
-      return null;
-    }
-
-    try {
-      if (_regexEnabled) {
-        return RegExp(query);
-      }
-
-      return RegExp(RegExp.escape(query), caseSensitive: false);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  List<_LogMatch> _findMatches() {
-    final pattern = _searchPattern();
-    if (pattern == null) {
-      return const [];
-    }
-
-    final matches = <_LogMatch>[];
-    var lineIndex = 0;
+  @override
+  List<_LogMatch> findLogMatches() {
+    final lines = <LogLine>[];
     for (final block in widget.blocks) {
-      for (final line in block.lines) {
-        for (final match in pattern.allMatches(line.text)) {
-          matches.add(_LogMatch(lineIndex: lineIndex, start: match.start, end: match.end));
-        }
-        lineIndex++;
-      }
+      lines.addAll(block.lines);
     }
 
-    return matches;
+    return _findLogMatchesInLines(lines, searchPattern());
   }
 
-  void _goToMatch(int direction, List<_LogMatch> matches) {
-    if (matches.isEmpty) {
-      return;
-    }
-
-    setState(() {
-      _currentMatchIndex = (_currentMatchIndex + direction) % matches.length;
-      if (_currentMatchIndex < 0) {
-        _currentMatchIndex = matches.length - 1;
-      }
-    });
-
-    final match = matches[_currentMatchIndex];
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!widget.scrollController.hasClients) {
-        return;
-      }
-
-      final target = match.lineIndex * 22.0;
-      widget.scrollController.animateTo(
-        target.clamp(0, widget.scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-      );
-    });
-  }
-
+  /// Copies the visible log text to the clipboard.
   Future<void> _copyToClipboard() async {
     await Clipboard.setData(ClipboardData(text: _plainText));
   }
 
+  /// Returns the global line index offset for [blockIndex].
   int _lineOffsetForBlock(int blockIndex) {
     var offset = 0;
     for (var index = 0; index < blockIndex; index++) {
@@ -394,31 +267,30 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
     return offset;
   }
 
+  /// Builds the multi-container log viewer UI.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
-    final matches = _searchOpen ? _findMatches() : const <_LogMatch>[];
-    if (matches.isNotEmpty && _currentMatchIndex >= matches.length) {
-      _currentMatchIndex = 0;
-    }
+    final matches = activeMatches();
+    syncMatchIndex(matches);
+    final displayIndex = displayMatchIndex(matches);
 
-    final emptyMessage = widget.runningCount == 0 ? 'No running containers in this stack.' : null;
+    final emptyMessage = widget.runningCount == 0
+        ? 'No running containers in this stack.'
+        : null;
 
     return _LogsViewerChrome(
       theme: theme,
-      searchOpen: _searchOpen,
-      settingsOpen: _settingsOpen,
-      regexEnabled: _regexEnabled,
-      searchController: _searchController,
-      onToggleSearch: _toggleSearch,
-      onToggleSettings: _toggleSettings,
-      onSearchChanged: _onSearchChanged,
-      onRegexChanged: (value) => setState(() {
-        _regexEnabled = value;
-        _currentMatchIndex = 0;
-      }),
-      onPreviousMatch: matches.isEmpty ? null : () => _goToMatch(-1, matches),
-      onNextMatch: matches.isEmpty ? null : () => _goToMatch(1, matches),
+      searchOpen: searchOpen,
+      settingsOpen: settingsOpen,
+      regexEnabled: regexEnabled,
+      searchController: searchController,
+      onToggleSearch: toggleSearch,
+      onToggleSettings: toggleSettings,
+      onSearchChanged: onSearchChanged,
+      onRegexChanged: onRegexChanged,
+      onPreviousMatch: matches.isEmpty ? null : () => goToMatch(-1, matches),
+      onNextMatch: matches.isEmpty ? null : () => goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
       showTimestamp: showTimestamp,
@@ -432,72 +304,75 @@ class _MixedLogsPanelState extends State<MixedLogsPanel> with LogViewerPreferenc
               child: Text(emptyMessage, style: theme.textTheme.muted),
             )
           : widget.blocks.isEmpty
-              ? const SizedBox.shrink()
-              : ListView.builder(
-                  controller: widget.scrollController,
-                  itemCount: widget.blocks.length,
-                  itemBuilder: (context, index) {
-                    final block = widget.blocks[index];
-                    final lineOffset = _lineOffsetForBlock(index);
+          ? const SizedBox.shrink()
+          : ListView.builder(
+              controller: widget.scrollController,
+              itemCount: widget.blocks.length,
+              itemBuilder: (context, index) {
+                final block = widget.blocks[index];
+                final lineOffset = _lineOffsetForBlock(index);
 
-                    return Padding(
-                      padding: EdgeInsets.only(bottom: index == widget.blocks.length - 1 ? 0 : 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SizedBox(
-                            width: 96,
-                            child: Text(
-                              block.containerName,
-                              style: theme.textTheme.small.copyWith(
-                                color: block.color,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: index == widget.blocks.length - 1 ? 0 : 12,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 96,
+                        child: Text(
+                          block.containerName,
+                          style: theme.textTheme.small.copyWith(
+                            color: block.color,
+                            fontWeight: FontWeight.w600,
                           ),
-                          Expanded(
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  left: 8,
-                                  top: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    width: 3,
-                                    decoration: BoxDecoration(
-                                      color: block.color,
-                                      borderRadius: BorderRadius.circular(2),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 19),
-                                  child: _LogTextView(
-                                    theme: theme,
-                                    logLines: block.lines,
-                                    showTimestamp: showTimestamp,
-                                    wrapLines: wrapLines,
-                                    matches: matches,
-                                    currentMatchIndex: _currentMatchIndex,
-                                    lineOffset: lineOffset,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    );
-                  },
-                ),
+                      Expanded(
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              left: 8,
+                              top: 0,
+                              bottom: 0,
+                              child: Container(
+                                width: 3,
+                                decoration: BoxDecoration(
+                                  color: block.color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 19),
+                              child: _LogTextView(
+                                theme: theme,
+                                logLines: block.lines,
+                                showTimestamp: showTimestamp,
+                                wrapLines: wrapLines,
+                                matches: matches,
+                                currentMatchIndex: displayIndex,
+                                lineOffset: lineOffset,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
       primaryListView: emptyMessage == null && widget.blocks.isNotEmpty,
     );
   }
 }
 
 class _LogMatch {
+  /// A character-range match within one log line.
   const _LogMatch({
     required this.lineIndex,
     required this.start,
@@ -509,7 +384,164 @@ class _LogMatch {
   final int end;
 }
 
+/// Finds all [pattern] matches across [lines].
+List<_LogMatch> _findLogMatchesInLines(List<LogLine> lines, RegExp? pattern) {
+  if (pattern == null) {
+    return const [];
+  }
+
+  final matches = <_LogMatch>[];
+  for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    for (final match in pattern.allMatches(lines[lineIndex].text)) {
+      matches.add(
+        _LogMatch(lineIndex: lineIndex, start: match.start, end: match.end),
+      );
+    }
+  }
+
+  return matches;
+}
+
+/// Shared search state and navigation for single- and mixed-log panels.
+mixin _LogsSearchMixin<T extends StatefulWidget> on State<T> {
+  final TextEditingController searchController = TextEditingController();
+  bool searchOpen = false;
+  bool regexEnabled = false;
+  bool settingsOpen = false;
+  int currentMatchIndex = 0;
+
+  /// Scroll controller used to bring the active match into view.
+  ScrollController get logsScrollController;
+
+  /// Estimated row height for scroll-to-match calculations.
+  double get logsMatchLineHeight;
+
+  /// Returns all search matches in the current log content.
+  List<_LogMatch> findLogMatches();
+
+  /// Disposes the search controller; call from [State.dispose].
+  void disposeLogsSearch() {
+    searchController.dispose();
+  }
+
+  /// Toggles the search bar open or closed.
+  void toggleSearch() {
+    setState(() {
+      searchOpen = !searchOpen;
+      if (!searchOpen) {
+        searchController.clear();
+        currentMatchIndex = 0;
+      }
+    });
+  }
+
+  /// Toggles the settings popover open or closed.
+  void toggleSettings() {
+    setState(() => settingsOpen = !settingsOpen);
+  }
+
+  /// Resets the current match index when the search query changes.
+  void onSearchChanged(String _) {
+    setState(() => currentMatchIndex = 0);
+  }
+
+  /// Resets the current match index when the regex toggle changes.
+  void onRegexChanged(bool value) {
+    setState(() {
+      regexEnabled = value;
+      currentMatchIndex = 0;
+    });
+  }
+
+  /// Builds the current search [RegExp], or null when search is inactive.
+  RegExp? searchPattern() {
+    final query = searchController.text;
+    if (query.isEmpty) {
+      return null;
+    }
+
+    try {
+      if (regexEnabled) {
+        return RegExp(query);
+      }
+
+      return RegExp(RegExp.escape(query), caseSensitive: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Returns active matches when search is open, otherwise an empty list.
+  List<_LogMatch> activeMatches() {
+    if (!searchOpen) {
+      return const [];
+    }
+
+    return findLogMatches();
+  }
+
+  /// Schedules a post-frame [setState] when [currentMatchIndex] is out of range.
+  void syncMatchIndex(List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      if (currentMatchIndex != 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => currentMatchIndex = 0);
+          }
+        });
+      }
+      return;
+    }
+
+    if (currentMatchIndex >= matches.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => currentMatchIndex = 0);
+        }
+      });
+    }
+  }
+
+  /// Returns a clamped match index safe for the current frame's [matches].
+  int displayMatchIndex(List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      return 0;
+    }
+
+    return math.min(currentMatchIndex, matches.length - 1);
+  }
+
+  /// Moves to the previous or next search match and scrolls it into view.
+  void goToMatch(int direction, List<_LogMatch> matches) {
+    if (matches.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      currentMatchIndex = (currentMatchIndex + direction) % matches.length;
+      if (currentMatchIndex < 0) {
+        currentMatchIndex = matches.length - 1;
+      }
+    });
+
+    final match = matches[currentMatchIndex];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!logsScrollController.hasClients) {
+        return;
+      }
+
+      final target = match.lineIndex * logsMatchLineHeight;
+      logsScrollController.animateTo(
+        target.clamp(0, logsScrollController.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+}
+
 class _LogsViewerChrome extends StatelessWidget {
+  /// Shared chrome with search bar, toolbar, and scrollable log content.
   const _LogsViewerChrome({
     required this.theme,
     required this.searchOpen,
@@ -556,6 +588,7 @@ class _LogsViewerChrome extends StatelessWidget {
   final bool primaryListView;
   final bool showSettings;
 
+  /// Builds the bordered log area, toolbar, and optional settings popover.
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -631,6 +664,7 @@ class _LogsViewerChrome extends StatelessWidget {
 }
 
 class _LogsSearchBar extends StatelessWidget {
+  /// Search input with regex toggle and match navigation controls.
   const _LogsSearchBar({
     required this.theme,
     required this.controller,
@@ -651,6 +685,7 @@ class _LogsSearchBar extends StatelessWidget {
   final VoidCallback? onNextMatch;
   final VoidCallback onClose;
 
+  /// Builds the search input row with regex and navigation buttons.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -660,7 +695,11 @@ class _LogsSearchBar extends StatelessWidget {
             controller: controller,
             placeholder: const Text('Search...'),
             onChanged: onChanged,
-            leading: Icon(LucideIcons.search, size: 16, color: theme.colorScheme.mutedForeground),
+            leading: Icon(
+              LucideIcons.search,
+              size: 16,
+              color: theme.colorScheme.mutedForeground,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -699,7 +738,11 @@ class _LogsSearchBar extends StatelessWidget {
           height: 36,
           padding: EdgeInsets.zero,
           onPressed: onClose,
-          child: Icon(LucideIcons.x, size: 16, color: theme.colorScheme.primary),
+          child: Icon(
+            LucideIcons.x,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
         ),
       ],
     );
@@ -707,6 +750,7 @@ class _LogsSearchBar extends StatelessWidget {
 }
 
 class _LogsSearchNavButton extends StatelessWidget {
+  /// Previous/next chevron button for stepping through search matches.
   const _LogsSearchNavButton({
     required this.theme,
     required this.icon,
@@ -719,6 +763,7 @@ class _LogsSearchNavButton extends StatelessWidget {
   final bool enabled;
   final VoidCallback? onPressed;
 
+  /// Builds the enabled or disabled search navigation chevron button.
   @override
   Widget build(BuildContext context) {
     return CalfButton.ghost(
@@ -730,13 +775,16 @@ class _LogsSearchNavButton extends StatelessWidget {
       child: Icon(
         icon,
         size: 16,
-        color: enabled ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
+        color: enabled
+            ? theme.colorScheme.foreground
+            : theme.colorScheme.mutedForeground,
       ),
     );
   }
 }
 
 class _LogsToolbar extends StatelessWidget {
+  /// Vertical toolbar with search, settings, copy, and clear actions.
   const _LogsToolbar({
     required this.theme,
     required this.searchOpen,
@@ -757,6 +805,7 @@ class _LogsToolbar extends StatelessWidget {
   final VoidCallback onClear;
   final bool showSettings;
 
+  /// Builds the vertical stack of log viewer action buttons.
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -797,6 +846,7 @@ class _LogsToolbar extends StatelessWidget {
 }
 
 class _LogsToolbarButton extends StatelessWidget {
+  /// One icon button in the logs side toolbar.
   const _LogsToolbarButton({
     required this.theme,
     required this.icon,
@@ -811,6 +861,7 @@ class _LogsToolbarButton extends StatelessWidget {
   final VoidCallback onPressed;
   final bool selected;
 
+  /// Builds one tooltip-wrapped toolbar icon button.
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -831,6 +882,7 @@ class _LogsToolbarButton extends StatelessWidget {
 }
 
 class _LogsSettingsPopover extends StatelessWidget {
+  /// Floating popover with timestamp and wrap-line toggles.
   const _LogsSettingsPopover({
     required this.theme,
     required this.showTimestamp,
@@ -845,6 +897,7 @@ class _LogsSettingsPopover extends StatelessWidget {
   final ValueChanged<bool> onShowTimestampChanged;
   final ValueChanged<bool> onWrapLinesChanged;
 
+  /// Builds the settings popover panel.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -885,6 +938,7 @@ class _LogsSettingsPopover extends StatelessWidget {
 }
 
 class _LogsSettingRow extends StatelessWidget {
+  /// One labeled switch row inside the settings popover.
   const _LogsSettingRow({
     required this.theme,
     required this.label,
@@ -897,6 +951,7 @@ class _LogsSettingRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
+  /// Builds a label and switch on one row.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -909,6 +964,7 @@ class _LogsSettingRow extends StatelessWidget {
 }
 
 class _LogTextView extends StatelessWidget {
+  /// Renders log lines with optional timestamps, wrapping, and search highlights.
   const _LogTextView({
     required this.theme,
     required this.logLines,
@@ -929,13 +985,18 @@ class _LogTextView extends StatelessWidget {
   final int lineOffset;
   final ScrollController? scrollController;
 
+  /// Builds one highlighted log line row at [index].
   Widget _buildLineRow(int index) {
     final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
-    final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
+    final timestampStyle = baseStyle.copyWith(
+      color: theme.colorScheme.mutedForeground,
+    );
 
     return _LogLineRow(
       theme: theme,
-      timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+      timestamp: showTimestamp
+          ? formatLogTimestamp(logLines[index].receivedAt)
+          : null,
       text: logLines[index].text,
       lineIndex: lineOffset + index,
       baseStyle: baseStyle,
@@ -946,6 +1007,7 @@ class _LogTextView extends StatelessWidget {
     );
   }
 
+  /// Builds the scrollable log text with wrapping and horizontal scroll.
   @override
   Widget build(BuildContext context) {
     if (wrapLines) {
@@ -953,13 +1015,18 @@ class _LogTextView extends StatelessWidget {
         builder: (context, constraints) {
           final viewportWidth = constraints.maxWidth;
           final listWidth = showTimestamp
-              ? math.max(viewportWidth, _logTimestampColumnWidth + _logRowMinContentWidth)
+              ? math.max(
+                  viewportWidth,
+                  _logTimestampColumnWidth + _logRowMinContentWidth,
+                )
               : viewportWidth;
 
           final listView = ListView.builder(
             controller: scrollController,
             shrinkWrap: scrollController == null,
-            physics: scrollController == null ? const NeverScrollableScrollPhysics() : null,
+            physics: scrollController == null
+                ? const NeverScrollableScrollPhysics()
+                : null,
             itemCount: logLines.length,
             itemBuilder: (context, index) => _buildLineRow(index),
           );
@@ -971,10 +1038,7 @@ class _LogTextView extends StatelessWidget {
           return SelectionArea(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: listWidth,
-                child: listView,
-              ),
+              child: SizedBox(width: listWidth, child: listView),
             ),
           );
         },
@@ -982,7 +1046,9 @@ class _LogTextView extends StatelessWidget {
     }
 
     final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
-    final timestampStyle = baseStyle.copyWith(color: theme.colorScheme.mutedForeground);
+    final timestampStyle = baseStyle.copyWith(
+      color: theme.colorScheme.mutedForeground,
+    );
 
     return SelectionArea(
       child: SingleChildScrollView(
@@ -994,7 +1060,9 @@ class _LogTextView extends StatelessWidget {
             for (var index = 0; index < logLines.length; index++)
               _LogLineRow(
                 theme: theme,
-                timestamp: showTimestamp ? formatLogTimestamp(logLines[index].receivedAt) : null,
+                timestamp: showTimestamp
+                    ? formatLogTimestamp(logLines[index].receivedAt)
+                    : null,
                 text: logLines[index].text,
                 lineIndex: lineOffset + index,
                 baseStyle: baseStyle,
@@ -1011,6 +1079,7 @@ class _LogTextView extends StatelessWidget {
 }
 
 class _LogLineRow extends StatefulWidget {
+  /// One log line with optional timestamp column and search highlight spans.
   const _LogLineRow({
     required this.theme,
     required this.timestamp,
@@ -1033,6 +1102,7 @@ class _LogLineRow extends StatefulWidget {
   final List<_LogMatch> matches;
   final int currentMatchIndex;
 
+  /// Creates the state for a single log line row.
   @override
   State<_LogLineRow> createState() => _LogLineRowState();
 }
@@ -1040,6 +1110,7 @@ class _LogLineRow extends StatefulWidget {
 class _LogLineRowState extends State<_LogLineRow> {
   bool _hovered = false;
 
+  /// Builds the hoverable log line with timestamp and highlighted matches.
   @override
   Widget build(BuildContext context) {
     final span = TextSpan(
@@ -1062,7 +1133,9 @@ class _LogLineRowState extends State<_LogLineRow> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
-        color: _hovered ? widget.theme.colorScheme.muted.withValues(alpha: 1) : null,
+        color: _hovered
+            ? widget.theme.colorScheme.muted.withValues(alpha: 1)
+            : null,
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1083,6 +1156,7 @@ class _LogLineRowState extends State<_LogLineRow> {
     );
   }
 
+  /// Builds rich text spans for [line] with search match highlighting.
   List<InlineSpan> _lineSpans({
     required ShadThemeData theme,
     required String line,
@@ -1090,7 +1164,11 @@ class _LogLineRowState extends State<_LogLineRow> {
     required TextStyle baseStyle,
   }) {
     final lineMatches = <MapEntry<int, _LogMatch>>[];
-    for (var globalIndex = 0; globalIndex < widget.matches.length; globalIndex++) {
+    for (
+      var globalIndex = 0;
+      globalIndex < widget.matches.length;
+      globalIndex++
+    ) {
       final match = widget.matches[globalIndex];
       if (match.lineIndex == lineIndex) {
         lineMatches.add(MapEntry(globalIndex, match));
@@ -1134,6 +1212,7 @@ class _LogLineRowState extends State<_LogLineRow> {
 }
 
 class ExecPanel extends StatefulWidget {
+  /// Interactive terminal panel with search, copy, and clear controls.
   const ExecPanel({
     super.key,
     required this.terminal,
@@ -1145,6 +1224,7 @@ class ExecPanel extends StatefulWidget {
   final TerminalTheme terminalTheme;
   final Brightness keyboardAppearance;
 
+  /// Creates the state for the exec terminal panel.
   @override
   State<ExecPanel> createState() => _ExecPanelState();
 }
@@ -1158,12 +1238,14 @@ class _ExecPanelState extends State<ExecPanel> {
   int _currentMatchIndex = 0;
   final _searchHighlights = <TerminalHighlight>[];
 
+  /// Attaches a terminal change listener when the panel is created.
   @override
   void initState() {
     super.initState();
     widget.terminal.addListener(_onTerminalChanged);
   }
 
+  /// Rebinds listeners when the terminal instance changes.
   @override
   void didUpdateWidget(covariant ExecPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -1175,6 +1257,7 @@ class _ExecPanelState extends State<ExecPanel> {
     }
   }
 
+  /// Disposes controllers and listeners owned by this state.
   @override
   void dispose() {
     widget.terminal.removeListener(_onTerminalChanged);
@@ -1185,6 +1268,7 @@ class _ExecPanelState extends State<ExecPanel> {
     super.dispose();
   }
 
+  /// Refreshes search highlights when terminal output changes.
   void _onTerminalChanged() {
     if (!_searchOpen || _searchController.text.isEmpty) {
       return;
@@ -1193,6 +1277,7 @@ class _ExecPanelState extends State<ExecPanel> {
     _refreshSearchHighlights();
   }
 
+  /// Toggles the search bar open or closed.
   void _toggleSearch() {
     setState(() {
       _searchOpen = !_searchOpen;
@@ -1206,6 +1291,7 @@ class _ExecPanelState extends State<ExecPanel> {
     });
   }
 
+  /// Resets the current match index when the search query changes.
   void _onSearchChanged(String _) {
     setState(() {
       _currentMatchIndex = 0;
@@ -1213,6 +1299,7 @@ class _ExecPanelState extends State<ExecPanel> {
     });
   }
 
+  /// Builds the current search [RegExp], or null when search is inactive.
   RegExp? _searchPattern() {
     final query = _searchController.text;
     if (query.isEmpty) {
@@ -1230,6 +1317,7 @@ class _ExecPanelState extends State<ExecPanel> {
     }
   }
 
+  /// Finds all search matches in the terminal buffer.
   List<_TerminalMatch> _findMatches() {
     final pattern = _searchPattern();
     if (pattern == null) {
@@ -1257,6 +1345,7 @@ class _ExecPanelState extends State<ExecPanel> {
     return matches;
   }
 
+  /// Removes all active terminal search highlight overlays.
   void _clearSearchHighlights() {
     for (final highlight in _searchHighlights) {
       highlight.dispose();
@@ -1264,6 +1353,7 @@ class _ExecPanelState extends State<ExecPanel> {
     _searchHighlights.clear();
   }
 
+  /// Recomputes and applies search highlights in the terminal view.
   void _refreshSearchHighlights() {
     _clearSearchHighlights();
 
@@ -1302,6 +1392,7 @@ class _ExecPanelState extends State<ExecPanel> {
     }
   }
 
+  /// Moves to the previous or next terminal search match.
   void _goToMatch(int direction) {
     final matches = _findMatches();
     if (matches.isEmpty) {
@@ -1331,6 +1422,7 @@ class _ExecPanelState extends State<ExecPanel> {
     });
   }
 
+  /// Copies the visible log text to the clipboard.
   Future<void> _copyToClipboard() async {
     final selection = _controller.selection;
     final text = selection == null
@@ -1340,6 +1432,7 @@ class _ExecPanelState extends State<ExecPanel> {
     await Clipboard.setData(ClipboardData(text: text));
   }
 
+  /// Returns all non-empty terminal buffer text for clipboard copy.
   String _terminalTextForCopy() {
     final buffer = widget.terminal.buffer;
     var lastLine = buffer.height - 1;
@@ -1363,6 +1456,7 @@ class _ExecPanelState extends State<ExecPanel> {
     );
   }
 
+  /// Clears scrollback while preserving the current input line.
   void _clearTerminal() {
     final terminal = widget.terminal;
     final buffer = terminal.buffer;
@@ -1387,6 +1481,7 @@ class _ExecPanelState extends State<ExecPanel> {
     });
   }
 
+  /// Builds the exec terminal with shared log viewer chrome.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -1431,10 +1526,8 @@ class _ExecPanelState extends State<ExecPanel> {
 }
 
 class _TerminalMatch {
-  const _TerminalMatch({
-    required this.start,
-    required this.end,
-  });
+  /// A start/end cell range for one terminal search match.
+  const _TerminalMatch({required this.start, required this.end});
 
   final CellOffset start;
   final CellOffset end;

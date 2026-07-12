@@ -1,26 +1,33 @@
-package api
+package daemon
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-const logHistoryLimit = 500
-
+// logBroadcaster multiplexes one nerdctl log stream per container onto N
+// WebSocket subscribers and tears the stream down when the last one leaves.
 type logBroadcaster struct {
+	logger  *slog.Logger
 	mu      sync.Mutex
 	streams map[string]*sharedLogStream
 }
 
-func newLogBroadcaster() *logBroadcaster {
+// newLogBroadcaster creates an empty logBroadcaster ready to multiplex container log streams.
+func newLogBroadcaster(logger *slog.Logger) *logBroadcaster {
 	return &logBroadcaster{
+		logger:  logger,
 		streams: make(map[string]*sharedLogStream),
 	}
 }
 
+// sharedLogStream represents a shared log stream for a container.
 type sharedLogStream struct {
 	containerID string
 	subscribers map[chan string]struct{}
@@ -30,6 +37,7 @@ type sharedLogStream struct {
 	history     []string
 }
 
+// isStopping reports whether the shared stream is being torn down after the last subscriber left.
 func (s *sharedLogStream) isStopping() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -37,6 +45,7 @@ func (s *sharedLogStream) isStopping() bool {
 	return s.stopping
 }
 
+// subscribe registers a log line channel for containerID and starts the nerdctl stream when needed.
 func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-chan string, func()) {
 	ch := make(chan string, 256)
 
@@ -79,6 +88,7 @@ func (b *logBroadcaster) subscribe(rt runtime.Runtime, containerID string) (<-ch
 	return ch, unsubscribe
 }
 
+// release removes a subscriber and cancels the underlying log stream when the last one disconnects.
 func (b *logBroadcaster) release(containerID string, ch chan string) {
 	b.mu.Lock()
 	stream := b.streams[containerID]
@@ -104,10 +114,12 @@ func (b *logBroadcaster) release(containerID string, ch chan string) {
 	cancel()
 }
 
+// runStream tails container logs, replaying history once then following new lines until canceled.
 func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stream *sharedLogStream) {
 	defer b.cleanupStream(stream.containerID, stream)
 
 	sentHistory := false
+	retryDelay := constants.LogStreamRetryBase
 	for {
 		if ctx.Err() != nil {
 			return
@@ -118,26 +130,87 @@ func (b *logBroadcaster) runStream(ctx context.Context, rt runtime.Runtime, stre
 		}
 
 		var err error
+		phase := "follow"
 		if !sentHistory {
+			phase = "history"
 			err = rt.StreamLogs(ctx, stream.containerID, stream.publish)
 			sentHistory = true
 		} else {
 			err = rt.StreamLogsFollow(ctx, stream.containerID, stream.publish)
 		}
-		_ = err
 
 		if ctx.Err() != nil {
 			return
 		}
 
-		select {
-		case <-ctx.Done():
+		if err != nil {
+			b.logStreamError(stream.containerID, phase, err)
+			if !b.waitBeforeLogStreamRetry(ctx, retryDelay) {
+				return
+			}
+			retryDelay = nextLogStreamRetryDelay(retryDelay)
+			continue
+		}
+
+		retryDelay = constants.LogStreamRetryBase
+		if !b.waitBeforeLogStreamRetry(ctx, constants.LogStreamRetryBase) {
 			return
-		case <-time.After(500 * time.Millisecond):
 		}
 	}
 }
 
+// logStreamError records a failed container log stream attempt at the appropriate log level.
+func (b *logBroadcaster) logStreamError(containerID, phase string, err error) {
+	switch {
+	case errors.Is(err, runtime.ErrRuntimeNotRunning):
+		b.logger.Warn(
+			"container log stream paused while runtime is not running",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	case runtime.IsTransientCommandError(err):
+		b.logger.Warn(
+			"container log stream failed with transient error",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	default:
+		b.logger.Error(
+			"container log stream failed",
+			"container", containerID,
+			"phase", phase,
+			"error", err,
+		)
+	}
+}
+
+// waitBeforeLogStreamRetry blocks for delay or until ctx is canceled.
+func (b *logBroadcaster) waitBeforeLogStreamRetry(ctx context.Context, delay time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(delay):
+		return true
+	}
+}
+
+// nextLogStreamRetryDelay doubles the current delay up to LogStreamRetryMax.
+func nextLogStreamRetryDelay(current time.Duration) time.Duration {
+	if current >= constants.LogStreamRetryMax {
+		return constants.LogStreamRetryMax
+	}
+
+	next := current * 2
+	if next > constants.LogStreamRetryMax {
+		return constants.LogStreamRetryMax
+	}
+
+	return next
+}
+
+// cleanupStream removes a finished stream from the broadcaster map and resets its lifecycle state.
 func (b *logBroadcaster) cleanupStream(containerID string, stream *sharedLogStream) {
 	stream.mu.Lock()
 	stream.cancel = nil
@@ -151,6 +224,7 @@ func (b *logBroadcaster) cleanupStream(containerID string, stream *sharedLogStre
 	b.mu.Unlock()
 }
 
+// hasSubscribers reports whether the shared stream still has active WebSocket subscribers.
 func (s *sharedLogStream) hasSubscribers() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -158,11 +232,12 @@ func (s *sharedLogStream) hasSubscribers() bool {
 	return len(s.subscribers) > 0
 }
 
+// publish appends a log line to the ring buffer and fans it out to all current subscribers.
 func (s *sharedLogStream) publish(line string) {
 	s.mu.Lock()
 	s.history = append(s.history, line)
-	if len(s.history) > logHistoryLimit {
-		s.history = s.history[len(s.history)-logHistoryLimit:]
+	if len(s.history) > constants.LogTailLineCount {
+		s.history = s.history[len(s.history)-constants.LogTailLineCount:]
 	}
 
 	subscribers := make([]chan string, 0, len(s.subscribers))
@@ -176,6 +251,7 @@ func (s *sharedLogStream) publish(line string) {
 	}
 }
 
+// trySendLogLine sends line to ch without blocking when the subscriber buffer is full.
 func trySendLogLine(ch chan string, line string) {
 	select {
 	case ch <- line:

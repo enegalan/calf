@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// decodeInspectDocuments parses nerdctl/docker inspect output as a JSON array or NDJSON stream.
 func decodeInspectDocuments[T any](output []byte) ([]T, error) {
 	output = bytes.TrimSpace(output)
 	if len(output) == 0 {

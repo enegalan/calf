@@ -8,22 +8,21 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
-
-const _calfPrimary = Color(0xFF2496ED);
+import 'package:ui/constants/calf_constants.dart';
 
 final _lightShadTheme = ShadThemeData(
   brightness: Brightness.light,
   colorScheme: const ShadBlueColorScheme.light(
-    primary: _calfPrimary,
-    ring: _calfPrimary,
+    primary: CalfColors.primary,
+    ring: CalfColors.primary,
   ),
 );
 
 final _darkShadTheme = ShadThemeData(
   brightness: Brightness.dark,
   colorScheme: const ShadBlueColorScheme.dark(
-    primary: _calfPrimary,
-    ring: _calfPrimary,
+    primary: CalfColors.primary,
+    ring: CalfColors.primary,
   ),
 );
 
@@ -33,6 +32,10 @@ Timer? _daemonRestartTimer;
 int _daemonRestartAttempts = 0;
 const _maxDaemonRestarts = 5;
 
+/// When true, `make dev-ui-*` connects to an already-running `make dev-backend`.
+const _externalDaemon = bool.fromEnvironment('CALF_EXTERNAL_DAEMON');
+
+/// Spawns the embedded calf-daemon subprocess and wires restart on exit.
 Future<void> _startDaemon() async {
   if (_daemonShutdown) {
     return;
@@ -51,7 +54,12 @@ Future<void> _startDaemon() async {
     if (extras.isNotEmpty) {
       env['PATH'] = '$extras:$path';
     }
-    _daemonProcess = await Process.start(daemonPath, [], runInShell: false, environment: env);
+    _daemonProcess = await Process.start(
+      daemonPath,
+      [],
+      runInShell: false,
+      environment: env,
+    );
     _daemonRestartAttempts = 0;
     _daemonProcess!.stdout.listen((data) => stdout.add(data));
     _daemonProcess!.stderr.listen((data) => stderr.add(data));
@@ -64,9 +72,12 @@ Future<void> _startDaemon() async {
       _daemonProcess = null;
       _daemonRestartAttempts++;
       if (_daemonRestartAttempts > _maxDaemonRestarts) {
-        stderr.writeln('calf-daemon failed to stay running after $_maxDaemonRestarts attempts');
+        stderr.writeln(
+          'calf-daemon failed to stay running after $_maxDaemonRestarts attempts',
+        );
         return;
       }
+      // Back off between restarts so a crash loop does not hammer the port.
       final delay = Duration(seconds: _daemonRestartAttempts);
       _daemonRestartTimer = Timer(delay, _startDaemon);
     });
@@ -75,6 +86,7 @@ Future<void> _startDaemon() async {
   }
 }
 
+/// Locates the calf-daemon binary next to the app executable.
 String? _findDaemon() {
   final dir = File(Platform.resolvedExecutable).parent.path;
   final candidates = Platform.isWindows
@@ -89,11 +101,17 @@ String? _findDaemon() {
   return null;
 }
 
+// Homebrew paths are often missing from the GUI subprocess PATH on macOS.
+/// Returns Homebrew bin paths missing from the GUI subprocess PATH on macOS.
 String _extraPaths() {
   if (Platform.isMacOS) {
     final path = Platform.environment['PATH'] ?? '';
     final missing = <String>[];
-    for (final dir in ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin']) {
+    for (final dir in [
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+    ]) {
       if (!path.contains(dir)) {
         missing.add(dir);
       }
@@ -103,6 +121,7 @@ String _extraPaths() {
   return '';
 }
 
+/// Terminates the calf-daemon subprocess and cancels pending restarts.
 Future<void> _stopDaemon() async {
   _daemonShutdown = true;
   _daemonRestartTimer?.cancel();
@@ -111,17 +130,24 @@ Future<void> _stopDaemon() async {
   if (process == null) return;
   _daemonProcess = null;
   process.kill();
-  await process.exitCode.timeout(const Duration(seconds: 5), onTimeout: () {
-    process.kill(ProcessSignal.sigkill);
-    return -1;
-  });
+  await process.exitCode.timeout(
+    const Duration(seconds: 5),
+    onTimeout: () {
+      process.kill(ProcessSignal.sigkill);
+      return -1;
+    },
+  );
 }
 
+/// Application entry point; starts the daemon and runs the Flutter app.
 void main() {
-  _startDaemon();
+  if (!_externalDaemon) {
+    _startDaemon();
+  }
   runApp(const MainApp());
 }
 
+/// Builds a Material [ThemeData] bridged from a Shadcn theme.
 ThemeData _materialTheme(ShadThemeData shadTheme) {
   return ThemeData(
     fontFamily: shadTheme.textTheme.family,
@@ -147,10 +173,12 @@ ThemeData _materialTheme(ShadThemeData shadTheme) {
 }
 
 class MainApp extends StatefulWidget {
+  /// Creates a [MainApp] instance.
   const MainApp({super.key, this.apiClient});
 
   final CalfClient? apiClient;
 
+  /// Creates the state object for [MainApp].
   @override
   State<MainApp> createState() => _MainAppState();
 }
@@ -160,6 +188,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   bool _daemonReady = false;
   String? _error;
 
+  /// Initializes state and starts async loading.
   @override
   void initState() {
     super.initState();
@@ -171,6 +200,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Stops the daemon when the app is detached.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
@@ -178,6 +208,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     }
   }
 
+  /// Releases resources when the widget is removed.
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -185,19 +216,23 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Polls the daemon status endpoint until the runtime is running or times out.
   Future<void> _waitForDaemon() async {
-    final url = Uri.parse('$defaultBaseUrl/v1/status');
+    final url = Uri.parse('${CalfDefaults.defaultBaseUrl}/v1/status');
     const attempts = 120;
     final client = http.Client();
 
     for (var i = 0; i < attempts; i++) {
       try {
-        final response = await client.get(url).timeout(const Duration(seconds: 2));
+        final response = await client
+            .get(url)
+            .timeout(const Duration(seconds: 2));
         if (response.statusCode == 200) {
           final body = jsonDecode(response.body);
           if (body is Map<String, dynamic>) {
             final runtime = body['runtime'];
-            if (runtime is Map<String, dynamic> && runtime['state'] == 'running') {
+            if (runtime is Map<String, dynamic> &&
+                runtime['state'] == 'running') {
               client.close();
               if (mounted) {
                 setState(() {
@@ -210,7 +245,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
             if (runtime is Map<String, dynamic>) {
               final log = runtime['log'];
               if (mounted) {
-                setState(() => _error = (log is String && log.isNotEmpty) ? log : null);
+                setState(
+                  () => _error = (log is String && log.isNotEmpty) ? log : null,
+                );
               }
             }
           }
@@ -231,11 +268,14 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     client.close();
     if (mounted) {
       setState(() {
-        _error = _error ?? 'Daemon did not become ready in time. Try restarting Calf.';
+        _error =
+            _error ??
+            'Daemon did not become ready in time. Try restarting Calf.';
       });
     }
   }
 
+  /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -245,7 +285,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       darkTheme: _materialTheme(_darkShadTheme),
       builder: (context, child) {
         final brightness = Theme.of(context).brightness;
-        final shadTheme = brightness == Brightness.dark ? _darkShadTheme : _lightShadTheme;
+        final shadTheme = brightness == Brightness.dark
+            ? _darkShadTheme
+            : _lightShadTheme;
 
         return ShadTheme(
           data: shadTheme,
@@ -265,7 +307,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
                           const CircularProgressIndicator(),
                           if (_error != null) ...[
                             const SizedBox(height: 16),
-                            Text(_error!, style: TextStyle(color: shadTheme.colorScheme.destructive)),
+                            Text(
+                              _error!,
+                              style: TextStyle(
+                                color: shadTheme.colorScheme.destructive,
+                              ),
+                            ),
                           ],
                         ],
                       ),

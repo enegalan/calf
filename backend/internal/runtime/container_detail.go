@@ -5,13 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"os/exec"
 	"path"
 	"strings"
 	"unicode"
 )
 
+// ContainerMount represents a mount in a container.
 type ContainerMount struct {
 	Type        string `json:"type"`
 	Name        string `json:"name,omitempty"`
@@ -21,6 +20,7 @@ type ContainerMount struct {
 	RW          bool   `json:"rw"`
 }
 
+// ContainerFileEntry represents a file entry in a container.
 type ContainerFileEntry struct {
 	Name     string `json:"name"`
 	Path     string `json:"path"`
@@ -31,6 +31,7 @@ type ContainerFileEntry struct {
 	Note     string `json:"note,omitempty"`
 }
 
+// ContainerStats represents the stats of a container.
 type ContainerStats struct {
 	CPUPerc  string `json:"cpu_percent"`
 	MemUsage string `json:"mem_usage"`
@@ -40,6 +41,7 @@ type ContainerStats struct {
 	PIDs     string `json:"pids"`
 }
 
+// nerdctlStatsLine represents the stats of a container from nerdctl stats output.
 type nerdctlStatsLine struct {
 	CPUPerc  string `json:"CPUPerc"`
 	MemUsage string `json:"MemUsage"`
@@ -49,6 +51,7 @@ type nerdctlStatsLine struct {
 	PIDs     string `json:"PIDs"`
 }
 
+// inspectContainer runs nerdctl inspect and returns the first container document.
 func inspectContainer(ctx context.Context, run commandRunner, id string) (json.RawMessage, error) {
 	output, err := run(ctx, "nerdctl", "inspect", id)
 	if err != nil {
@@ -63,6 +66,7 @@ func inspectContainer(ctx context.Context, run commandRunner, id string) (json.R
 	return rows[0], nil
 }
 
+// parseContainerMounts extracts mounts from inspect JSON, including HostConfig bind mounts.
 func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	var payload struct {
 		Mounts []struct {
@@ -112,6 +116,7 @@ func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	return mounts, nil
 }
 
+// parseBindMount splits a Docker bind string into source, destination, and mode.
 func parseBindMount(bind string) (string, string, string, bool) {
 	parts := strings.Split(bind, ":")
 	if len(parts) < 2 {
@@ -128,6 +133,7 @@ func parseBindMount(bind string) (string, string, string, bool) {
 	return source, destination, mode, true
 }
 
+// listContainerFiles runs ls -la inside a container at dirPath.
 func listContainerFiles(ctx context.Context, run commandRunner, id, dirPath string) ([]ContainerFileEntry, error) {
 	if dirPath == "" {
 		dirPath = "/"
@@ -142,6 +148,7 @@ func listContainerFiles(ctx context.Context, run commandRunner, id, dirPath stri
 	return parseLsOutput(dirPath, output), nil
 }
 
+// parseLsOutput converts ls -la output into entries for the given directory path.
 func parseLsOutput(dirPath string, output []byte) []ContainerFileEntry {
 	lines := strings.Split(string(output), "\n")
 	entries := make([]ContainerFileEntry, 0, len(lines))
@@ -204,6 +211,7 @@ func parseLsOutput(dirPath string, output []byte) []ContainerFileEntry {
 	return entries
 }
 
+// execInContainer runs a shell command in a container and returns trimmed stdout.
 func execInContainer(ctx context.Context, run commandRunner, id string, command string) (string, error) {
 	command = strings.TrimSpace(command)
 	if command == "" {
@@ -221,10 +229,7 @@ func execInContainer(ctx context.Context, run commandRunner, id string, command 
 	return strings.TrimSpace(string(output)), nil
 }
 
-func attachExecInContainer(ctx context.Context, command *exec.Cmd, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
-	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
-}
-
+// containerStats fetches a single nerdctl stats snapshot for a container.
 func containerStats(ctx context.Context, run commandRunner, id string) (ContainerStats, error) {
 	output, err := run(ctx, "nerdctl", "stats", "--no-stream", "--format", "{{json .}}", id)
 	if err != nil {
@@ -251,20 +256,13 @@ func containerStats(ctx context.Context, run commandRunner, id string) (Containe
 	}, nil
 }
 
+// restartContainer restarts a container via nerdctl.
 func restartContainer(ctx context.Context, run commandRunner, id string) error {
 	_, err := run(ctx, "nerdctl", "restart", id)
 	return err
 }
 
-func prettyInspectJSON(raw json.RawMessage) (string, error) {
-	var buffer bytes.Buffer
-	if err := json.Indent(&buffer, raw, "", "  "); err != nil {
-		return "", err
-	}
-
-	return buffer.String(), nil
-}
-
+// InspectSection returns one top-level inspect key, matching case-insensitively when needed.
 func InspectSection(raw json.RawMessage, section string) (json.RawMessage, error) {
 	section = strings.TrimSpace(section)
 	if section == "" {
@@ -294,6 +292,7 @@ func InspectSection(raw json.RawMessage, section string) (json.RawMessage, error
 	return value, nil
 }
 
+// isValidContainerPath reports whether a container filesystem path is safe to use.
 func isValidContainerPath(value string) bool {
 	if value == "" {
 		return true

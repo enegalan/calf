@@ -6,31 +6,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-const defaultRegistryServer = "docker.io"
-
-var dockerHubRegistryKeys = []string{
-	"https://index.docker.io/v1/",
-	"index.docker.io",
-	"docker.io",
-	"https://registry-1.docker.io/v2/",
-}
-
+// RegistryStatus represents the status of a registry.
 type RegistryStatus struct {
 	LoggedIn bool   `json:"logged_in"`
 	Server   string `json:"server"`
 	Username string `json:"username,omitempty"`
 }
 
+// dockerConfigFile represents a Docker config file.
 type dockerConfigFile struct {
 	Auths map[string]dockerConfigAuth `json:"auths"`
 }
 
+// dockerConfigAuth represents an authentication entry in a Docker config file.
 type dockerConfigAuth struct {
 	Auth string `json:"auth"`
 }
 
+// registryLogin authenticates nerdctl against the given registry using password-stdin.
 func registryLogin(ctx context.Context, run commandRunner, runWithStdin stdinCommandRunner, server, username, password string) error {
 	if strings.TrimSpace(username) == "" {
 		return fmt.Errorf("username is required")
@@ -50,6 +47,7 @@ func registryLogin(ctx context.Context, run commandRunner, runWithStdin stdinCom
 	return err
 }
 
+// registryLogout removes nerdctl credentials for the given registry server.
 func registryLogout(ctx context.Context, run commandRunner, server string) error {
 	server = strings.TrimSpace(server)
 	args := []string{"logout"}
@@ -61,19 +59,27 @@ func registryLogout(ctx context.Context, run commandRunner, server string) error
 	return err
 }
 
+// isDockerHubRegistry reports whether server refers to Docker Hub or its canonical aliases.
 func isDockerHubRegistry(server string) bool {
-	switch strings.ToLower(server) {
-	case "", defaultRegistryServer, "index.docker.io", "registry-1.docker.io", "https://index.docker.io/v1/", "https://registry-1.docker.io/v2/":
+	server = strings.ToLower(strings.TrimSpace(server))
+	if server == "" {
 		return true
-	default:
-		return strings.Contains(strings.ToLower(server), "docker.io")
 	}
+
+	for _, key := range constants.DockerHubRegistryKeys {
+		if server == strings.ToLower(key) {
+			return true
+		}
+	}
+
+	return strings.Contains(server, "docker.io")
 }
 
+// registryStatus reads Docker config files and returns login state for the first match.
 func registryStatus(ctx context.Context, run commandRunner, paths ...string) (RegistryStatus, error) {
 	status := RegistryStatus{
 		LoggedIn: false,
-		Server:   defaultRegistryServer,
+		Server:   constants.DefaultRegistryServer,
 	}
 
 	for _, path := range paths {
@@ -90,10 +96,11 @@ func registryStatus(ctx context.Context, run commandRunner, paths ...string) (Re
 	return status, nil
 }
 
+// RegistryStatusFromConfig parses a Docker config.json payload into registry login status.
 func RegistryStatusFromConfig(output []byte) RegistryStatus {
 	status := RegistryStatus{
 		LoggedIn: false,
-		Server:   defaultRegistryServer,
+		Server:   constants.DefaultRegistryServer,
 	}
 
 	if username, ok := dockerConfigCredentials(output); ok {
@@ -104,20 +111,21 @@ func RegistryStatusFromConfig(output []byte) RegistryStatus {
 	return status
 }
 
+// dockerConfigCredentials extracts the Docker Hub username from a config.json auths section.
 func dockerConfigCredentials(output []byte) (string, bool) {
 	var config dockerConfigFile
 	if err := json.Unmarshal(output, &config); err != nil {
 		return "", false
 	}
 
-	for _, key := range dockerHubRegistryKeys {
+	for _, key := range constants.DockerHubRegistryKeys {
 		if username, ok := dockerConfigAuthUsername(config.Auths[key]); ok {
 			return username, true
 		}
 	}
 
 	for key, auth := range config.Auths {
-		if strings.Contains(key, "docker.io") {
+		if strings.Contains(key, constants.DefaultRegistryServer) {
 			if username, ok := dockerConfigAuthUsername(auth); ok {
 				return username, true
 			}
@@ -127,6 +135,7 @@ func dockerConfigCredentials(output []byte) (string, bool) {
 	return "", false
 }
 
+// dockerConfigAuthUsername decodes the base64 auth field and returns the username portion.
 func dockerConfigAuthUsername(auth dockerConfigAuth) (string, bool) {
 	if strings.TrimSpace(auth.Auth) == "" {
 		return "", false

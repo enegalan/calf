@@ -10,8 +10,11 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:xterm/xterm.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/logs_panel.dart';
 
@@ -20,6 +23,7 @@ enum _ContainerDetailTab { logs, inspect, mounts, exec, files, stats }
 const _maxLogLines = 2000;
 
 class ContainerDetailView extends StatefulWidget {
+  /// Creates a [ContainerDetailView] widget.
   const ContainerDetailView({
     super.key,
     required this.container,
@@ -33,6 +37,7 @@ class ContainerDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onChanged;
 
+  /// Creates the mutable state for [ContainerDetailView].
   @override
   State<ContainerDetailView> createState() => _ContainerDetailViewState();
 }
@@ -63,7 +68,10 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   String? _statsError;
   Timer? _statsTimer;
   final _statsHistory = _StatsHistory();
+  bool _statsRefreshInFlight = false;
+  int _statsRefreshGeneration = 0;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -71,6 +79,27 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _loadTabData();
   }
 
+  /// Refreshes local state when the parent widget changes.
+  @override
+  void didUpdateWidget(covariant ContainerDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idChanged = oldWidget.container.id != widget.container.id;
+    final runningChanged =
+        oldWidget.container.isRunning != widget.container.isRunning;
+
+    setState(() {
+      _container = widget.container;
+    });
+
+    if (idChanged || runningChanged) {
+      if (_tab == _ContainerDetailTab.logs ||
+          _tab == _ContainerDetailTab.stats) {
+        _loadTabData();
+      }
+    }
+  }
+
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _logsSubscription?.cancel();
@@ -79,6 +108,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     super.dispose();
   }
 
+  /// Runs the given async action and refreshes the list on success.
   Future<void> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
@@ -117,6 +147,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Switches the active tab and loads tab-specific data.
   void _selectTab(_ContainerDetailTab tab) {
     if (_tab == tab) {
       return;
@@ -125,13 +156,18 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     _loadTabData();
   }
 
+  /// Stops background polling or streaming work.
   void _stopTabBackgroundWork() {
     _logsSubscription?.cancel();
     _logsSubscription = null;
-    _statsTimer?.cancel();
-    _statsTimer = null;
+    if (_statsTimer != null) {
+      _statsTimer?.cancel();
+      _statsTimer = null;
+      _statsRefreshGeneration++;
+    }
   }
 
+  /// Fetches TabData from the API and updates state.
   void _loadTabData() {
     _stopTabBackgroundWork();
 
@@ -151,39 +187,45 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Starts background polling or streaming for the active tab.
   void _startLogs() {
     setState(() {
       _logLines.clear();
       _logsError = null;
     });
 
-    _logsSubscription = widget.apiClient.streamContainerLogs(_container.id).listen(
-      (line) {
-        if (!mounted) {
-          return;
-        }
-        setState(() {
-          _logsError = null;
-          _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
-          if (_logLines.length > _maxLogLines) {
-            _logLines.removeRange(0, _logLines.length - _maxLogLines);
-          }
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_logsScrollController.hasClients) {
-            _logsScrollController.jumpTo(_logsScrollController.position.maxScrollExtent);
-          }
-        });
-      },
-      onError: (error) {
-        if (!mounted) {
-          return;
-        }
-        setState(() => _logsError = error.toString());
-      },
-    );
+    _logsSubscription = widget.apiClient
+        .streamContainerLogs(_container.id)
+        .listen(
+          (line) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _logsError = null;
+              _logLines.add(LogLine(text: line, receivedAt: DateTime.now()));
+              if (_logLines.length > _maxLogLines) {
+                _logLines.removeRange(0, _logLines.length - _maxLogLines);
+              }
+            });
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_logsScrollController.hasClients) {
+                _logsScrollController.jumpTo(
+                  _logsScrollController.position.maxScrollExtent,
+                );
+              }
+            });
+          },
+          onError: (error) {
+            if (!mounted) {
+              return;
+            }
+            setState(() => _logsError = error.toString());
+          },
+        );
   }
 
+  /// Fetches Inspect from the API and updates state.
   Future<void> _loadInspect() async {
     setState(() {
       _inspectLoading = true;
@@ -211,6 +253,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Fetches Mounts from the API and updates state.
   Future<void> _loadMounts() async {
     _statsTimer?.cancel();
     setState(() {
@@ -238,14 +281,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Starts background polling or streaming for the active tab.
   void _startStats() {
     _logsSubscription?.cancel();
     _statsTimer?.cancel();
-    _refreshStats();
-    _statsTimer = Timer.periodic(const Duration(seconds: 2), (_) => _refreshStats());
-  }
+    _statsTimer = null;
 
-  Future<void> _refreshStats() async {
     if (!_container.isRunning) {
       if (!mounted) {
         return;
@@ -258,6 +299,37 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       return;
     }
 
+    _refreshStats();
+    _statsTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _refreshStats(),
+    );
+  }
+
+  /// Refreshes the latest data from the API.
+  Future<void> _refreshStats() async {
+    if (_statsRefreshInFlight) {
+      return;
+    }
+
+    if (!_container.isRunning) {
+      _statsTimer?.cancel();
+      _statsTimer = null;
+      _statsRefreshGeneration++;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _stats = null;
+        _statsError = 'Stats are available only for running containers.';
+        _statsLoading = false;
+      });
+      return;
+    }
+
+    _statsRefreshInFlight = true;
+    final generation = _statsRefreshGeneration;
+
     setState(() {
       _statsLoading = _stats == null;
       _statsError = null;
@@ -265,7 +337,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
 
     try {
       final stats = await widget.apiClient.fetchContainerStats(_container.id);
-      if (!mounted) {
+      if (!mounted || generation != _statsRefreshGeneration) {
         return;
       }
       setState(() {
@@ -274,16 +346,19 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         _statsLoading = false;
       });
     } catch (error) {
-      if (!mounted) {
+      if (!mounted || generation != _statsRefreshGeneration) {
         return;
       }
       setState(() {
         _statsError = error.toString();
         _statsLoading = false;
       });
+    } finally {
+      _statsRefreshInFlight = false;
     }
   }
 
+  /// Decodes raw API payload into a structured map.
   Map<String, dynamic>? _decodeInspectMap(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -294,6 +369,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     return null;
   }
 
+  /// Whether or what value backs the `inspectText` UI state.
   String get _inspectText {
     final raw = _inspectRaw;
     if (raw == null || raw.isEmpty) {
@@ -307,6 +383,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -315,35 +392,31 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Containers', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                _container.displayName,
-                style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Containers', _container.displayName],
+          onBack: widget.onBack,
         ),
+
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(LucideIcons.box, size: 28, color: _containerIconColor(_container, theme)),
+            Icon(
+              LucideIcons.box,
+              size: 28,
+              color: _containerIconColor(_container, theme),
+            ),
+
+            /// Creates a [_ContainerDetailViewState] widget.
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_container.displayName, style: theme.textTheme.h3),
+
+                  /// Creates a [_ContainerDetailViewState] widget.
                   const SizedBox(height: 4),
                   Wrap(
                     spacing: 12,
@@ -351,17 +424,25 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(_container.shortId, style: theme.textTheme.muted),
-                      Text(_container.displayImage, style: theme.textTheme.muted),
+                      Text(
+                        _container.displayImage,
+                        style: theme.textTheme.muted,
+                      ),
                       if (port != null)
                         GestureDetector(
                           onTap: () => openPort(port),
                           child: Text(
                             '$port:$port',
-                            style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                            style: theme.textTheme.small.copyWith(
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                         )
                       else
-                        Text(_container.displayPorts, style: theme.textTheme.muted),
+                        Text(
+                          _container.displayPorts,
+                          style: theme.textTheme.muted,
+                        ),
                     ],
                   ),
                 ],
@@ -370,42 +451,86 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('STATUS', style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+                Text(
+                  'STATUS',
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
                 Text(_container.status, style: theme.textTheme.small),
+
+                /// Creates a [_ContainerDetailViewState] widget.
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     CalfButton.outline(
                       enabled: !_busy && _container.isRunning,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: _container.isRunning ? () => _runAction(() => widget.apiClient.stopContainer(_container.id)) : null,
-                      child: Icon(LucideIcons.square, size: 16, color: theme.colorScheme.foreground),
+                      onPressed: _container.isRunning
+                          ? () => _runAction(
+                              () =>
+                                  widget.apiClient.stopContainer(_container.id),
+                            )
+                          : null,
+                      child: Icon(
+                        LucideIcons.square,
+                        size: 16,
+                        color: theme.colorScheme.foreground,
+                      ),
                     ),
+
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy && !_container.isRunning,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: !_container.isRunning ? () => _runAction(() => widget.apiClient.startContainer(_container.id)) : null,
-                      child: Icon(LucideIcons.play, size: 16, color: theme.colorScheme.primaryForeground),
+                      onPressed: !_container.isRunning
+                          ? () => _runAction(
+                              () => widget.apiClient.startContainer(
+                                _container.id,
+                              ),
+                            )
+                          : null,
+                      child: Icon(
+                        LucideIcons.play,
+                        size: 16,
+                        color: theme.colorScheme.primaryForeground,
+                      ),
                     ),
+
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton(
                       enabled: !_busy,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: () => _runAction(() => widget.apiClient.restartContainer(_container.id)),
-                      child: Icon(LucideIcons.rotateCw, size: 16, color: theme.colorScheme.primaryForeground),
+                      onPressed: () => _runAction(
+                        () => widget.apiClient.restartContainer(_container.id),
+                      ),
+                      child: Icon(
+                        LucideIcons.rotateCw,
+                        size: 16,
+                        color: theme.colorScheme.primaryForeground,
+                      ),
                     ),
+
+                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton.destructive(
                       enabled: !_busy,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       onPressed: () async {
-                        await _runAction(() => widget.apiClient.removeContainer(_container.id));
+                        await _runAction(
+                          () => widget.apiClient.removeContainer(_container.id),
+                        );
                         if (mounted) {
                           widget.onBack();
                         }
                       },
-                      child: Icon(LucideIcons.trash2, size: 16, color: theme.colorScheme.destructiveForeground),
+                      child: Icon(
+                        LucideIcons.trash2,
+                        size: 16,
+                        color: theme.colorScheme.destructiveForeground,
+                      ),
                     ),
                   ],
                 ),
@@ -414,17 +539,40 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           ],
         ),
         if (_error != null) ...[
+          /// Creates a [_ContainerDetailViewState] widget.
           const SizedBox(height: 12),
-          Text(_error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
         ],
+
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),
-        _TabBar(theme: theme, selected: _tab, onSelected: _selectTab),
+        CalfTabBar(
+          theme: theme,
+          labels: const [
+            'Logs',
+            'Inspect',
+            'Bind mounts',
+            'Exec',
+            'Files',
+            'Stats',
+          ],
+          selectedIndex: _tab.index,
+          onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
+        ),
+
+        /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 12),
         Expanded(child: _buildTabContent(theme)),
       ],
     );
   }
 
+  /// Builds the widget for the currently selected tab.
   Widget _buildTabContent(ShadThemeData theme) {
     switch (_tab) {
       case _ContainerDetailTab.logs:
@@ -445,7 +593,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           onToggleRaw: (value) => setState(() => _inspectRawJson = value),
         );
       case _ContainerDetailTab.mounts:
-        return _MountsTab(theme: theme, loading: _mountsLoading, error: _mountsError, mounts: _mounts);
+        return _MountsTab(
+          theme: theme,
+          loading: _mountsLoading,
+          error: _mountsError,
+          mounts: _mounts,
+        );
       case _ContainerDetailTab.exec:
         return _ExecTab(
           theme: theme,
@@ -456,7 +609,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       case _ContainerDetailTab.files:
         return FilesPanel(
           theme: theme,
-          loadDirectory: (path) => widget.apiClient.fetchContainerFiles(_container.id, path: path),
+          loadDirectory: (path) =>
+              widget.apiClient.fetchContainerFiles(_container.id, path: path),
         );
       case _ContainerDetailTab.stats:
         return _StatsTab(
@@ -470,88 +624,14 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 }
 
-class _TabBar extends StatelessWidget {
-  const _TabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _ContainerDetailTab selected;
-  final ValueChanged<_ContainerDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _ContainerDetailTab.values;
-    const labels = ['Logs', 'Inspect', 'Bind mounts', 'Exec', 'Files', 'Stats'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _TabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _Panel extends StatelessWidget {
+  /// Creates a [_Panel] widget.
   const _Panel({required this.theme, required this.child});
 
   final ShadThemeData theme;
   final Widget child;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -567,6 +647,7 @@ class _Panel extends StatelessWidget {
 }
 
 class _InspectTab extends StatelessWidget {
+  /// Creates a [_InspectTab] widget.
   const _InspectTab({
     required this.theme,
     required this.loading,
@@ -585,6 +666,7 @@ class _InspectTab extends StatelessWidget {
   final bool rawJson;
   final ValueChanged<bool> onToggleRaw;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -592,12 +674,17 @@ class _InspectTab extends StatelessWidget {
       children: [
         Row(
           children: [
+            /// Creates a [_InspectTab] widget.
             const Spacer(),
             Text('Raw JSON', style: theme.textTheme.small),
+
+            /// Creates a [_InspectTab] widget.
             const SizedBox(width: 8),
             ShadSwitch(value: rawJson, onChanged: onToggleRaw),
           ],
         ),
+
+        /// Creates a [_InspectTab] widget.
         const SizedBox(height: 8),
         Expanded(
           child: _Panel(
@@ -605,15 +692,22 @@ class _InspectTab extends StatelessWidget {
             child: loading
                 ? Text('Loading inspect data...', style: theme.textTheme.muted)
                 : error != null
-                    ? Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-                    : rawJson
-                        ? SingleChildScrollView(
-                            child: SelectableText(
-                              text,
-                              style: theme.textTheme.small.copyWith(fontFamily: 'Menlo'),
-                            ),
-                          )
-                        : _InspectFormattedView(theme: theme, inspect: inspect),
+                ? Text(
+                    error!,
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.destructive,
+                    ),
+                  )
+                : rawJson
+                ? SingleChildScrollView(
+                    child: SelectableText(
+                      text,
+                      style: theme.textTheme.small.copyWith(
+                        fontFamily: 'Menlo',
+                      ),
+                    ),
+                  )
+                : _InspectFormattedView(theme: theme, inspect: inspect),
           ),
         ),
       ],
@@ -622,14 +716,13 @@ class _InspectTab extends StatelessWidget {
 }
 
 class _InspectFormattedView extends StatelessWidget {
-  const _InspectFormattedView({
-    required this.theme,
-    required this.inspect,
-  });
+  /// Creates a [_InspectFormattedView] widget.
+  const _InspectFormattedView({required this.theme, required this.inspect});
 
   final ShadThemeData theme;
   final Map<String, dynamic>? inspect;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (inspect == null) {
@@ -638,7 +731,10 @@ class _InspectFormattedView extends StatelessWidget {
 
     final sections = _buildInspectSections(inspect!);
     if (sections.isEmpty) {
-      return Text('No inspect sections available.', style: theme.textTheme.muted);
+      return Text(
+        'No inspect sections available.',
+        style: theme.textTheme.muted,
+      );
     }
 
     return ListView.separated(
@@ -649,12 +745,32 @@ class _InspectFormattedView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(section.title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+            Text(
+              section.title,
+              style: theme.textTheme.large.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            /// Creates a [_InspectFormattedView] widget.
             const SizedBox(height: 12),
-            for (var rowIndex = 0; rowIndex < section.rows.length; rowIndex++) ...[
-              if (rowIndex > 0) Divider(color: theme.colorScheme.border, height: 1),
+            for (
+              var rowIndex = 0;
+              rowIndex < section.rows.length;
+              rowIndex++
+            ) ...[
+              if (rowIndex > 0)
+                Divider(color: theme.colorScheme.border, height: 1),
+
+              /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
-              _InspectRow(theme: theme, label: section.rows[rowIndex].label, value: section.rows[rowIndex].value),
+              _InspectRow(
+                theme: theme,
+                label: section.rows[rowIndex].label,
+                value: section.rows[rowIndex].value,
+              ),
+
+              /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
             ],
           ],
@@ -663,6 +779,7 @@ class _InspectFormattedView extends StatelessWidget {
     );
   }
 
+  /// Extracts labeled inspect sections from raw JSON.
   List<_InspectSection> _buildInspectSections(Map<String, dynamic> payload) {
     final sections = <_InspectSection>[];
 
@@ -680,10 +797,12 @@ class _InspectFormattedView extends StatelessWidget {
             rows.add(_InspectRowData(label: item, value: ''));
             continue;
           }
-          rows.add(_InspectRowData(
-            label: item.substring(0, separator),
-            value: item.substring(separator + 1),
-          ));
+          rows.add(
+            _InspectRowData(
+              label: item.substring(0, separator),
+              value: item.substring(separator + 1),
+            ),
+          );
         }
         if (rows.isNotEmpty) {
           sections.add(_InspectSection(title: 'Environment', rows: rows));
@@ -693,7 +812,12 @@ class _InspectFormattedView extends StatelessWidget {
       final labels = config['Labels'];
       if (labels is Map) {
         final rows = labels.entries
-            .map((entry) => _InspectRowData(label: entry.key.toString(), value: entry.value.toString()))
+            .map(
+              (entry) => _InspectRowData(
+                label: entry.key.toString(),
+                value: entry.value.toString(),
+              ),
+            )
             .toList();
         if (rows.isNotEmpty) {
           sections.add(_InspectSection(title: 'Labels', rows: rows));
@@ -708,7 +832,9 @@ class _InspectFormattedView extends StatelessWidget {
         final rows = ports.entries.map((entry) {
           final bindings = entry.value;
           var value = '';
-          if (bindings is List && bindings.isNotEmpty && bindings.first is Map) {
+          if (bindings is List &&
+              bindings.isNotEmpty &&
+              bindings.first is Map) {
             final host = bindings.first as Map;
             value = '${host['HostIp'] ?? ''}:${host['HostPort'] ?? ''}';
           }
@@ -725,6 +851,7 @@ class _InspectFormattedView extends StatelessWidget {
 }
 
 class _InspectSection {
+  /// Creates a [_InspectSection] widget.
   const _InspectSection({required this.title, required this.rows});
 
   final String title;
@@ -732,6 +859,7 @@ class _InspectSection {
 }
 
 class _InspectRowData {
+  /// Creates a [_InspectRowData] widget.
   const _InspectRowData({required this.label, required this.value});
 
   final String label;
@@ -739,6 +867,7 @@ class _InspectRowData {
 }
 
 class _InspectRow extends StatelessWidget {
+  /// Creates a [_InspectRow] widget.
   const _InspectRow({
     required this.theme,
     required this.label,
@@ -749,6 +878,7 @@ class _InspectRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -756,7 +886,10 @@ class _InspectRow extends StatelessWidget {
       children: [
         Expanded(
           flex: 2,
-          child: Text(label, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          child: Text(
+            label,
+            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+          ),
         ),
         Expanded(
           flex: 4,
@@ -765,7 +898,11 @@ class _InspectRow extends StatelessWidget {
         CalfButton.ghost(
           padding: const EdgeInsets.all(6),
           onPressed: () => Clipboard.setData(ClipboardData(text: value)),
-          child: Icon(LucideIcons.copy, size: 16, color: theme.colorScheme.mutedForeground),
+          child: Icon(
+            LucideIcons.copy,
+            size: 16,
+            color: theme.colorScheme.mutedForeground,
+          ),
         ),
       ],
     );
@@ -773,6 +910,7 @@ class _InspectRow extends StatelessWidget {
 }
 
 class _MountsTab extends StatelessWidget {
+  /// Creates a [_MountsTab] widget.
   const _MountsTab({
     required this.theme,
     required this.loading,
@@ -785,16 +923,31 @@ class _MountsTab extends StatelessWidget {
   final String? error;
   final List<ContainerMount> mounts;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return _Panel(theme: theme, child: Text('Loading bind mounts...', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('Loading bind mounts...', style: theme.textTheme.muted),
+      );
     }
     if (error != null) {
-      return _Panel(theme: theme, child: Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)));
+      return _Panel(
+        theme: theme,
+        child: Text(
+          error!,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.destructive,
+          ),
+        ),
+      );
     }
     if (mounts.isEmpty) {
-      return _Panel(theme: theme, child: Text('No bind mounts.', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('No bind mounts.', style: theme.textTheme.muted),
+      );
     }
 
     return _Panel(
@@ -803,19 +956,45 @@ class _MountsTab extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Source (Host)', style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600))),
-              Expanded(child: Text('Destination (Container)', style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600))),
+              Expanded(
+                child: Text(
+                  'Source (Host)',
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Destination (Container)',
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ],
           ),
+
+          /// Creates a [_MountsTab] widget.
           const SizedBox(height: 8),
           Divider(color: theme.colorScheme.border, height: 1),
           for (final mount in mounts) ...[
+            /// Creates a [_MountsTab] widget.
             const SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: Text(mount.source, style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary))),
-                Expanded(child: Text(mount.destination, style: theme.textTheme.small)),
+                Expanded(
+                  child: Text(
+                    mount.source,
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(mount.destination, style: theme.textTheme.small),
+                ),
               ],
             ),
           ],
@@ -826,6 +1005,7 @@ class _MountsTab extends StatelessWidget {
 }
 
 class _ExecTab extends StatefulWidget {
+  /// Creates a [_ExecTab] widget.
   const _ExecTab({
     required this.theme,
     required this.containerId,
@@ -838,6 +1018,7 @@ class _ExecTab extends StatefulWidget {
   final CalfClient apiClient;
   final bool isRunning;
 
+  /// Creates the mutable state for [_ExecTab].
   @override
   State<_ExecTab> createState() => _ExecTabState();
 }
@@ -847,6 +1028,7 @@ class _ExecTabState extends State<_ExecTab> {
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -856,6 +1038,7 @@ class _ExecTabState extends State<_ExecTab> {
     }
   }
 
+  /// Refreshes local state when the parent widget changes.
   @override
   void didUpdateWidget(covariant _ExecTab oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -867,6 +1050,7 @@ class _ExecTabState extends State<_ExecTab> {
     }
   }
 
+  /// Opens the interactive exec WebSocket session.
   void _connect() {
     _disconnect();
     final uri = widget.apiClient.containerExecWebSocketUri(widget.containerId);
@@ -875,7 +1059,11 @@ class _ExecTabState extends State<_ExecTab> {
       _channel?.sink.add(utf8.encode(data));
     };
     _terminal.onResize = (width, height, pixelWidth, pixelHeight) {
-      final payload = jsonEncode({'type': 'resize', 'rows': height, 'cols': width});
+      final payload = jsonEncode({
+        'type': 'resize',
+        'rows': height,
+        'cols': width,
+      });
       _channel?.sink.add(payload);
     };
     _subscription = _channel!.stream.listen(
@@ -897,6 +1085,7 @@ class _ExecTabState extends State<_ExecTab> {
     );
   }
 
+  /// Closes the interactive exec WebSocket session.
   void _disconnect() {
     _subscription?.cancel();
     _subscription = null;
@@ -904,18 +1093,23 @@ class _ExecTabState extends State<_ExecTab> {
     _channel = null;
   }
 
+  /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
     _disconnect();
     super.dispose();
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (!widget.isRunning) {
       return _Panel(
         theme: widget.theme,
-        child: Text('Exec is available only for running containers.', style: widget.theme.textTheme.muted),
+        child: Text(
+          'Exec is available only for running containers.',
+          style: widget.theme.textTheme.muted,
+        ),
       );
     }
 
@@ -929,8 +1123,8 @@ class _ExecTabState extends State<_ExecTab> {
   }
 }
 
-
 class _StatsTab extends StatelessWidget {
+  /// Creates a [_StatsTab] widget.
   const _StatsTab({
     required this.theme,
     required this.loading,
@@ -945,16 +1139,31 @@ class _StatsTab extends StatelessWidget {
   final ContainerStats? stats;
   final _StatsHistory history;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading && stats == null) {
-      return _Panel(theme: theme, child: Text('Loading stats...', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('Loading stats...', style: theme.textTheme.muted),
+      );
     }
     if (error != null && stats == null) {
-      return _Panel(theme: theme, child: Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive)));
+      return _Panel(
+        theme: theme,
+        child: Text(
+          error!,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.destructive,
+          ),
+        ),
+      );
     }
     if (stats == null) {
-      return _Panel(theme: theme, child: Text('No stats available.', style: theme.textTheme.muted));
+      return _Panel(
+        theme: theme,
+        child: Text('No stats available.', style: theme.textTheme.muted),
+      );
     }
 
     return GridView.count(
@@ -967,7 +1176,11 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'CPU usage: ${stats!.cpuPercent}',
           series: [
-            _ChartSeries(label: 'CPU', color: theme.colorScheme.primary, values: history.cpu),
+            _ChartSeries(
+              label: 'CPU',
+              color: theme.colorScheme.primary,
+              values: history.cpu,
+            ),
           ],
           formatY: (value) => '${value.toStringAsFixed(1)}%',
         ),
@@ -975,7 +1188,11 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Memory usage: ${stats!.memUsage}',
           series: [
-            _ChartSeries(label: 'Memory', color: theme.colorScheme.primary, values: history.memUsed),
+            _ChartSeries(
+              label: 'Memory',
+              color: theme.colorScheme.primary,
+              values: history.memUsed,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -983,8 +1200,16 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Disk read/write: ${stats!.blockIo}',
           series: [
-            _ChartSeries(label: 'Data read', color: theme.colorScheme.primary, values: history.diskRead),
-            _ChartSeries(label: 'Data write', color: const Color(0xFFF97316), values: history.diskWrite),
+            _ChartSeries(
+              label: 'Data read',
+              color: theme.colorScheme.primary,
+              values: history.diskRead,
+            ),
+            _ChartSeries(
+              label: 'Data write',
+              color: const Color(0xFFF97316),
+              values: history.diskWrite,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -992,8 +1217,16 @@ class _StatsTab extends StatelessWidget {
           theme: theme,
           title: 'Network I/O: ${stats!.netIo}',
           series: [
-            _ChartSeries(label: 'Data received', color: theme.colorScheme.primary, values: history.netRx),
-            _ChartSeries(label: 'Data sent', color: const Color(0xFFF97316), values: history.netTx),
+            _ChartSeries(
+              label: 'Data received',
+              color: theme.colorScheme.primary,
+              values: history.netRx,
+            ),
+            _ChartSeries(
+              label: 'Data sent',
+              color: const Color(0xFFF97316),
+              values: history.netTx,
+            ),
           ],
           formatY: _formatBytes,
         ),
@@ -1003,6 +1236,7 @@ class _StatsTab extends StatelessWidget {
 }
 
 class _ChartSeries {
+  /// Creates a [_ChartSeries] widget.
   const _ChartSeries({
     required this.label,
     required this.color,
@@ -1015,6 +1249,7 @@ class _ChartSeries {
 }
 
 class _StatsChartCard extends StatelessWidget {
+  /// Creates a [_StatsChartCard] widget.
   const _StatsChartCard({
     required this.theme,
     required this.title,
@@ -1027,6 +1262,7 @@ class _StatsChartCard extends StatelessWidget {
   final List<_ChartSeries> series;
   final String Function(double value) formatY;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final maxValue = series
@@ -1038,7 +1274,12 @@ class _StatsChartCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            title,
+            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+          ),
+
+          /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 12),
           Expanded(
             child: LineChart(
@@ -1048,7 +1289,8 @@ class _StatsChartCard extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: theme.colorScheme.border, strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
@@ -1062,9 +1304,15 @@ class _StatsChartCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                 ),
                 lineBarsData: [
                   for (final item in series)
@@ -1082,6 +1330,8 @@ class _StatsChartCard extends StatelessWidget {
               ),
             ),
           ),
+
+          /// Creates a [_StatsChartCard] widget.
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
@@ -1091,6 +1341,8 @@ class _StatsChartCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(width: 10, height: 10, color: item.color),
+
+                    /// Creates a [_StatsChartCard] widget.
                     const SizedBox(width: 6),
                     Text(item.label, style: theme.textTheme.muted),
                   ],
@@ -1113,6 +1365,7 @@ class _StatsHistory {
   final netRx = <double>[];
   final netTx = <double>[];
 
+  /// Records a stats sample in the rolling history buffers.
   void add(ContainerStats stats) {
     _append(cpu, _parsePercent(stats.cpuPercent));
     _append(memUsed, _parsePair(stats.memUsage).$1);
@@ -1124,6 +1377,7 @@ class _StatsHistory {
     _append(netTx, net.$2);
   }
 
+  /// Appends a value to the rolling history buffer.
   void _append(List<double> target, double value) {
     target.add(value);
     if (target.length > _maxPoints) {
@@ -1132,6 +1386,7 @@ class _StatsHistory {
   }
 }
 
+/// Parse pair.
 (double, double) _parsePair(String value) {
   final parts = value.split('/');
   if (parts.length != 2) {
@@ -1140,10 +1395,12 @@ class _StatsHistory {
   return (_parseDataSize(parts[0]), _parseDataSize(parts[1]));
 }
 
+/// Parses the input string into a typed value.
 double _parsePercent(String value) {
   return double.tryParse(value.replaceAll('%', '').trim()) ?? 0;
 }
 
+/// Parses the input string into a typed value.
 double _parseDataSize(String value) {
   final normalized = value.trim().toUpperCase();
   final match = RegExp(r'^([\d.]+)\s*([A-Z]+)?$').firstMatch(normalized);
@@ -1170,6 +1427,7 @@ double _parseDataSize(String value) {
   }
 }
 
+/// Formats the value for display.
 String _formatBytes(double value) {
   if (value >= 1024 * 1024 * 1024) {
     return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
@@ -1183,6 +1441,7 @@ String _formatBytes(double value) {
   return '${value.toStringAsFixed(0)}B';
 }
 
+/// Returns the themed background color for detail panels.
 Color _panelBackgroundColor(ShadThemeData theme) {
   return Color.alphaBlend(
     theme.colorScheme.muted.withValues(alpha: 0.2),
@@ -1216,6 +1475,7 @@ const _lightTerminalTheme = TerminalTheme(
   searchHitForeground: Color(0xFF111827),
 );
 
+/// Builds a terminal color theme from the app theme.
 TerminalTheme _terminalThemeFor(ShadThemeData theme) {
   final background = _panelBackgroundColor(theme);
   final foreground = theme.colorScheme.foreground;
@@ -1251,16 +1511,17 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
   );
 }
 
+/// Returns the status color for the given container.
 Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
   if (container.isRunning) {
-    return const Color(0xFF2DBE60);
+    return CalfColors.success;
   }
   final state = container.state.toLowerCase();
   if (state == 'created' || state == 'restarting') {
-    return const Color(0xFFF0A500);
+    return CalfColors.warning;
   }
   if (container.status.toLowerCase().contains('restarting')) {
-    return const Color(0xFFF0A500);
+    return CalfColors.warning;
   }
   return theme.colorScheme.mutedForeground;
 }

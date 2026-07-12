@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-07-12
+
+### Changed
+
+- **Settings validation** — CPU, memory, and proxy values are checked on the server before they are saved.
+- **Startup port handling** — Calf only reclaims the listen port from another Calf instance, not unrelated processes.
+
+### Fixed
+
+- **Shutdown** — background migration and Docker Hub sign-in stop cleanly when the app closes.
+- **Error messages** — container operations no longer expose low-level runtime output in API responses.
+
 ## [0.9.0] - 2026-07-09
 
 ### Added
@@ -12,6 +24,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Update notifications** — Calf checks for updates on launch and in Settings, shows when a newer version is available, and opens the right installer for your platform.
 - **macOS menu bar** — Settings, section navigation, Docker Hub sign-in, update checks, and help links are available from the native menu bar.
 - **Open at login** — optional setting in Settings to start Calf automatically when you sign in.
+
+### Fixed
+
+- **Image push errors** — pushing an image to a registry now shows a clearer message when authentication fails.
+- **Volume export file names** — quick exports and scheduled exports now sanitize file names the same way.
+- **Container exec** — opening the Exec tab no longer shows a Lima provisioning warning on startup.
+- **Build source tab** — the Source tab in build details now shows the Dockerfile for builds imported from build history.
+
 
 ## [0.8.0] - 2026-07-08
 

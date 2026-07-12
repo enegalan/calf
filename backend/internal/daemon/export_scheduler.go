@@ -1,4 +1,4 @@
-package api
+package daemon
 
 import (
 	"context"
@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/volumeexport"
 )
 
-const exportSchedulerInterval = time.Minute
-
+// exportScheduler represents a scheduler for recurring volume exports.
 type exportScheduler struct {
-	server    *Server
+	core      *Core
 	logger    *slog.Logger
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -23,10 +23,11 @@ type exportScheduler struct {
 	stopOnce  sync.Once
 }
 
-func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
+// newExportScheduler creates a background scheduler bound to the daemon for recurring volume exports.
+func newExportScheduler(core *Core, logger *slog.Logger) *exportScheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &exportScheduler{
-		server: server,
+		core:   core,
 		logger: logger,
 		ctx:    ctx,
 		cancel: cancel,
@@ -35,12 +36,14 @@ func newExportScheduler(server *Server, logger *slog.Logger) *exportScheduler {
 	}
 }
 
+// Start launches the export scheduler goroutine exactly once.
 func (s *exportScheduler) Start() {
 	s.startOnce.Do(func() {
 		go s.run()
 	})
 }
 
+// Stop cancels the scheduler and waits for its goroutine to exit.
 func (s *exportScheduler) Stop() {
 	s.stopOnce.Do(func() {
 		s.cancel()
@@ -49,10 +52,11 @@ func (s *exportScheduler) Stop() {
 	})
 }
 
+// run ticks once per minute, checking for due export schedules until stopped.
 func (s *exportScheduler) run() {
 	defer close(s.done)
 
-	ticker := time.NewTicker(exportSchedulerInterval)
+	ticker := time.NewTicker(constants.ExportSchedulerInterval)
 	defer ticker.Stop()
 
 	s.tick()
@@ -67,6 +71,7 @@ func (s *exportScheduler) run() {
 	}
 }
 
+// tick evaluates all enabled schedules and runs any that are due.
 func (s *exportScheduler) tick() {
 	store, err := volumeexport.NewScheduleStore()
 	if err != nil {
@@ -108,13 +113,14 @@ func (s *exportScheduler) tick() {
 	}
 }
 
+// runSchedule executes one scheduled export and updates last-run metadata and next run time.
 func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedule volumeexport.Schedule, tickNow time.Time) {
-	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Minute)
+	ctx, cancel := context.WithTimeout(s.ctx, constants.VolumeExportTimeout)
 	defer cancel()
 
-	status, err := s.server.runtime.Status(ctx)
-	if err != nil || status.State != runtime.StateRunning {
-		schedule.LastStatus = volumeexport.StatusFailed
+	status, err := s.core.Runtime.Status(ctx)
+	if err != nil || status.State != runtime.State(constants.RuntimeStateRunning) {
+		schedule.LastStatus = constants.JobStatusFailed
 		schedule.LastError = "runtime is not running"
 		schedule.LastRunAt = tickNow.UTC().Format(time.RFC3339)
 		if nextRun, nextErr := volumeexport.ComputeNextRunAfterRun(schedule, time.Now()); nextErr == nil {
@@ -126,7 +132,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 		return
 	}
 
-	request := volumeExportRequest{
+	request := VolumeExportRequest{
 		Type: schedule.Type,
 	}
 
@@ -135,11 +141,11 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 	request.ImageRef = imageRef
 	request.Folder = schedule.Folder
 
-	_, exportErr := s.server.executeVolumeExport(ctx, schedule.Volume, request)
+	_, exportErr := s.core.ExecuteVolumeExport(ctx, schedule.Volume, request)
 	schedule.LastRunAt = tickNow.UTC().Format(time.RFC3339)
 
 	if exportErr != nil {
-		schedule.LastStatus = volumeexport.StatusFailed
+		schedule.LastStatus = constants.JobStatusFailed
 		schedule.LastError = exportErr.Error()
 		s.logger.Error(
 			"scheduled volume export failed",
@@ -148,7 +154,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 			"error", exportErr,
 		)
 	} else {
-		schedule.LastStatus = volumeexport.StatusCompleted
+		schedule.LastStatus = constants.JobStatusCompleted
 		schedule.LastError = ""
 		s.logger.Info("scheduled volume export completed", "volume", schedule.Volume, "schedule", schedule.ID)
 	}
@@ -156,7 +162,7 @@ func (s *exportScheduler) runSchedule(store *volumeexport.ScheduleStore, schedul
 	nextRun, err := volumeexport.ComputeNextRunAfterRun(schedule, time.Now())
 	if err != nil {
 		schedule.Enabled = false
-		schedule.LastStatus = volumeexport.StatusFailed
+		schedule.LastStatus = constants.JobStatusFailed
 		schedule.LastError = err.Error()
 	} else {
 		schedule.NextRunAt = nextRun.UTC().Format(time.RFC3339)

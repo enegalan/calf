@@ -7,46 +7,53 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 //go:embed config.yaml
 var defaultConfigYAML []byte
 
+// Config represents the configuration for the application.
 type Config struct {
-	ListenAddr            string `yaml:"listen_addr"`
-	LogLevel              string `yaml:"log_level"`
-	VMName                string `yaml:"vm_name"`
-	DockerSocket          string `yaml:"docker_socket"`
-	PollIntervalMs        int    `yaml:"poll_interval_ms"`
-	DockerContextManaged  bool   `yaml:"docker_context_managed"`
-	CPUs                  int    `yaml:"cpus"`
-	MemoryGB              int    `yaml:"memory_gb"`
-	MemorySwapGB          int    `yaml:"memory_swap_gb"`
-	DiskGB                int    `yaml:"disk_gb"`
-	HTTPProxy             string `yaml:"http_proxy"`
-	HTTPSProxy            string `yaml:"https_proxy"`
-	NoProxy               string `yaml:"no_proxy"`
+	ListenAddr           string `yaml:"listen_addr"`
+	LogLevel             string `yaml:"log_level"`
+	VMName               string `yaml:"vm_name"`
+	DockerSocket         string `yaml:"docker_socket"`
+	PollIntervalMs       int    `yaml:"poll_interval_ms"`
+	DockerContextManaged bool   `yaml:"docker_context_managed"`
+	CPUs                 int    `yaml:"cpus"`
+	MemoryGB             int    `yaml:"memory_gb"`
+	MemorySwapGB         int    `yaml:"memory_swap_gb"`
+	DiskGB               int    `yaml:"disk_gb"`
+	HTTPProxy            string `yaml:"http_proxy"`
+	HTTPSProxy           string `yaml:"https_proxy"`
+	NoProxy              string `yaml:"no_proxy"`
 }
 
+// Default returns the embedded config.yaml values without reading disk.
 func Default() Config {
 	return defaultFromYAML()
 }
 
+// defaultFromYAML unmarshals the embedded config.yaml template.
 func defaultFromYAML() Config {
 	var cfg Config
 	_ = yaml.Unmarshal(defaultConfigYAML, &cfg)
 	return cfg
 }
 
+// Path returns the absolute path to ~/.config/calf/config.yaml.
 func Path() (string, error) {
-	home, err := os.UserHomeDir()
+	dir, err := ConfigDir()
 	if err != nil {
 		return "", err
 	}
 
-	return filepath.Join(home, ".config", "calf", "config.yaml"), nil
+	return filepath.Join(dir, "config.yaml"), nil
 }
 
+// Load reads config from disk, writing defaults on first run, and backfills zero values.
 func Load() (Config, error) {
 	cfg := Default()
 
@@ -79,9 +86,10 @@ func Load() (Config, error) {
 	}
 
 	cfg = withDefaults(cfg)
-	return migrateLegacyDefaults(cfg), nil
+	return cfg, nil
 }
 
+// Save writes cfg to disk after applying defaults to empty fields.
 func Save(cfg Config) error {
 	path, err := Path()
 	if err != nil {
@@ -102,11 +110,12 @@ func Save(cfg Config) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// withDefaults fills zero or negative fields from embedded defaults so callers never see empty config.
 func withDefaults(cfg Config) Config {
 	defaults := defaultFromYAML()
 
 	if cfg.ListenAddr == "" {
-		cfg.ListenAddr = defaults.ListenAddr
+		cfg.ListenAddr = constants.DefaultListenAddr
 	}
 
 	if cfg.LogLevel == "" {
@@ -114,11 +123,11 @@ func withDefaults(cfg Config) Config {
 	}
 
 	if cfg.VMName == "" {
-		cfg.VMName = defaults.VMName
+		cfg.VMName = constants.DefaultVMName
 	}
 
 	if cfg.PollIntervalMs <= 0 {
-		cfg.PollIntervalMs = defaults.PollIntervalMs
+		cfg.PollIntervalMs = constants.DefaultPollIntervalMS
 	}
 
 	if cfg.CPUs <= 0 {
@@ -135,14 +144,6 @@ func withDefaults(cfg Config) Config {
 
 	if cfg.DiskGB <= 0 {
 		cfg.DiskGB = defaults.DiskGB
-	}
-
-	return cfg
-}
-
-func migrateLegacyDefaults(cfg Config) Config {
-	if cfg.ListenAddr == ":8080" {
-		cfg.ListenAddr = ":8765"
 	}
 
 	return cfg

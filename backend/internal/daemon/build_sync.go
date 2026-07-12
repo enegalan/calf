@@ -1,4 +1,4 @@
-package api
+package daemon
 
 import (
 	"context"
@@ -8,21 +8,13 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/buildhistory"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-const buildSyncInterval = 30 * time.Second
-const buildSyncEnrichTimeout = 2 * time.Minute
-
-func (s *Server) StartBuildSync(ctx context.Context) {
-	interval := buildSyncInterval
-	s.cfgMu.RLock()
-	if s.cfg.PollIntervalMs > 0 {
-		interval = time.Duration(s.cfg.PollIntervalMs) * time.Millisecond
-	}
-	s.cfgMu.RUnlock()
-
-	ticker := time.NewTicker(interval)
+// StartBuildSync periodically imports and enriches build history from the Docker socket until ctx is canceled.
+func (s *Core) StartBuildSync(ctx context.Context) {
+	ticker := time.NewTicker(constants.DefaultBuildSyncInterval)
 	defer ticker.Stop()
 
 	s.syncBuildHistory(ctx)
@@ -37,8 +29,9 @@ func (s *Server) StartBuildSync(ctx context.Context) {
 	}
 }
 
-func (s *Server) syncBuildHistory(ctx context.Context) {
-	socket := s.runtime.DockerSocket()
+// syncBuildHistory imports new buildkit rows and refreshes known history-linked builds in persisted storage.
+func (s *Core) syncBuildHistory(ctx context.Context) {
+	socket := s.Runtime.DockerSocket()
 	if socket == "" {
 		return
 	}
@@ -47,14 +40,14 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 		return
 	}
 
-	status, err := s.runtime.Status(ctx)
-	if err != nil || status.State != runtime.StateRunning {
+	status, err := s.Runtime.Status(ctx)
+	if err != nil || status.State != runtime.State(constants.RuntimeStateRunning) {
 		return
 	}
 
 	rows, err := buildhistory.List(ctx, socket)
 	if err != nil {
-		s.logger.Debug("build history sync skipped", "error", err)
+		s.Logger.Debug("build history sync skipped", "error", err)
 		return
 	}
 
@@ -62,20 +55,20 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 		return
 	}
 
-	enrichCtx, cancel := context.WithTimeout(ctx, buildSyncEnrichTimeout)
+	enrichCtx, cancel := context.WithTimeout(ctx, constants.BuildSyncEnrichTimeout)
 	defer cancel()
 
-	s.buildsMu.RLock()
-	known := make(map[string]struct{}, len(s.builds))
+	s.BuildsMu.RLock()
+	known := make(map[string]struct{}, len(s.Builds))
 	syncItems := make([]runtime.Build, 0)
-	for _, build := range s.builds {
+	for _, build := range s.Builds {
 		if build.HistoryRef != "" {
 			known[build.HistoryRef] = struct{}{}
 			syncItems = append(syncItems, build)
 		}
 	}
 	importRows := buildhistory.MergeRows(known, rows)
-	s.buildsMu.RUnlock()
+	s.BuildsMu.RUnlock()
 
 	byHistoryID := buildhistory.RowByHistoryID(rows)
 
@@ -97,27 +90,27 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 		newBuilds = append(newBuilds, s.enrichHistoryBuild(enrichCtx, socket, baseBuildFromHistoryRow(row)))
 	}
 
-	s.buildsMu.Lock()
-	defer s.buildsMu.Unlock()
+	s.BuildsMu.Lock()
+	defer s.BuildsMu.Unlock()
 
 	changed := false
 
-	for index, build := range s.builds {
+	for index, build := range s.Builds {
 		updated, ok := enrichedByID[build.ID]
 		if !ok {
 			continue
 		}
 
-		s.builds[index] = updated
+		s.Builds[index] = updated
 		changed = true
 	}
 
 	if len(newBuilds) > 0 {
 		for index := range newBuilds {
-			s.buildSeq++
-			newBuilds[index].ID = fmt.Sprintf("history-%d", s.buildSeq)
+			s.BuildSeq++
+			newBuilds[index].ID = fmt.Sprintf("history-%d", s.BuildSeq)
 		}
-		s.builds = append(newBuilds, s.builds...)
+		s.Builds = append(newBuilds, s.Builds...)
 		changed = true
 	}
 
@@ -126,6 +119,7 @@ func (s *Server) syncBuildHistory(ctx context.Context) {
 	}
 }
 
+// buildsEqual reports whether two builds have identical display-relevant fields.
 func buildsEqual(left, right runtime.Build) bool {
 	return left.Tag == right.Tag &&
 		left.Status == right.Status &&
@@ -144,6 +138,7 @@ func buildsEqual(left, right runtime.Build) bool {
 		timingEqual(left.Timing, right.Timing)
 }
 
+// timingEqual reports whether two BuildTiming values are identical.
 func timingEqual(left, right runtime.BuildTiming) bool {
 	return left.ImagePullsMs == right.ImagePullsMs &&
 		left.LocalTransfersMs == right.LocalTransfersMs &&
@@ -153,7 +148,8 @@ func timingEqual(left, right runtime.BuildTiming) bool {
 		left.IdleMs == right.IdleMs
 }
 
-func (s *Server) enrichHistoryBuild(ctx context.Context, socket string, build runtime.Build) runtime.Build {
+// enrichHistoryBuild fills context, logs, and artifacts for a build linked to buildkit history.
+func (s *Core) enrichHistoryBuild(ctx context.Context, socket string, build runtime.Build) runtime.Build {
 	if build.HistoryRef == "" {
 		return build
 	}
@@ -189,6 +185,7 @@ func (s *Server) enrichHistoryBuild(ctx context.Context, socket string, build ru
 	return build
 }
 
+// isTerminalBuildStatus reports whether a build status indicates the build has finished.
 func isTerminalBuildStatus(status string) bool {
 	switch status {
 	case "success", "failed":
@@ -198,6 +195,7 @@ func isTerminalBuildStatus(status string) bool {
 	}
 }
 
+// baseBuildFromHistoryRow constructs a runtime.Build skeleton from a buildkit history row.
 func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 	createdAt := row.BuildCreatedAt()
 	if createdAt == "" {
@@ -209,7 +207,7 @@ func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 		Tag:          buildhistory.NormalizeTag(row.BuildName()),
 		Context:      "",
 		Dockerfile:   "Dockerfile",
-		Platform:     defaultBuildPlatform(),
+		Platform:     DefaultBuildPlatform(),
 		Status:       buildhistory.NormalizeStatus(row.BuildStatus()),
 		CreatedAt:    createdAt,
 		FinishedAt:   row.CompletedAt,
@@ -224,6 +222,7 @@ func baseBuildFromHistoryRow(row buildhistory.Row) runtime.Build {
 	}
 }
 
+// applyHistoryRow updates mutable build fields from a fresh buildkit history row.
 func applyHistoryRow(build runtime.Build, row buildhistory.Row) runtime.Build {
 	updated := build
 	updated.Tag = buildhistory.NormalizeTag(row.BuildName())

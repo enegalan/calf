@@ -3,8 +3,12 @@ package volumeexport
 import (
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
+// HasUniqueNameToken reports whether pattern includes tokens that make each expanded name unique.
 func HasUniqueNameToken(pattern string) bool {
 	pattern = strings.ToLower(strings.TrimSpace(pattern))
 	if strings.Contains(pattern, "{timestamp}") || strings.Contains(pattern, "{datetime}") {
@@ -14,22 +18,27 @@ func HasUniqueNameToken(pattern string) bool {
 	return strings.Contains(pattern, "{date}") && strings.Contains(pattern, "{time}")
 }
 
+// DefaultFileNamePattern returns the default local-file export name pattern for volumeName.
 func DefaultFileNamePattern(volumeName string) string {
 	return "{volume}-{timestamp}.tar.gz"
 }
 
+// DefaultImageRefPattern returns the default image export reference pattern for volumeName.
 func DefaultImageRefPattern(volumeName string) string {
 	return "{volume}-backup:{timestamp}"
 }
 
+// ExpandExportNamePattern substitutes tokens in pattern and sanitizes the result as a file name.
 func ExpandExportNamePattern(pattern, volumeName string, runTime time.Time) string {
 	return expandNamePattern(pattern, volumeName, runTime, true)
 }
 
+// ExpandExportImageRefPattern substitutes tokens in pattern and normalizes the result as an image reference.
 func ExpandExportImageRefPattern(pattern, volumeName string, runTime time.Time) string {
 	return expandNamePattern(pattern, volumeName, runTime, false)
 }
 
+// expandNamePattern substitutes volume and time tokens, applying file- or image-specific defaults and normalization.
 func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExport bool) string {
 	pattern = strings.TrimSpace(pattern)
 	if pattern == "" {
@@ -55,24 +64,25 @@ func expandNamePattern(pattern, volumeName string, runTime time.Time, forFileExp
 
 	expanded := replacer.Replace(pattern)
 	if forFileExport {
-		return sanitizeExportFileName(expanded)
+		return utils.SanitizeExportFileName(expanded)
 	}
 
 	return strings.ToLower(strings.TrimSpace(expanded))
 }
 
+// ResolveScheduledExportNames expands file and image names for a scheduled export at runTime.
 func ResolveScheduledExportNames(schedule Schedule, runTime time.Time) (fileName, imageRef string) {
 	switch strings.TrimSpace(schedule.Type) {
-	case TypeLocalFile:
+	case constants.VolumeExportTypeLocalFile:
 		pattern := schedule.FileName
 		if strings.TrimSpace(pattern) == "" {
 			pattern = DefaultFileNamePattern(schedule.Volume)
 		}
 
 		return ExpandExportNamePattern(pattern, schedule.Volume, runTime), ""
-	case TypeLocalImage:
+	case constants.VolumeExportTypeLocalImage:
 		return "", schedule.ImageRef
-	case TypeNewImage, TypeRegistry:
+	case constants.VolumeExportTypeNewImage, constants.VolumeExportTypeRegistry:
 		pattern := schedule.ImageRef
 		if strings.TrimSpace(pattern) == "" {
 			pattern = DefaultImageRefPattern(schedule.Volume)
@@ -84,12 +94,7 @@ func ResolveScheduledExportNames(schedule Schedule, runTime time.Time) (fileName
 	}
 }
 
+// sanitizeVolumeToken replaces path separators in a volume name for use in name patterns.
 func sanitizeVolumeToken(value string) string {
-	replacer := strings.NewReplacer("/", "_", "\\", "_")
-	return replacer.Replace(strings.TrimSpace(value))
-}
-
-func sanitizeExportFileName(value string) string {
-	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "-")
-	return replacer.Replace(strings.TrimSpace(value))
+	return utils.SanitizeFileName(strings.TrimSpace(value))
 }

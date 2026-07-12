@@ -10,6 +10,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// watchParent shuts the daemon down when its parent dies. The Flutter app
+// spawns calf-daemon as a child; without this, orphans keep running after
+// the GUI exits unexpectedly.
 func watchParent(ctx context.Context, parentPID int, stop context.CancelFunc, logger *slog.Logger) {
 	handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(parentPID))
 	if err != nil {

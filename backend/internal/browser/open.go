@@ -6,6 +6,7 @@ import (
 	"runtime"
 )
 
+// OpenURL launches the system default browser or URL handler for the given address.
 func OpenURL(url string) error {
 	if url == "" {
 		return fmt.Errorf("url is empty")

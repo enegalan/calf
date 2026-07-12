@@ -5,9 +5,12 @@ import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/screens/volume_quick_export_screen.dart';
 import 'package:ui/screens/volume_schedule_export_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 
 enum _VolumeDetailTab { storedData, containersInUse, exports }
@@ -15,6 +18,7 @@ enum _VolumeDetailTab { storedData, containersInUse, exports }
 enum _VolumeDetailView { detail, quickExport, scheduleExport }
 
 class VolumeDetailView extends StatefulWidget {
+  /// Creates a [VolumeDetailView] widget.
   const VolumeDetailView({
     super.key,
     required this.volumeName,
@@ -28,6 +32,7 @@ class VolumeDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onRemoved;
 
+  /// Creates the mutable state for [VolumeDetailView].
   @override
   State<VolumeDetailView> createState() => _VolumeDetailViewState();
 }
@@ -53,6 +58,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
   String? _downloadingExportId;
   String? _togglingScheduleId;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
@@ -60,6 +66,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     _loadContainers();
   }
 
+  /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
     setState(() {
       _detailLoading = true;
@@ -67,7 +74,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final detail = await widget.apiClient.fetchVolumeDetail(widget.volumeName);
+      final detail = await widget.apiClient.fetchVolumeDetail(
+        widget.volumeName,
+      );
       if (!mounted) {
         return;
       }
@@ -86,6 +95,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Switches the active tab and loads tab-specific data.
   void _selectTab(_VolumeDetailTab tab) {
     if (_tab == tab) {
       return;
@@ -99,13 +109,12 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Fetches ExportsTab from the API and updates state.
   Future<void> _loadExportsTab() async {
-    await Future.wait([
-      _loadExports(),
-      _loadSchedules(),
-    ]);
+    await Future.wait([_loadExports(), _loadSchedules()]);
   }
 
+  /// Fetches Containers from the API and updates state.
   Future<void> _loadContainers() async {
     setState(() {
       _containersLoading = true;
@@ -113,7 +122,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final containers = await widget.apiClient.fetchVolumeContainers(widget.volumeName);
+      final containers = await widget.apiClient.fetchVolumeContainers(
+        widget.volumeName,
+      );
       if (!mounted) {
         return;
       }
@@ -132,6 +143,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Fetches Exports from the API and updates state.
   Future<void> _loadExports() async {
     setState(() {
       _exportsLoading = true;
@@ -139,7 +151,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final exports = await widget.apiClient.fetchVolumeExports(widget.volumeName);
+      final exports = await widget.apiClient.fetchVolumeExports(
+        widget.volumeName,
+      );
       if (!mounted) {
         return;
       }
@@ -158,6 +172,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Fetches Schedules from the API and updates state.
   Future<void> _loadSchedules() async {
     setState(() {
       _schedulesLoading = true;
@@ -165,7 +180,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final schedules = await widget.apiClient.fetchVolumeExportSchedules(widget.volumeName);
+      final schedules = await widget.apiClient.fetchVolumeExportSchedules(
+        widget.volumeName,
+      );
       if (!mounted) {
         return;
       }
@@ -184,6 +201,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Removes the selected resource via the API.
   Future<void> _removeVolume() async {
     setState(() {
       _busy = true;
@@ -208,14 +226,17 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Navigates to or opens the selected quickexport.
   void _openQuickExport() {
     setState(() => _view = _VolumeDetailView.quickExport);
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeQuickExport() {
     setState(() => _view = _VolumeDetailView.detail);
   }
 
+  /// Navigates to or opens the selected scheduleexport.
   void _openScheduleExport() {
     setState(() {
       _editingSchedule = null;
@@ -223,6 +244,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
   }
 
+  /// Navigates to or opens the selected scheduleedit.
   void _openScheduleEdit(VolumeExportScheduleItem schedule) {
     setState(() {
       _editingSchedule = schedule;
@@ -230,6 +252,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
   }
 
+  /// Closes the current detail view and returns to the list.
   void _closeScheduleExport() {
     setState(() {
       _editingSchedule = null;
@@ -237,6 +260,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
   }
 
+  /// Handles completion of the parent flow and refreshes exports.
   void _onScheduleCompleted() {
     setState(() {
       _editingSchedule = null;
@@ -246,7 +270,11 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     _loadExportsTab();
   }
 
-  Future<void> _setScheduleEnabled(VolumeExportScheduleItem schedule, bool enabled) async {
+  /// Enables or disables an export schedule via the API.
+  Future<void> _setScheduleEnabled(
+    VolumeExportScheduleItem schedule,
+    bool enabled,
+  ) async {
     setState(() {
       _togglingScheduleId = schedule.id;
       _schedulesError = null;
@@ -274,6 +302,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Handles completion of the parent flow and refreshes exports.
   void _onExportCompleted() {
     setState(() {
       _view = _VolumeDetailView.detail;
@@ -282,6 +311,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     _loadExportsTab();
   }
 
+  /// Downloads the export file and saves it to a user-chosen location.
   Future<void> _downloadExport(VolumeExportItem export) async {
     setState(() {
       _downloadingExportId = export.id;
@@ -289,7 +319,9 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     });
 
     try {
-      final suggestedName = export.fileName.isNotEmpty ? export.fileName : '${widget.volumeName}.tar.gz';
+      final suggestedName = export.fileName.isNotEmpty
+          ? export.fileName
+          : '${widget.volumeName}.tar.gz';
       final location = await getSaveLocation(suggestedName: suggestedName);
       if (location == null) {
         if (mounted) {
@@ -298,7 +330,10 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
         return;
       }
 
-      final bytes = await widget.apiClient.downloadVolumeExport(widget.volumeName, export.id);
+      final bytes = await widget.apiClient.downloadVolumeExport(
+        widget.volumeName,
+        export.id,
+      );
       await File(location.path).writeAsBytes(bytes);
       if (!mounted) {
         return;
@@ -315,6 +350,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_view == _VolumeDetailView.quickExport) {
@@ -343,24 +379,12 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Volumes', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                widget.volumeName,
-                style: theme.textTheme.muted,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Volumes', widget.volumeName],
+          onBack: widget.onBack,
         ),
+
+        /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 12),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,7 +395,13 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                 children: [
                   Row(
                     children: [
-                      Icon(LucideIcons.hardDrive, size: 20, color: theme.colorScheme.foreground),
+                      Icon(
+                        LucideIcons.hardDrive,
+                        size: 20,
+                        color: theme.colorScheme.foreground,
+                      ),
+
+                      /// Creates a [_VolumeDetailViewState] widget.
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -382,11 +412,18 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       ),
                     ],
                   ),
+
+                  /// Creates a [_VolumeDetailViewState] widget.
                   const SizedBox(height: 8),
                   if (_detailLoading)
                     Text('Loading...', style: theme.textTheme.muted)
                   else if (_detailError != null)
-                    Text(_detailError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
+                    Text(
+                      _detailError!,
+                      style: theme.textTheme.small.copyWith(
+                        color: theme.colorScheme.destructive,
+                      ),
+                    )
                   else if (detail != null) ...[
                     Row(
                       children: [
@@ -394,10 +431,14 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: detail.inUse ? const Color(0xFF22C55E) : theme.colorScheme.mutedForeground,
+                            color: detail.inUse
+                                ? CalfColors.success
+                                : theme.colorScheme.mutedForeground,
                             shape: BoxShape.circle,
                           ),
                         ),
+
+                        /// Creates a [_VolumeDetailViewState] widget.
                         const SizedBox(width: 8),
                         Text(
                           detail.inUse ? 'In use' : 'Not in use',
@@ -406,8 +447,12 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       ],
                     ),
                     if (detail.created.isNotEmpty) ...[
+                      /// Creates a [_VolumeDetailViewState] widget.
                       const SizedBox(height: 12),
-                      Text('Created ${detail.created}', style: theme.textTheme.muted),
+                      Text(
+                        'Created ${detail.created}',
+                        style: theme.textTheme.muted,
+                      ),
                     ],
                   ],
                 ],
@@ -417,46 +462,58 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
               enabled: !_busy,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               onPressed: _removeVolume,
-              child: Icon(LucideIcons.trash2, size: 16, color: theme.colorScheme.destructiveForeground),
+              child: Icon(
+                LucideIcons.trash2,
+                size: 16,
+                color: theme.colorScheme.destructiveForeground,
+              ),
             ),
           ],
         ),
+
+        /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 16),
-        _VolumeTabBar(
+        CalfTabBar(
           theme: theme,
-          selected: _tab,
-          onSelected: _selectTab,
+          labels: const ['Stored data', 'Container in-use', 'Exports'],
+          selectedIndex: _tab.index,
+          onSelected: (index) => _selectTab(_VolumeDetailTab.values[index]),
         ),
+
+        /// Creates a [_VolumeDetailViewState] widget.
         const SizedBox(height: 16),
         Expanded(
           child: switch (_tab) {
             _VolumeDetailTab.storedData => FilesPanel(
-                theme: theme,
-                loadDirectory: (path) => widget.apiClient.fetchVolumeFiles(widget.volumeName, path: path),
+              theme: theme,
+              loadDirectory: (path) => widget.apiClient.fetchVolumeFiles(
+                widget.volumeName,
+                path: path,
               ),
+            ),
             _VolumeDetailTab.containersInUse => _ContainersInUseTab(
-                theme: theme,
-                loading: _containersLoading,
-                error: _containersError,
-                containers: _containers,
-              ),
+              theme: theme,
+              loading: _containersLoading,
+              error: _containersError,
+              containers: _containers,
+            ),
             _VolumeDetailTab.exports => _ExportsTab(
-                theme: theme,
-                loading: _exportsLoading,
-                schedulesLoading: _schedulesLoading,
-                error: _exportsError,
-                schedulesError: _schedulesError,
-                downloadError: _downloadError,
-                exports: _exports,
-                schedules: _schedules,
-                downloadingExportId: _downloadingExportId,
-                onQuickExport: _openQuickExport,
-                onScheduleExport: _openScheduleExport,
-                onEditSchedule: _openScheduleEdit,
-                onScheduleEnabledChanged: _setScheduleEnabled,
-                togglingScheduleId: _togglingScheduleId,
-                onDownload: _downloadExport,
-              ),
+              theme: theme,
+              loading: _exportsLoading,
+              schedulesLoading: _schedulesLoading,
+              error: _exportsError,
+              schedulesError: _schedulesError,
+              downloadError: _downloadError,
+              exports: _exports,
+              schedules: _schedules,
+              downloadingExportId: _downloadingExportId,
+              onQuickExport: _openQuickExport,
+              onScheduleExport: _openScheduleExport,
+              onEditSchedule: _openScheduleEdit,
+              onScheduleEnabledChanged: _setScheduleEnabled,
+              togglingScheduleId: _togglingScheduleId,
+              onDownload: _downloadExport,
+            ),
           },
         ),
       ],
@@ -464,83 +521,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
   }
 }
 
-class _VolumeTabBar extends StatelessWidget {
-  const _VolumeTabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _VolumeDetailTab selected;
-  final ValueChanged<_VolumeDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _VolumeDetailTab.values;
-    const labels = ['Stored data', 'Container in-use', 'Exports'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _VolumeTabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _VolumeTabButton extends StatelessWidget {
-  const _VolumeTabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ExportsTab extends StatelessWidget {
+  /// Creates a [_ExportsTab] widget.
   const _ExportsTab({
     required this.theme,
     required this.loading,
@@ -571,10 +553,12 @@ class _ExportsTab extends StatelessWidget {
   final VoidCallback onQuickExport;
   final VoidCallback onScheduleExport;
   final ValueChanged<VolumeExportScheduleItem> onEditSchedule;
-  final void Function(VolumeExportScheduleItem schedule, bool enabled) onScheduleEnabledChanged;
+  final void Function(VolumeExportScheduleItem schedule, bool enabled)
+  onScheduleEnabledChanged;
   final String? togglingScheduleId;
   final ValueChanged<VolumeExportItem> onDownload;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -582,7 +566,8 @@ class _ExportsTab extends StatelessWidget {
         _ExportSectionCard(
           theme: theme,
           title: 'Schedule export',
-          subtitle: 'Set schedules effortlessly and eliminate manual tasks, ensuring reliable and efficient data management.',
+          subtitle:
+              'Set schedules effortlessly and eliminate manual tasks, ensuring reliable and efficient data management.',
           action: CalfButton(
             onPressed: onScheduleExport,
             child: const Text('Add schedule'),
@@ -590,37 +575,60 @@ class _ExportsTab extends StatelessWidget {
           child: schedulesLoading
               ? Text('Loading schedules...', style: theme.textTheme.muted)
               : schedulesError != null
-                  ? Text(schedulesError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-                  : schedules.isEmpty
-                      ? Column(
-                          children: [
-                            Icon(LucideIcons.calendarClock, size: 28, color: theme.colorScheme.mutedForeground),
-                            const SizedBox(height: 12),
-                            Text('Schedule exports', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Use Add schedule to create recurring backups for this volume.',
-                              style: theme.textTheme.muted,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            for (final schedule in schedules) ...[
-                              _ScheduleHistoryRow(
-                                theme: theme,
-                                schedule: schedule,
-                                toggling: togglingScheduleId == schedule.id,
-                                onEdit: () => onEditSchedule(schedule),
-                                onEnabledChanged: (enabled) => onScheduleEnabledChanged(schedule, enabled),
-                              ),
-                              if (schedule != schedules.last) const SizedBox(height: 12),
-                            ],
-                          ],
-                        ),
+              ? Text(
+                  schedulesError!,
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.destructive,
+                  ),
+                )
+              : schedules.isEmpty
+              ? Column(
+                  children: [
+                    Icon(
+                      LucideIcons.calendarClock,
+                      size: 28,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+
+                    /// Creates a [_ExportsTab] widget.
+                    const SizedBox(height: 12),
+                    Text(
+                      'Schedule exports',
+                      style: theme.textTheme.large.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    /// Creates a [_ExportsTab] widget.
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use Add schedule to create recurring backups for this volume.',
+                      style: theme.textTheme.muted,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final schedule in schedules) ...[
+                      _ScheduleHistoryRow(
+                        theme: theme,
+                        schedule: schedule,
+                        toggling: togglingScheduleId == schedule.id,
+                        onEdit: () => onEditSchedule(schedule),
+                        onEnabledChanged: (enabled) =>
+                            onScheduleEnabledChanged(schedule, enabled),
+                      ),
+                      if (schedule != schedules.last)
+                        /// Creates a [_ExportsTab] widget.
+                        const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
         ),
+
+        /// Creates a [_ExportsTab] widget.
         const SizedBox(height: 16),
         _ExportSectionCard(
           theme: theme,
@@ -633,45 +641,68 @@ class _ExportsTab extends StatelessWidget {
           child: loading
               ? Text('Loading exports...', style: theme.textTheme.muted)
               : error != null
-                  ? Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
-                  : exports.isEmpty
-                      ? Column(
-                          children: [
-                            Icon(LucideIcons.fileText, size: 28, color: theme.colorScheme.mutedForeground),
-                            const SizedBox(height: 12),
-                            Text('No data', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Use the Quick export button to create export history.',
-                              style: theme.textTheme.muted,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (downloadError != null) ...[
-                              Text(
-                                downloadError!,
-                                style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
-                              ),
-                              const SizedBox(height: 12),
-                            ],
-                            for (final export in exports) ...[
-                              _ExportHistoryRow(
-                                theme: theme,
-                                export: export,
-                                downloading: downloadingExportId == export.id,
-                                onDownload: export.downloadable && export.status == 'completed'
-                                    ? () => onDownload(export)
-                                    : null,
-                              ),
-                              if (export != exports.last)
-                                Container(height: 1, color: theme.colorScheme.border),
-                            ],
-                          ],
+              ? Text(
+                  error!,
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.destructive,
+                  ),
+                )
+              : exports.isEmpty
+              ? Column(
+                  children: [
+                    Icon(
+                      LucideIcons.fileText,
+                      size: 28,
+                      color: theme.colorScheme.mutedForeground,
+                    ),
+
+                    /// Creates a [_ExportsTab] widget.
+                    const SizedBox(height: 12),
+                    Text(
+                      'No data',
+                      style: theme.textTheme.large.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    /// Creates a [_ExportsTab] widget.
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use the Quick export button to create export history.',
+                      style: theme.textTheme.muted,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (downloadError != null) ...[
+                      Text(
+                        downloadError!,
+                        style: theme.textTheme.small.copyWith(
+                          color: theme.colorScheme.destructive,
                         ),
+                      ),
+
+                      /// Creates a [_ExportsTab] widget.
+                      const SizedBox(height: 12),
+                    ],
+                    for (final export in exports) ...[
+                      _ExportHistoryRow(
+                        theme: theme,
+                        export: export,
+                        downloading: downloadingExportId == export.id,
+                        onDownload:
+                            export.downloadable && export.status == 'completed'
+                            ? () => onDownload(export)
+                            : null,
+                      ),
+                      if (export != exports.last)
+                        Container(height: 1, color: theme.colorScheme.border),
+                    ],
+                  ],
+                ),
         ),
       ],
     );
@@ -679,6 +710,7 @@ class _ExportsTab extends StatelessWidget {
 }
 
 class _ExportSectionCard extends StatelessWidget {
+  /// Creates a [_ExportSectionCard] widget.
   const _ExportSectionCard({
     required this.theme,
     required this.title,
@@ -693,6 +725,7 @@ class _ExportSectionCard extends StatelessWidget {
   final Widget child;
   final Widget? action;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -711,7 +744,14 @@ class _ExportSectionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      title,
+                      style: theme.textTheme.large.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    /// Creates a [_ExportSectionCard] widget.
                     const SizedBox(height: 4),
                     Text(subtitle, style: theme.textTheme.muted),
                   ],
@@ -720,6 +760,8 @@ class _ExportSectionCard extends StatelessWidget {
               ?action,
             ],
           ),
+
+          /// Creates a [_ExportSectionCard] widget.
           const SizedBox(height: 20),
           child,
         ],
@@ -729,6 +771,7 @@ class _ExportSectionCard extends StatelessWidget {
 }
 
 class _ScheduleHistoryRow extends StatelessWidget {
+  /// Creates a [_ScheduleHistoryRow] widget.
   const _ScheduleHistoryRow({
     required this.theme,
     required this.schedule,
@@ -743,6 +786,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
   final VoidCallback onEdit;
   final ValueChanged<bool> onEnabledChanged;
 
+  /// Whether or what value backs the `typeIcon` UI state.
   IconData get _typeIcon {
     switch (schedule.type) {
       case 'local_image':
@@ -755,15 +799,18 @@ class _ScheduleHistoryRow extends StatelessWidget {
     }
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final enabled = schedule.enabled;
-    final enabledColor = enabled ? const Color(0xFF22C55E) : theme.colorScheme.mutedForeground;
+    final enabledColor = enabled
+        ? CalfColors.success
+        : theme.colorScheme.mutedForeground;
     final lastStatusColor = schedule.lastStatus == 'completed'
-        ? const Color(0xFF22C55E)
+        ? CalfColors.success
         : schedule.lastStatus == 'failed'
-            ? theme.colorScheme.destructive
-            : theme.colorScheme.mutedForeground;
+        ? theme.colorScheme.destructive
+        : theme.colorScheme.mutedForeground;
 
     return Container(
       decoration: BoxDecoration(
@@ -785,6 +832,8 @@ class _ScheduleHistoryRow extends StatelessWidget {
             ),
             child: Icon(_typeIcon, size: 18, color: theme.colorScheme.primary),
           ),
+
+          /// Creates a [_ScheduleHistoryRow] widget.
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -792,8 +841,12 @@ class _ScheduleHistoryRow extends StatelessWidget {
               children: [
                 Text(
                   schedule.typeLabel,
-                  style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+
+                /// Creates a [_ScheduleHistoryRow] widget.
                 const SizedBox(height: 10),
                 if (schedule.dayTimes.isNotEmpty) ...[
                   for (final entry in schedule.dayTimes) ...[
@@ -803,7 +856,9 @@ class _ScheduleHistoryRow extends StatelessWidget {
                       children: [
                         _ScheduleMiniChip(
                           theme: theme,
-                          label: VolumeExportScheduleItem.weekdayShort(entry.day),
+                          label: VolumeExportScheduleItem.weekdayShort(
+                            entry.day,
+                          ),
                           emphasized: enabled,
                         ),
                         for (final time in entry.times)
@@ -815,48 +870,25 @@ class _ScheduleHistoryRow extends StatelessWidget {
                           ),
                       ],
                     ),
+
+                    /// Creates a [_ScheduleHistoryRow] widget.
                     const SizedBox(height: 8),
                   ],
-                ] else ...[
-                  if (schedule.daysOfWeek.isNotEmpty) ...[
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final day in schedule.daysOfWeek)
-                          _ScheduleMiniChip(
-                            theme: theme,
-                            label: VolumeExportScheduleItem.weekdayShort(day),
-                            emphasized: enabled,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (schedule.times.isNotEmpty)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final time in schedule.times)
-                          _ScheduleMiniChip(
-                            theme: theme,
-                            label: time,
-                            icon: LucideIcons.clock,
-                            emphasized: enabled,
-                          ),
-                      ],
-                    ),
                 ],
                 if (schedule.destinationSummary.isNotEmpty) ...[
+                  /// Creates a [_ScheduleHistoryRow] widget.
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Icon(
-                        schedule.type == 'local_file' ? LucideIcons.folder : LucideIcons.tag,
+                        schedule.type == 'local_file'
+                            ? LucideIcons.folder
+                            : LucideIcons.tag,
                         size: 14,
                         color: theme.colorScheme.mutedForeground,
                       ),
+
+                      /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -869,20 +901,33 @@ class _ScheduleHistoryRow extends StatelessWidget {
                   ),
                 ],
                 if (enabled && schedule.formattedNextRun.isNotEmpty) ...[
+                  /// Creates a [_ScheduleHistoryRow] widget.
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(LucideIcons.calendarClock, size: 14, color: theme.colorScheme.mutedForeground),
+                      Icon(
+                        LucideIcons.calendarClock,
+                        size: 14,
+                        color: theme.colorScheme.mutedForeground,
+                      ),
+
+                      /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 6),
-                      Text('Next run ${schedule.formattedNextRun}', style: theme.textTheme.muted),
+                      Text(
+                        'Next run ${schedule.formattedNextRun}',
+                        style: theme.textTheme.muted,
+                      ),
                     ],
                   ),
                 ],
                 if (schedule.lastStatus.isNotEmpty) ...[
+                  /// Creates a [_ScheduleHistoryRow] widget.
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Text('Last run', style: theme.textTheme.small),
+
+                      /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 8),
                       _ScheduleBadge(
                         theme: theme,
@@ -893,16 +938,21 @@ class _ScheduleHistoryRow extends StatelessWidget {
                   ),
                 ],
                 if (schedule.lastError.isNotEmpty) ...[
+                  /// Creates a [_ScheduleHistoryRow] widget.
                   const SizedBox(height: 8),
                   Text(
                     schedule.lastError,
-                    style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.destructive,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ],
             ),
           ),
+
+          /// Creates a [_ScheduleHistoryRow] widget.
           const SizedBox(width: 12),
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -912,16 +962,17 @@ class _ScheduleHistoryRow extends StatelessWidget {
                 enabled ? 'Enabled' : 'Paused',
                 style: theme.textTheme.small.copyWith(color: enabledColor),
               ),
+
+              /// Creates a [_ScheduleHistoryRow] widget.
               const SizedBox(width: 8),
               ShadSwitch(
                 value: enabled,
                 onChanged: toggling ? null : onEnabledChanged,
               ),
+
+              /// Creates a [_ScheduleHistoryRow] widget.
               const SizedBox(width: 12),
-              CalfButton.outline(
-                onPressed: onEdit,
-                child: const Text('Edit'),
-              ),
+              CalfButton.outline(onPressed: onEdit, child: const Text('Edit')),
             ],
           ),
         ],
@@ -931,6 +982,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
 }
 
 class _ScheduleBadge extends StatelessWidget {
+  /// Creates a [_ScheduleBadge] widget.
   const _ScheduleBadge({
     required this.theme,
     required this.label,
@@ -941,6 +993,7 @@ class _ScheduleBadge extends StatelessWidget {
   final String label;
   final Color color;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -951,13 +1004,17 @@ class _ScheduleBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: theme.textTheme.small.copyWith(color: color, fontWeight: FontWeight.w600),
+        style: theme.textTheme.small.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }
 }
 
 class _ScheduleMiniChip extends StatelessWidget {
+  /// Creates a [_ScheduleMiniChip] widget.
   const _ScheduleMiniChip({
     required this.theme,
     required this.label,
@@ -970,25 +1027,34 @@ class _ScheduleMiniChip extends StatelessWidget {
   final IconData? icon;
   final bool emphasized;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final background = emphasized
         ? theme.colorScheme.primary.withValues(alpha: 0.12)
         : theme.colorScheme.muted.withValues(alpha: 0.45);
-    final foreground = emphasized ? theme.colorScheme.primary : theme.colorScheme.foreground;
+    final foreground = emphasized
+        ? theme.colorScheme.primary
+        : theme.colorScheme.foreground;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(999),
-        border: emphasized ? Border.all(color: theme.colorScheme.primary.withValues(alpha: 0.25)) : null,
+        border: emphasized
+            ? Border.all(
+                color: theme.colorScheme.primary.withValues(alpha: 0.25),
+              )
+            : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
             Icon(icon, size: 12, color: foreground),
+
+            /// Creates a [_ScheduleMiniChip] widget.
             const SizedBox(width: 4),
           ],
           Text(
@@ -1005,6 +1071,7 @@ class _ScheduleMiniChip extends StatelessWidget {
 }
 
 class _ExportHistoryRow extends StatelessWidget {
+  /// Creates a [_ExportHistoryRow] widget.
   const _ExportHistoryRow({
     required this.theme,
     required this.export,
@@ -1017,11 +1084,14 @@ class _ExportHistoryRow extends StatelessWidget {
   final bool downloading;
   final VoidCallback? onDownload;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (export.status) {
-      'completed' => const Color(0xFF22C55E),
+      'completed' => CalfColors.success,
       'failed' => theme.colorScheme.destructive,
+
+      /// .
       _ => theme.colorScheme.mutedForeground,
     };
 
@@ -1033,7 +1103,14 @@ class _ExportHistoryRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(export.typeLabel, style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  export.typeLabel,
+                  style: theme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+
+                /// Creates a [_ExportHistoryRow] widget.
                 const SizedBox(height: 4),
                 Text(
                   export.summary,
@@ -1041,10 +1118,13 @@ class _ExportHistoryRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (export.error.isNotEmpty) ...[
+                  /// Creates a [_ExportHistoryRow] widget.
                   const SizedBox(height: 4),
                   Text(
                     export.error,
-                    style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+                    style: theme.textTheme.small.copyWith(
+                      color: theme.colorScheme.destructive,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -1053,9 +1133,13 @@ class _ExportHistoryRow extends StatelessWidget {
           ),
           if (export.size.isNotEmpty) ...[
             Text(export.size, style: theme.textTheme.muted),
+
+            /// Creates a [_ExportHistoryRow] widget.
             const SizedBox(width: 16),
           ],
           Text(export.createdAt, style: theme.textTheme.muted),
+
+          /// Creates a [_ExportHistoryRow] widget.
           const SizedBox(width: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1069,6 +1153,7 @@ class _ExportHistoryRow extends StatelessWidget {
             ),
           ),
           if (onDownload != null) ...[
+            /// Creates a [_ExportHistoryRow] widget.
             const SizedBox(width: 12),
             CalfButton.outline(
               enabled: !downloading,
@@ -1083,6 +1168,7 @@ class _ExportHistoryRow extends StatelessWidget {
 }
 
 class _ContainersInUseTab extends StatelessWidget {
+  /// Creates a [_ContainersInUseTab] widget.
   const _ContainersInUseTab({
     required this.theme,
     required this.loading,
@@ -1095,6 +1181,7 @@ class _ContainersInUseTab extends StatelessWidget {
   final String? error;
   final List<VolumeContainerUsage> containers;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
@@ -1102,11 +1189,19 @@ class _ContainersInUseTab extends StatelessWidget {
     }
 
     if (error != null) {
-      return Text(error!, style: theme.textTheme.large.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.large.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
 
     if (containers.isEmpty) {
-      return Text('No containers are using this volume.', style: theme.textTheme.muted);
+      return Text(
+        'No containers are using this volume.',
+        style: theme.textTheme.muted,
+      );
     }
 
     final labelStyle = theme.textTheme.small.copyWith(
@@ -1121,48 +1216,75 @@ class _ContainersInUseTab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              Expanded(flex: 3, child: Text('Container name', style: labelStyle)),
+              Expanded(
+                flex: 3,
+                child: Text('Container name', style: labelStyle),
+              ),
               Expanded(flex: 3, child: Text('Image', style: labelStyle)),
               Expanded(child: Text('Port', style: labelStyle)),
               Expanded(flex: 2, child: Text('Target', style: labelStyle)),
             ],
           ),
         ),
+
+        /// Creates a [_ContainersInUseTab] widget.
         const SizedBox(height: 8),
         Expanded(
           child: ListView.separated(
             itemCount: containers.length,
-            separatorBuilder: (_, _) => Container(height: 1, color: theme.colorScheme.border),
+            separatorBuilder: (_, _) =>
+                Container(height: 1, color: theme.colorScheme.border),
             itemBuilder: (context, index) {
               final container = containers[index];
 
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
                 child: Row(
                   children: [
-                    Icon(LucideIcons.box, size: 16, color: theme.colorScheme.primary),
+                    Icon(
+                      LucideIcons.box,
+                      size: 16,
+                      color: theme.colorScheme.primary,
+                    ),
+
+                    /// Creates a [_ContainersInUseTab] widget.
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 3,
                       child: Text(
                         container.name,
-                        style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.small.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Expanded(
                       flex: 3,
-                      child: Text(container.image, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        container.image,
+                        style: theme.textTheme.muted,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     Expanded(
                       child: Text(
                         container.port,
-                        style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary),
+                        style: theme.textTheme.small.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
                       ),
                     ),
                     Expanded(
                       flex: 2,
-                      child: Text(container.target, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        container.target,
+                        style: theme.textTheme.muted,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),

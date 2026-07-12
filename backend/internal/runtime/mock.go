@@ -7,38 +7,42 @@ import (
 	"io"
 	"path/filepath"
 	"sync"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+// Mock represents a mock runtime.
 type Mock struct {
 	mu sync.Mutex
 
-	StatusValue    Status
-	Containers     []Container
-	Images         []Image
-	Volumes        []Volume
-	Networks       []Network
-	StartErr       error
-	StopErr        error
-	StatusErr      error
-	ContainersErr  error
-	ImagesErr      error
-	ContainerErr   error
-	ExportVolumeErr error
-	ImageErr       error
-	NetworksErr    error
-	NetworkErr     error
-	LogLines       []string
-	Started        bool
+	StatusValue      Status
+	Containers       []Container
+	Images           []Image
+	Volumes          []Volume
+	Networks         []Network
+	StartErr         error
+	StopErr          error
+	StatusErr        error
+	ContainersErr    error
+	ImagesErr        error
+	ContainerErr     error
+	ExportVolumeErr  error
+	ImageErr         error
+	NetworksErr      error
+	NetworkErr       error
+	LogLines         []string
+	Started          bool
 	registryLoggedIn bool
 }
 
+// NewMock returns a Mock preloaded with sample containers, images, volumes, and networks.
 func NewMock() *Mock {
 	return &Mock{
 		StatusValue: Status{
-			Mode:         ModeVM,
-			State:        StateRunning,
+			Mode:         Mode(constants.RuntimeModeVM),
+			State:        State(constants.RuntimeStateRunning),
 			DockerSocket: "/tmp/calf-test.sock",
-			VMName:       "calf",
+			VMName:       constants.DefaultVMName,
 		},
 		Containers: []Container{
 			{
@@ -67,10 +71,12 @@ func NewMock() *Mock {
 	}
 }
 
+// DockerSocket returns the mock runtime Docker socket path.
 func (m *Mock) DockerSocket() string {
 	return m.StatusValue.DockerSocket
 }
 
+// Start marks the mock runtime as started and running.
 func (m *Mock) Start(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -80,10 +86,11 @@ func (m *Mock) Start(_ context.Context) error {
 	}
 
 	m.Started = true
-	m.StatusValue.State = StateRunning
+	m.StatusValue.State = State(constants.RuntimeStateRunning)
 	return nil
 }
 
+// Stop marks the mock runtime as stopped.
 func (m *Mock) Stop(_ context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -93,10 +100,11 @@ func (m *Mock) Stop(_ context.Context) error {
 	}
 
 	m.Started = false
-	m.StatusValue.State = StateStopped
+	m.StatusValue.State = State(constants.RuntimeStateStopped)
 	return nil
 }
 
+// Status returns the configured StatusValue or StatusErr.
 func (m *Mock) Status(_ context.Context) (Status, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -108,6 +116,7 @@ func (m *Mock) Status(_ context.Context) (Status, error) {
 	return m.StatusValue, nil
 }
 
+// ListContainers returns a copy of the configured containers list.
 func (m *Mock) ListContainers(_ context.Context) ([]Container, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -119,6 +128,7 @@ func (m *Mock) ListContainers(_ context.Context) ([]Container, error) {
 	return append([]Container(nil), m.Containers...), nil
 }
 
+// ListImages returns a copy of the configured images list.
 func (m *Mock) ListImages(_ context.Context) ([]Image, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -130,6 +140,7 @@ func (m *Mock) ListImages(_ context.Context) ([]Image, error) {
 	return append([]Image(nil), m.Images...), nil
 }
 
+// ImageHistory returns sample layer history for the given image reference.
 func (m *Mock) ImageHistory(_ context.Context, ref string) ([]ImageLayer, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -138,7 +149,7 @@ func (m *Mock) ImageHistory(_ context.Context, ref string) ([]ImageLayer, error)
 		return nil, m.ImagesErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -150,11 +161,12 @@ func (m *Mock) ImageHistory(_ context.Context, ref string) ([]ImageLayer, error)
 	}, nil
 }
 
+// ListVolumes returns configured volumes enriched with mock size and in-use metadata.
 func (m *Mock) ListVolumes(_ context.Context) ([]Volume, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return []Volume{}, nil
 	}
 
@@ -168,6 +180,7 @@ func (m *Mock) ListVolumes(_ context.Context) ([]Volume, error) {
 	return volumes, nil
 }
 
+// CreateVolume appends a new volume to the mock store.
 func (m *Mock) CreateVolume(_ context.Context, name string) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -177,6 +190,7 @@ func (m *Mock) CreateVolume(_ context.Context, name string) error {
 	return nil
 }
 
+// CloneVolume duplicates a source volume entry under a new name in the mock store.
 func (m *Mock) CloneVolume(_ context.Context, source, dest string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -209,6 +223,7 @@ func (m *Mock) CloneVolume(_ context.Context, source, dest string) error {
 	return nil
 }
 
+// ExportVolume returns a mock destination path based on export options.
 func (m *Mock) ExportVolume(_ context.Context, opts VolumeExportOptions) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -235,6 +250,7 @@ func (m *Mock) ExportVolume(_ context.Context, opts VolumeExportOptions) (string
 	}
 }
 
+// RemoveVolume deletes a volume from the mock store by name.
 func (m *Mock) RemoveVolume(_ context.Context, name string) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -251,11 +267,12 @@ func (m *Mock) RemoveVolume(_ context.Context, name string) error {
 	return nil
 }
 
+// InspectVolume returns mock detail for a volume by name.
 func (m *Mock) InspectVolume(_ context.Context, name string) (VolumeDetail, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return VolumeDetail{}, ErrRuntimeNotRunning
 	}
 
@@ -276,11 +293,12 @@ func (m *Mock) InspectVolume(_ context.Context, name string) (VolumeDetail, erro
 	return VolumeDetail{}, fmt.Errorf("volume %s not found", name)
 }
 
+// ListVolumeFiles returns sample file entries for a volume at the given path.
 func (m *Mock) ListVolumeFiles(_ context.Context, name, path string) ([]ContainerFileEntry, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -315,11 +333,12 @@ func (m *Mock) ListVolumeFiles(_ context.Context, name, path string) ([]Containe
 	}
 }
 
+// VolumeContainers returns mock container usages for a volume.
 func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContainerUsage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return nil, ErrRuntimeNotRunning
 	}
 
@@ -345,12 +364,13 @@ func (m *Mock) VolumeContainers(_ context.Context, name string) ([]VolumeContain
 			ID:     container.ID,
 			Name:   container.Name,
 			Image:  container.Image,
-			Port:   extractHostPort(container.Ports),
+			Port:   ExtractHostTCPPort(container.Ports),
 			Target: "/data",
 		},
 	}, nil
 }
 
+// RunBuild parses sample build output and returns an enriched BuildResult.
 func (m *Mock) RunBuild(_ context.Context, _, tag, dockerfile, platform string) (BuildResult, error) {
 	if m.ImageErr != nil {
 		return BuildResult{}, m.ImageErr
@@ -371,6 +391,7 @@ func (m *Mock) RunBuild(_ context.Context, _, tag, dockerfile, platform string) 
 	return result, nil
 }
 
+// StartContainer marks a mock container as running.
 func (m *Mock) StartContainer(_ context.Context, id string) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -386,6 +407,7 @@ func (m *Mock) StartContainer(_ context.Context, id string) error {
 	return nil
 }
 
+// StopContainer marks a mock container as exited.
 func (m *Mock) StopContainer(_ context.Context, id string) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -401,6 +423,7 @@ func (m *Mock) StopContainer(_ context.Context, id string) error {
 	return nil
 }
 
+// RemoveContainer deletes a container from the mock store by ID.
 func (m *Mock) RemoveContainer(_ context.Context, id string) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -417,6 +440,7 @@ func (m *Mock) RemoveContainer(_ context.Context, id string) error {
 	return nil
 }
 
+// RemoveImage deletes an image from the mock store by ref or ID.
 func (m *Mock) RemoveImage(_ context.Context, ref string) error {
 	if m.ImageErr != nil {
 		return m.ImageErr
@@ -433,6 +457,7 @@ func (m *Mock) RemoveImage(_ context.Context, ref string) error {
 	return nil
 }
 
+// PullImage appends a pulled image entry to the mock store.
 func (m *Mock) PullImage(_ context.Context, ref string) error {
 	if m.ImageErr != nil {
 		return m.ImageErr
@@ -448,6 +473,7 @@ func (m *Mock) PullImage(_ context.Context, ref string) error {
 	return nil
 }
 
+// PushImage is a no-op success unless ImageErr is configured.
 func (m *Mock) PushImage(_ context.Context, ref string) error {
 	if m.ImageErr != nil {
 		return m.ImageErr
@@ -457,12 +483,13 @@ func (m *Mock) PushImage(_ context.Context, ref string) error {
 	return nil
 }
 
+// RunImage returns a mock container ID for a run request.
 func (m *Mock) RunImage(_ context.Context, ref string) (string, error) {
 	if m.ImageErr != nil {
 		return "", m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return "", ErrRuntimeNotRunning
 	}
 
@@ -470,6 +497,7 @@ func (m *Mock) RunImage(_ context.Context, ref string) (string, error) {
 	return "mock-container-id", nil
 }
 
+// StreamLogs emits configured log lines to the output callback.
 func (m *Mock) StreamLogs(_ context.Context, _ string, output func(string)) error {
 	for _, line := range m.LogLines {
 		output(line)
@@ -478,10 +506,12 @@ func (m *Mock) StreamLogs(_ context.Context, _ string, output func(string)) erro
 	return nil
 }
 
+// StreamLogsFollow is a no-op follow stream for tests.
 func (m *Mock) StreamLogsFollow(_ context.Context, _ string, _ func(string)) error {
 	return nil
 }
 
+// InspectContainer returns synthetic inspect JSON for a container ID.
 func (m *Mock) InspectContainer(_ context.Context, id string) (json.RawMessage, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -510,6 +540,7 @@ func (m *Mock) InspectContainer(_ context.Context, id string) (json.RawMessage, 
 	return json.RawMessage(payload), nil
 }
 
+// ContainerMounts parses mounts from the mock inspect payload for a container.
 func (m *Mock) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
 	inspect, err := m.InspectContainer(ctx, id)
 	if err != nil {
@@ -519,6 +550,7 @@ func (m *Mock) ContainerMounts(ctx context.Context, id string) ([]ContainerMount
 	return parseContainerMounts(inspect)
 }
 
+// ListContainerFiles returns sample file entries for a container path.
 func (m *Mock) ListContainerFiles(_ context.Context, _, path string) ([]ContainerFileEntry, error) {
 	if m.ContainerErr != nil {
 		return nil, m.ContainerErr
@@ -535,6 +567,7 @@ func (m *Mock) ListContainerFiles(_ context.Context, _, path string) ([]Containe
 	}, nil
 }
 
+// pathJoin joins a directory path with a filename, preserving root semantics.
 func pathJoin(base, name string) string {
 	if base == "/" {
 		return "/" + name
@@ -542,6 +575,7 @@ func pathJoin(base, name string) string {
 	return base + "/" + name
 }
 
+// ExecContainer returns mock command output for a one-shot exec.
 func (m *Mock) ExecContainer(_ context.Context, _, command string) (string, error) {
 	if m.ContainerErr != nil {
 		return "", m.ContainerErr
@@ -550,6 +584,7 @@ func (m *Mock) ExecContainer(_ context.Context, _, command string) (string, erro
 	return "# " + command + "\nmock output", nil
 }
 
+// AttachExec simulates an interactive exec session echoing stdin to onOutput.
 func (m *Mock) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	if m.ContainerErr != nil {
 		return m.ContainerErr
@@ -587,6 +622,7 @@ func (m *Mock) AttachExec(ctx context.Context, id string, stdin io.Reader, onOut
 	}
 }
 
+// ContainerStats returns fixed sample stats for a container.
 func (m *Mock) ContainerStats(_ context.Context, _ string) (ContainerStats, error) {
 	if m.ContainerErr != nil {
 		return ContainerStats{}, m.ContainerErr
@@ -602,6 +638,7 @@ func (m *Mock) ContainerStats(_ context.Context, _ string) (ContainerStats, erro
 	}, nil
 }
 
+// RestartContainer stops then starts a mock container by ID.
 func (m *Mock) RestartContainer(ctx context.Context, id string) error {
 	if err := m.StopContainer(ctx, id); err != nil {
 		return err
@@ -610,21 +647,23 @@ func (m *Mock) RestartContainer(ctx context.Context, id string) error {
 	return m.StartContainer(ctx, id)
 }
 
+// RegistryStatus returns mock registry login state.
 func (m *Mock) RegistryStatus(_ context.Context) (RegistryStatus, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
-		return RegistryStatus{Server: defaultRegistryServer}, nil
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 
 	if m.registryLoggedIn {
-		return RegistryStatus{LoggedIn: true, Server: defaultRegistryServer, Username: "demo"}, nil
+		return RegistryStatus{LoggedIn: true, Server: constants.DefaultRegistryServer, Username: "demo"}, nil
 	}
 
-	return RegistryStatus{Server: defaultRegistryServer}, nil
+	return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 }
 
+// RegistryLogin marks the mock runtime as logged in to the registry.
 func (m *Mock) RegistryLogin(_ context.Context, _, username, password string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -633,7 +672,7 @@ func (m *Mock) RegistryLogin(_ context.Context, _, username, password string) er
 		return m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 
@@ -645,6 +684,7 @@ func (m *Mock) RegistryLogin(_ context.Context, _, username, password string) er
 	return nil
 }
 
+// RegistryLogout clears mock registry login state.
 func (m *Mock) RegistryLogout(_ context.Context, _ string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -653,7 +693,7 @@ func (m *Mock) RegistryLogout(_ context.Context, _ string) error {
 		return m.ImageErr
 	}
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 
@@ -661,11 +701,12 @@ func (m *Mock) RegistryLogout(_ context.Context, _ string) error {
 	return nil
 }
 
+// ListNetworks returns a copy of the configured networks list.
 func (m *Mock) ListNetworks(_ context.Context) ([]Network, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return []Network{}, nil
 	}
 
@@ -676,11 +717,12 @@ func (m *Mock) ListNetworks(_ context.Context) ([]Network, error) {
 	return append([]Network(nil), m.Networks...), nil
 }
 
+// InspectNetwork returns mock detail for a network by name.
 func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return NetworkDetail{}, ErrRuntimeNotRunning
 	}
 
@@ -710,11 +752,12 @@ func (m *Mock) InspectNetwork(_ context.Context, name string) (NetworkDetail, er
 	return NetworkDetail{}, ErrNetworkNotFound
 }
 
+// RemoveNetwork deletes a network from the mock store by name.
 func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if m.StatusValue.State != StateRunning {
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
 		return ErrRuntimeNotRunning
 	}
 
@@ -733,6 +776,7 @@ func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 	return nil
 }
 
+// ApplyProxy is a no-op success for proxy configuration in tests.
 func (m *Mock) ApplyProxy(_ context.Context, _ ProxyConfig) error {
 	return nil
 }

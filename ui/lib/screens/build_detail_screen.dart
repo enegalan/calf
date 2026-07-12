@@ -1,16 +1,27 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart' show BoxDecoration, BoxShadow, PopupMenuItem, RelativeRect, SelectableText, showMenu;
+import 'package:flutter/material.dart'
+    show
+        BoxDecoration,
+        BoxShadow,
+        PopupMenuItem,
+        RelativeRect,
+        SelectableText,
+        showMenu;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 
 enum _BuildDetailTab { info, source, logs, history }
 
 class BuildDetailView extends StatefulWidget {
+  /// Creates a [BuildDetailView] widget.
   const BuildDetailView({
     super.key,
     required this.buildId,
@@ -24,6 +35,7 @@ class BuildDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<String>? onOpenBuild;
 
+  /// Creates the mutable state for [BuildDetailView].
   @override
   State<BuildDetailView> createState() => _BuildDetailViewState();
 }
@@ -46,12 +58,44 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   final Set<int> _expandedSteps = {};
   bool _plainLogs = false;
 
+  /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
     _loadDetail();
   }
 
+  /// Resets all cached state when navigating to a different build.
+  @override
+  void didUpdateWidget(covariant BuildDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.buildId != widget.buildId) {
+      _resetState();
+      _loadDetail();
+    }
+  }
+
+  /// Clears tab-specific cached data for a fresh build load.
+  void _resetState() {
+    _tab = _BuildDetailTab.info;
+    _detail = null;
+    _source = null;
+    _history = [];
+    _detailLoading = true;
+    _sourceLoading = false;
+    _historyLoading = false;
+    _detailError = null;
+    _sourceError = null;
+    _historyError = null;
+    _logsLoading = false;
+    _logsError = null;
+    _logs = null;
+    _platformFilter = '';
+    _expandedSteps.clear();
+    _plainLogs = false;
+  }
+
+  /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
     setState(() {
       _detailLoading = true;
@@ -84,6 +128,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches Source from the API and updates state.
   Future<void> _loadSource() async {
     setState(() {
       _sourceLoading = true;
@@ -110,6 +155,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches build history for the current tag from the API.
   Future<void> _loadHistory({String? tagOverride}) async {
     final tag = tagOverride ?? _detail?.tag;
     if (tag == null || tag.isEmpty) {
@@ -131,8 +177,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         _history = history.isNotEmpty
             ? history
             : detail != null
-                ? [detail]
-                : const [];
+            ? [detail]
+            : const [];
         _historyLoading = false;
       });
     } catch (error) {
@@ -146,16 +192,19 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Fetches Logs from the API and updates state.
   Future<void> _loadLogs() async {
     final detail = _detail;
-    if (detail != null && (detail.rawLog.isNotEmpty || detail.steps.isNotEmpty)) {
+    if (detail != null &&
+        (detail.rawLog.isNotEmpty || detail.steps.isNotEmpty)) {
       return;
     }
-    if (_logs != null || _logsLoading) {
+    if (_logsLoading) {
       return;
     }
 
     setState(() {
+      _logs = null;
       _logsLoading = true;
       _logsError = null;
     });
@@ -183,6 +232,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Switches the active tab and loads tab-specific data.
   void _selectTab(_BuildDetailTab tab) {
     if (_tab == tab) {
       return;
@@ -200,10 +250,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     }
   }
 
+  /// Copies [value] to the system clipboard.
   Future<void> _copyText(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
   }
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -212,29 +264,22 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(LucideIcons.chevronLeft, size: 18, color: theme.colorScheme.foreground),
-            ),
-            const SizedBox(width: 4),
-            Text('Builds', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
-            Expanded(
-              child: Text(
-                detail?.tag ?? widget.buildId,
-                style: theme.textTheme.muted,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+        DetailBreadcrumb(
+          segments: ['Builds', detail?.tag ?? widget.buildId],
+          onBack: widget.onBack,
         ),
+
+        /// Creates a [_BuildDetailViewState] widget.
         const SizedBox(height: 12),
         if (_detailLoading)
           Text('Loading...', style: theme.textTheme.muted)
         else if (_detailError != null)
-          Text(_detailError!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive))
+          Text(
+            _detailError!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          )
         else if (detail != null) ...[
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,30 +289,66 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(detail.tag, style: theme.textTheme.h3),
+
+                    /// Creates a [_BuildDetailViewState] widget.
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         Text(detail.id, style: theme.textTheme.muted),
+
+                        /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
                         CalfButton.ghost(
                           padding: const EdgeInsets.all(4),
                           onPressed: () => _copyText(detail.id),
-                          child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                          child: Icon(
+                            LucideIcons.copy,
+                            size: 14,
+                            color: theme.colorScheme.mutedForeground,
+                          ),
                         ),
                       ],
                     ),
                   ],
                 ),
               ),
-              _SummaryColumn(theme: theme, label: 'Status', value: _statusLabel(detail.status), color: _statusColor(detail.status, theme)),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Status',
+                value: _statusLabel(detail.status),
+                color: _statusColor(detail.status, theme),
+              ),
+
+              /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
-              _SummaryColumn(theme: theme, label: 'Duration', value: _formatDuration(detail.durationMs)),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Duration',
+                value: _formatDuration(detail.durationMs),
+              ),
+
+              /// Creates a [_BuildDetailViewState] widget.
               const SizedBox(width: 24),
-              _SummaryColumn(theme: theme, label: 'Builder', value: detail.builder, link: true),
+              _SummaryColumn(
+                theme: theme,
+                label: 'Builder',
+                value: detail.builder,
+                link: true,
+              ),
             ],
           ),
+
+          /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
-          _BuildTabBar(theme: theme, selected: _tab, onSelected: _selectTab),
+          CalfTabBar(
+            theme: theme,
+            labels: const ['Info', 'Source', 'Logs', 'History'],
+            selectedIndex: _tab.index,
+            labelStyle: theme.textTheme.large,
+            onSelected: (index) => _selectTab(_BuildDetailTab.values[index]),
+          ),
+
+          /// Creates a [_BuildDetailViewState] widget.
           const SizedBox(height: 16),
           Expanded(child: _buildTabContent(theme, detail)),
         ],
@@ -275,6 +356,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     );
   }
 
+  /// Builds the widget for the currently selected tab.
   Widget _buildTabContent(ShadThemeData theme, BuildDetail detail) {
     switch (_tab) {
       case _BuildDetailTab.info:
@@ -328,6 +410,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
 }
 
 class _SummaryColumn extends StatelessWidget {
+  /// Creates a [_SummaryColumn] widget.
   const _SummaryColumn({
     required this.theme,
     required this.label,
@@ -342,17 +425,29 @@ class _SummaryColumn extends StatelessWidget {
   final Color? color;
   final bool link;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(label, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground)),
+        Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.mutedForeground,
+          ),
+        ),
+
+        /// Creates a [_SummaryColumn] widget.
         const SizedBox(height: 4),
         Text(
           value,
           style: theme.textTheme.large.copyWith(
-            color: color ?? (link ? theme.colorScheme.primary : theme.colorScheme.foreground),
+            color:
+                color ??
+                (link
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.foreground),
           ),
         ),
       ],
@@ -360,83 +455,8 @@ class _SummaryColumn extends StatelessWidget {
   }
 }
 
-class _BuildTabBar extends StatelessWidget {
-  const _BuildTabBar({
-    required this.theme,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final ShadThemeData theme;
-  final _BuildDetailTab selected;
-  final ValueChanged<_BuildDetailTab> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const tabs = _BuildDetailTab.values;
-    const labels = ['Info', 'Source', 'Logs', 'History'];
-
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
-      ),
-      child: Row(
-        children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 20),
-            _BuildTabButton(
-              theme: theme,
-              label: labels[index],
-              selected: selected == tabs[index],
-              onTap: () => onSelected(tabs[index]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _BuildTabButton extends StatelessWidget {
-  const _BuildTabButton({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.only(bottom: 10),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.colorScheme.primary : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.large.copyWith(
-            color: selected ? theme.colorScheme.foreground : theme.colorScheme.mutedForeground,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _InfoTab extends StatelessWidget {
+  /// Creates a [_InfoTab] widget.
   const _InfoTab({
     required this.theme,
     required this.detail,
@@ -451,14 +471,18 @@ class _InfoTab extends StatelessWidget {
   final ValueChanged<String> onPlatformChanged;
   final Future<void> Function(String value) onCopy;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final platforms = <String>{
       if (detail.platform.isNotEmpty) detail.platform,
-      ...detail.dependencies.map((item) => item.platform).where((item) => item.isNotEmpty),
-      ...detail.results.map((item) => item.platform).where((item) => item.isNotEmpty),
-    }.toList()
-      ..sort();
+      ...detail.dependencies
+          .map((item) => item.platform)
+          .where((item) => item.isNotEmpty),
+      ...detail.results
+          .map((item) => item.platform)
+          .where((item) => item.isNotEmpty),
+    }.toList()..sort();
 
     final filterArch = _platformArch(platformFilter);
     final dependencies = detail.dependencies.where((item) {
@@ -489,29 +513,42 @@ class _InfoTab extends StatelessWidget {
                 ),
         ),
         _InfoRow(theme: theme, label: 'File name', value: detail.dockerfile),
-        _InfoRow(theme: theme, label: 'Remote source location', value: detail.remoteSource, link: true),
+        _InfoRow(
+          theme: theme,
+          label: 'Remote source location',
+          value: detail.remoteSource,
+          link: true,
+        ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
         _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
+
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
+
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 12),
-        _TimingCharts(theme: theme, timing: detail.timing, totalMs: detail.durationMs, cachedSteps: detail.cachedSteps, totalSteps: detail.totalSteps),
+        _TimingCharts(
+          theme: theme,
+          timing: detail.timing,
+          totalMs: detail.durationMs,
+          cachedSteps: detail.cachedSteps,
+          totalSteps: detail.totalSteps,
+        ),
+
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Dependencies'),
         _DataTable(
           theme: theme,
           columns: const ['Source', 'Platform', 'Digest'],
           rows: dependencies
-              .map(
-                (item) => [
-                  item.source,
-                  item.platform,
-                  item.digest,
-                ],
-              )
+              .map((item) => [item.source, item.platform, item.digest])
               .toList(),
           onCopy: onCopy,
         ),
+
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build results'),
         _DataTable(
@@ -519,17 +556,12 @@ class _InfoTab extends StatelessWidget {
           columns: const ['Artifact', 'Platform', 'Digest', 'Size'],
           copyColumnIndex: 2,
           rows: results
-              .map(
-                (item) => [
-                  item.name,
-                  item.platform,
-                  item.digest,
-                  item.size,
-                ],
-              )
+              .map((item) => [item.name, item.platform, item.digest, item.size])
               .toList(),
           onCopy: onCopy,
         ),
+
+        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Tags'),
         _DataTable(
@@ -544,6 +576,7 @@ class _InfoTab extends StatelessWidget {
 }
 
 class _PlatformFilter extends StatelessWidget {
+  /// Creates a [_PlatformFilter] widget.
   const _PlatformFilter({
     required this.theme,
     required this.value,
@@ -556,12 +589,15 @@ class _PlatformFilter extends StatelessWidget {
   final List<String> options;
   final ValueChanged<String> onChanged;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text('Filter by platform', style: theme.textTheme.small),
+
+        /// Creates a [_PlatformFilter] widget.
         const SizedBox(width: 8),
         CalfButton.outline(
           onPressed: () async {
@@ -580,7 +616,12 @@ class _PlatformFilter extends StatelessWidget {
                 offset.dy + renderBox.size.height,
               ),
               items: options
-                  .map((option) => PopupMenuItem<String>(value: option, child: Text(option)))
+                  .map(
+                    (option) => PopupMenuItem<String>(
+                      value: option,
+                      child: Text(option),
+                    ),
+                  )
                   .toList(),
             );
             if (selected != null) {
@@ -591,8 +632,14 @@ class _PlatformFilter extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(value, style: theme.textTheme.small),
+
+              /// Creates a [_PlatformFilter] widget.
               const SizedBox(width: 4),
-              Icon(LucideIcons.chevronDown, size: 14, color: theme.colorScheme.foreground),
+              Icon(
+                LucideIcons.chevronDown,
+                size: 14,
+                color: theme.colorScheme.foreground,
+              ),
             ],
           ),
         ),
@@ -602,6 +649,7 @@ class _PlatformFilter extends StatelessWidget {
 }
 
 class _TimingCharts extends StatelessWidget {
+  /// Creates a [_TimingCharts] widget.
   const _TimingCharts({
     required this.theme,
     required this.timing,
@@ -616,10 +664,12 @@ class _TimingCharts extends StatelessWidget {
   final int cachedSteps;
   final int totalSteps;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final realTime = _timingSlices(timing);
-    final accumulatedTotal = timing.localTransfersMs +
+    final accumulatedTotal =
+        timing.localTransfersMs +
         timing.imagePullsMs +
         timing.executionsMs +
         timing.fileOperationsMs +
@@ -628,8 +678,12 @@ class _TimingCharts extends StatelessWidget {
     final accumulatedSlices = realTime;
     final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
-      _TimingSlice('Cached steps', cachedSteps.toDouble(), const Color(0xFF22C55E)),
-      _TimingSlice('Other steps', uncachedSteps.toDouble(), theme.colorScheme.mutedForeground),
+      _TimingSlice('Cached steps', cachedSteps.toDouble(), CalfColors.success),
+      _TimingSlice(
+        'Other steps',
+        uncachedSteps.toDouble(),
+        theme.colorScheme.mutedForeground,
+      ),
     ];
     final idleMs = timing.idleMs.clamp(0, totalMs);
     final activeMs = (totalMs - idleMs).clamp(0, totalMs);
@@ -664,8 +718,18 @@ class _TimingCharts extends StatelessWidget {
           theme: theme,
           title: 'Parallel execution',
           slices: [
-            _TimingSlice('Active', activeMs > 0 ? activeMs.toDouble() : 1, const Color(0xFF3B82F6)),
-            _TimingSlice('Idle', idleMs > 0 ? idleMs.toDouble() : 0, theme.colorScheme.mutedForeground),
+            _TimingSlice(
+              'Active',
+              activeMs > 0 ? activeMs.toDouble() : 1,
+
+              /// Creates a [_TimingCharts] widget.
+              const Color(0xFF3B82F6),
+            ),
+            _TimingSlice(
+              'Idle',
+              idleMs > 0 ? idleMs.toDouble() : 0,
+              theme.colorScheme.mutedForeground,
+            ),
           ].where((slice) => slice.value > 0).toList(),
           formatValue: (value) => _formatDuration(value.toInt()),
         ),
@@ -673,19 +737,55 @@ class _TimingCharts extends StatelessWidget {
     );
   }
 
+  /// Builds timing slices for the build-duration chart.
   List<_TimingSlice> _timingSlices(BuildTiming timing) {
     return [
-      _TimingSlice('Local file transfers', timing.localTransfersMs.toDouble(), const Color(0xFF166534)),
-      _TimingSlice('Image pulls', timing.imagePullsMs.toDouble(), const Color(0xFF4ADE80)),
-      _TimingSlice('Executions', timing.executionsMs.toDouble(), const Color(0xFF3B82F6)),
-      _TimingSlice('File operations', timing.fileOperationsMs.toDouble(), const Color(0xFFEF4444)),
-      _TimingSlice('Result exports', timing.resultExportsMs.toDouble(), const Color(0xFFA855F7)),
-      _TimingSlice('Idle', timing.idleMs.toDouble(), theme.colorScheme.mutedForeground),
+      _TimingSlice(
+        'Local file transfers',
+        timing.localTransfersMs.toDouble(),
+
+        /// Creates a [_TimingCharts] widget.
+        const Color(0xFF166534),
+      ),
+      _TimingSlice(
+        'Image pulls',
+        timing.imagePullsMs.toDouble(),
+
+        /// Creates a [_TimingCharts] widget.
+        const Color(0xFF4ADE80),
+      ),
+      _TimingSlice(
+        'Executions',
+        timing.executionsMs.toDouble(),
+
+        /// Creates a [_TimingCharts] widget.
+        const Color(0xFF3B82F6),
+      ),
+      _TimingSlice(
+        'File operations',
+        timing.fileOperationsMs.toDouble(),
+
+        /// Creates a [_TimingCharts] widget.
+        const Color(0xFFEF4444),
+      ),
+      _TimingSlice(
+        'Result exports',
+        timing.resultExportsMs.toDouble(),
+
+        /// Creates a [_TimingCharts] widget.
+        const Color(0xFFA855F7),
+      ),
+      _TimingSlice(
+        'Idle',
+        timing.idleMs.toDouble(),
+        theme.colorScheme.mutedForeground,
+      ),
     ].where((slice) => slice.value > 0).toList();
   }
 }
 
 class _TimingSlice {
+  /// Creates a [_TimingSlice] widget.
   const _TimingSlice(this.label, this.value, this.color);
 
   final String label;
@@ -694,6 +794,7 @@ class _TimingSlice {
 }
 
 class _TimingChartCard extends StatefulWidget {
+  /// Creates a [_TimingChartCard] widget.
   const _TimingChartCard({
     required this.theme,
     required this.title,
@@ -706,6 +807,7 @@ class _TimingChartCard extends StatefulWidget {
   final List<_TimingSlice> slices;
   final String Function(double value) formatValue;
 
+  /// Creates the mutable state for [_TimingChartCard].
   @override
   State<_TimingChartCard> createState() => _TimingChartCardState();
 }
@@ -713,10 +815,15 @@ class _TimingChartCard extends StatefulWidget {
 class _TimingChartCardState extends State<_TimingChartCard> {
   int? _touchedIndex;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final total = widget.slices.fold<double>(0, (sum, slice) => sum + slice.value);
-    final touchedSlice = _touchedIndex != null &&
+    final total = widget.slices.fold<double>(
+      0,
+      (sum, slice) => sum + slice.value,
+    );
+    final touchedSlice =
+        _touchedIndex != null &&
             _touchedIndex! >= 0 &&
             _touchedIndex! < widget.slices.length
         ? widget.slices[_touchedIndex!]
@@ -734,11 +841,23 @@ class _TimingChartCardState extends State<_TimingChartCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.title, style: widget.theme.textTheme.small.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            widget.title,
+            style: widget.theme.textTheme.small.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+
+          /// Creates a [_TimingChartCardState] widget.
           const SizedBox(height: 8),
           Expanded(
             child: total <= 0
-                ? Center(child: Text('No timing data', style: widget.theme.textTheme.muted))
+                ? Center(
+                    child: Text(
+                      'No timing data',
+                      style: widget.theme.textTheme.muted,
+                    ),
+                  )
                 : Stack(
                     alignment: Alignment.center,
                     children: [
@@ -756,12 +875,18 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                                   _touchedIndex = null;
                                   return;
                                 }
-                                _touchedIndex = response.touchedSection!.touchedSectionIndex;
+                                _touchedIndex = response
+                                    .touchedSection!
+                                    .touchedSectionIndex;
                               });
                             },
                           ),
                           sections: [
-                            for (var index = 0; index < widget.slices.length; index++)
+                            for (
+                              var index = 0;
+                              index < widget.slices.length;
+                              index++
+                            )
                               PieChartSectionData(
                                 value: widget.slices[index].value,
                                 color: widget.slices[index].color,
@@ -775,14 +900,20 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                       if (touchedSlice != null && touchedPercent != null)
                         IgnorePointer(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             decoration: BoxDecoration(
                               color: widget.theme.colorScheme.background,
-                              border: Border.all(color: widget.theme.colorScheme.border),
+                              border: Border.all(
+                                color: widget.theme.colorScheme.border,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: widget.theme.colorScheme.foreground.withValues(alpha: 0.08),
+                                  color: widget.theme.colorScheme.foreground
+                                      .withValues(alpha: 0.08),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -793,8 +924,12 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
-                                  style: widget.theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+                                  style: widget.theme.textTheme.small.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
+
+                                /// Creates a [_TimingChartCardState] widget.
                                 const SizedBox(height: 2),
                                 Text(
                                   '${widget.formatValue(touchedSlice.value)} ($touchedPercent%)',
@@ -814,6 +949,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
 }
 
 class _SectionHeader extends StatelessWidget {
+  /// Creates a [_SectionHeader] widget.
   const _SectionHeader({
     required this.theme,
     required this.title,
@@ -824,13 +960,21 @@ class _SectionHeader extends StatelessWidget {
   final String title;
   final Widget? trailing;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              title,
+              style: theme.textTheme.large.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
           ?trailing,
         ],
       ),
@@ -839,6 +983,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _InfoRow extends StatelessWidget {
+  /// Creates a [_InfoRow] widget.
   const _InfoRow({
     required this.theme,
     required this.label,
@@ -851,6 +996,7 @@ class _InfoRow extends StatelessWidget {
   final String value;
   final bool link;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (value.isEmpty) {
@@ -862,11 +1008,16 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: theme.textTheme.muted)),
+          SizedBox(
+            width: 180,
+            child: Text(label, style: theme.textTheme.muted),
+          ),
           Expanded(
             child: Text(
               value,
-              style: theme.textTheme.large.copyWith(color: link ? theme.colorScheme.primary : null),
+              style: theme.textTheme.large.copyWith(
+                color: link ? theme.colorScheme.primary : null,
+              ),
             ),
           ),
         ],
@@ -876,6 +1027,7 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _DataTable extends StatelessWidget {
+  /// Creates a [_DataTable] widget.
   const _DataTable({
     required this.theme,
     required this.columns,
@@ -890,6 +1042,7 @@ class _DataTable extends StatelessWidget {
   final Future<void> Function(String value) onCopy;
   final int? copyColumnIndex;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
@@ -901,11 +1054,22 @@ class _DataTable extends StatelessWidget {
         Row(
           children: [
             for (final column in columns) ...[
-              Expanded(child: Text(column, style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground))),
+              Expanded(
+                child: Text(
+                  column,
+                  style: theme.textTheme.small.copyWith(
+                    color: theme.colorScheme.mutedForeground,
+                  ),
+                ),
+              ),
             ],
+
+            /// Creates a [_DataTable] widget.
             const SizedBox(width: 32),
           ],
         ),
+
+        /// Creates a [_DataTable] widget.
         const SizedBox(height: 8),
         for (final row in rows)
           Padding(
@@ -925,14 +1089,20 @@ class _DataTable extends StatelessWidget {
                   Builder(
                     builder: (context) {
                       final copyIndex = copyColumnIndex ?? row.length - 1;
-                      if (copyIndex < 0 || copyIndex >= row.length || row[copyIndex].isEmpty) {
+                      if (copyIndex < 0 ||
+                          copyIndex >= row.length ||
+                          row[copyIndex].isEmpty) {
                         return const SizedBox.shrink();
                       }
 
                       return CalfButton.ghost(
                         padding: const EdgeInsets.all(4),
                         onPressed: () => onCopy(row[copyIndex]),
-                        child: Icon(LucideIcons.copy, size: 14, color: theme.colorScheme.mutedForeground),
+                        child: Icon(
+                          LucideIcons.copy,
+                          size: 14,
+                          color: theme.colorScheme.mutedForeground,
+                        ),
                       );
                     },
                   ),
@@ -946,6 +1116,7 @@ class _DataTable extends StatelessWidget {
 }
 
 class _SourceTab extends StatelessWidget {
+  /// Creates a [_SourceTab] widget.
   const _SourceTab({
     required this.theme,
     required this.loading,
@@ -960,13 +1131,19 @@ class _SourceTab extends StatelessWidget {
   final BuildSource? source;
   final BuildDetail detail;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return Text('Loading source...', style: theme.textTheme.muted);
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
 
     final content = source?.content ?? '';
@@ -975,13 +1152,26 @@ class _SourceTab extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(LucideIcons.box, size: 16, color: theme.colorScheme.foreground),
+            Icon(
+              LucideIcons.box,
+              size: 16,
+              color: theme.colorScheme.foreground,
+            ),
+
+            /// Creates a [_SourceTab] widget.
             const SizedBox(width: 8),
-            Text(source?.filename ?? detail.dockerfile, style: theme.textTheme.large),
+            Text(
+              source?.filename ?? detail.dockerfile,
+              style: theme.textTheme.large,
+            ),
+
+            /// Creates a [_SourceTab] widget.
             const SizedBox(width: 12),
             Text(_platformArch(detail.platform), style: theme.textTheme.muted),
           ],
         ),
+
+        /// Creates a [_SourceTab] widget.
         const SizedBox(height: 12),
         Expanded(
           child: Container(
@@ -995,7 +1185,10 @@ class _SourceTab extends StatelessWidget {
             child: SingleChildScrollView(
               child: SelectableText(
                 content,
-                style: theme.textTheme.small.copyWith(fontFamily: 'Menlo', height: 1.5),
+                style: theme.textTheme.small.copyWith(
+                  fontFamily: 'Menlo',
+                  height: 1.5,
+                ),
               ),
             ),
           ),
@@ -1006,6 +1199,7 @@ class _SourceTab extends StatelessWidget {
 }
 
 class _LogsTab extends StatelessWidget {
+  /// Creates a [_LogsTab] widget.
   const _LogsTab({
     required this.theme,
     required this.detail,
@@ -1030,16 +1224,29 @@ class _LogsTab extends StatelessWidget {
   final ValueChanged<bool> onTogglePlain;
   final ValueChanged<int> onToggleStep;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Center(child: Text('Loading logs...', style: theme.textTheme.muted));
+      return Center(
+        child: Text('Loading logs...', style: theme.textTheme.muted),
+      );
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
     if (rawLog.isEmpty && steps.isEmpty) {
-      return Center(child: Text('No logs available for this build.', style: theme.textTheme.muted));
+      return Center(
+        child: Text(
+          'No logs available for this build.',
+          style: theme.textTheme.muted,
+        ),
+      );
     }
 
     if (plainLogs) {
@@ -1050,6 +1257,8 @@ class _LogsTab extends StatelessWidget {
             onPressed: () => onTogglePlain(false),
             child: Text('Step view', style: theme.textTheme.small),
           ),
+
+          /// Creates a [_LogsTab] widget.
           const SizedBox(height: 8),
           Expanded(
             child: Container(
@@ -1063,7 +1272,10 @@ class _LogsTab extends StatelessWidget {
               child: SingleChildScrollView(
                 child: SelectableText(
                   rawLog,
-                  style: theme.textTheme.small.copyWith(fontFamily: 'Menlo', height: 1.4),
+                  style: theme.textTheme.small.copyWith(
+                    fontFamily: 'Menlo',
+                    height: 1.4,
+                  ),
                 ),
               ),
             ),
@@ -1085,6 +1297,8 @@ class _LogsTab extends StatelessWidget {
             ),
           ],
         ),
+
+        /// Creates a [_LogsTab] widget.
         const SizedBox(height: 8),
         Expanded(
           child: ListView.builder(
@@ -1092,7 +1306,9 @@ class _LogsTab extends StatelessWidget {
             itemBuilder: (context, index) {
               final step = steps[index];
               final expanded = expandedSteps.contains(index);
-              final badge = step.index > 0 ? '${step.index}/${step.total}' : 'internal';
+              final badge = step.index > 0
+                  ? '${step.index}/${step.total}'
+                  : 'internal';
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -1100,36 +1316,68 @@ class _LogsTab extends StatelessWidget {
                   children: [
                     HoverListRow(
                       theme: theme,
-                      onTap: step.log.isEmpty ? null : () => onToggleStep(index),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      onTap: step.log.isEmpty
+                          ? null
+                          : () => onToggleStep(index),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 10,
+                      ),
                       child: Row(
                         children: [
                           _StepBadge(theme: theme, label: badge),
+
+                          /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Expanded(
-                            child: Text(step.name, style: theme.textTheme.large.copyWith(fontFamily: 'Menlo')),
+                            child: Text(
+                              step.name,
+                              style: theme.textTheme.large.copyWith(
+                                fontFamily: 'Menlo',
+                              ),
+                            ),
                           ),
                           if (step.cached)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                                color: theme.colorScheme.primary.withValues(
+                                  alpha: 0.15,
+                                ),
                                 borderRadius: BorderRadius.circular(999),
                               ),
-                              child: Text('CACHED', style: theme.textTheme.small.copyWith(color: theme.colorScheme.primary)),
+                              child: Text(
+                                'CACHED',
+                                style: theme.textTheme.small.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
                             ),
+
+                          /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
-                          Text(_formatDuration(step.durationMs), style: theme.textTheme.muted),
+                          Text(
+                            _formatDuration(step.durationMs),
+                            style: theme.textTheme.muted,
+                          ),
                           SizedBox(
                             width: 120,
                             child: Align(
                               alignment: Alignment.centerRight,
                               child: FractionallySizedBox(
-                                widthFactor: (step.durationMs / totalMs).clamp(0.05, 1.0),
+                                widthFactor: (step.durationMs / totalMs).clamp(
+                                  0.05,
+                                  1.0,
+                                ),
                                 child: Container(
                                   height: 4,
                                   decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                                    color: theme.colorScheme.primary.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     borderRadius: BorderRadius.circular(999),
                                   ),
                                 ),
@@ -1145,12 +1393,16 @@ class _LogsTab extends StatelessWidget {
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.muted.withValues(alpha: 0.15),
+                          color: theme.colorScheme.muted.withValues(
+                            alpha: 0.15,
+                          ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: SelectableText(
                           step.log,
-                          style: theme.textTheme.small.copyWith(fontFamily: 'Menlo'),
+                          style: theme.textTheme.small.copyWith(
+                            fontFamily: 'Menlo',
+                          ),
                         ),
                       ),
                   ],
@@ -1165,11 +1417,13 @@ class _LogsTab extends StatelessWidget {
 }
 
 class _StepBadge extends StatelessWidget {
+  /// Creates a [_StepBadge] widget.
   const _StepBadge({required this.theme, required this.label});
 
   final ShadThemeData theme;
   final String label;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1184,6 +1438,7 @@ class _StepBadge extends StatelessWidget {
 }
 
 class _HistoryTab extends StatelessWidget {
+  /// Creates a [_HistoryTab] widget.
   const _HistoryTab({
     required this.theme,
     required this.loading,
@@ -1200,33 +1455,53 @@ class _HistoryTab extends StatelessWidget {
   final String currentId;
   final ValueChanged<String>? onOpenBuild;
 
+  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return Text('Loading history...', style: theme.textTheme.muted);
     }
     if (error != null) {
-      return Text(error!, style: theme.textTheme.small.copyWith(color: theme.colorScheme.destructive));
+      return Text(
+        error!,
+        style: theme.textTheme.small.copyWith(
+          color: theme.colorScheme.destructive,
+        ),
+      );
     }
 
     final items = history.take(30).toList().reversed.toList();
     final durations = items.map((item) => item.durationMs.toDouble()).toList();
     final totalSteps = items.map((item) => item.totalSteps.toDouble()).toList();
-    final cachedSteps = items.map((item) => item.cachedSteps.toDouble()).toList();
+    final cachedSteps = items
+        .map((item) => item.cachedSteps.toDouble())
+        .toList();
 
     return ListView(
       children: [
-        Text('Build history', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'Build history',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
+
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
           style: theme.textTheme.muted,
         ),
+
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         SizedBox(
           height: 220,
           child: items.isEmpty
-              ? Center(child: Text('No builds to chart yet.', style: theme.textTheme.muted))
+              ? Center(
+                  child: Text(
+                    'No builds to chart yet.',
+                    style: theme.textTheme.muted,
+                  ),
+                )
               : LineChart(
                   LineChartData(
                     minX: 0,
@@ -1236,7 +1511,10 @@ class _HistoryTab extends StatelessWidget {
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: theme.colorScheme.border,
+                        strokeWidth: 1,
+                      ),
                     ),
                     titlesData: const FlTitlesData(show: false),
                     borderData: FlBorderData(show: false),
@@ -1245,7 +1523,10 @@ class _HistoryTab extends StatelessWidget {
                       touchTooltipData: LineTouchTooltipData(
                         getTooltipItems: (spots) {
                           return spots.map((spot) {
-                            final index = spot.x.round().clamp(0, items.length - 1);
+                            final index = spot.x.round().clamp(
+                              0,
+                              items.length - 1,
+                            );
                             final item = items[index];
                             String label;
                             String value;
@@ -1262,7 +1543,9 @@ class _HistoryTab extends StatelessWidget {
                             }
                             return LineTooltipItem(
                               '$label\n$value',
-                              theme.textTheme.small.copyWith(color: theme.colorScheme.foreground),
+                              theme.textTheme.small.copyWith(
+                                color: theme.colorScheme.foreground,
+                              ),
                             );
                           }).toList();
                         },
@@ -1279,7 +1562,7 @@ class _HistoryTab extends StatelessWidget {
                       LineChartBarData(
                         spots: _normalizedHistorySpots(totalSteps),
                         isCurved: items.length > 2,
-                        color: const Color(0xFF22C55E),
+                        color: CalfColors.success,
                         barWidth: 2,
                         dotData: FlDotData(show: items.length <= 3),
                       ),
@@ -1294,38 +1577,71 @@ class _HistoryTab extends StatelessWidget {
                   ),
                 ),
         ),
+
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 24),
-        Text('Past builds', style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          'Past builds',
+          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+        ),
+
+        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         if (history.isEmpty)
           Text('No builds found for this image.', style: theme.textTheme.muted)
         else
           for (final item in history)
-          HoverListRow(
-            theme: theme,
-            onTap: onOpenBuild == null || item.id == currentId ? null : () => onOpenBuild!(item.id),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            child: Row(
-              children: [
-                Expanded(child: Text(item.tag, style: theme.textTheme.large)),
-                Expanded(child: Text(item.id, style: theme.textTheme.muted, overflow: TextOverflow.ellipsis)),
-                Text(item.builder, style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(_platformArch(item.platform), style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text('${item.cachedSteps}/${item.totalSteps}', style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(_formatDuration(item.durationMs), style: theme.textTheme.muted),
-                const SizedBox(width: 12),
-                Text(item.createdAt, style: theme.textTheme.muted),
-              ],
+            HoverListRow(
+              theme: theme,
+              onTap: onOpenBuild == null || item.id == currentId
+                  ? null
+                  : () => onOpenBuild!(item.id),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(child: Text(item.tag, style: theme.textTheme.large)),
+                  Expanded(
+                    child: Text(
+                      item.id,
+                      style: theme.textTheme.muted,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(item.builder, style: theme.textTheme.muted),
+
+                  /// Creates a [_HistoryTab] widget.
+                  const SizedBox(width: 12),
+                  Text(
+                    _platformArch(item.platform),
+                    style: theme.textTheme.muted,
+                  ),
+
+                  /// Creates a [_HistoryTab] widget.
+                  const SizedBox(width: 12),
+                  Text(
+                    '${item.cachedSteps}/${item.totalSteps}',
+                    style: theme.textTheme.muted,
+                  ),
+
+                  /// Creates a [_HistoryTab] widget.
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatDuration(item.durationMs),
+                    style: theme.textTheme.muted,
+                  ),
+
+                  /// Creates a [_HistoryTab] widget.
+                  const SizedBox(width: 12),
+                  Text(item.createdAt, style: theme.textTheme.muted),
+                ],
+              ),
             ),
-          ),
       ],
     );
   }
 }
 
+/// Returns the display label or color for a status value.
 String _statusLabel(String status) {
   switch (status) {
     case 'success':
@@ -1339,10 +1655,11 @@ String _statusLabel(String status) {
   }
 }
 
+/// Returns the display label or color for a status value.
 Color _statusColor(String status, ShadThemeData theme) {
   switch (status) {
     case 'success':
-      return const Color(0xFF22C55E);
+      return CalfColors.success;
     case 'failed':
       return theme.colorScheme.destructive;
     case 'running':
@@ -1352,6 +1669,7 @@ Color _statusColor(String status, ShadThemeData theme) {
   }
 }
 
+/// Formats the value for display.
 String _formatDuration(int durationMs) {
   if (durationMs <= 0) {
     return '0.0s';
@@ -1367,6 +1685,7 @@ String _formatDuration(int durationMs) {
   return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }
 
+/// Extracts the architecture portion from a platform string.
 String _platformArch(String platform) {
   final parts = platform.split('/');
   if (parts.length == 2) {
@@ -1376,12 +1695,16 @@ String _platformArch(String platform) {
   return platform;
 }
 
+/// Normalizes values for chart rendering.
 List<FlSpot> _normalizedHistorySpots(List<double> values) {
   if (values.isEmpty) {
     return const [];
   }
 
-  final peak = values.fold<double>(0, (current, value) => value > current ? value : current);
+  final peak = values.fold<double>(
+    0,
+    (current, value) => value > current ? value : current,
+  );
   final normalized = values
       .map((value) => peak <= 0 ? 0.0 : value / peak)
       .toList(growable: false);
@@ -1389,16 +1712,14 @@ List<FlSpot> _normalizedHistorySpots(List<double> values) {
   return _historySpots(normalized);
 }
 
+/// Converts history values into chart data points.
 List<FlSpot> _historySpots(List<double> values) {
   if (values.isEmpty) {
     return const [];
   }
 
   if (values.length == 1) {
-    return [
-      FlSpot(0, values[0]),
-      FlSpot(1, values[0]),
-    ];
+    return [FlSpot(0, values[0]), FlSpot(1, values[0])];
   }
 
   return [

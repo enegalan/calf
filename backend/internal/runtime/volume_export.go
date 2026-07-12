@@ -8,19 +8,22 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-const volumeExportAlpineImage = "alpine:3.20"
-
+// VolumeExportOptions represents the options for a volume export.
 type VolumeExportOptions struct {
-	VolumeName string
-	Type       string
-	FileName   string
-	Folder     string
-	ImageRef   string
+	VolumeName  string
+	Type        string
+	FileName    string
+	Folder      string
+	ImageRef    string
 	ArchivePath string
 }
 
+// exportVolumeArchive tars a volume into a gzipped archive using a temporary Alpine container.
 func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, archivePath string) error {
 	if strings.TrimSpace(volumeName) == "" {
 		return fmt.Errorf("volume name is required")
@@ -36,13 +39,16 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 
 	stagingDir := filepath.Dir(archivePath)
 	archiveName := filepath.Base(archivePath)
-	vmStagingDir := mountsVMPath(stagingDir)
+	vmStagingDir, err := config.HostMountToVMPath(stagingDir)
+	if err != nil {
+		return fmt.Errorf("map staging directory to VM path: %w", err)
+	}
 
 	args := []string{
 		"run", "--rm",
 		"-v", volumeName + ":/from:ro",
 		"-v", vmStagingDir + ":/to",
-		volumeExportAlpineImage,
+		constants.AlpineSmokeImage,
 		"tar", "czf", "/to/" + archiveName, "-C", "/from", ".",
 	}
 	if _, err := run(ctx, "nerdctl", args...); err != nil {
@@ -52,6 +58,7 @@ func exportVolumeArchive(ctx context.Context, run commandRunner, volumeName, arc
 	return nil
 }
 
+// exportVolumeToImage exports a volume to a container image via archive staging and nerdctl commit.
 func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, imageRef, archivePath string, overwrite bool) error {
 	if strings.TrimSpace(imageRef) == "" {
 		return fmt.Errorf("image reference is required")
@@ -72,7 +79,7 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 	}
 
 	containerName := fmt.Sprintf("calf-vol-export-%s", filepath.Base(filepath.Dir(archivePath)))
-	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, volumeExportAlpineImage, "sleep", "3600")
+	_, err := run(ctx, "nerdctl", "run", "-d", "--name", containerName, constants.AlpineSmokeImage, "sleep", "3600")
 	if err != nil {
 		return fmt.Errorf("start export container: %w", err)
 	}
@@ -83,7 +90,10 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 		_, _ = run(cleanupCtx, "nerdctl", "rm", "-f", containerName)
 	}()
 
-	vmArchivePath := mountsVMPath(archivePath)
+	vmArchivePath, err := config.HostMountToVMPath(archivePath)
+	if err != nil {
+		return fmt.Errorf("map archive path to VM path: %w", err)
+	}
 	if _, err := run(ctx, "nerdctl", "cp", vmArchivePath, containerName+":/tmp/archive.tar.gz"); err != nil {
 		return fmt.Errorf("copy archive into export container: %w", err)
 	}
@@ -99,6 +109,7 @@ func exportVolumeToImage(ctx context.Context, run commandRunner, volumeName, ima
 	return nil
 }
 
+// exportVolumeToRegistry exports a volume as an image and pushes it to a registry.
 func exportVolumeToRegistry(ctx context.Context, run commandRunner, volumeName, imageRef, archivePath string) error {
 	if err := exportVolumeToImage(ctx, run, volumeName, imageRef, archivePath, true); err != nil {
 		return err
@@ -111,6 +122,7 @@ func exportVolumeToRegistry(ctx context.Context, run commandRunner, volumeName, 
 	return nil
 }
 
+// copyArchiveToFolder copies a volume export archive to a folder and returns the destination path.
 func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
 	if strings.TrimSpace(folder) == "" {
 		return "", fmt.Errorf("destination folder is required")
@@ -145,43 +157,7 @@ func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
 	return destPath, nil
 }
 
-func archiveSize(path string) string {
-	info, err := os.Stat(path)
-	if err != nil {
-		return ""
-	}
-
-	bytes := info.Size()
-	if bytes < 1024 {
-		return fmt.Sprintf("%d B", bytes)
-	}
-
-	if bytes < 1024*1024 {
-		return fmt.Sprintf("%.1f KB", float64(bytes)/1024)
-	}
-
-	if bytes < 1024*1024*1024 {
-		return fmt.Sprintf("%.1f MB", float64(bytes)/(1024*1024))
-	}
-
-	return fmt.Sprintf("%.1f GB", float64(bytes)/(1024*1024*1024))
-}
-
-func mountsVMPath(hostPath string) string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return hostPath
-	}
-
-	mountsRoot := filepath.Join(home, ".config", "calf", "mounts")
-	rel, err := filepath.Rel(mountsRoot, hostPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return hostPath
-	}
-
-	return "/mnt/calf/" + filepath.ToSlash(rel)
-}
-
+// RunVolumeExport orchestrates a volume export according to opts.Type.
 func RunVolumeExport(ctx context.Context, run commandRunner, opts VolumeExportOptions) (string, error) {
 	switch opts.Type {
 	case "local_file":

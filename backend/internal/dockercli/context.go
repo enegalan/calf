@@ -9,12 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-const ContextName = "calf"
-const cliTimeout = 30 * time.Second
-
+// Status represents the current state of the docker CLI context.
 type Status struct {
 	Available      bool   `json:"available"`
 	CurrentContext string `json:"current_context"`
@@ -24,10 +23,12 @@ type Status struct {
 	Socket         string `json:"socket"`
 }
 
+// dockerConfig represents the current context of the docker CLI.
 type dockerConfig struct {
 	CurrentContext string `json:"currentContext"`
 }
 
+// StatusFor reports whether the docker CLI is available and how the calf context is configured.
 func StatusFor(socket string, managed bool) (Status, error) {
 	status := Status{
 		Managed:        managed,
@@ -40,15 +41,16 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	}
 
 	status.Available = true
-	status.CalfActive = status.CurrentContext == ContextName
+	status.CalfActive = status.CurrentContext == constants.DockerContextName
 
-	ctx, cancel := context.WithTimeout(context.Background(), cliTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
 	defer cancel()
-	status.CalfExists = contextExists(ctx, ContextName)
+	status.CalfExists = contextExists(ctx, constants.DockerContextName)
 
 	return status, nil
 }
 
+// readCurrentContext reads the active docker context name from ~/.docker/config.json.
 func readCurrentContext() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -68,6 +70,7 @@ func readCurrentContext() string {
 	return cfg.CurrentContext
 }
 
+// contextExists reports whether a named docker context is present.
 func contextExists(ctx context.Context, name string) bool {
 	command := exec.CommandContext(ctx, "docker", "context", "inspect", name, "--format", "{{.Name}}")
 	output, err := command.Output()
@@ -78,6 +81,7 @@ func contextExists(ctx context.Context, name string) bool {
 	return strings.TrimSpace(string(output)) == name
 }
 
+// EnsureContext creates or updates the calf docker context to point at the given socket.
 func EnsureContext(ctx context.Context, socket string) error {
 	if socket == "" {
 		return errors.New("docker socket path is empty")
@@ -93,11 +97,11 @@ func EnsureContext(ctx context.Context, socket string) error {
 	}
 
 	host := "unix://" + absSocket
-	if contextExists(ctx, ContextName) {
+	if contextExists(ctx, constants.DockerContextName) {
 		return updateContext(ctx, host)
 	}
 
-	command := exec.CommandContext(ctx, "docker", "context", "create", ContextName, "--docker", "host="+host)
+	command := exec.CommandContext(ctx, "docker", "context", "create", constants.DockerContextName, "--docker", "host="+host)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context create: %w: %s", err, strings.TrimSpace(string(output)))
@@ -106,8 +110,9 @@ func EnsureContext(ctx context.Context, socket string) error {
 	return nil
 }
 
+// updateContext changes the docker host endpoint for an existing calf context.
 func updateContext(ctx context.Context, host string) error {
-	command := exec.CommandContext(ctx, "docker", "context", "update", ContextName, "--docker", "host="+host)
+	command := exec.CommandContext(ctx, "docker", "context", "update", constants.DockerContextName, "--docker", "host="+host)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context update: %w: %s", err, strings.TrimSpace(string(output)))
@@ -116,12 +121,13 @@ func updateContext(ctx context.Context, host string) error {
 	return nil
 }
 
+// ActivateContext switches the active docker CLI context to calf.
 func ActivateContext(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker CLI not found")
 	}
 
-	command := exec.CommandContext(ctx, "docker", "context", "use", ContextName)
+	command := exec.CommandContext(ctx, "docker", "context", "use", constants.DockerContextName)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker context use: %w: %s", err, strings.TrimSpace(string(output)))
@@ -130,12 +136,13 @@ func ActivateContext(ctx context.Context) error {
 	return nil
 }
 
+// EnsureAndActivate creates or updates the calf context and selects it when another context is active.
 func EnsureAndActivate(ctx context.Context, socket string) error {
 	if err := EnsureContext(ctx, socket); err != nil {
 		return err
 	}
 
-	if readCurrentContext() == ContextName {
+	if readCurrentContext() == constants.DockerContextName {
 		return nil
 	}
 

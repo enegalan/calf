@@ -8,7 +8,9 @@ void main() {
       '/Applications/Calf.app',
     );
     expect(
-      macAppBundlePath('/Users/demo/build/macos/Build/Products/Debug/Calf.app/Contents/MacOS/ui'),
+      macAppBundlePath(
+        '/Users/demo/build/macos/Build/Products/Debug/Calf.app/Contents/MacOS/ui',
+      ),
       '/Users/demo/build/macos/Build/Products/Debug/Calf.app',
     );
     expect(macAppBundlePath('/usr/local/bin/calf'), isNull);

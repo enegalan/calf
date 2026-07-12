@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
 
+/// Shows a dialog prompting the user to download or skip an available update.
 Future<void> showUpdateAvailableDialog({
   required BuildContext context,
   required UpdateInfo update,
@@ -48,12 +49,16 @@ Future<void> showUpdateAvailableDialog({
           if (update.releaseNotes.isNotEmpty)
             Text(
               update.releaseNotes,
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
+              ),
             )
           else
             Text(
               'A newer version is available on GitHub.',
-              style: theme.textTheme.small.copyWith(color: theme.colorScheme.mutedForeground),
+              style: theme.textTheme.small.copyWith(
+                color: theme.colorScheme.mutedForeground,
+              ),
             ),
         ],
       ),

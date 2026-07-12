@@ -18,13 +18,17 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/api"
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/middleware"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// main delegates to run and maps its exit code to the process status.
 func main() {
 	os.Exit(run())
 }
 
+// run loads config, starts the HTTP server and container runtime, and shuts
+// both down cleanly on SIGINT/SIGTERM or when the parent process dies.
 func run() int {
 	os.Setenv("PATH", ensurePath())
 
@@ -49,10 +53,15 @@ func run() int {
 			NoProxy:    cfg.NoProxy,
 		},
 	)
-	server := api.New(cfg, logger, rt)
+	gateway := api.New(cfg, logger, rt).WithMiddleware(
+		middleware.CORS(),
+		middleware.Recovery(logger),
+		middleware.Logging(logger),
+	)
 
 	if err := ensurePort(cfg.ListenAddr); err != nil {
-		logger.Warn("cleaned up previous instance", "error", err)
+		logger.Error("listen port unavailable", "error", err)
+		return 1
 	}
 
 	writePidFile()
@@ -66,21 +75,26 @@ func run() int {
 	rtCtx, rtCancel := context.WithCancel(ctx)
 	defer rtCancel()
 
+	// Runtime starts in the background so the HTTP API is available immediately
+	// (handlers return 503 until the VM/containerd stack is ready).
 	go func() {
 		logger.Info("starting runtime")
 		if err := rt.Start(rtCtx); err != nil {
+			if rtCtx.Err() != nil {
+				return
+			}
 			logger.Warn("runtime start failed (non-fatal)", "error", err)
 		} else {
 			logger.Info("runtime started", "socket", rt.DockerSocket())
 		}
 	}()
 
-	go server.StartBuildSync(rtCtx)
-	go server.StartDockerContextManager(rtCtx)
+	go gateway.Backend().StartBuildSync(rtCtx)
+	go gateway.Backend().DockerCLI.Start(rtCtx)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- server.Run()
+		errCh <- gateway.Run()
 	}()
 
 	select {
@@ -99,7 +113,7 @@ func run() int {
 		logger.Info("shutting down")
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := gateway.Shutdown(shutdownCtx); err != nil {
 			logger.Error("shutdown failed", "error", err)
 		}
 	}
@@ -114,36 +128,39 @@ func run() int {
 	return 0
 }
 
+// writePidFile records the current process ID so a later instance can reclaim the listen port.
 func writePidFile() {
 	path := pidFilePath()
 	os.MkdirAll(filepath.Dir(path), 0o755)
 	os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o644)
 }
 
+// removePidFile deletes the PID file on shutdown so stale ownership is not assumed.
 func removePidFile() {
 	os.Remove(pidFilePath())
 }
 
+// ensurePort frees the listen address when a previous calf instance left it
+// occupied. Reclaims the port when the listener is calf-daemon or matches calf.pid.
 func ensurePort(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return err
 	}
 
-	ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
-	if err == nil {
-		ln.Close()
+	if portAvailable(host, port) {
 		return nil
 	}
 
 	pid, err := findPidOnPort(port)
 	if err != nil || pid == 0 {
-		return fmt.Errorf("port %s is in use; run: pkill -f calf", addr)
+		return fmt.Errorf("port %s is in use; close the Calf app or stop the other process", addr)
 	}
 
 	calfPID, pidErr := readPidFile()
-	if pidErr != nil || calfPID != pid {
-		return fmt.Errorf("port %s is in use by pid %d", addr, pid)
+	canReclaim := pidErr == nil && calfPID == pid
+	if !canReclaim && !isCalfListener(pid) {
+		return fmt.Errorf("port %s is in use by pid %d; close the Calf app or stop that process", addr, pid)
 	}
 
 	proc, err := os.FindProcess(pid)
@@ -159,16 +176,61 @@ func ensurePort(addr string) error {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(300 * time.Millisecond)
-		ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
-		if err == nil {
-			ln.Close()
+		if portAvailable(host, port) {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("port %s is still in use after cleanup; run: pkill -f calf", addr)
+	return fmt.Errorf("port %s is still in use after cleanup; close the Calf app and retry", addr)
 }
 
+// portAvailable reports whether the TCP listen address can be bound right now.
+func portAvailable(host, port string) bool {
+	ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
+// isCalfListener reports whether pid is a previous calf or calf-daemon instance.
+func isCalfListener(pid int) bool {
+	switch goRuntime.GOOS {
+	case "windows":
+		return isCalfListenerWindows(pid)
+	default:
+		return isCalfListenerUnix(pid)
+	}
+}
+
+// isCalfListenerUnix checks the process command line on Unix-like systems.
+func isCalfListenerUnix(pid int) bool {
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "args=").Output()
+	if err != nil {
+		return false
+	}
+	return looksLikeCalfProcess(string(out))
+}
+
+// isCalfListenerWindows checks the process image name on Windows.
+func isCalfListenerWindows(pid int) bool {
+	out, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/FO", "CSV", "/NH").Output()
+	if err != nil {
+		return false
+	}
+	return looksLikeCalfProcess(string(out))
+}
+
+// looksLikeCalfProcess reports whether a ps/tasklist line refers to calf-daemon or go run ./cmd/calf.
+func looksLikeCalfProcess(command string) bool {
+	lower := strings.ToLower(strings.TrimSpace(command))
+	return strings.Contains(lower, "calf-daemon") ||
+		strings.Contains(lower, "cmd/calf") ||
+		strings.Contains(lower, `cmd\calf`)
+}
+
+// findPidOnPort returns the PID listening on port, excluding this process and its parent.
 func findPidOnPort(port string) (int, error) {
 	switch goRuntime.GOOS {
 	case "windows":
@@ -178,6 +240,7 @@ func findPidOnPort(port string) (int, error) {
 	}
 }
 
+// findPidOnPortUnix uses lsof to find the listener PID on Unix-like systems.
 func findPidOnPortUnix(port string) (int, error) {
 	out, err := exec.Command("lsof", "-ti", fmt.Sprintf(":%s", port), "-s", "TCP:LISTEN").Output()
 	if err != nil {
@@ -195,6 +258,7 @@ func findPidOnPortUnix(port string) (int, error) {
 	return 0, errors.New("no pid found on port")
 }
 
+// findPidOnPortWindows uses netstat to find the listener PID on Windows.
 func findPidOnPortWindows(port string) (int, error) {
 	out, err := exec.Command("netstat", "-ano").Output()
 	if err != nil {
@@ -217,11 +281,14 @@ func findPidOnPortWindows(port string) (int, error) {
 	return 0, errors.New("no pid found on port")
 }
 
+// pidFilePath returns the path to ~/.config/calf/calf.pid.
 func pidFilePath() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".config", "calf", "calf.pid")
 }
 
+// ensurePath prepends Homebrew bin dirs when limactl lives there. The GUI
+// subprocess often inherits a minimal PATH that omits /opt/homebrew/bin.
 func ensurePath() string {
 	existing := os.Getenv("PATH")
 	if goRuntime.GOOS == "windows" {
@@ -245,6 +312,7 @@ func ensurePath() string {
 	return existing
 }
 
+// inPath reports whether dir appears as a colon-separated entry in path.
 func inPath(dir, path string) bool {
 	for _, p := range strings.Split(path, ":") {
 		if p == dir {
@@ -254,6 +322,7 @@ func inPath(dir, path string) bool {
 	return false
 }
 
+// readPidFile reads the PID written by a previous calf instance.
 func readPidFile() (int, error) {
 	data, err := os.ReadFile(pidFilePath())
 	if err != nil {

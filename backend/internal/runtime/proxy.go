@@ -6,12 +6,14 @@ import (
 	"strings"
 )
 
+// ProxyConfig represents the proxy configuration for the runtime.
 type ProxyConfig struct {
 	HTTPProxy  string
 	HTTPSProxy string
 	NoProxy    string
 }
 
+// applyProxyInVM writes HTTP proxy settings into the Lima VM so containerd, Docker, and shell sessions inherit them.
 func applyProxyInVM(ctx context.Context, run commandRunner, proxy ProxyConfig) error {
 	httpProxyDQ := shellDoubleQuote(proxy.HTTPProxy)
 	httpsProxyDQ := shellDoubleQuote(proxy.HTTPSProxy)
@@ -56,6 +58,7 @@ fi
 	return err
 }
 
+// shellQuote escapes a value for use inside single-quoted shell strings.
 func shellQuote(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -65,6 +68,7 @@ func shellQuote(value string) string {
 	return strings.ReplaceAll(value, "'", "'\\''")
 }
 
+// shellDoubleQuote escapes a value for use inside double-quoted shell strings.
 func shellDoubleQuote(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
