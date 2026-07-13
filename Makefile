@@ -2,7 +2,7 @@
         format-check-ui ui-macos clean dev dev-backend dev-ui-macos verify-docker-cli \
         release-macos ui-linux ui-windows dev-ui-linux dev-ui-windows release-linux \
         release-windows release package-macos package-windows package-linux package \
-        homebrew-cask
+        homebrew-cask benchmarks
 
 help:
 	@echo "Calf — common commands"
@@ -35,6 +35,7 @@ help:
 	@echo ""
 	@echo "  make clean              remove build artifacts"
 	@echo "  make verify-docker-cli  smoke-test docker CLI against Calf"
+	@echo "  make benchmarks         run macOS performance benchmarks (see BENCHMARKS.md)"
 	@echo ""
 	@echo "Full guide: DEVELOPMENT.md"
 
@@ -119,5 +120,8 @@ dev-ui-windows:
 
 verify-docker-cli:
 	./scripts/verify-docker-cli.sh
+
+benchmarks:
+	./scripts/benchmarks/run-all.sh
 
 dev: help

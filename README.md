@@ -12,6 +12,10 @@ make dev-ui        # terminal 2: macOS app
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for configuration and migration from Docker Desktop.
 
+## Performance
+
+Public macOS benchmarks comparing Calf with Docker Desktop and OrbStack (VM boot, Compose startup, bind-mount I/O, idle RAM) are in **[BENCHMARKS.md](BENCHMARKS.md)**. Reproduce them with `make benchmarks`.
+
 ## Installation
 
 ### macOS

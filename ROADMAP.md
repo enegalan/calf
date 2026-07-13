@@ -173,7 +173,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 **Goal:** Calf is preferable to Docker Desktop for speed and resource usage.
 
-- [ ] Public benchmarks vs Docker Desktop and OrbStack (VM boot, `compose up`, bind mount I/O)
+- [x] Public benchmarks vs Docker Desktop and OrbStack (VM boot, `compose up`, bind mount I/O)
 - [ ] Cold start optimization (< 5 s to first `docker run`)
 - [ ] Image and layer cache across restarts
 - [ ] Rootless mode where the OS allows it
@@ -201,12 +201,13 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time                        | < 5 s                 | Not benchmarked                  |
-| Idle RAM                               | < 1 GB                | Not benchmarked                  |
+| Cold start time                        | < 5 s                 | 14.8 s (Calf); 6.3 s (OrbStack)  |
+| Idle RAM                               | < 1 GB                | 1.5 GB (Calf); 2.7 GB (Docker Desktop) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |
 | Supported platforms                    | macOS, Linux, Windows | macOS, Linux, Windows            |
+| Idle RAM vs Docker Desktop             | < 50%                 | ~56% on M3 Pro reference hardware |
 
 ---
 
