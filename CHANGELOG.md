@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Performance benchmarks** — macOS comparison of Calf vs Docker Desktop vs OrbStack (startup, Compose, bind-mount I/O, idle memory), with reproduction steps in `BENCHMARKS.md`.
 
+### Fixed
+
+- **Benchmark reliability** — cold-start measurements now use the compiled daemon, correct Docker contexts, and no longer fail when Docker Desktop is installed.
+- **VM startup polling** — faster nerdctl readiness checks during Lima boot reduce time-to-ready after the VM is running.
+
 ## [0.9.3] - 2026-07-12
 
 ### Changed

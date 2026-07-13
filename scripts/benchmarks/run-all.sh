@@ -6,7 +6,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
 
 RUN_ID="${BENCHMARK_RUN_ID:-$(date +%Y%m%d-%H%M%S)}"
 PRODUCTS=()
-METRICS=(vm_boot compose_up bind_mount_write bind_mount_read idle_ram cold_start)
+METRICS=(cold_start vm_boot compose_up bind_mount_write bind_mount_read idle_ram)
 SKIP_METRICS=()
 
 usage() {
@@ -108,8 +108,6 @@ should_skip_product() {
 
 benchmark_vm_boot() {
   local product=$1
-  local docker_host
-  docker_host=$(product_docker_host "$product")
 
   stop_other_products "$product"
   stop_product "$product"
@@ -123,10 +121,10 @@ benchmark_vm_boot() {
         }
       fi
       limactl stop "$CALF_VM_NAME" >/dev/null 2>&1 || true
-      wait_for_docker_host_down "$docker_host" 120 || true
+      wait_for_docker_host_down "$product" 120 || true
       ;;
     docker_desktop | orbstack)
-      wait_for_docker_host_down "$docker_host" 120 || true
+      wait_for_docker_host_down "$product" 120 || true
       ;;
   esac
 
@@ -141,7 +139,7 @@ benchmark_vm_boot() {
       ;;
   esac
 
-  if wait_for_docker_host "$docker_host" "$BENCHMARK_TIMEOUT"; then
+  if wait_for_docker_host "$product" "$BENCHMARK_TIMEOUT"; then
     local seconds
     seconds=$(elapsed_seconds "$start_ms")
     log "$(product_label "$product") vm_boot=${seconds}s"
@@ -273,51 +271,46 @@ benchmark_idle_ram() {
 
 benchmark_cold_start() {
   local product=$1
-  local docker_host
-  docker_host=$(product_docker_host "$product")
   local started_daemon_pid=""
 
   stop_other_products "$product"
   stop_product "$product"
 
-  case "$product" in
-    calf)
-      wait_for_docker_host_down "$docker_host" 120 || true
-      ;;
-    docker_desktop | orbstack)
-      wait_for_docker_host_down "$docker_host" 120 || true
-      ;;
-  esac
+  wait_for_docker_host_down "$product" 120 || true
 
   local start_ms
   start_ms=$(now_epoch_ms)
 
   case "$product" in
     calf)
-      if ! started_daemon_pid=$(start_calf_daemon); then
+      if ! start_calf_daemon; then
         write_result_row "$RUN_ID" "$product" "cold_start" "skipped" "seconds" "could not start daemon"
         return 0
       fi
+      started_daemon_pid="$CALF_BENCHMARK_DAEMON_PID"
       ;;
     *)
       start_product "$product"
       ;;
   esac
 
-  if ! wait_for_docker_host "$docker_host" "$BENCHMARK_TIMEOUT"; then
+  if ! wait_for_docker_host "$product" "$BENCHMARK_TIMEOUT"; then
     write_result_row "$RUN_ID" "$product" "cold_start" "timeout" "seconds" "docker socket unavailable"
     [[ -n "$started_daemon_pid" ]] && kill "$started_daemon_pid" >/dev/null 2>&1 || true
     return 0
   fi
 
-  if docker_cmd "$product" run --rm hello-world >/dev/null 2>&1; then
+  if run_hello_world "$product"; then
     local seconds
     seconds=$(elapsed_seconds "$start_ms")
     log "$(product_label "$product") cold_start=${seconds}s"
     write_result_row "$RUN_ID" "$product" "cold_start" "$seconds" "seconds" "through first hello-world"
     docker_cmd "$product" rmi hello-world >/dev/null 2>&1 || true
   else
-    write_result_row "$RUN_ID" "$product" "cold_start" "failed" "seconds" "hello-world failed"
+    local err_log="${RESULTS_DIR}/cold-start-${product}.log"
+    docker_cmd "$product" run --rm hello-world >"$err_log" 2>&1 || true
+    write_result_row "$RUN_ID" "$product" "cold_start" "failed" "seconds" "hello-world failed; see ${err_log}"
+    warn "$(product_label "$product") cold_start failed; details in ${err_log}"
   fi
 }
 
@@ -326,6 +319,10 @@ for product in "${PRODUCTS[@]}"; do
     continue
   fi
   log "benchmarking $(product_label "$product")"
+  if metric_enabled cold_start; then
+    benchmark_cold_start "$product"
+  fi
+
   if metric_enabled vm_boot; then
     benchmark_vm_boot "$product"
   fi
@@ -356,10 +353,6 @@ for product in "${PRODUCTS[@]}"; do
         benchmark_idle_ram "$product"
       fi
     fi
-  fi
-
-  if metric_enabled cold_start; then
-    benchmark_cold_start "$product"
   fi
 done
 

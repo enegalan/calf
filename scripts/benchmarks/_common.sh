@@ -53,12 +53,40 @@ print(f"{(end - start) / 1000:.2f}")
 PY
 }
 
+docker_engine_ready() {
+  local product=$1
+  docker_cmd "$product" info 2>/dev/null | grep -q 'Server Version:'
+}
+
 wait_for_docker_host() {
-  local docker_host=$1
+  local product=$1
   local timeout=${2:-$BENCHMARK_TIMEOUT}
   local start=$SECONDS
+  local retried=false
   while (( SECONDS - start < timeout )); do
-    if DOCKER_HOST="$docker_host" docker info >/dev/null 2>&1; then
+    if docker_engine_ready "$product"; then
+      return 0
+    fi
+    if [[ "$retried" == "false" && $(( SECONDS - start )) -gt 60 ]]; then
+      case "$product" in
+        docker_desktop | orbstack)
+          warn "$(product_label "$product") engine slow; retrying app launch"
+          restart_product "$product"
+          retried=true
+          ;;
+      esac
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+wait_for_docker_host_down() {
+  local product=$1
+  local timeout=${2:-120}
+  local start=$SECONDS
+  while (( SECONDS - start < timeout )); do
+    if ! docker_engine_ready "$product"; then
       return 0
     fi
     sleep 1
@@ -67,16 +95,7 @@ wait_for_docker_host() {
 }
 
 wait_for_docker_context() {
-  local product=$1
-  local timeout=${2:-$BENCHMARK_TIMEOUT}
-  local start=$SECONDS
-  while (( SECONDS - start < timeout )); do
-    if docker_cmd "$product" info >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  return 1
+  wait_for_docker_host "$@"
 }
 
 product_docker_host() {
@@ -87,19 +106,6 @@ product_docker_host() {
     orbstack) echo "$ORBSTACK_HOST" ;;
     *) return 1 ;;
   esac
-}
-
-wait_for_docker_host_down() {
-  local docker_host=$1
-  local timeout=${2:-120}
-  local start=$SECONDS
-  while (( SECONDS - start < timeout )); do
-    if ! DOCKER_HOST="$docker_host" docker info >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  return 1
 }
 
 product_installed() {
@@ -214,11 +220,11 @@ stop_product() {
       ;;
     docker_desktop)
       osascript -e 'quit app "Docker"' >/dev/null 2>&1 || true
-      wait_for_docker_host_down "$DOCKER_DESKTOP_HOST" 30 || true
+      wait_for_docker_host_down docker_desktop 120 || true
       ;;
     orbstack)
       osascript -e 'quit app "OrbStack"' >/dev/null 2>&1 || true
-      wait_for_docker_host_down "$ORBSTACK_HOST" 30 || true
+      wait_for_docker_host_down orbstack 120 || true
       ;;
   esac
 }
@@ -243,6 +249,21 @@ start_product() {
   esac
 }
 
+# restart_product issues another open after a failed engine wait (Docker Desktop can ignore a rapid relaunch).
+restart_product() {
+  local product=$1
+  case "$product" in
+    docker_desktop | orbstack)
+      stop_product "$product"
+      sleep 3
+      start_product "$product"
+      ;;
+    *)
+      start_product "$product"
+      ;;
+  esac
+}
+
 ensure_calf_daemon() {
   if curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
     echo ""
@@ -251,22 +272,65 @@ ensure_calf_daemon() {
   start_calf_daemon
 }
 
+resolve_calf_daemon_bin() {
+  if [[ -n "${CALF_DAEMON_BIN:-}" && -x "${CALF_DAEMON_BIN}" ]]; then
+    echo "${CALF_DAEMON_BIN}"
+    return 0
+  fi
+  local candidates=(
+    "${ROOT_DIR}/backend/calf-daemon"
+    "${ROOT_DIR}/ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon"
+  )
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+CALF_BENCHMARK_DAEMON_PID=""
+
 start_calf_daemon() {
-  log "starting Calf daemon for benchmarks"
-  (
-    cd "${ROOT_DIR}/backend"
-    CGO_ENABLED=0 go run ./cmd/calf
-  ) &
-  local daemon_pid=$!
+  local daemon_bin=""
+  CALF_BENCHMARK_DAEMON_PID=""
+  if daemon_bin=$(resolve_calf_daemon_bin); then
+    log "starting Calf daemon for benchmarks (${daemon_bin})"
+    "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
+  else
+    warn "calf-daemon binary not found; falling back to go run (slower, may skew cold-start)"
+    (
+      cd "${ROOT_DIR}/backend"
+      CGO_ENABLED=0 go run ./cmd/calf
+    ) >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
+  fi
+  CALF_BENCHMARK_DAEMON_PID=$!
   local start=$SECONDS
   while (( SECONDS - start < 60 )); do
     if curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
-      echo "$daemon_pid"
       return 0
     fi
     sleep 1
   done
-  kill "$daemon_pid" >/dev/null 2>&1 || true
+  kill "$CALF_BENCHMARK_DAEMON_PID" >/dev/null 2>&1 || true
+  CALF_BENCHMARK_DAEMON_PID=""
+  return 1
+}
+
+run_hello_world() {
+  local product=$1
+  local attempt
+  for attempt in 1 2 3; do
+    if docker_cmd "$product" run --rm hello-world >/dev/null 2>&1; then
+      return 0
+    fi
+    if (( attempt < 3 )); then
+      docker_cmd "$product" pull hello-world >/dev/null 2>&1 || true
+      sleep 2
+    fi
+  done
   return 1
 }
 
@@ -286,7 +350,15 @@ stop_calf_daemon() {
       sleep 1
     done
   fi
+  if command -v lsof >/dev/null 2>&1; then
+    local port_pid
+    for port_pid in $(lsof -ti :8765 -sTCP:LISTEN 2>/dev/null || true); do
+      kill "$port_pid" >/dev/null 2>&1 || true
+    done
+  fi
+  pkill -f "${ROOT_DIR}/backend/calf-daemon" >/dev/null 2>&1 || true
   rm -f "$pid_file"
+  rm -f "${HOME}/.config/calf/docker.sock"
 }
 
 measure_idle_ram_mb() {

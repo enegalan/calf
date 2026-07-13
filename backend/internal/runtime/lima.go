@@ -713,6 +713,7 @@ func isTransientSocketDialError(err error) bool {
 // waitForNerdctl blocks until nerdctl info succeeds inside the VM or times out.
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
+	delay := constants.NerdctlReadyPollBase
 	for time.Now().Before(deadline) {
 		shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("info")...)
 		_, err := runCommandOnceEnv(ctx, limavm.ShellEnv(), "", "limactl", shellArgs...)
@@ -723,7 +724,14 @@ func (l *Lima) waitForNerdctl(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
+		case <-time.After(delay):
+		}
+
+		if delay < constants.NerdctlReadyPollMax {
+			delay *= 2
+			if delay > constants.NerdctlReadyPollMax {
+				delay = constants.NerdctlReadyPollMax
+			}
 		}
 	}
 

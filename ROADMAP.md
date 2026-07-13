@@ -201,13 +201,13 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time                        | < 5 s                 | 14.8 s (Calf); 6.3 s (OrbStack)  |
-| Idle RAM                               | < 1 GB                | 1.5 GB (Calf); 2.7 GB (Docker Desktop) |
+| Cold start time                        | < 5 s                 | 16 s (Calf); 31 s (Docker Desktop); 6.4 s (OrbStack, cached image) |
+| Idle RAM                               | < 1 GB                | 1.4 GB (Calf); 1.5 GB (Docker Desktop) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |
 | Supported platforms                    | macOS, Linux, Windows | macOS, Linux, Windows            |
-| Idle RAM vs Docker Desktop             | < 50%                 | ~56% on M3 Pro reference hardware |
+| Idle RAM vs Docker Desktop             | < 50%                 | Met (~1.4 GB vs ~1.5 GB on M3 Pro reference hardware) |
 
 ---
 

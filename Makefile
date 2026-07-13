@@ -122,6 +122,7 @@ verify-docker-cli:
 	./scripts/verify-docker-cli.sh
 
 benchmarks:
+	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
 	./scripts/benchmarks/run-all.sh
 
 dev: help
