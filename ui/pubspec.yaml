@@ -17,6 +17,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   file_selector: ^1.0.3
+  tray_manager: ^0.5.3
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +28,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+    - assets/tray/

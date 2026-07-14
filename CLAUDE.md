@@ -153,6 +153,7 @@ calf/
 │   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
+│   │   │   ├── tray_status.dart               macOS menu bar / Windows system tray status icon
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
 │   │   │   └── open_url.dart                  Platform-specific URL opener (Docker Hub sign-in)
 │   │   ├── storage/
@@ -324,6 +325,7 @@ Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (b
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
+- `tray_status.dart` — shows a Calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
 - `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
 - `open_url.dart` — platform-specific "open URL" helper used for Docker Hub sign-in.
 

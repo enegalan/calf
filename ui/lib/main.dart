@@ -9,6 +9,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/platform/tray_status.dart';
 
 final _lightShadTheme = ShadThemeData(
   brightness: Brightness.light,
@@ -126,6 +127,7 @@ Future<void> _stopDaemon() async {
   _daemonShutdown = true;
   _daemonRestartTimer?.cancel();
   _daemonRestartTimer = null;
+  await CalfTrayStatus.hide();
   final process = _daemonProcess;
   if (process == null) return;
   _daemonProcess = null;
@@ -197,6 +199,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       _waitForDaemon();
     } else {
       _daemonReady = true;
+      unawaited(CalfTrayStatus.show());
     }
   }
 
@@ -239,6 +242,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
                   _daemonReady = true;
                   _error = null;
                 });
+                unawaited(CalfTrayStatus.show());
               }
               return;
             }

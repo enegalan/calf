@@ -153,10 +153,10 @@ type Runtime interface {
 }
 
 // New returns the platform-appropriate Runtime implementation.
-func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) Runtime {
+func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, proxy)
 	}
 
-	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, proxy)
+	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 }

@@ -47,6 +47,7 @@ func run() int {
 		cfg.MemorySwapGB,
 		cfg.DiskGB,
 		runtime.ParseListenPort(cfg.ListenAddr),
+		cfg.VMKeepAlive,
 		runtime.ProxyConfig{
 			HTTPProxy:  cfg.HTTPProxy,
 			HTTPSProxy: cfg.HTTPSProxy,

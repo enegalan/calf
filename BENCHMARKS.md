@@ -83,7 +83,7 @@ On Lima/VZ, **VM boot dominates** this metric (typically 15–30 s on Apple Sili
 
 ### Warm start (daemon only)
 
-Time to restore the Docker socket when the Lima VM is **already running** but the Calf daemon was restarted (for example after a daemon-only crash or port reclaim). This path skips `limactl start` and usually completes in **under 2 s**.
+Time to restore the Docker socket when the Lima VM is **already running** but the Calf daemon was restarted. With `vm_keep_alive: true` (default), quitting Calf leaves the VM up so the next launch uses this path — usually **under 2 s**.
 
 ## Methodology
 

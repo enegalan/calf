@@ -11,3 +11,4 @@ disk_gb: 100
 http_proxy: ""
 https_proxy: ""
 no_proxy: ""
+vm_keep_alive: true

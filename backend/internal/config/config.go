@@ -29,6 +29,7 @@ type Config struct {
 	HTTPProxy            string `yaml:"http_proxy"`
 	HTTPSProxy           string `yaml:"https_proxy"`
 	NoProxy              string `yaml:"no_proxy"`
+	VMKeepAlive          bool   `yaml:"vm_keep_alive"`
 }
 
 // Default returns the embedded config.yaml values without reading disk.
@@ -83,6 +84,9 @@ func Load() (Config, error) {
 	_ = yaml.Unmarshal(data, &raw)
 	if _, ok := raw["docker_context_managed"]; !ok {
 		cfg.DockerContextManaged = defaultFromYAML().DockerContextManaged
+	}
+	if _, ok := raw["vm_keep_alive"]; !ok {
+		cfg.VMKeepAlive = defaultFromYAML().VMKeepAlive
 	}
 
 	cfg = withDefaults(cfg)

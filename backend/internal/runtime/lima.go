@@ -43,6 +43,7 @@ type Lima struct {
 	memoryGB       int
 	memorySwapGB   int
 	diskGB         int
+	vmKeepAlive    bool
 	proxy          ProxyConfig
 	started        atomic.Bool
 	proxyResync    atomic.Bool
@@ -54,7 +55,7 @@ type Lima struct {
 }
 
 // NewLima constructs a Lima VM runtime with resource limits and proxy settings.
-func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, proxy ProxyConfig) *Lima {
+func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Lima {
 	if vmName == "" {
 		vmName = constants.DefaultVMName
 	}
@@ -70,6 +71,7 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 		memoryGB:       memoryGB,
 		memorySwapGB:   memorySwapGB,
 		diskGB:         diskGB,
+		vmKeepAlive:    vmKeepAlive,
 		proxy:          proxy,
 		localhostProxy: newLocalhostProxies(),
 	}
@@ -185,6 +187,10 @@ func (l *Lima) Stop(ctx context.Context) error {
 	l.localhostProxy.stopAll()
 	l.removeDockerCLISocket()
 	l.started.Store(false)
+
+	if l.vmKeepAlive {
+		return nil
+	}
 
 	status, err := l.limaVMStatus(ctx)
 	if err != nil {

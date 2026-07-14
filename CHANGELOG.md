@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Lima cold start** — the Docker socket is brought up before the VM boots and readiness uses a lightweight `/_ping` check instead of a full `nerdctl info` shell round-trip.
+- **VM keep-alive** — on macOS and Windows, quitting Calf leaves the Lima VM running so the next launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive` in `~/.config/calf/config.yaml`).
+
+### Added
+
+- **Menu bar / system tray icon** — Calf shows a status icon in the macOS menu bar and Windows notification area while the app is running; it is removed when you choose **Calf → Quit**.
 
 ## [0.9.3] - 2026-07-12
 
