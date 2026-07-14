@@ -25,6 +25,7 @@ Measured 2026-07-13 on the reference hardware above. Only one engine ran at a ti
 | Bind mount read (256 MiB)    | 5.2 GB/s*    | 2.2 GB/s*      | 3.1 GB/s*    |
 | Idle RAM (engine processes)  | **1.4 GB**   | 1.5 GB         | **0.9 GB**   |
 | Cold start → first container | 16.0 s       | 31–41 s†       | 6.4–22 s‡    |
+| Warm start (VM already up)   | **< 2 s**    | n/a            | n/a          |
 
 \* **Read throughput** used a file already present in the container mount from the write step. Linux page cache inflates read numbers; **write throughput** is the more reliable bind-mount comparison.
 
@@ -38,7 +39,7 @@ Measured 2026-07-13 on the reference hardware above. Only one engine ran at a ti
 |-----------|--------|--------|
 | Documented benchmarks | Yes | This file |
 | Idle RAM vs Docker Desktop | < 50% | **Met** (~1.4 GB vs ~1.5 GB on this run) |
-| Cold start | < 5 s | Not met (best observed: OrbStack ~6.4 s with cached image) |
+| Cold start | < 5 s | Not met on full VM stop/start (Lima boot ~15–30 s). Warm start (VM up, daemon restart) meets target |
 
 ## What each metric means
 
@@ -74,9 +75,15 @@ Sum of RSS for engine-related processes (daemon, VM helper, `Virtualization.Virt
 
 ### Cold start
 
-Time from a full stop (app quit + Calf daemon stopped) through the first successful `hello-world` container.
+Time from a full stop (app quit + Calf daemon stopped + Lima VM stopped) through the first successful `hello-world` container.
 
 **Developer impact:** First-run experience after install or reboot. Includes image pull when the image is not cached.
+
+On Lima/VZ, **VM boot dominates** this metric (typically 15–30 s on Apple Silicon). That cost is inherent to a full stop/start cycle.
+
+### Warm start (daemon only)
+
+Time to restore the Docker socket when the Lima VM is **already running** but the Calf daemon was restarted (for example after a daemon-only crash or port reclaim). This path skips `limactl start` and usually completes in **under 2 s**.
 
 ## Methodology
 

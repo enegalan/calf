@@ -33,10 +33,14 @@ const (
 	DefaultVMName   = "calf"
 	NerdctlBin      = "/usr/local/bin/nerdctl"
 	DefaultExecTerm = "xterm-256color"
+// DockerAPIReadyPollBase is the initial delay between Docker API readiness checks during VM boot.
+	DockerAPIReadyPollBase = 200 * time.Millisecond
+	// DockerAPIReadyPollMax caps exponential backoff while waiting for the Docker HTTP API.
+	DockerAPIReadyPollMax = 2 * time.Second
 	// NerdctlReadyPollBase is the initial delay between nerdctl readiness checks during VM boot.
-	NerdctlReadyPollBase = 200 * time.Millisecond
+	NerdctlReadyPollBase = DockerAPIReadyPollBase
 	// NerdctlReadyPollMax caps exponential backoff while waiting for nerdctl inside the VM.
-	NerdctlReadyPollMax = 2 * time.Second
+	NerdctlReadyPollMax = DockerAPIReadyPollMax
 )
 
 // RuntimeMode values identify whether Calf runs containers in a Lima VM or on the host.

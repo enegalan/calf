@@ -93,6 +93,23 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := l.ensureDockerCLISocket(); err != nil {
+		limaLogger.Warn("failed to set up Docker CLI socket (non-fatal)", "error", err)
+	}
+
+	running, err := l.vmIsRunning(ctx)
+	if err != nil {
+		return err
+	}
+
+	if running {
+		if err := l.waitForDockerAPI(ctx); err != nil {
+			return err
+		}
+		l.markStarted()
+		return nil
+	}
+
 	exists, err := l.instanceExists(ctx)
 	if err != nil {
 		return err
@@ -108,25 +125,41 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
-	if err := l.waitForNerdctl(ctx); err != nil {
+	if err := l.waitForDockerAPI(ctx); err != nil {
 		return err
 	}
 
 	if l.proxy != (ProxyConfig{}) {
-		if err := l.ApplyProxy(ctx, l.proxy); err != nil {
-			limaLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
-		}
+		proxy := l.proxy
+		go func() {
+			applyCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+			defer cancel()
+			if err := l.ApplyProxy(applyCtx, proxy); err != nil {
+				limaLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
+			}
+		}()
 	}
 
-	if err := l.ensureDockerCLISocket(); err != nil {
-		limaLogger.Warn("failed to set up Docker CLI socket symlink (non-fatal)", "error", err)
-	}
+	l.markStarted()
+	return nil
+}
 
+// markStarted records a running runtime and starts background port-proxy maintenance.
+func (l *Lima) markStarted() {
 	l.started.Store(true)
 	wCtx, wCancel := context.WithCancel(context.Background())
 	l.watcherCancel = wCancel
 	go l.watchPortProxies(wCtx)
-	return nil
+}
+
+// vmIsRunning reports whether the Lima instance exists and is in the Running state.
+func (l *Lima) vmIsRunning(ctx context.Context) (bool, error) {
+	status, err := l.limaVMStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return strings.EqualFold(status, "Running"), nil
 }
 
 // Stop tears down proxies and stops the Lima VM instance.
@@ -710,6 +743,75 @@ func isTransientSocketDialError(err error) bool {
 	return false
 }
 
+// waitForDockerAPI blocks until the Docker HTTP API answers on the Calf socket or Lima port forward.
+func (l *Lima) waitForDockerAPI(ctx context.Context) error {
+	deadline := time.Now().Add(10 * time.Minute)
+	delay := constants.DockerAPIReadyPollBase
+	for time.Now().Before(deadline) {
+		if l.dockerAPIReady(ctx) {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+
+		if delay < constants.DockerAPIReadyPollMax {
+			delay *= 2
+			if delay > constants.DockerAPIReadyPollMax {
+				delay = constants.DockerAPIReadyPollMax
+			}
+		}
+	}
+
+	return fmt.Errorf("docker API not ready in VM %q", l.vmName)
+}
+
+// dockerAPIReady reports whether the Docker HTTP API responds to /_ping.
+func (l *Lima) dockerAPIReady(ctx context.Context) bool {
+	if l.dockerSocket != "" {
+		client := &http.Client{
+			Timeout: 2 * time.Second,
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+					var dialer net.Dialer
+					return dialer.DialContext(ctx, "unix", l.dockerSocket)
+				},
+				DisableKeepAlives: true,
+			},
+		}
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/_ping", nil)
+		if err == nil {
+			resp, err := client.Do(req)
+			if err == nil {
+				resp.Body.Close()
+				return resp.StatusCode == http.StatusOK
+			}
+		}
+	}
+
+	conn, err := (&net.Dialer{Timeout: 500 * time.Millisecond}).DialContext(ctx, "tcp", "127.0.0.1:2375")
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+
+	if _, err := conn.Write([]byte("GET /_ping HTTP/1.0\r\nHost: localhost\r\n\r\n")); err != nil {
+		return false
+	}
+
+	buf := make([]byte, 64)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(string(buf[:n]), "200")
+}
+
 // waitForNerdctl blocks until nerdctl info succeeds inside the VM or times out.
 func (l *Lima) waitForNerdctl(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
@@ -780,8 +882,11 @@ func (l *Lima) ensureTemplate() error {
 	l.mu.Unlock()
 
 	content := fmt.Sprintf(limaTemplate, home, home, l.cpus, l.memoryGB, l.memorySwapGB, diskGB, currentProxy.HTTPProxy, currentProxy.HTTPSProxy, currentProxy.NoProxy)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return err
+	existing, readErr := os.ReadFile(path)
+	if readErr != nil || string(existing) != content {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			return err
+		}
 	}
 
 	if err := patchLegacyLimaCIDATAProvision(l.vmName); err != nil {

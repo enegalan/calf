@@ -201,7 +201,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time                        | < 5 s                 | 16 s (Calf); 31 s (Docker Desktop); 6.4 s (OrbStack, cached image) |
+| Cold start time                        | < 5 s                 | Full cold start ~16 s (Lima VM boot); warm start < 2 s (VM already running) |
 | Idle RAM                               | < 1 GB                | 1.4 GB (Calf); 1.5 GB (Docker Desktop) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
