@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Menu bar / system tray icon** — Calf shows a status icon in the macOS menu bar and Windows notification area while the app is running; it is removed when you choose **Calf → Quit**.
+- **Menu bar / system tray icon** — Calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; clicking it opens a context menu with Open and Quit; removed on **Calf → Quit**.
 
 ## [0.9.3] - 2026-07-12
 

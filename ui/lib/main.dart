@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
@@ -141,8 +142,29 @@ Future<void> _stopDaemon() async {
   );
 }
 
+/// Brings the Calf window to the foreground (tray menu action).
+Future<void> _openCalfWindow() async {
+  if (!supportsTrayStatusIcon) {
+    return;
+  }
+  await windowManager.show();
+  await windowManager.focus();
+}
+
+/// Quits the app from the tray menu (same as Calf → Quit).
+Future<void> _quitCalfApp() async {
+  await _stopDaemon();
+  CalfTrayStatus.dispose();
+  exit(0);
+}
+
 /// Application entry point; starts the daemon and runs the Flutter app.
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (supportsTrayStatusIcon) {
+    await windowManager.ensureInitialized();
+  }
+  CalfTrayStatus.install(onOpen: _openCalfWindow, onQuit: _quitCalfApp);
   if (!_externalDaemon) {
     _startDaemon();
   }
@@ -216,6 +238,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopDaemon();
+    CalfTrayStatus.dispose();
     super.dispose();
   }
 
