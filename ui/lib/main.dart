@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/platform/open_url.dart';
 import 'package:ui/platform/tray_status.dart';
 
 final _lightShadTheme = ShadThemeData(
@@ -142,6 +143,27 @@ Future<void> _stopDaemon() async {
   );
 }
 
+/// Restarts the embedded calf-daemon without quitting the app.
+Future<void> _restartDaemon() async {
+  if (_externalDaemon || _daemonShutdown) {
+    return;
+  }
+
+  _daemonRestartTimer?.cancel();
+  _daemonRestartAttempts = 0;
+  final process = _daemonProcess;
+  if (process != null) {
+    _daemonProcess = null;
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
+      process.kill(ProcessSignal.sigkill);
+    }
+  }
+  await _startDaemon();
+}
+
 /// Brings the Calf window to the foreground (tray menu action).
 Future<void> _openCalfWindow() async {
   if (!supportsTrayStatusIcon) {
@@ -164,7 +186,12 @@ Future<void> main() async {
   if (supportsTrayStatusIcon) {
     await windowManager.ensureInitialized();
   }
-  CalfTrayStatus.install(onOpen: _openCalfWindow, onQuit: _quitCalfApp);
+  CalfTrayStatus.install(
+    onOpen: _openCalfWindow,
+    onQuit: _quitCalfApp,
+    onRestartEngine: _restartDaemon,
+    onOpenUrl: openExternalUrl,
+  );
   if (!_externalDaemon) {
     _startDaemon();
   }

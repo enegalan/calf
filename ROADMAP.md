@@ -174,7 +174,8 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 **Goal:** Calf is preferable to Docker Desktop for speed and resource usage.
 
 - [x] Public benchmarks vs Docker Desktop and OrbStack (VM boot, `compose up`, bind mount I/O)
-- [ ] Cold start optimization (< 5 s to first `docker run`; warm start < 2 s met via `vm_keep_alive`)
+- [x] Warm start optimization (< 2 s when the Lima VM is kept alive via `vm_keep_alive`)
+- [ ] Full cold start optimization (< 5 s to first `docker run`, including VM boot; ~16 s on reference M3 Pro hardware)
 - [ ] Image and layer cache across restarts
 - [ ] Rootless mode where the OS allows it
 - [ ] Basic `buildx` support (optional multi-arch)
