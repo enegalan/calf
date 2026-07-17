@@ -15,8 +15,7 @@ func isBuildxMissingError(err error) bool {
 	return strings.Contains(message, "buildx") &&
 		(strings.Contains(message, "not found") ||
 			strings.Contains(message, "unknown command") ||
-			strings.Contains(message, "is not a docker command") ||
-			strings.Contains(message, "plugin"))
+			strings.Contains(message, "is not a docker command"))
 }
 
 // ensureBuildx installs the buildx plugin when missing and bootstraps the default builder.

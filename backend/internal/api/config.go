@@ -117,6 +117,18 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Rootless != nil {
+		g.backend.CfgMu.RLock()
+		currentRootless := g.backend.Cfg.Rootless
+		g.backend.CfgMu.RUnlock()
+		if *req.Rootless != currentRootless {
+			if _, isNative := g.backend.Runtime.(*runtime.Native); isNative {
+				httpkit.WriteError(w, http.StatusConflict, "changing rootless requires restarting the Calf daemon")
+				return
+			}
+		}
+	}
+
 	proxyChanged := req.HTTPProxy != nil || req.HTTPSProxy != nil || req.NoProxy != nil
 	saved, err := g.applyConfigUpdate(req)
 	if err != nil {

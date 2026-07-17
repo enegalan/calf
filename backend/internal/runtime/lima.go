@@ -34,7 +34,8 @@ var limaTemplate string
 
 // Lima represents a Lima VM runtime.
 type Lima struct {
-	mu sync.Mutex
+	mu      sync.Mutex
+	startMu sync.Mutex
 
 	vmName         string
 	dockerSocket   string
@@ -85,8 +86,12 @@ func (l *Lima) DockerSocket() string {
 	return l.dockerSocket
 }
 
-// Start creates or boots the Lima VM, waits for nerdctl, and starts port proxies.
+// Start creates or boots the Lima VM, waits for the Docker API, and starts port proxies.
+// Concurrent and repeat calls are single-flight and idempotent when the host socket is already up.
 func (l *Lima) Start(ctx context.Context) error {
+	l.startMu.Lock()
+	defer l.startMu.Unlock()
+
 	if _, err := exec.LookPath("limactl"); err != nil {
 		return fmt.Errorf("limactl not found: install Lima first")
 	}
@@ -95,68 +100,104 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
+	if l.hostSetupReady() {
+		running, err := l.vmIsRunning(ctx)
+		if err != nil {
+			return err
+		}
+		if running && l.dockerAPIReady(ctx) {
+			return nil
+		}
+	}
+
 	if err := l.ensureDockerCLISocket(); err != nil {
 		limaLogger.Warn("failed to set up Docker CLI socket (non-fatal)", "error", err)
 	}
+
+	lifeCtx := l.resetLifecycle()
 
 	running, err := l.vmIsRunning(ctx)
 	if err != nil {
 		return err
 	}
 
-	if running {
-		if err := l.waitForDockerAPI(ctx); err != nil {
+	if !running {
+		exists, err := l.instanceExists(ctx)
+		if err != nil {
 			return err
 		}
-		l.ensureBuildxAsync()
-		l.syncStartAtLogin(ctx)
-		l.markStarted()
-		return nil
-	}
 
-	exists, err := l.instanceExists(ctx)
-	if err != nil {
-		return err
-	}
+		if !exists {
+			if _, err := runCommand(ctx, "limactl", "create", "--name", l.vmName, l.templatePath); err != nil {
+				return err
+			}
+		}
 
-	if !exists {
-		if _, err := runCommand(ctx, "limactl", "create", "--name", l.vmName, l.templatePath); err != nil {
+		if _, err := runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
 			return err
 		}
-	}
-
-	if _, err := runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
-		return err
 	}
 
 	if err := l.waitForDockerAPI(ctx); err != nil {
 		return err
 	}
 
-	l.ensureBuildxAsync()
+	l.ensureBuildxAsync(lifeCtx)
 
 	if l.proxy != (ProxyConfig{}) {
 		proxy := l.proxy
 		go func() {
-			applyCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+			applyCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
 			defer cancel()
 			if err := l.ApplyProxy(applyCtx, proxy); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return
+				}
 				limaLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
 			}
 		}()
 	}
 
 	l.syncStartAtLogin(ctx)
-	l.markStarted()
+	l.markStarted(lifeCtx)
 	return nil
 }
 
+// hostSetupReady reports whether Start already brought up the host Docker socket proxy.
+func (l *Lima) hostSetupReady() bool {
+	if !l.started.Load() {
+		return false
+	}
+	l.mu.Lock()
+	listener := l.proxyListener
+	l.mu.Unlock()
+	if listener == nil {
+		return false
+	}
+	if l.dockerSocket == "" {
+		return true
+	}
+	_, err := os.Stat(l.dockerSocket)
+	return err == nil
+}
+
+// resetLifecycle cancels prior background work and returns a fresh lifecycle context.
+func (l *Lima) resetLifecycle() context.Context {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.watcherCancel != nil {
+		l.watcherCancel()
+		l.watcherCancel = nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	l.watcherCancel = cancel
+	return ctx
+}
+
 // markStarted records a running runtime and starts background port-proxy maintenance.
-func (l *Lima) markStarted() {
+func (l *Lima) markStarted(lifeCtx context.Context) {
 	l.started.Store(true)
-	wCtx, wCancel := context.WithCancel(context.Background())
-	l.watcherCancel = wCancel
-	go l.watchPortProxies(wCtx)
+	go l.watchPortProxies(lifeCtx)
 }
 
 // vmIsRunning reports whether the Lima instance exists and is in the Running state.
@@ -184,10 +225,12 @@ func (l *Lima) Stop(ctx context.Context) error {
 		return nil
 	}
 
+	l.mu.Lock()
 	if l.watcherCancel != nil {
 		l.watcherCancel()
 		l.watcherCancel = nil
 	}
+	l.mu.Unlock()
 
 	l.localhostProxy.stopAll()
 	l.removeDockerCLISocket()
@@ -218,11 +261,14 @@ func (l *Lima) Stop(ctx context.Context) error {
 }
 
 // ensureBuildxAsync bootstraps buildx off the Start critical path.
-func (l *Lima) ensureBuildxAsync() {
+func (l *Lima) ensureBuildxAsync(lifeCtx context.Context) {
 	go func() {
-		buildxCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+		buildxCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
 		defer cancel()
 		if err := ensureBuildx(buildxCtx, l.runInVM); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
 			limaLogger.Warn("buildx setup failed (non-fatal)", "error", err)
 		}
 	}()
@@ -864,34 +910,6 @@ func (l *Lima) dockerAPIReady(ctx context.Context) bool {
 	return strings.Contains(string(buf[:n]), "200")
 }
 
-// waitForNerdctl blocks until nerdctl info succeeds inside the VM or times out.
-func (l *Lima) waitForNerdctl(ctx context.Context) error {
-	deadline := time.Now().Add(10 * time.Minute)
-	delay := constants.NerdctlReadyPollBase
-	for time.Now().Before(deadline) {
-		shellArgs := append([]string{"shell", l.vmName, "--"}, NerdctlVMArgs("info")...)
-		_, err := runCommandOnceEnv(ctx, limavm.ShellEnv(), "", "limactl", shellArgs...)
-		if err == nil {
-			return nil
-		}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(delay):
-		}
-
-		if delay < constants.NerdctlReadyPollMax {
-			delay *= 2
-			if delay > constants.NerdctlReadyPollMax {
-				delay = constants.NerdctlReadyPollMax
-			}
-		}
-	}
-
-	return fmt.Errorf("nerdctl not ready in VM %q", l.vmName)
-}
-
 // instanceExists reports whether the configured Lima VM instance already exists.
 func (l *Lima) instanceExists(ctx context.Context) (bool, error) {
 	output, err := runCommand(ctx, "limactl", "list", "--format", "{{.Name}}")
@@ -1012,10 +1030,22 @@ func dockerCLISocketPath() string {
 }
 
 // ensureDockerCLISocket listens on the Calf socket and symlinks the Docker CLI path.
+// Reuses an existing healthy listener instead of stacking proxy servers.
 func (l *Lima) ensureDockerCLISocket() error {
 	if l.dockerSocket == "" {
 		return nil
 	}
+
+	l.mu.Lock()
+	alreadyServing := l.proxyListener != nil
+	l.mu.Unlock()
+	if alreadyServing {
+		if _, err := os.Stat(l.dockerSocket); err == nil {
+			return nil
+		}
+	}
+
+	l.removeDockerCLISocket()
 
 	dir := filepath.Dir(l.dockerSocket)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

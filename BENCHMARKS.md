@@ -35,9 +35,11 @@ These are **not** head-to-head metrics. They describe Calf's default lifecycle (
 | Situation                                                            | Typical time            |
 |----------------------------------------------------------------------|------------------------:|
 | Reopen Calf while the Lima VM was left running                       | < 2 s                   |
-| After host login, once Lima start-at-login has already booted the VM | < 2 s to first `docker` |
+| After host login, VM already up via Lima start-at-login, then Calf daemon starts | < 2 s to first `docker` |
 
 A full stop of the Lima VM still costs ~13–16 s on this hardware — that is the number in the comparison table above.
+
+`docker` talks to Calf through the host socket the daemon serves (`~/.config/calf/docker.sock`). Lima start-at-login alone boots the VM; the Calf daemon must be running to restore that socket.
 
 ## What each metric means
 

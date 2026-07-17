@@ -37,10 +37,6 @@ const (
 	DockerAPIReadyPollBase = 200 * time.Millisecond
 	// DockerAPIReadyPollMax caps exponential backoff while waiting for the Docker HTTP API.
 	DockerAPIReadyPollMax = 2 * time.Second
-	// NerdctlReadyPollBase is the initial delay between nerdctl readiness checks during VM boot.
-	NerdctlReadyPollBase = DockerAPIReadyPollBase
-	// NerdctlReadyPollMax caps exponential backoff while waiting for nerdctl inside the VM.
-	NerdctlReadyPollMax = DockerAPIReadyPollMax
 )
 
 // RuntimeMode values identify whether Calf runs containers in a Lima VM or on the host.
