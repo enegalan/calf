@@ -50,6 +50,7 @@ type Lima struct {
 	proxyResync    atomic.Bool
 	lastState      State
 	localhostProxy *localhostProxies
+	ownerCtx       context.Context
 	watcherCancel  context.CancelFunc
 	proxyListener  net.Listener
 	dockerProxy    *http.Server
@@ -74,6 +75,7 @@ func NewLima(vmName string, dockerSocket string, cpus int, memoryGB int, memoryS
 		diskGB:         diskGB,
 		vmKeepAlive:    vmKeepAlive,
 		proxy:          proxy,
+		ownerCtx:       context.Background(),
 		localhostProxy: newLocalhostProxies(),
 	}
 	lima.localhostProxy.setReservedPorts(apiListenPort)
@@ -181,6 +183,17 @@ func (l *Lima) hostSetupReady() bool {
 	return err == nil
 }
 
+// SetOwnerContext sets the parent context for Lima background work (watchers, Buildx, proxy).
+// Canceled when the daemon shuts down so handler-triggered Start recovery stays cancellable.
+func (l *Lima) SetOwnerContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.ownerCtx = ctx
+}
+
 // resetLifecycle cancels prior background work and returns a fresh lifecycle context.
 func (l *Lima) resetLifecycle() context.Context {
 	l.mu.Lock()
@@ -189,7 +202,11 @@ func (l *Lima) resetLifecycle() context.Context {
 		l.watcherCancel()
 		l.watcherCancel = nil
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	parent := l.ownerCtx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
 	l.watcherCancel = cancel
 	return ctx
 }
@@ -216,15 +233,8 @@ func (l *Lima) Stop(ctx context.Context) error {
 		return fmt.Errorf("limactl not found: install Lima first")
 	}
 
-	exists, err := l.instanceExists(ctx)
-	if err != nil {
-		return err
-	}
-
-	if !exists {
-		return nil
-	}
-
+	// Always release host resources first so a missing or externally removed VM
+	// does not leave watchers, localhost proxies, or the Docker CLI socket behind.
 	l.mu.Lock()
 	if l.watcherCancel != nil {
 		l.watcherCancel()
@@ -235,6 +245,15 @@ func (l *Lima) Stop(ctx context.Context) error {
 	l.localhostProxy.stopAll()
 	l.removeDockerCLISocket()
 	l.started.Store(false)
+
+	exists, err := l.instanceExists(ctx)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return nil
+	}
 
 	if l.vmKeepAlive {
 		return nil
@@ -896,6 +915,14 @@ func (l *Lima) dockerAPIReady(ctx context.Context) bool {
 		return false
 	}
 	defer conn.Close()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(500 * time.Millisecond)
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
+		return false
+	}
 
 	if _, err := conn.Write([]byte("GET /_ping HTTP/1.0\r\nHost: localhost\r\n\r\n")); err != nil {
 		return false

@@ -33,9 +33,17 @@ type Core struct {
 	lifecycleCancel       context.CancelFunc
 }
 
+// ownerContextSetter is implemented by runtimes whose background work should follow daemon shutdown.
+type ownerContextSetter interface {
+	SetOwnerContext(ctx context.Context)
+}
+
 // New constructs a Core, starts the export scheduler, and loads persisted build history.
 func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	if setter, ok := rt.(ownerContextSetter); ok {
+		setter.SetOwnerContext(lifecycleCtx)
+	}
 	srv := &Core{
 		Cfg:             cfg,
 		Logger:          logger,

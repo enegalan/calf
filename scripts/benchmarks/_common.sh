@@ -341,12 +341,24 @@ run_hello_world_cached() {
 }
 
 stop_calf_daemon() {
+  local pid="${CALF_BENCHMARK_DAEMON_PID:-}"
   local pid_file="${HOME}/.config/calf/calf.pid"
-  local pid=""
-  if [[ -f "$pid_file" ]]; then
+  if [[ -z "$pid" && -f "$pid_file" ]]; then
     pid=$(tr -d '[:space:]' <"$pid_file")
   fi
   if [[ -n "$pid" ]] && kill -0 "$pid" >/dev/null 2>&1; then
+    # Only terminate a tracked, still-living PID we started (or the recorded calf.pid).
+    local cmdline=""
+    if [[ -r "/proc/${pid}/cmdline" ]]; then
+      cmdline=$(tr '\0' ' ' <"/proc/${pid}/cmdline")
+    elif command -v ps >/dev/null 2>&1; then
+      cmdline=$(ps -p "$pid" -o args= 2>/dev/null || true)
+    fi
+    if [[ -n "$cmdline" && "$cmdline" != *calf* ]]; then
+      warn "refusing to kill non-calf pid ${pid}: ${cmdline}"
+      CALF_BENCHMARK_DAEMON_PID=""
+      return 0
+    fi
     kill "$pid" >/dev/null 2>&1 || true
     local start=$SECONDS
     while (( SECONDS - start < 30 )); do
@@ -356,13 +368,7 @@ stop_calf_daemon() {
       sleep 1
     done
   fi
-  if command -v lsof >/dev/null 2>&1; then
-    local port_pid
-    for port_pid in $(lsof -ti :8765 -sTCP:LISTEN 2>/dev/null || true); do
-      kill "$port_pid" >/dev/null 2>&1 || true
-    done
-  fi
-  pkill -f "${ROOT_DIR}/backend/calf-daemon" >/dev/null 2>&1 || true
+  CALF_BENCHMARK_DAEMON_PID=""
   rm -f "$pid_file"
   rm -f "${HOME}/.config/calf/docker.sock"
 }
@@ -421,14 +427,7 @@ import os
 import re
 
 line = os.environ.get("DD_LINE", "").strip()
-match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*MB/s", line)
-if match:
-    print(f"{float(match.group(1)):.1f}")
-    raise SystemExit(0)
-match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*GB/s", line)
-if match:
-    print(f"{float(match.group(1)) * 1024:.1f}")
-    raise SystemExit(0)
+# Prefer bytes + seconds (most accurate); report MiB/s.
 match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*seconds", line)
 bytes_match = re.search(r"([0-9]+)\s*bytes", line)
 if match and bytes_match:
@@ -437,6 +436,15 @@ if match and bytes_match:
     if seconds > 0:
         print(f"{(num_bytes / seconds) / (1024 * 1024):.1f}")
         raise SystemExit(0)
+# Decimal MB/s and GB/s from dd → MiB/s.
+match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*MB/s", line)
+if match:
+    print(f"{float(match.group(1)) * 1_000_000 / (1024 * 1024):.1f}")
+    raise SystemExit(0)
+match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*GB/s", line)
+if match:
+    print(f"{float(match.group(1)) * 1_000_000_000 / (1024 * 1024):.1f}")
+    raise SystemExit(0)
 print("0")
 PY
 }

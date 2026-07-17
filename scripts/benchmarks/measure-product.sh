@@ -10,6 +10,7 @@ RUN_ID="${2:-m3pro-final}"
 
 bench_dir="${BENCHMARK_MOUNT_DIR}/${PRODUCT}"
 mkdir -p "$bench_dir"
+mkdir -p "$RESULTS_DIR"
 
 log "measuring $(product_label "$PRODUCT") (engine must already be running)"
 
@@ -44,12 +45,28 @@ read_mbps=$(parse_dd_mbps "$(tail -1 "$tmp")")
 docker_cmd "$PRODUCT" rm -f "$id" >/dev/null
 rm -f "$tmp"
 
-# idle ram
-docker_ps_ids "$PRODUCT" "${RESULTS_DIR}/.${PRODUCT}.ps" || true
+# idle ram — remove only benchmark-prefixed containers; skip idle if other workloads remain
+ps_file="${RESULTS_DIR}/.${PRODUCT}.ps"
+if ! docker_ps_ids "$PRODUCT" "$ps_file"; then
+  echo "ERROR: failed to list containers for idle measurement" >&2
+  exit 1
+fi
+other_workloads=0
 while IFS= read -r cid; do
   [[ -z "$cid" ]] && continue
-  docker_cmd "$PRODUCT" rm -f "$cid" >/dev/null 2>&1 || true
-done <"${RESULTS_DIR}/.${PRODUCT}.ps"
+  name=$(docker_cmd "$PRODUCT" inspect --format '{{.Name}}' "$cid" 2>/dev/null || true)
+  name="${name#/}"
+  if [[ "$name" == "${BENCHMARK_RUN_ID}"* || "$name" == "${RUN_ID}"* ]]; then
+    docker_cmd "$PRODUCT" rm -f "$cid" >/dev/null 2>&1 || true
+  else
+    other_workloads=1
+  fi
+done <"$ps_file"
+rm -f "$ps_file"
+if (( other_workloads )); then
+  echo "ERROR: other containers still running; skip idle_ram" >&2
+  exit 1
+fi
 sleep 3
 idle_ram=$(measure_idle_ram_mb "$PRODUCT")
 

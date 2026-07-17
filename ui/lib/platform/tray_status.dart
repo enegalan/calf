@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart';
 
 /// Whether the current platform supports a background tray / menu-bar status icon.
@@ -107,7 +108,10 @@ class CalfTrayStatus {
       await trayManager.setToolTip('Calf');
       await _applyContextMenu(const CalfTrayMenuSnapshot());
       _visible = true;
-    } on Object catch (e, stack) {
+    } on PlatformException catch (e, stack) {
+      stderr.writeln('failed to show tray icon: $e');
+      stderr.writeln(stack);
+    } on MissingPluginException catch (e, stack) {
       stderr.writeln('failed to show tray icon: $e');
       stderr.writeln(stack);
     }
@@ -147,6 +151,7 @@ class CalfTrayStatus {
     _appActions = null;
   }
 
+  /// Loads live menu data from registered app actions, if any.
   static Future<CalfTrayMenuSnapshot> _loadSnapshot() async {
     final snapshot = _appActions?.snapshot;
     if (snapshot == null) {
@@ -155,17 +160,23 @@ class CalfTrayStatus {
 
     try {
       return await snapshot();
-    } on Object catch (e, stack) {
+    } on PlatformException catch (e, stack) {
+      stderr.writeln('failed to load tray menu snapshot: $e');
+      stderr.writeln(stack);
+      return const CalfTrayMenuSnapshot(containersLoadFailed: true);
+    } on MissingPluginException catch (e, stack) {
       stderr.writeln('failed to load tray menu snapshot: $e');
       stderr.writeln(stack);
       return const CalfTrayMenuSnapshot(containersLoadFailed: true);
     }
   }
 
+  /// Applies the context menu for the given snapshot.
   static Future<void> _applyContextMenu(CalfTrayMenuSnapshot snapshot) async {
     await trayManager.setContextMenu(Menu(items: _buildMenuItems(snapshot)));
   }
 
+  /// Builds tray menu items from the current snapshot.
   static List<MenuItem> _buildMenuItems(CalfTrayMenuSnapshot snapshot) {
     final containersStatus = _containersStatusLabel(snapshot);
     final loggedIn = snapshot.registryLoggedIn;
@@ -212,6 +223,7 @@ class CalfTrayStatus {
     ];
   }
 
+  /// Returns the Containers status label for the tray menu.
   static String _containersStatusLabel(CalfTrayMenuSnapshot snapshot) {
     if (snapshot.containersLoadFailed) {
       return 'Unavailable';
@@ -227,6 +239,7 @@ class CalfTrayStatus {
     return '$count running';
   }
 
+  /// Opens the main window, then runs an optional async action.
   static Future<void> _openWindowAnd(Future<void> Function()? action) async {
     final open = _onOpen;
     if (open != null) {
@@ -237,6 +250,7 @@ class CalfTrayStatus {
     }
   }
 
+  /// Opens the main window, then runs an optional sync action.
   static Future<void> _openWindowAndSync(void Function()? action) async {
     final open = _onOpen;
     if (open != null) {
@@ -245,6 +259,7 @@ class CalfTrayStatus {
     action?.call();
   }
 
+  /// Dispatches a tray menu item click by key.
   static Future<void> _handleMenuClick(String key) async {
     final app = _appActions;
 

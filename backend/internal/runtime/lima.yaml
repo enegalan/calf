@@ -35,7 +35,12 @@ provision:
     script: |
       #!/bin/bash
       set -eux -o pipefail
-      if command -v nerdctl >/dev/null 2>&1 && systemctl is-enabled docker-tcp-proxy >/dev/null 2>&1; then
+      if command -v nerdctl >/dev/null 2>&1 \
+        && command -v docker >/dev/null 2>&1 \
+        && command -v socat >/dev/null 2>&1 \
+        && systemctl is-active --quiet containerd \
+        && systemctl is-active --quiet docker \
+        && systemctl is-active --quiet docker-tcp-proxy; then
         exit 0
       fi
       apt-get update
@@ -105,7 +110,9 @@ SERVICEEOF
     script: |
       #!/bin/bash
       set -eux -o pipefail
-      systemctl enable --now containerd docker docker-tcp-proxy 2>/dev/null || true
+      systemctl enable --now containerd
+      systemctl enable --now docker
+      systemctl enable --now docker-tcp-proxy
 
 portForwards:
   - guestPort: 2375

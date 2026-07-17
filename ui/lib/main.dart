@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
@@ -63,12 +64,17 @@ Future<void> _startDaemon() async {
       runInShell: false,
       environment: env,
     );
+    final process = _daemonProcess!;
     _daemonRestartAttempts = 0;
-    _daemonProcess!.stdout.listen((data) => stdout.add(data));
-    _daemonProcess!.stderr.listen((data) => stderr.add(data));
-    _daemonProcess!.exitCode.then((code) {
+    process.stdout.listen((data) => stdout.add(data));
+    process.stderr.listen((data) => stderr.add(data));
+    process.exitCode.then((code) {
       stderr.writeln('calf-daemon exited with code $code');
-      if (_daemonShutdown || _daemonProcess == null) {
+      // Ignore exits from a process that is no longer the active daemon.
+      if (!identical(_daemonProcess, process)) {
+        return;
+      }
+      if (_daemonShutdown) {
         _daemonProcess = null;
         return;
       }
@@ -129,18 +135,28 @@ Future<void> _stopDaemon() async {
   _daemonShutdown = true;
   _daemonRestartTimer?.cancel();
   _daemonRestartTimer = null;
-  await CalfTrayStatus.hide();
-  final process = _daemonProcess;
-  if (process == null) return;
-  _daemonProcess = null;
-  process.kill();
-  await process.exitCode.timeout(
-    const Duration(seconds: 5),
-    onTimeout: () {
-      process.kill(ProcessSignal.sigkill);
-      return -1;
-    },
-  );
+  try {
+    await CalfTrayStatus.hide();
+  } on PlatformException catch (e, stack) {
+    stderr.writeln('failed to hide tray icon: $e');
+    stderr.writeln(stack);
+  } on MissingPluginException catch (e, stack) {
+    stderr.writeln('failed to hide tray icon: $e');
+    stderr.writeln(stack);
+  } finally {
+    final process = _daemonProcess;
+    if (process != null) {
+      _daemonProcess = null;
+      process.kill();
+      await process.exitCode.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () async {
+          process.kill(ProcessSignal.sigkill);
+          return process.exitCode;
+        },
+      );
+    }
+  }
 }
 
 /// Restarts the embedded calf-daemon without quitting the app.
@@ -159,6 +175,7 @@ Future<void> _restartDaemon() async {
       await process.exitCode.timeout(const Duration(seconds: 10));
     } on TimeoutException {
       process.kill(ProcessSignal.sigkill);
+      await process.exitCode;
     }
   }
   await _startDaemon();

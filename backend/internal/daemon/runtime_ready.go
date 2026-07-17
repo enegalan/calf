@@ -18,7 +18,7 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 
 	status, statusErr := s.Runtime.Status(ctx)
 	if statusErr != nil {
-		return statusErr
+		return fmt.Errorf("Runtime.Status: %w", statusErr)
 	}
 	if status.State != runtime.State(constants.RuntimeStateRunning) {
 		s.Logger.Info("runtime not running; starting before registry login", "vm", status.VMName)
@@ -32,7 +32,7 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 	for time.Now().Before(deadline) {
 		status, err := s.Runtime.Status(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("Runtime.Status: %w", err)
 		}
 
 		if status.State == runtime.State(constants.RuntimeStateRunning) {

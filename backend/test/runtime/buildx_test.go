@@ -6,6 +6,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
+// TestBuildxBuildArgs verifies BuildxBuildArgs assembles docker buildx build --load argv.
 func TestBuildxBuildArgs(t *testing.T) {
 	args := runtime.BuildxBuildArgs("app:latest", "Dockerfile.dev", "linux/amd64", "/tmp/ctx")
 	want := []string{

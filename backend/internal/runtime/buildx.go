@@ -21,6 +21,9 @@ func isBuildxMissingError(err error) bool {
 // ensureBuildx installs the buildx plugin when missing and bootstraps the default builder.
 func ensureBuildx(ctx context.Context, run commandRunner) error {
 	if _, err := run(ctx, "nerdctl", "buildx", "version"); err != nil {
+		if !isBuildxMissingError(err) {
+			return err
+		}
 		if _, installErr := run(ctx, "sudo", "bash", "-c", "DEBIAN_FRONTEND=noninteractive apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y docker-buildx"); installErr != nil {
 			return fmt.Errorf("install docker-buildx: %w", installErr)
 		}

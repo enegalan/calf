@@ -84,6 +84,10 @@ func pathHasPrefix(path, prefix string) bool {
 	if cleanPath == cleanPrefix {
 		return true
 	}
+	// Filesystem root is a prefix of every absolute path.
+	if cleanPrefix == string(os.PathSeparator) {
+		return true
+	}
 	return strings.HasPrefix(cleanPath, cleanPrefix+string(os.PathSeparator))
 }
 
