@@ -98,7 +98,9 @@ class _AppShellState extends State<AppShell> {
 
     try {
       final containers = await widget.apiClient.fetchContainers();
-      runningCount = containers.where((container) => container.isRunning).length;
+      runningCount = containers
+          .where((container) => container.isRunning)
+          .length;
     } on ApiException catch (error) {
       debugPrint('Tray menu failed to load containers: ${error.message}');
       containersLoadFailed = true;

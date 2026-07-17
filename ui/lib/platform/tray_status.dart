@@ -174,11 +174,7 @@ class CalfTrayStatus {
     return [
       MenuItem(key: 'open_calf', label: 'Open Calf'),
       MenuItem.separator(),
-      MenuItem(
-        key: 'containers_header',
-        label: 'Containers',
-        disabled: true,
-      ),
+      MenuItem(key: 'containers_header', label: 'Containers', disabled: true),
       MenuItem(
         key: 'containers_status',
         label: containersStatus,
