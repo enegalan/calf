@@ -108,6 +108,8 @@ func (l *Lima) Start(ctx context.Context) error {
 		if err := l.waitForDockerAPI(ctx); err != nil {
 			return err
 		}
+		l.ensureBuildxAsync()
+		l.syncStartAtLogin(ctx)
 		l.markStarted()
 		return nil
 	}
@@ -131,6 +133,8 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
+	l.ensureBuildxAsync()
+
 	if l.proxy != (ProxyConfig{}) {
 		proxy := l.proxy
 		go func() {
@@ -142,6 +146,7 @@ func (l *Lima) Start(ctx context.Context) error {
 		}()
 	}
 
+	l.syncStartAtLogin(ctx)
 	l.markStarted()
 	return nil
 }
@@ -192,6 +197,8 @@ func (l *Lima) Stop(ctx context.Context) error {
 		return nil
 	}
 
+	l.disableStartAtLogin(ctx)
+
 	status, err := l.limaVMStatus(ctx)
 	if err != nil {
 		if isIgnorableLimaStopError(err) {
@@ -208,6 +215,40 @@ func (l *Lima) Stop(ctx context.Context) error {
 		return nil
 	}
 	return err
+}
+
+// ensureBuildxAsync bootstraps buildx off the Start critical path.
+func (l *Lima) ensureBuildxAsync() {
+	go func() {
+		buildxCtx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+		defer cancel()
+		if err := ensureBuildx(buildxCtx, l.runInVM); err != nil {
+			limaLogger.Warn("buildx setup failed (non-fatal)", "error", err)
+		}
+	}()
+}
+
+// syncStartAtLogin enables or disables Lima login autostart to match vm_keep_alive.
+func (l *Lima) syncStartAtLogin(ctx context.Context) {
+	if l.vmKeepAlive {
+		l.enableStartAtLogin(ctx)
+		return
+	}
+	l.disableStartAtLogin(ctx)
+}
+
+// enableStartAtLogin registers the Lima instance to start when the user logs in.
+func (l *Lima) enableStartAtLogin(ctx context.Context) {
+	if _, err := runCommand(ctx, "limactl", "start-at-login", "--enabled", l.vmName); err != nil {
+		limaLogger.Warn("failed to enable Lima start-at-login (non-fatal)", "error", err, "vm", l.vmName)
+	}
+}
+
+// disableStartAtLogin unregisters Lima login autostart for the instance.
+func (l *Lima) disableStartAtLogin(ctx context.Context) {
+	if _, err := runCommand(ctx, "limactl", "start-at-login", "--enabled=false", l.vmName); err != nil {
+		limaLogger.Warn("failed to disable Lima start-at-login (non-fatal)", "error", err, "vm", l.vmName)
+	}
 }
 
 // limaVMStatus returns the limactl status string for the configured VM instance.
@@ -499,13 +540,18 @@ func (l *Lima) VolumeContainers(ctx context.Context, name string) ([]VolumeConta
 	return volumeContainerUsages(ctx, l.runInVM, name)
 }
 
-// RunBuild builds an image inside the VM and returns parsed build output.
+// RunBuild builds an image inside the VM with buildx and returns parsed build output.
 func (l *Lima) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, l.Status); err != nil {
 		return BuildResult{}, err
 	}
 
-	return runBuild(ctx, l.runInVM, contextPath, tag, dockerfile, platform)
+	result, err := runBuildx(ctx, l.runInVM, contextPath, tag, dockerfile, platform)
+	if err != nil && isBuildxMissingError(err) {
+		limaLogger.Warn("buildx build failed; falling back to docker build", "error", err)
+		return runBuild(ctx, l.runInVM, contextPath, tag, dockerfile, platform)
+	}
+	return result, err
 }
 
 // StartContainer starts a stopped container by ID in the VM.

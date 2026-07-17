@@ -25,6 +25,7 @@ type Status struct {
 	Mode          Mode           `json:"mode"`
 	State         State          `json:"state"`
 	DockerSocket  string         `json:"docker_socket"`
+	Rootless      bool           `json:"rootless"`
 	VMName        string         `json:"vm_name,omitempty"`
 	PortConflicts []PortConflict `json:"port_conflicts,omitempty"`
 	Log           string         `json:"log,omitempty"`
@@ -153,9 +154,9 @@ type Runtime interface {
 }
 
 // New returns the platform-appropriate Runtime implementation.
-func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) Runtime {
+func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, vmKeepAlive bool, rootless bool, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
-		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, proxy)
+		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, rootless, proxy)
 	}
 
 	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)

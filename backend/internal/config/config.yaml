@@ -12,3 +12,4 @@ http_proxy: ""
 https_proxy: ""
 no_proxy: ""
 vm_keep_alive: true
+rootless: true

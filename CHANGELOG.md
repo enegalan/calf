@@ -5,11 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.4] - 2026-07-17
 
 ### Added
 
 - **Performance benchmarks** — macOS comparison of Calf vs Docker Desktop vs OrbStack (startup, Compose, bind-mount I/O, idle memory), with reproduction steps in `BENCHMARKS.md`.
+- **Menu bar / system tray icon** — Calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; the tray menu lists running containers, Help links (repository, report issue, restart, updates), Docker Hub sign-in, Settings, and Quit; removed on **Calf → Quit**.
+- **Buildx builds** — image builds inside the VM use Docker Buildx with BuildKit, including cross-architecture builds via Rosetta when a platform is set.
+- **Rootless on Linux** — when `rootless: true` (default), Calf prefers a user Docker socket (`$XDG_RUNTIME_DIR/docker.sock`) and falls back to the system socket if none is present; ignored on macOS/Windows (Lima).
 
 ### Fixed
 
@@ -18,12 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Lima cold start** — the Docker socket is brought up before the VM boots and readiness uses a lightweight `/_ping` check instead of a full `nerdctl info` shell round-trip.
-- **VM keep-alive** — on macOS and Windows, quitting Calf leaves the Lima VM running so the next launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive` in `~/.config/calf/config.yaml`).
-
-### Added
-
-- **Menu bar / system tray icon** — Calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; the tray menu lists running containers, Help links (repository, report issue, restart, updates), Docker Hub sign-in, Settings, and Quit; removed on **Calf → Quit**.
+- **Lima cold start** — the Docker socket is brought up before the VM boots and readiness uses a lightweight `/_ping` check instead of a full `nerdctl info` shell round-trip; Buildx setup no longer blocks engine readiness.
+- **VM keep-alive** — on macOS and Windows, quitting Calf leaves the Lima VM running so the next launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive` in `~/.config/calf/config.yaml`). With keep-alive enabled, the VM also starts automatically at login so after a reboot the first `docker` command is typically ready in under 2 seconds.
+- **Cold-start target** — the fair stop→start benchmark target is under 20 seconds (Calf measures ~16 s on the reference Mac, ahead of Docker Desktop); keep-alive reopen is documented separately and is not used as that metric.
 
 ## [0.9.3] - 2026-07-12
 

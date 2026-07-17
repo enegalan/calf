@@ -13,6 +13,7 @@ type UpdateRequest struct {
 	MemoryGB             *int    `json:"memory_gb,omitempty"`
 	MemorySwapGB         *int    `json:"memory_swap_gb,omitempty"`
 	DockerContextManaged *bool   `json:"docker_context_managed,omitempty"`
+	Rootless             *bool   `json:"rootless,omitempty"`
 	HTTPProxy            *string `json:"http_proxy,omitempty"`
 	HTTPSProxy           *string `json:"https_proxy,omitempty"`
 	NoProxy              *string `json:"no_proxy,omitempty"`

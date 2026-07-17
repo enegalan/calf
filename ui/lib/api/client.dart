@@ -34,6 +34,7 @@ class RuntimeStatus {
     required this.mode,
     required this.state,
     required this.dockerSocket,
+    this.rootless = false,
     this.vmName,
     this._portConflicts,
   });
@@ -41,6 +42,7 @@ class RuntimeStatus {
   final String mode;
   final String state;
   final String dockerSocket;
+  final bool rootless;
   final String? vmName;
   final List<PortConflict>? _portConflicts;
 
@@ -61,6 +63,7 @@ class RuntimeStatus {
       mode: json['mode'] as String? ?? 'unknown',
       state: json['state'] as String? ?? 'unknown',
       dockerSocket: json['docker_socket'] as String? ?? '',
+      rootless: json['rootless'] as bool? ?? false,
       vmName: json['vm_name'] as String?,
       portConflicts: conflicts,
     );
@@ -1321,6 +1324,7 @@ abstract class CalfClient implements StatusClient {
     required String context,
     required String tag,
     String dockerfile = '',
+    String platform = '',
   });
 
   /// Returns a stream of log lines from a container.
@@ -2095,6 +2099,7 @@ class ApiClient implements CalfClient {
     required String context,
     required String tag,
     String dockerfile = '',
+    String platform = '',
   }) async {
     final response = await httpClient
         .post(
@@ -2104,6 +2109,7 @@ class ApiClient implements CalfClient {
             'context': context,
             'tag': tag,
             if (dockerfile.isNotEmpty) 'dockerfile': dockerfile,
+            if (platform.isNotEmpty) 'platform': platform,
           }),
         )
         .timeout(timeout);
@@ -2396,6 +2402,7 @@ class Config {
     this.dockerContextActive = false,
     this.dockerContextName = '',
     this.dockerCliAvailable = false,
+    this.rootless = false,
     this.httpProxy = '',
     this.httpsProxy = '',
     this.noProxy = '',
@@ -2411,6 +2418,7 @@ class Config {
   final bool dockerContextActive;
   final String dockerContextName;
   final bool dockerCliAvailable;
+  final bool rootless;
   final String httpProxy;
   final String httpsProxy;
   final String noProxy;
@@ -2421,6 +2429,7 @@ class Config {
     'memory_gb': memoryGB,
     'memory_swap_gb': memorySwapGB,
     'docker_context_managed': dockerContextManaged,
+    'rootless': rootless,
     'http_proxy': httpProxy,
     'https_proxy': httpsProxy,
     'no_proxy': noProxy,
@@ -2441,6 +2450,7 @@ class Config {
       dockerContextActive: json['docker_context_active'] as bool? ?? false,
       dockerContextName: json['docker_context_name'] as String? ?? '',
       dockerCliAvailable: json['docker_cli_available'] as bool? ?? false,
+      rootless: json['rootless'] as bool? ?? false,
       httpProxy: json['http_proxy'] as String? ?? '',
       httpsProxy: json['https_proxy'] as String? ?? '',
       noProxy: json['no_proxy'] as String? ?? '',
@@ -2459,6 +2469,7 @@ class Config {
     bool? dockerContextActive,
     String? dockerContextName,
     bool? dockerCliAvailable,
+    bool? rootless,
     String? httpProxy,
     String? httpsProxy,
     String? noProxy,
@@ -2474,6 +2485,7 @@ class Config {
       dockerContextActive: dockerContextActive ?? this.dockerContextActive,
       dockerContextName: dockerContextName ?? this.dockerContextName,
       dockerCliAvailable: dockerCliAvailable ?? this.dockerCliAvailable,
+      rootless: rootless ?? this.rootless,
       httpProxy: httpProxy ?? this.httpProxy,
       httpsProxy: httpsProxy ?? this.httpsProxy,
       noProxy: noProxy ?? this.noProxy,

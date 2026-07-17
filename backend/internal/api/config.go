@@ -25,6 +25,7 @@ type configView struct {
 	DockerContextActive  bool   `json:"docker_context_active"`
 	DockerContextName    string `json:"docker_context_name"`
 	DockerCLIAvailable   bool   `json:"docker_cli_available"`
+	Rootless             bool   `json:"rootless"`
 	HTTPProxy            string `json:"http_proxy"`
 	HTTPSProxy           string `json:"https_proxy"`
 	NoProxy              string `json:"no_proxy"`
@@ -49,6 +50,7 @@ func (g *Gateway) buildConfigView() configView {
 		DockerContextActive:  cliStatus.CalfActive,
 		DockerContextName:    cliStatus.CurrentContext,
 		DockerCLIAvailable:   cliStatus.Available,
+		Rootless:             cfg.Rootless,
 		HTTPProxy:            cfg.HTTPProxy,
 		HTTPSProxy:           cfg.HTTPSProxy,
 		NoProxy:              cfg.NoProxy,
@@ -71,6 +73,9 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	}
 	if req.DockerContextManaged != nil {
 		g.backend.Cfg.DockerContextManaged = *req.DockerContextManaged
+	}
+	if req.Rootless != nil {
+		g.backend.Cfg.Rootless = *req.Rootless
 	}
 	if req.HTTPProxy != nil {
 		g.backend.Cfg.HTTPProxy = strings.TrimSpace(*req.HTTPProxy)

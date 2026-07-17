@@ -30,6 +30,7 @@ type Config struct {
 	HTTPSProxy           string `yaml:"https_proxy"`
 	NoProxy              string `yaml:"no_proxy"`
 	VMKeepAlive          bool   `yaml:"vm_keep_alive"`
+	Rootless             bool   `yaml:"rootless"`
 }
 
 // Default returns the embedded config.yaml values without reading disk.
@@ -87,6 +88,9 @@ func Load() (Config, error) {
 	}
 	if _, ok := raw["vm_keep_alive"]; !ok {
 		cfg.VMKeepAlive = defaultFromYAML().VMKeepAlive
+	}
+	if _, ok := raw["rootless"]; !ok {
+		cfg.Rootless = defaultFromYAML().Rootless
 	}
 
 	cfg = withDefaults(cfg)

@@ -48,9 +48,13 @@ func (g *Gateway) handleBuildsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	platform := payload.Platform
+	platform := strings.TrimSpace(payload.Platform)
 	if platform == "" {
 		platform = daemon.DefaultBuildPlatform()
+	}
+	if strings.Contains(platform, ",") {
+		httpkit.WriteError(w, http.StatusBadRequest, "multi-platform builds are not supported yet; choose a single platform")
+		return
 	}
 
 	build := g.backend.NewBuild(payload.Context, payload.Tag, payload.Dockerfile, platform, "running")

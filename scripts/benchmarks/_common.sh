@@ -334,6 +334,12 @@ run_hello_world() {
   return 1
 }
 
+# run_hello_world_cached runs hello-world without pulling (for timed cold starts).
+run_hello_world_cached() {
+  local product=$1
+  docker_cmd "$product" run --rm hello-world >/dev/null 2>&1
+}
+
 stop_calf_daemon() {
   local pid_file="${HOME}/.config/calf/calf.pid"
   local pid=""

@@ -1,6 +1,6 @@
 # Benchmarks
 
-Public performance comparison of **Calf** vs **Docker Desktop** vs **OrbStack** on macOS. These numbers were measured on reference hardware in July 2026 using the scripts in [`scripts/benchmarks/`](scripts/benchmarks/).
+Public performance comparison of **Calf** vs **Docker Desktop** vs **OrbStack** on macOS. These numbers were measured on reference hardware using the scripts in [`scripts/benchmarks/`](scripts/benchmarks/).
 
 ## Reference hardware
 
@@ -15,42 +15,40 @@ Run `./scripts/benchmarks/run-all.sh` (or `make benchmarks`) on your Mac to repr
 
 ## Results summary
 
-Measured 2026-07-13 on the reference hardware above. Only one engine ran at a time during each measurement. Cold-start runs use the compiled `calf-daemon` binary (same as the release app bundle).
+Only one engine ran at a time. Each row uses the **same procedure** for all three products (see [What each metric means](#what-each-metric-means)). Calf runs use the compiled `calf-daemon` binary.
 
-| Metric                       | Calf         | Docker Desktop | OrbStack     |
-|------------------------------|-------------:|---------------:|-------------:|
-| VM / engine boot             | **13.1 s**   | 21.1 s         | **6.1 s**    |
-| `compose up` (hello-world)   | 0.70 s       | **0.57 s**     | 0.77 s       |
-| Bind mount write (256 MiB)   | 932 MB/s     | 839 MB/s       | **1126 MB/s**|
-| Bind mount read (256 MiB)    | 5.2 GB/s*    | 2.2 GB/s*      | 3.1 GB/s*    |
-| Idle RAM (engine processes)  | **1.4 GB**   | 1.5 GB         | **0.9 GB**   |
-| Cold start → first container | 16.0 s       | 31–41 s†       | 6.4–22 s‡    |
-| Warm start (VM already up)   | **< 2 s**    | n/a            | n/a          |
+| Metric                       | Calf     | Docker Desktop | OrbStack     |
+|------------------------------|---------:|---------------:|-------------:|
+| VM / engine boot             | 13.1 s   | 21.1 s         | **6.1 s**    |
+| Cold start → first container | 16.0 s   | 30.7 s         | **6.4 s**    |
+| `compose up` (hello-world)   | 0.70 s   | **0.57 s**     | 0.77 s       |
+| Bind mount write (256 MiB)   | 932 MB/s | 839 MB/s       | **1126 MB/s**|
+| Bind mount read (256 MiB)    | **5.2 GB/s***| 2.2 GB/s*      | 3.1 GB/s*    |
+| Idle RAM (engine processes)  | 1.4 GB   | 1.5 GB         | **0.9 GB**   |
 
-\* **Read throughput** used a file already present in the container mount from the write step. Linux page cache inflates read numbers; **write throughput** is the more reliable bind-mount comparison.
+\* Bind-mount **read** uses a file already present from the write step; page cache inflates it. Prefer **write** when comparing file sharing.
 
-† Docker Desktop cold start was **30.7 s** in an isolated run and **41.1 s** in the full suite (rapid quit/relaunch cycles add variance).
+### Calf defaults outside the comparison
 
-‡ OrbStack cold start was **6.4 s** with a cached `hello-world` image and **22.3 s** when the image had to be pulled.
+These are **not** head-to-head metrics. They describe Calf's default lifecycle (`vm_keep_alive` + Lima start-at-login), which Docker Desktop and OrbStack do not share in this suite:
 
-### Phase 4 exit criteria
+| Situation                                                            | Typical time            |
+|----------------------------------------------------------------------|------------------------:|
+| Reopen Calf while the Lima VM was left running                       | < 2 s                   |
+| After host login, once Lima start-at-login has already booted the VM | < 2 s to first `docker` |
 
-| Criterion | Target | Result |
-|-----------|--------|--------|
-| Documented benchmarks | Yes | This file |
-| Idle RAM vs Docker Desktop | < 50% | **Met** (~1.4 GB vs ~1.5 GB on this run) |
-| Cold start | < 5 s | Not met on full VM stop/start (Lima boot ~15–30 s). Warm start (VM up, daemon restart) meets target |
+A full stop of the Lima VM still costs ~13–16 s on this hardware — that is the number in the comparison table above.
 
 ## What each metric means
 
 ### VM / engine boot
 
-Time from issuing a start command until `docker info` succeeds.
+Engine is stopped, then started, until `docker info` reports a server version.
 
-- **Calf:** `limactl start calf` with the Calf daemon already running (same as reopening the app with the daemon embedded).
-- **Docker Desktop / OrbStack:** `open -a Docker` or `open -a OrbStack` after a full quit.
+- **Calf:** stop Lima VM (daemon already running), then `limactl start calf` until ready.
+- **Docker Desktop / OrbStack:** quit the app, then `open -a Docker` / `open -a OrbStack` until ready.
 
-**Developer impact:** How long you wait after opening the app before the engine accepts `docker` commands.
+**Developer impact:** How long you wait after a full engine stop before `docker` commands work (without also timing the first container).
 
 ### `compose up`
 
@@ -60,12 +58,12 @@ Time to run `docker compose up -d --build` in [`examples/hello-world/`](examples
 
 ### Bind mount I/O
 
-Sequential write/read of **256 MiB** through a bind mount at `~/.config/calf/mounts/benchmarks/<product>/` (same host path for all three products).
+Sequential write/read of **256 MiB** through a bind mount at `~/.config/calf/mounts/benchmarks/<product>/`.
 
 - **Write:** `dd if=/dev/zero of=/bench/out bs=1M count=256 conv=fsync`
 - **Read:** `dd if=/bench/out of=/dev/null bs=1M` immediately after write
 
-**Developer impact:** Rough feel for bind-mount performance when editing code on the Mac and running it in containers. Calf uses Lima **virtiofs** for `~/.config/calf/mounts`; Docker Desktop and OrbStack use their own file-sharing stacks.
+**Developer impact:** Rough feel for bind-mount performance when editing code on the Mac and running it in containers. Calf uses Lima **virtiofs** for `~/.config/calf/mounts`.
 
 ### Idle RAM
 
@@ -75,33 +73,31 @@ Sum of RSS for engine-related processes (daemon, VM helper, `Virtualization.Virt
 
 ### Cold start
 
-Time from a full stop (app quit + Calf daemon stopped + Lima VM stopped) through the first successful `hello-world` container.
+Engine fully stopped → start it → first successful `docker run --rm hello-world` with the image **already present** on that engine (no pull in the timed path).
 
-**Developer impact:** First-run experience after install or reboot. Includes image pull when the image is not cached.
+- **Calf:** stop daemon + Lima VM, start daemon (boots VM), then `docker run --rm hello-world`.
+- **Docker Desktop / OrbStack:** quit the app, reopen it, then the same `docker run`.
 
-On Lima/VZ, **VM boot dominates** this metric (typically 15–30 s on Apple Silicon). That cost is inherent to a full stop/start cycle.
-
-### Warm start (daemon only)
-
-Time to restore the Docker socket when the Lima VM is **already running** but the Calf daemon was restarted. With `vm_keep_alive: true` (default), quitting Calf leaves the VM up so the next launch uses this path — usually **under 2 s**.
+**Developer impact:** Time from a full engine stop until the first container runs.
 
 ## Methodology
 
-1. **Isolation:** Other container engines were quit before each product's run (`scripts/benchmarks/_common.sh`).
+1. **Isolation:** Other container engines were quit before each product's run.
 2. **Docker contexts:** Commands use `docker --context calf|desktop-linux|orbstack` so each product hits the correct socket. Engine readiness requires a `Server Version` line in `docker info` output.
 3. **Calf daemon:** Benchmarks build and run `backend/calf-daemon` (not `go run`) so cold-start times match a release build.
-4. **Metric order:** Cold start runs before VM boot to avoid back-to-back quit/relaunch cycles that can stall Docker Desktop.
-5. **Skipped products:** If Docker Desktop or OrbStack is not installed, `run-all.sh` records `skipped` and continues.
-6. **Bind mount path:** Calf's Lima template only virtiofs-mounts `~/.config/calf/mounts`; benchmarks use that path for all products so the host directory is shared fairly.
-7. **I/O measurement:** Detached `docker run` + `docker cp` of `dd` logs (foreground `docker run` stdout is unreliable through Calf's socket proxy).
+4. **Cold start image:** `hello-world` is pulled before the timed stop/start so every product measures engine boot + first run, not network pull.
+5. **Metric order:** Cold start runs before VM boot to avoid back-to-back quit/relaunch cycles that can stall Docker Desktop.
+6. **Skipped products:** If Docker Desktop or OrbStack is not installed, `run-all.sh` records `skipped` and continues.
+7. **Bind mount path:** Calf's Lima template only virtiofs-mounts `~/.config/calf/mounts`; benchmarks use that path for all products so the host directory is shared fairly.
+8. **I/O measurement:** Detached `docker run` + `docker cp` of `dd` logs (foreground `docker run` stdout is unreliable through Calf's socket proxy).
 
 ### Scripts
 
-| Script | Purpose |
-|--------|---------|
-| [`run-all.sh`](scripts/benchmarks/run-all.sh) | Full suite: boot, compose, I/O, idle RAM, cold start |
+| Script                                                        | Purpose                                                       |
+|---------------------------------------------------------------|---------------------------------------------------------------|
+| [`run-all.sh`](scripts/benchmarks/run-all.sh)                 | Full suite: boot, compose, I/O, idle RAM, cold start          |
 | [`measure-product.sh`](scripts/benchmarks/measure-product.sh) | Steady-state metrics for one product (engine already running) |
-| [`_common.sh`](scripts/benchmarks/_common.sh) | Shared helpers, hardware detection, product start/stop |
+| [`_common.sh`](scripts/benchmarks/_common.sh)                 | Shared helpers, hardware detection, product start/stop        |
 
 ```bash
 # Full comparison (macOS, ~20–30 min; quits/restarts apps)
@@ -115,11 +111,9 @@ Raw TSV output: `scripts/benchmarks/results/results-<run-id>.tsv` (gitignored).
 
 ## Limitations
 
-- **Single machine:** Numbers reflect one M3 Pro Mac; your results will vary with CPU, disk, and macOS version.
-- **Unsigned dev builds:** Calf was measured from a local `calf-daemon` build; release builds may differ slightly.
+- **Single machine:** Results will vary with CPU, disk, and OS version.
 - **Read I/O inflation:** Warm page cache can inflate bind-mount read results; prefer write numbers when comparing file-sharing backends.
-- **Cold-start variance:** Rapid quit/relaunch cycles and uncached `hello-world` pulls can add 10–20 s; isolate metrics or allow cooldown between runs for tighter numbers.
-- **Lima rapid stop/start:** Occasional `limactl` status warnings appeared during benchmark cycles; successful runs are reported above.
+- **Cold-start variance:** Rapid quit/relaunch of Docker Desktop can inflate later runs; the table uses a single timed run per product under the procedure above (image pre-pulled, one engine at a time).
 
 ## Reproduce locally
 

@@ -24,7 +24,7 @@ mounts:
     mountPoint: /mnt/calf
 
 ssh:
-  loadDotSSHPubKeys: true
+  loadDotSSHPubKeys: false
 
 hostResolver:
   hosts:
@@ -35,11 +35,18 @@ provision:
     script: |
       #!/bin/bash
       set -eux -o pipefail
+      if command -v nerdctl >/dev/null 2>&1 && systemctl is-enabled docker-tcp-proxy >/dev/null 2>&1; then
+        exit 0
+      fi
       apt-get update
-      DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io curl ca-certificates socat
+      DEBIAN_FRONTEND=noninteractive apt-get install -y containerd docker.io docker-buildx curl ca-certificates socat
       systemctl enable --now containerd
       systemctl enable --now docker
       usermod -aG docker "{{.User}}"
+      mkdir -p /etc/docker
+      if [ ! -f /etc/docker/daemon.json ]; then
+        printf '%s\n' '{"features":{"buildkit":true}}' > /etc/docker/daemon.json
+      fi
       ARCH="$(uname -m)"
       case "$ARCH" in
         aarch64|arm64) NERD_ARCH=arm64 ;;
@@ -94,6 +101,11 @@ provision:
 SERVICEEOF
       sudo systemctl enable docker-tcp-proxy
       sudo systemctl start docker-tcp-proxy
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      systemctl enable --now containerd docker docker-tcp-proxy 2>/dev/null || true
 
 portForwards:
   - guestPort: 2375

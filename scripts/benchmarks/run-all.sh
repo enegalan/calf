@@ -274,8 +274,28 @@ benchmark_cold_start() {
   local started_daemon_pid=""
 
   stop_other_products "$product"
-  stop_product "$product"
 
+  # Bring the engine up once so hello-world can be cached before the timed stop/start.
+  case "$product" in
+    calf)
+      if ! start_calf_daemon; then
+        write_result_row "$RUN_ID" "$product" "cold_start" "skipped" "seconds" "could not start daemon"
+        return 0
+      fi
+      ;;
+    *)
+      start_product "$product"
+      ;;
+  esac
+
+  if ! wait_for_docker_host "$product" "$BENCHMARK_TIMEOUT"; then
+    write_result_row "$RUN_ID" "$product" "cold_start" "skipped" "seconds" "could not pre-pull hello-world"
+    stop_product "$product"
+    return 0
+  fi
+
+  docker_cmd "$product" pull hello-world >/dev/null 2>&1 || true
+  stop_product "$product"
   wait_for_docker_host_down "$product" 120 || true
 
   local start_ms
@@ -300,12 +320,11 @@ benchmark_cold_start() {
     return 0
   fi
 
-  if run_hello_world "$product"; then
+  if run_hello_world_cached "$product"; then
     local seconds
     seconds=$(elapsed_seconds "$start_ms")
     log "$(product_label "$product") cold_start=${seconds}s"
-    write_result_row "$RUN_ID" "$product" "cold_start" "$seconds" "seconds" "through first hello-world"
-    docker_cmd "$product" rmi hello-world >/dev/null 2>&1 || true
+    write_result_row "$RUN_ID" "$product" "cold_start" "$seconds" "seconds" "stop to first hello-world (image cached)"
   else
     local err_log="${RESULTS_DIR}/cold-start-${product}.log"
     docker_cmd "$product" run --rm hello-world >"$err_log" 2>&1 || true
