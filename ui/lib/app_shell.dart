@@ -7,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/macos_menu.dart';
+import 'package:ui/platform/tray_status.dart';
 import 'package:ui/platform/launch_at_login.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/builds_screen.dart';
@@ -63,6 +64,9 @@ class _AppShellState extends State<AppShell> {
   /// Releases resources when the widget is removed.
   @override
   void dispose() {
+    if (supportsTrayStatusIcon) {
+      CalfTrayStatus.unregisterAppActions();
+    }
     _updateChecker.close();
     super.dispose();
   }
@@ -74,6 +78,46 @@ class _AppShellState extends State<AppShell> {
     _loadSidebarPreference();
     loadRegistryStatus();
     loadAppVersion();
+    if (supportsTrayStatusIcon) {
+      CalfTrayStatus.registerAppActions(
+        CalfTrayAppActions(
+          onOpenSettings: openSettings,
+          onSignIn: startRegistryBrowserLogin,
+          onSignOut: logoutRegistry,
+          onCheckForUpdates: () => checkForUpdates(force: true),
+          snapshot: _trayMenuSnapshot,
+        ),
+      );
+    }
+  }
+
+  /// Builds live tray menu data (running containers and registry state).
+  Future<CalfTrayMenuSnapshot> _trayMenuSnapshot() async {
+    var runningCount = 0;
+    var containersLoadFailed = false;
+
+    try {
+      final containers = await widget.apiClient.fetchContainers();
+      runningCount = containers
+          .where((container) => container.isRunning)
+          .length;
+    } on ApiException catch (error) {
+      debugPrint('Tray menu failed to load containers: ${error.message}');
+      containersLoadFailed = true;
+    } on TimeoutException catch (error) {
+      debugPrint('Tray menu timed out loading containers: $error');
+      containersLoadFailed = true;
+    } on FormatException catch (error) {
+      debugPrint('Tray menu failed to parse containers: $error');
+      containersLoadFailed = true;
+    }
+
+    return CalfTrayMenuSnapshot(
+      runningContainerCount: runningCount,
+      containersLoadFailed: containersLoadFailed,
+      registryLoggedIn: _registryStatus?.loggedIn == true,
+      signInPending: _registryBrowserLoginPending,
+    );
   }
 
   /// Loads the persisted sidebar collapsed preference.

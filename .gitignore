@@ -7,3 +7,6 @@ dist/
 # Binaries
 backend/calf
 backend/calf-daemon
+
+# Local benchmark output (committed docs live in BENCHMARKS.md)
+scripts/benchmarks/results/

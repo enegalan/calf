@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-07-17
+
+### Added
+
+- **Performance benchmarks** — macOS comparison of Calf vs Docker Desktop vs OrbStack (startup, Compose, bind-mount I/O, idle memory), with reproduction steps in `BENCHMARKS.md`.
+- **Menu bar / system tray icon** — Calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; the tray menu lists running containers, Help links (repository, report issue, restart, updates), Docker Hub sign-in, Settings, and Quit; removed on **Calf → Quit**.
+- **Buildx builds** — image builds inside the VM use Docker Buildx with BuildKit, including cross-architecture builds via Rosetta when a platform is set.
+- **Rootless on Linux** — when `rootless: true` (default), Calf prefers a user Docker engine when available and falls back to the system engine if none is present; ignored on macOS/Windows (Lima).
+
+### Fixed
+
+- **Benchmark reliability** — cold-start measurements now use the compiled daemon, correct Docker contexts, and no longer fail when Docker Desktop is installed.
+- **VM startup polling** — faster engine readiness checks during Lima boot reduce time-to-ready after the VM is running.
+
+### Changed
+
+- **Lima cold start** — the Docker-compatible API is available sooner during VM boot via a lightweight readiness probe instead of a full engine info round-trip; Buildx setup no longer blocks engine readiness.
+- **VM keep-alive** — on macOS and Windows, quitting Calf leaves the Lima VM running so the next Calf launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive`). With keep-alive enabled, the VM also starts automatically at login via Lima; `docker` against the Calf context is ready once the Calf app is running again (typically under 2 seconds when the VM was already up).
+- **Cold-start target** — the fair stop→start benchmark target is under 20 seconds (Calf measures ~16 s on the reference Mac, ahead of Docker Desktop); keep-alive reopen is documented separately and is not used as that metric.
+
 ## [0.9.3] - 2026-07-12
 
 ### Changed

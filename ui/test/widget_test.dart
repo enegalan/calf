@@ -298,6 +298,7 @@ class FakeCalfClient implements CalfClient {
     required String context,
     required String tag,
     String dockerfile = '',
+    String platform = '',
   }) async {
     return BuildItem(
       id: 'build-1',
@@ -705,6 +706,7 @@ class _ErrorCalfClient implements CalfClient {
     required String context,
     required String tag,
     String dockerfile = '',
+    String platform = '',
   }) async {
     return BuildItem(
       id: 'build-1',

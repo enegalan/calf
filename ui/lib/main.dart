@@ -3,12 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/platform/open_url.dart';
+import 'package:ui/platform/tray_status.dart';
 
 final _lightShadTheme = ShadThemeData(
   brightness: Brightness.light,
@@ -60,12 +64,17 @@ Future<void> _startDaemon() async {
       runInShell: false,
       environment: env,
     );
+    final process = _daemonProcess!;
     _daemonRestartAttempts = 0;
-    _daemonProcess!.stdout.listen((data) => stdout.add(data));
-    _daemonProcess!.stderr.listen((data) => stderr.add(data));
-    _daemonProcess!.exitCode.then((code) {
+    process.stdout.listen((data) => stdout.add(data));
+    process.stderr.listen((data) => stderr.add(data));
+    process.exitCode.then((code) {
       stderr.writeln('calf-daemon exited with code $code');
-      if (_daemonShutdown || _daemonProcess == null) {
+      // Ignore exits from a process that is no longer the active daemon.
+      if (!identical(_daemonProcess, process)) {
+        return;
+      }
+      if (_daemonShutdown) {
         _daemonProcess = null;
         return;
       }
@@ -126,21 +135,80 @@ Future<void> _stopDaemon() async {
   _daemonShutdown = true;
   _daemonRestartTimer?.cancel();
   _daemonRestartTimer = null;
+  try {
+    await CalfTrayStatus.hide();
+  } on PlatformException catch (e, stack) {
+    stderr.writeln('failed to hide tray icon: $e');
+    stderr.writeln(stack);
+  } on MissingPluginException catch (e, stack) {
+    stderr.writeln('failed to hide tray icon: $e');
+    stderr.writeln(stack);
+  } finally {
+    final process = _daemonProcess;
+    if (process != null) {
+      _daemonProcess = null;
+      process.kill();
+      await process.exitCode.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () async {
+          process.kill(ProcessSignal.sigkill);
+          return process.exitCode;
+        },
+      );
+    }
+  }
+}
+
+/// Restarts the embedded calf-daemon without quitting the app.
+Future<void> _restartDaemon() async {
+  if (_externalDaemon || _daemonShutdown) {
+    return;
+  }
+
+  _daemonRestartTimer?.cancel();
+  _daemonRestartAttempts = 0;
   final process = _daemonProcess;
-  if (process == null) return;
-  _daemonProcess = null;
-  process.kill();
-  await process.exitCode.timeout(
-    const Duration(seconds: 5),
-    onTimeout: () {
+  if (process != null) {
+    _daemonProcess = null;
+    process.kill();
+    try {
+      await process.exitCode.timeout(const Duration(seconds: 10));
+    } on TimeoutException {
       process.kill(ProcessSignal.sigkill);
-      return -1;
-    },
-  );
+      await process.exitCode;
+    }
+  }
+  await _startDaemon();
+}
+
+/// Brings the Calf window to the foreground (tray menu action).
+Future<void> _openCalfWindow() async {
+  if (!supportsTrayStatusIcon) {
+    return;
+  }
+  await windowManager.show();
+  await windowManager.focus();
+}
+
+/// Quits the app from the tray menu (same as Calf → Quit).
+Future<void> _quitCalfApp() async {
+  await _stopDaemon();
+  CalfTrayStatus.dispose();
+  exit(0);
 }
 
 /// Application entry point; starts the daemon and runs the Flutter app.
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (supportsTrayStatusIcon) {
+    await windowManager.ensureInitialized();
+  }
+  CalfTrayStatus.install(
+    onOpen: _openCalfWindow,
+    onQuit: _quitCalfApp,
+    onRestartEngine: _restartDaemon,
+    onOpenUrl: openExternalUrl,
+  );
   if (!_externalDaemon) {
     _startDaemon();
   }
@@ -197,6 +265,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       _waitForDaemon();
     } else {
       _daemonReady = true;
+      unawaited(CalfTrayStatus.show());
     }
   }
 
@@ -213,6 +282,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopDaemon();
+    CalfTrayStatus.dispose();
     super.dispose();
   }
 
@@ -239,6 +309,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
                   _daemonReady = true;
                   _error = null;
                 });
+                unawaited(CalfTrayStatus.show());
               }
               return;
             }

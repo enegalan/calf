@@ -15,16 +15,14 @@ import (
 // Native represents a native runtime.
 type Native struct {
 	dockerSocket string
+	rootless     bool
 	proxy        ProxyConfig
 }
 
 // NewNative constructs a Runtime that talks directly to host nerdctl/docker.
-func NewNative(_ string, dockerSocket string, _, _, _, _ int, proxy ProxyConfig) *Native {
-	if dockerSocket == "" {
-		dockerSocket = "/var/run/docker.sock"
-	}
-
-	return &Native{dockerSocket: dockerSocket, proxy: proxy}
+func NewNative(_ string, dockerSocket string, _, _, _, _ int, rootless bool, proxy ProxyConfig) *Native {
+	socket, usingRootless := ResolveNativeDockerSocket(dockerSocket, rootless)
+	return &Native{dockerSocket: socket, rootless: usingRootless, proxy: proxy}
 }
 
 // DockerSocket returns the path to the Docker-compatible socket.
@@ -35,11 +33,21 @@ func (n *Native) DockerSocket() string {
 // Start verifies the docker socket and container runtime are available.
 func (n *Native) Start(ctx context.Context) error {
 	if _, err := os.Stat(n.dockerSocket); err != nil {
+		if n.rootless {
+			return fmt.Errorf("rootless docker socket not found at %s: start rootless Docker (dockerd-rootless) or set docker_socket", n.dockerSocket)
+		}
 		return fmt.Errorf("docker socket not found at %s: ensure containerd/docker is running", n.dockerSocket)
 	}
 
+	if n.rootless {
+		if _, err := n.runLocal(ctx, "nerdctl", "info"); err != nil {
+			return fmt.Errorf("native rootless runtime unavailable: %w", err)
+		}
+		return nil
+	}
+
 	if _, err := runCommand(ctx, "systemctl", "is-active", "containerd"); err != nil {
-		if _, fallbackErr := runCommand(ctx, "nerdctl", "info"); fallbackErr != nil {
+		if _, fallbackErr := n.runLocal(ctx, "nerdctl", "info"); fallbackErr != nil {
 			return fmt.Errorf("native runtime unavailable: %w", fallbackErr)
 		}
 	}
@@ -58,13 +66,14 @@ func (n *Native) Status(ctx context.Context) (Status, error) {
 		Mode:         Mode(constants.RuntimeModeNative),
 		State:        State(constants.RuntimeStateStopped),
 		DockerSocket: n.dockerSocket,
+		Rootless:     n.rootless,
 	}
 
 	if _, err := os.Stat(n.dockerSocket); err == nil {
 		status.State = State(constants.RuntimeStateRunning)
 	}
 
-	if _, err := runCommand(ctx, "nerdctl", "info"); err != nil {
+	if _, err := n.runLocal(ctx, "nerdctl", "info"); err != nil {
 		if status.State == State(constants.RuntimeStateRunning) {
 			return status, nil
 		}
@@ -142,6 +151,12 @@ func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 
 	if err := requireRunning(ctx, n.Status); err != nil {
 		return err
+	}
+
+	if n.rootless {
+		// Rootless engines pick up HTTP(S)_PROXY from the process environment
+		// (see commandEnv); system-wide systemd drop-ins require root.
+		return nil
 	}
 
 	return applyProxyInVM(ctx, n.runLocal, proxy)
@@ -324,6 +339,7 @@ func (n *Native) StreamLogsFollow(ctx context.Context, id string, output func(st
 // streamLogsFollow runs nerdctl logs -f and pipes lines to output.
 func (n *Native) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "nerdctl", "logs", "-f", "--since", since, id)
+	command.Env = n.commandEnv()
 	return streamCommandLogs(ctx, command, output)
 }
 
@@ -375,6 +391,7 @@ func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onO
 	}
 
 	command := exec.CommandContext(ctx, "nerdctl", interactiveExecArgs(id)...)
+	command.Env = n.commandEnv()
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 
@@ -398,33 +415,54 @@ func (n *Native) RestartContainer(ctx context.Context, id string) error {
 
 // runLocal executes a host command, retrying transient nerdctl failures.
 func (n *Native) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
+	env := n.commandEnv()
 	if command == "nerdctl" {
-		return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", command, args...)
+		return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, "", command, args...)
 	}
 
-	return runCommand(ctx, command, args...)
+	return runCommandOnceEnv(ctx, env, "", command, args...)
 }
 
 // runLocalWithStdin executes a host command with stdin, retrying nerdctl on transient errors.
 func (n *Native) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
+	env := n.commandEnv()
 	if command == "nerdctl" {
-		return runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, stdin, command, args...)
+		return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 	}
 
-	return runCommandWithStdin(ctx, stdin, command, args...)
+	return runCommandOnceEnv(ctx, env, stdin, command, args...)
+}
+
+// commandEnv returns the process environment, including DOCKER_HOST and optional proxy vars.
+func (n *Native) commandEnv() []string {
+	if n.dockerSocket == "" && n.proxy == (ProxyConfig{}) {
+		return nil
+	}
+	env := os.Environ()
+	if n.dockerSocket != "" {
+		env = dockerHostEnvFrom(env, n.dockerSocket)
+	}
+	if n.proxy != (ProxyConfig{}) {
+		env = proxyEnvFrom(env, n.proxy)
+	}
+	return env
 }
 
 // registryConfigPaths returns Docker config.json paths checked for registry auth.
 func (n *Native) registryConfigPaths() []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
+		if n.rootless {
+			return nil
+		}
 		return []string{"/root/.docker/config.json"}
 	}
 
-	return []string{
-		filepath.Join(home, ".docker", "config.json"),
-		"/root/.docker/config.json",
+	paths := []string{filepath.Join(home, ".docker", "config.json")}
+	if !n.rootless {
+		paths = append(paths, "/root/.docker/config.json")
 	}
+	return paths
 }
 
 // RegistryStatus reports whether the user is logged in to the default registry.

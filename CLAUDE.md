@@ -103,6 +103,8 @@ calf/
 │   │   │   ├── lima.go                         Lima runtime: manages the Lima VM, runs ops via `limactl shell ... nerdctl`
 │   │   │   ├── lima.yaml                       Embedded Lima VM template (go:embed)
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
+│   │   │   ├── buildx.go                       Docker buildx build --load args, builder bootstrap
+│   │   │   ├── rootless.go                     Linux native rootless Docker socket discovery + DOCKER_HOST env
 │   │   │   ├── network.go                      Network list/inspect/remove via nerdctl
 │   │   │   ├── proxy.go                        HTTP/HTTPS proxy application in VM/native runtime
 │   │   │   ├── mock.go                         In-memory Runtime implementation used by backend tests
@@ -139,7 +141,7 @@ calf/
 │   │   ├── config/config_test.go
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, command_error, image_history, localhost_proxy, nerdctl, network, registry, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -153,6 +155,7 @@ calf/
 │   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
+│   │   │   ├── tray_status.dart               macOS menu bar / Windows system tray status icon
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
 │   │   │   └── open_url.dart                  Platform-specific URL opener (Docker Hub sign-in)
 │   │   ├── storage/
@@ -294,9 +297,11 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 
 ### `internal/runtime/` (core abstraction)
 - `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, otherwise `NewLima`.
-- `native.go` — `Native` runtime: talks directly to a `nerdctl`/`docker.sock` already available on the Linux host, no VM involved.
+- `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `lima.go` — `Lima` runtime: manages a Lima VM (embeds a `lima.yaml` template via `go:embed`), starts/creates/stops the instance via `limactl`, runs all container operations via `limactl shell <vm> -- sudo nerdctl ...`. Includes `localhostProxies` for macOS port-forwarding and conflict detection, `host.docker.internal` via Lima `hostResolver`, sleep/wake proxy resync, and proxy application.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.
+- `buildx.go` — Docker Buildx bootstrap and `buildx build --load` argument construction for Lima builds; covered by `backend/test/runtime/buildx_test.go`.
+- `rootless.go` — Linux native rootless socket discovery (`XDG_RUNTIME_DIR` / `~/.docker`) and `DOCKER_HOST` env wiring; covered by `backend/test/runtime/rootless_test.go`.
 - `mock.go` — in-memory `Mock` implementation of the full `Runtime` interface, used by backend tests.
 - `exec.go` — generic `exec.CommandContext` wrapper with retry logic (`runCommandWithRetry`, retries only on `isTransientCommandError`).
 - `exec_attach.go` — PTY-based interactive exec attach (`creack/pty`), wiring stdin/stdout/resize channels.
@@ -324,6 +329,7 @@ Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (b
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
+- `tray_status.dart` — shows a Calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
 - `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
 - `open_url.dart` — platform-specific "open URL" helper used for Docker Hub sign-in.
 
