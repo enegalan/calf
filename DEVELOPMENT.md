@@ -47,6 +47,13 @@ make build
 
 Artifact: `ui/build/macos/Build/Products/Release/ui.app`
 
+Linux UI builds need Flutter’s usual GTK toolchain plus AppIndicator (used by the system tray):
+
+```bash
+sudo apt-get install -y clang cmake ninja-build pkg-config \
+  libgtk-3-dev liblzma-dev libayatana-appindicator3-dev
+```
+
 ## Migrating from Docker Desktop
 
 1. Export images you need:
