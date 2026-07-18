@@ -179,7 +179,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Image and layer cache across restarts (Lima VM disk persistence)
 - [x] Rootless mode where the OS allows it (Linux native: prefer user Docker socket; macOS/Windows Lima guest stays rootful)
 - [x] Basic `buildx` support (`docker buildx build --load`, Rosetta cross-arch; multi-arch push later)
-- [ ] Opt-in telemetry (errors and performance, no container data)
+- [ ] ~~Opt-in telemetry (errors and performance, no container data)~~ – Cancelled
 
 **Exit criteria:** documented benchmarks; idle RAM usage < 50% of Docker Desktop on reference hardware; fair cold start < 20 s.
 
