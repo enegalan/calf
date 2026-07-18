@@ -64,7 +64,7 @@ Version: $VERSION
 Section: utils
 Priority: optional
 Architecture: $ARCH
-Depends: libgtk-3-0, libblkid1, liblzma5
+Depends: libgtk-3-0, libblkid1, liblzma5, libayatana-appindicator3-1
 Maintainer: $MAINTAINER
 Description: $APP_NAME_TITLE - lightweight container manager
  $APP_NAME_TITLE is a lightweight, open-source alternative to Docker Desktop.

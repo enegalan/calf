@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Linux packaging** — Linux release builds install AppIndicator so the system tray can compile; the `.deb` package declares the matching runtime library.
 - **Benchmark reliability** — cold-start measurements now use the compiled daemon, correct Docker contexts, and no longer fail when Docker Desktop is installed.
 - **VM startup polling** — faster engine readiness checks during Lima boot reduce time-to-ready after the VM is running.
 
