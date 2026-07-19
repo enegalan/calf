@@ -26,6 +26,9 @@ jobs:
         run: brew install lima zstd
 
       - name: Build and pack vfkit guest disk
+        env:
+          CALF_VFKIT_LIMA_HOME: ${{ runner.temp }}/cvb
+          CALF_VFKIT_BUILD_VM: cvb
         run: make guest-vfkit
 
       - name: Upload vfkit guest disk assets

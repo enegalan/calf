@@ -13,10 +13,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE="${SCRIPT_DIR}/lima-vfkit.yaml"
 VM_NAME="${CALF_VM_NAME:-calf}"
-BUILD_VM="${CALF_VFKIT_BUILD_VM:-calf-vfkit-build}"
+BUILD_VM="${CALF_VFKIT_BUILD_VM:-cvb}"
 DEST_DIR="${HOME}/.config/calf/vfkit/${VM_NAME}"
 DEST_DISK="${DEST_DIR}/disk.raw"
-LIMA_HOME_BUILD="${CALF_VFKIT_LIMA_HOME:-${TMPDIR:-/tmp}/calf-vfkit-build-lima}"
+LIMA_HOME_BUILD="${CALF_VFKIT_LIMA_HOME:-${HOME}/.calf-vfkit-build}"
 PACK=false
 
 while [[ $# -gt 0 ]]; do
