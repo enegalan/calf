@@ -24,18 +24,18 @@ vm_keep_alive: true
 rootless: true
 ```
 
-`vm_keep_alive` (default `true` on macOS/Windows) leaves the Lima VM running when Calf quits so the next launch is a warm start, and registers the instance with `limactl start-at-login` so the VM also boots at host login after a reboot. The host Docker socket is torn down on quit and restored when the Calf daemon starts again — Lima login autostart alone does not make `docker` work. Set `vm_keep_alive` to `false` to stop the VM on quit and disable login autostart.
+`vm_keep_alive` (default `true` on macOS) leaves the vfkit guest running when Calf quits so the next launch is a warm start. The host Docker socket is torn down on quit and restored when the Calf daemon starts again. Set `vm_keep_alive` to `false` to stop the guest on quit.
 
-`rootless` (default `true`) applies on **Linux** only. When enabled, Calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points `nerdctl` at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS and Windows the container engine runs inside Lima (rootful guest Docker); the host Calf process stays user-level either way. Restart the daemon after changing `rootless`.
+`rootless` (default `true`) applies on **Linux** only. When enabled, Calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points Docker CLI at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS the container engine runs inside the vfkit guest (rootful Docker); the host Calf process stays user-level. Windows does not ship a container engine in this release. Restart the daemon after changing `rootless`.
 
 ## Image and build cache
 
-Images, volumes, and BuildKit layers live on the Lima VM disk. They survive:
+Images, volumes, and BuildKit layers live on the vfkit guest disk (`~/.config/calf/vfkit/<vm>/disk.raw`). They survive:
 
 - Quitting and reopening the Calf app
-- Stopping and starting the Lima VM (`limactl stop` / `limactl start`)
+- Stopping and starting the guest (`POST /v1/runtime/start` after a stop)
 
-They are wiped if the VM instance is deleted (for example `limactl delete calf`, or a disk-size change that recreates the instance). To inspect or free space, use the Docker CLI (`docker system df`, `docker builder prune`, `docker image prune`).
+They are wiped if the guest disk is deleted or replaced. To inspect or free space, use the Docker CLI (`docker system df`, `docker builder prune`, `docker image prune`).
 
 ## Build
 
@@ -64,7 +64,7 @@ docker save my-image:latest -o my-image.tar
 
 2. Stop Docker Desktop.
 
-3. Install [Lima](https://github.com/lima-vm/lima) on macOS if needed.
+3. Install [vfkit](https://github.com/crc-org/vfkit) on macOS (`brew install vfkit`) and ensure a guest disk exists (`make guest-vfkit` or first-run download from GitHub Releases).
 
 4. Start Calf:
 

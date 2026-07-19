@@ -18,7 +18,7 @@ import (
 
 var logTailLines = strconv.Itoa(constants.LogTailLineCount)
 
-// NerdctlVMArgs builds Lima VM shell arguments for container CLI operations.
+// NerdctlVMArgs builds guest shell arguments for container CLI operations (legacy migration helper).
 // nerdctl is redirected to sudo docker because the VM runs Docker Engine.
 func NerdctlVMArgs(args ...string) []string {
 	return append([]string{"sudo", "docker"}, args...)

@@ -177,7 +177,7 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 	status.Message = "Checking disk space"
 	emit(status)
 
-	if err := checkMigrationDiskSpace(ctx, vmName, ddSocket); err != nil {
+	if err := checkMigrationDiskSpace(ctx, opts.CalfSocket, ddSocket); err != nil {
 		status.Phase = Phase(constants.MigrationPhaseFailed)
 		status.Error = err.Error()
 		emit(status)

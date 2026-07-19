@@ -2,14 +2,10 @@ package daemon
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
-	"github.com/enegalan/calf/backend/internal/limavm"
 	"github.com/enegalan/calf/backend/internal/migration"
-	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 // MigrationStatus returns the current Docker Desktop migration status snapshot.
@@ -52,7 +48,8 @@ func (s *Core) RunDockerDesktopMigration() {
 	status := migration.RunFromDockerDesktop(ctx, migration.Options{
 		CalfSocket: s.Runtime.DockerSocket(),
 		VMName:     s.Cfg.VMName,
-		RunNerdctl: s.runNerdctl,
+		// Prefer host docker CLI against the Calf socket (vfkit / native); no limactl shell.
+		RunNerdctl: nil,
 		Logger:     s.Logger,
 		OnStatus: func(update migration.Status) {
 			s.migrateMu.Lock()
@@ -86,20 +83,4 @@ func (s *Core) RunDockerDesktopMigration() {
 			s.Logger.Warn("failed to activate docker context after migration", "error", err)
 		}
 	}
-}
-
-// runNerdctl runs the Lima VM container CLI via limactl shell for migration operations.
-func (s *Core) runNerdctl(ctx context.Context, args ...string) error {
-	vmName := s.Cfg.VMName
-	if vmName == "" {
-		vmName = constants.DefaultVMName
-	}
-
-	shellArgs := runtime.NerdctlVMArgs(args...)
-	output, err := limavm.Shell(ctx, vmName, shellArgs...)
-	if err != nil {
-		return fmt.Errorf("nerdctl %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(string(output)))
-	}
-
-	return nil
 }

@@ -163,5 +163,5 @@ func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapG
 		return newDarwinRuntime(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 	}
 
-	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
+	return NewWindowsUnsupported(dockerSocket)
 }

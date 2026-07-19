@@ -289,7 +289,7 @@ func pidFilePath() string {
 	return filepath.Join(home, ".config", "calf", "calf.pid")
 }
 
-// ensurePath prepends Homebrew bin dirs when limactl lives there. The GUI
+// ensurePath prepends Homebrew bin dirs when vfkit or docker live there. The GUI
 // subprocess often inherits a minimal PATH that omits /opt/homebrew/bin.
 func ensurePath() string {
 	existing := os.Getenv("PATH")
@@ -299,9 +299,12 @@ func ensurePath() string {
 
 	needed := false
 	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
-		if _, err := os.Stat(filepath.Join(dir, "limactl")); err == nil && !inPath(dir, existing) {
-			existing = dir + ":" + existing
-			needed = true
+		for _, bin := range []string{"vfkit", "docker"} {
+			if _, err := os.Stat(filepath.Join(dir, bin)); err == nil && !inPath(dir, existing) {
+				existing = dir + ":" + existing
+				needed = true
+				break
+			}
 		}
 	}
 	if !needed {

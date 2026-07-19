@@ -1,4 +1,4 @@
-# Lima template used only to *build* a vfkit guest disk (not the production Calf Lima VM).
+# Lima template used only as a one-shot bake tool for the vfkit guest disk (not a Calf product runtime).
 # Output disk is copied to ~/.config/calf/vfkit/<vm>/disk.raw by build-vfkit-guest.sh.
 minimumLimaVersion: 1.0.0
 

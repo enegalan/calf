@@ -13,7 +13,7 @@ type ProxyConfig struct {
 	NoProxy    string
 }
 
-// applyProxyInVM writes HTTP proxy settings into the Lima VM so containerd, Docker, and shell sessions inherit them.
+// applyProxyInVM writes HTTP proxy settings into the guest so containerd, Docker, and shell sessions inherit them.
 func applyProxyInVM(ctx context.Context, run commandRunner, proxy ProxyConfig) error {
 	httpProxyDQ := shellDoubleQuote(proxy.HTTPProxy)
 	httpsProxyDQ := shellDoubleQuote(proxy.HTTPSProxy)

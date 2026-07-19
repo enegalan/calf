@@ -77,38 +77,8 @@ jobs:
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
-  vfkit-guest:
-    runs-on: macos-latest
-    timeout-minutes: 120
-    # Guest build is best-effort; installer release must not block on it.
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Install Lima, zstd, vfkit tooling
-        run: brew install lima zstd
-
-      - name: Build and pack vfkit guest disk
-        env:
-          # Keep UNIX socket paths under UNIX_PATH_MAX on GitHub runners.
-          CALF_VFKIT_LIMA_HOME: ${{ runner.temp }}/cvb
-          CALF_VFKIT_BUILD_VM: cvb
-        run: make guest-vfkit
-
-      - name: Upload vfkit guest disk assets
-        uses: actions/upload-artifact@v4
-        with:
-          name: calf-vfkit-guest
-          path: |
-            dist/calf-vfkit-disk-*.raw.zst
-            dist/calf-vfkit-efi-*.zst
-          if-no-files-found: error
-
   release:
-    needs: [build, vfkit-guest]
-    if: ${{ always() && needs.build.result == 'success' }}
+    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -134,15 +104,10 @@ jobs:
           pattern: calf-installers-*
           merge-multiple: true
 
-      - name: Download vfkit guest disk artifacts
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: calf-vfkit-guest
-          path: dist
-
       - name: Create GitHub release
         run: |
+          # Guest disk (calf-vfkit-disk-*.raw.zst) is built on a real Mac with
+          # `make guest-vfkit` and attached manually when needed — GHA nested VZ cannot bake it.
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "Calf ${{ steps.version.outputs.version }}" \
             --draft \

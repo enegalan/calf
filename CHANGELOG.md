@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.7] - 2026-07-19
+
+### Removed
+
+- **Lima product runtime** — macOS now always uses vfkit; Windows has no container engine until a new backend lands (clear unsupported error). Guest disk baking may still use `limactl` locally via `make guest-vfkit` (not the app runtime).
+- **VFKit guest CI workflow** — nested Virtualization on GitHub Actions cannot bake the guest; attach `calf-vfkit-disk-*.raw.zst` to releases from a real Mac.
+
+### Changed
+
+- **Public docs and benchmarks** — Lima escape hatch and legacy bench table removed; architecture is Native (Linux) + vfkit (macOS).
+
 ## [0.9.6] - 2026-07-19
 
 ### Added

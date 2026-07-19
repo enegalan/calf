@@ -39,7 +39,7 @@ const (
 	DockerAPIReadyPollMax = 2 * time.Second
 )
 
-// RuntimeMode values identify whether Calf runs containers in a Lima VM or on the host.
+// RuntimeMode values identify whether Calf runs containers in a VM guest or on the host.
 const (
 	RuntimeModeVM     = "vm"
 	RuntimeModeNative = "native"

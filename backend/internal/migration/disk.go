@@ -8,24 +8,19 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/dockerexec"
-	"github.com/enegalan/calf/backend/internal/limavm"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
-// checkMigrationDiskSpace verifies the Lima VM has enough free space for the estimated migration size.
-func checkMigrationDiskSpace(ctx context.Context, vmName, ddSocket string) error {
-	if vmName == "" {
-		vmName = constants.DefaultVMName
-	}
-
+// checkMigrationDiskSpace verifies the Calf engine has enough free space for the estimated migration size.
+func checkMigrationDiskSpace(ctx context.Context, calfSocket, ddSocket string) error {
 	required, err := estimateMigrationBytes(ctx, ddSocket)
 	if err != nil {
 		return fmt.Errorf("estimate migration size: %w", err)
 	}
 
-	free, err := vmFreeBytes(ctx, vmName)
+	free, err := engineFreeBytes(ctx, calfSocket)
 	if err != nil {
-		return fmt.Errorf("check VM disk space: %w", err)
+		return fmt.Errorf("check engine disk space: %w", err)
 	}
 
 	if free >= required {
@@ -34,11 +29,10 @@ func checkMigrationDiskSpace(ctx context.Context, vmName, ddSocket string) error
 
 	recommendedGiB := bytesToGiB(required) + 10
 	return fmt.Errorf(
-		"VM has %s free but migration needs ~%s. Set disk_gb to at least %d in config, run limactl delete %s, and restart the backend",
+		"engine has %s free but migration needs ~%s (~%d GiB recommended). Free space in the guest or rebuild the vfkit disk (make guest-vfkit), then retry",
 		utils.FormatBytes(free),
 		utils.FormatBytes(required),
 		recommendedGiB,
-		vmName,
 	)
 }
 
@@ -69,9 +63,10 @@ func estimateMigrationBytes(ctx context.Context, ddSocket string) (int64, error)
 	return total + constants.MigrationHeadroomBytes, nil
 }
 
-// vmFreeBytes reads available root filesystem bytes inside the Lima VM.
-func vmFreeBytes(ctx context.Context, vmName string) (int64, error) {
-	output, err := limavm.Shell(ctx, vmName, "df", "-B1", "--output=avail", "/")
+// engineFreeBytes reads available root filesystem bytes inside the Calf engine (via a one-shot container).
+func engineFreeBytes(ctx context.Context, calfSocket string) (int64, error) {
+	output, err := dockerexec.Run(ctx, calfSocket, "run", "--rm", "--privileged", constants.AlpineSmokeImage,
+		"sh", "-c", "df -B1 / | awk 'NR==2 {print $4}'")
 	if err != nil {
 		return 0, err
 	}

@@ -24,6 +24,5 @@ EFI_ZST="$(dirname "$ARCHIVE")/efi-store.zst"
 if [[ -f "$EFI_ZST" ]]; then
   zstd -f -d -o "${DEST_DIR}/efi-store" "$EFI_ZST"
 fi
-echo "ready: Calf will prefer vfkit automatically when vfkit is on PATH or bundled"
+echo "ready: Calf will use vfkit when vfkit is on PATH or bundled"
 echo "disk: $DEST_DISK"
-echo "force Lima: export CALF_RUNTIME=lima"

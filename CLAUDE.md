@@ -6,7 +6,7 @@ This file provides guidance to AI assistants when working with code in this repo
 
 **Calf** is a lightweight, open-source alternative to Docker Desktop. It consists of:
 
-- A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **Lima** VM on macOS/Windows, or talking directly to the host runtime on Linux.
+- A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **vfkit** guest on macOS, or talking directly to the host runtime on Linux (Windows engine pending).
 - A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
 The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
@@ -25,7 +25,7 @@ Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace,
 - **PTY / interactive exec:** `github.com/creack/pty`
 - **Config format:** YAML via `gopkg.in/yaml.v3`
 - **Logging:** standard library `log/slog` (text handler)
-- **Container tooling:** shells out to `nerdctl`, `limactl`, `docker` CLI (no Docker/containerd Go SDK dependency)
+- **Container tooling:** shells out to `vfkit`, `docker` CLI (no Docker/containerd Go SDK dependency)
 
 ### UI (`ui/`)
 - **Language/Framework:** Dart / Flutter, SDK `^3.12.2`
@@ -99,14 +99,12 @@ calf/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
 │   │   ├── runtime/
-│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Vfkit(auto) / Lima
+│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Vfkit (darwin) / Unsupported (windows)
 │   │   │   ├── select_darwin.go               Darwin runtime selection (vfkit when disk+binary ready)
 │   │   │   ├── select_other.go                Non-darwin stub for selection helper
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
-│   │   │   ├── lima.go                         Lima runtime: manages the Lima VM, runs ops via `limactl shell ... nerdctl`
 │   │   │   ├── vfkit_darwin.go                 Experimental macOS vfkit runtime: VZ guest + vsock Docker
 │   │   │   ├── vfkit_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
-│   │   │   ├── lima.yaml                       Embedded Lima VM template (go:embed)
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
 │   │   │   ├── buildx.go                       Docker buildx build --load args, builder bootstrap
 │   │   │   ├── rootless.go                     Linux native rootless Docker socket discovery + DOCKER_HOST env
@@ -302,14 +300,15 @@ Docker Desktop → Calf migration engine.
 Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims for the username, and generates a PAT used as the nerdctl registry login password.
 
 ### `internal/runtime/` (core abstraction)
-- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux; on darwin prefers `NewVfkit` when a provisioned disk + vfkit binary exist (`CALF_RUNTIME=lima`/`vfkit` overrides); otherwise `NewLima` (Windows always Lima).
+- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewVfkit` on darwin, and `NewWindowsUnsupported` on Windows.
 - `select_darwin.go` / `select_other.go` — darwin runtime selection helpers (`vfkitReady`).
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
-- `lima.go` — `Lima` runtime: manages a Lima VM (embeds a `lima.yaml` template via `go:embed`), starts/creates/stops the instance via `limactl`, runs all container operations via `limactl shell <vm> -- sudo nerdctl ...`. Includes `localhostProxies` for macOS port-forwarding and conflict detection, `host.docker.internal` via Lima `hostResolver`, sleep/wake proxy resync, and proxy application.
+- `vfkit_darwin.go` — macOS vfkit runtime (virtio-vsock Docker, virtiofs mounts, buildx, localhost proxies, host.docker.internal).
+- `unsupported.go` — Windows stub Runtime until a new backend lands.
 - `vfkit_darwin.go` — experimental macOS `Vfkit` runtime: boots a provisioned raw disk with `vfkit` (bundled next to daemon, `CALF_VFKIT_BIN`, or PATH), bridges Docker over virtio-vsock, optional virtiofs mounts and Rosetta; see `docs/phase5-race.md` and `scripts/guest-image/`.
 - `vfkit_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-vfkit-disk-<arch>.raw.zst`.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.
-- `buildx.go` — Docker Buildx bootstrap and `buildx build --load` argument construction for Lima builds; covered by `backend/test/runtime/buildx_test.go`.
+- `buildx.go` — Docker Buildx bootstrap and `buildx build --load` argument construction for vfkit/native builds; covered by `backend/test/runtime/buildx_test.go`.
 - `rootless.go` — Linux native rootless socket discovery (`XDG_RUNTIME_DIR` / `~/.docker`) and `DOCKER_HOST` env wiring; covered by `backend/test/runtime/rootless_test.go`.
 - `mock.go` — in-memory `Mock` implementation of the full `Runtime` interface, used by backend tests.
 - `exec.go` — generic `exec.CommandContext` wrapper with retry logic (`runCommandWithRetry`, retries only on `isTransientCommandError`).
@@ -427,7 +426,7 @@ Release (`.github/workflows/release.yml`):
 - **CHANGELOG:** entries must describe changes in user-facing terms — no implementation details, library names, file paths, or protocol jargon. Write what changed from the user's perspective, not how it was built.
 - **Error handling (backend):** handlers never leak raw internal errors to clients; they go through `writeRuntimeError`/`writeJSON` and map to appropriate HTTP status codes.
 - **No generic catch-alls.** Never write a generic `try/catch` (or, in Go, a generic error check that just forwards `err` without identifying what failed). Catch/handle each *specific* error case individually — if that means 3, 5, or 10 separate specific handlers, write all of them. The point is that whoever reads the error (logs, UI, API response) can tell exactly which operation failed and why, not just that "something went wrong".
-- **No premature abstraction:** the runtime layer has exactly three implementations (`Native`, `Lima`, `Mock`) behind one interface — follow that pattern rather than introducing new abstraction layers for hypothetical future runtimes.
+- **No premature abstraction:** the runtime layer has `Native`, `Vfkit` (darwin), `Unsupported` (windows), and `Mock` behind one interface — follow that pattern rather than introducing new abstraction layers for hypothetical future runtimes.
 - **UI state:** keep using `StatefulWidget` + `setState` and `Timer.periodic` polling for consistency with the rest of the screens; do not introduce a new state-management library without discussing it first.
 - **Concurrency and resource lifecycle (Go):**
   - Thread a `context.Context` with an explicit timeout or cancellation through every call from an HTTP handler down into the runtime layer — never call a long-running or blocking runtime operation with a bare `context.Background()` inside a handler.

@@ -28,26 +28,13 @@ Only one engine ran at a time. Each row uses the **same procedure** for all thre
 
 \* Bind-mount **read** uses a file already present from the write step; page cache inflates it. Prefer **write** when comparing file sharing.
 
-† Cold start: median of five suite runs after a warm-up pass (samples ≈ 4.7–6.7 s). VM boot: median ≈ **5.9 s** (n=5 isolated `POST /v1/runtime/start` after guest kill). Reproduce with `make benchmarks-vfkit` (or `make benchmarks` when vfkit is selected).
+† Cold start: median of five suite runs after a warm-up pass (samples ≈ 4.7–6.7 s). VM boot: median ≈ **5.9 s** (n=5 isolated `POST /v1/runtime/start` after guest kill). Reproduce with `make benchmarks` / `make benchmarks-vfkit`.
 
 Calf wins or ties every head-to-head metric vs OrbStack and Docker Desktop on this hardware (bind write is within noise of OrbStack).
 
-### Legacy: `CALF_RUNTIME=lima`
-
-Lima remains available as an escape hatch (`CALF_RUNTIME=lima`). Same M3 Pro host:
-
-| Metric                       | Calf Lima | Docker Desktop | OrbStack     |
-|------------------------------|----------:|---------------:|-------------:|
-| VM / engine boot             | 13.1 s    | 21.1 s         | **6.1 s**    |
-| Cold start → first container | 16.0 s    | 30.7 s         | **6.4 s**    |
-| `compose up` (hello-world)   | 0.70 s    | **0.57 s**     | 0.77 s       |
-| Bind mount write (256 MiB)   | 932 MB/s  | 839 MB/s       | **1126 MB/s**|
-| Bind mount read (256 MiB)    | **5.2 GB/s***| 2.2 GB/s*      | 3.1 GB/s*    |
-| Idle RAM (engine processes)  | 1.4 GB    | 1.5 GB         | **0.9 GB**   |
-
 ### Calf packaging note
 
-With a bundled `vfkit` + published `calf-vfkit-disk-arm64.raw.zst`, first launch downloads and extracts the guest automatically. Force Lima with `CALF_RUNTIME=lima`. Methodology: [`docs/phase5-race.md`](docs/phase5-race.md).
+With a bundled `vfkit` + published `calf-vfkit-disk-arm64.raw.zst`, first launch downloads and extracts the guest automatically. Methodology: [`docs/phase5-race.md`](docs/phase5-race.md).
 
 ### Calf defaults outside the comparison
 
@@ -68,8 +55,7 @@ A full stop of the VM still costs the cold-start numbers in the comparison table
 
 Engine is stopped, then started, until `docker info` reports a server version.
 
-- **Calf (vfkit):** stop guest (daemon already running), then `POST /v1/runtime/start` / vfkit boot until Docker `/_ping` is ready.
-- **Calf (Lima):** stop Lima VM (daemon already running), then `limactl start calf` until ready.
+- **Calf:** stop guest (daemon already running), then `POST /v1/runtime/start` / vfkit boot until Docker `/_ping` is ready.
 - **Docker Desktop / OrbStack:** quit the app, then `open -a Docker` / `open -a OrbStack` until ready.
 
 **Developer impact:** How long you wait after a full engine stop before `docker` commands work (without also timing the first container).
@@ -99,8 +85,7 @@ Sum of RSS for engine-related processes (daemon, VM helper, `Virtualization.Virt
 
 Engine fully stopped → start it → first successful `docker run --rm hello-world` with the image **already present** on that engine (no pull in the timed path).
 
-- **Calf (vfkit):** stop daemon + guest, start daemon (boots vfkit), then `docker run --rm hello-world`.
-- **Calf (Lima):** stop daemon + Lima VM, start daemon (boots VM), then `docker run --rm hello-world`.
+- **Calf:** stop daemon + guest, start daemon (boots vfkit), then `docker run --rm hello-world`.
 - **Docker Desktop / OrbStack:** quit the app, reopen it, then the same `docker run`.
 
 **Developer impact:** Time from a full engine stop until the first container runs.
@@ -146,8 +131,8 @@ Raw TSV output: `scripts/benchmarks/results/results-<run-id>.tsv` (gitignored).
 # 1. Install comparison products (optional)
 #    Docker Desktop and/or OrbStack from their official installers
 
-# 2. Ensure Lima is available for Calf (macOS)
-brew install lima
+# 2. Ensure vfkit + Docker CLI are available for Calf (macOS)
+brew install vfkit docker zstd
 
 # 3. Run benchmarks
 cd /path/to/calf
