@@ -9,6 +9,11 @@ PRODUCTS=()
 METRICS=(cold_start vm_boot compose_up bind_mount_write bind_mount_read idle_ram)
 SKIP_METRICS=()
 
+if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+  disable_lima_autostart_calf
+  trap 'enable_lima_autostart_calf' EXIT
+fi
+
 usage() {
   cat <<EOF
 Usage: $(basename "$0") [options]
@@ -110,20 +115,41 @@ benchmark_vm_boot() {
   local product=$1
 
   stop_other_products "$product"
-  stop_product "$product"
 
   case "$product" in
     calf)
-      if ! curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
-        start_calf_daemon >/dev/null || {
-          write_result_row "$RUN_ID" "$product" "vm_boot" "skipped" "seconds" "daemon not running"
-          return 0
-        }
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        # Daemon stays up; only the guest must be cold (mirrors limactl stop/start).
+        if ! curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
+          start_calf_daemon >/dev/null || {
+            write_result_row "$RUN_ID" "$product" "vm_boot" "skipped" "seconds" "daemon not running"
+            return 0
+          }
+        fi
+        disable_lima_autostart_calf
+        pkill -9 -x limactl >/dev/null 2>&1 || true
+        if [[ -f "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" ]]; then
+          kill -9 "$(cat "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" 2>/dev/null)" >/dev/null 2>&1 || true
+        fi
+        pkill -9 -x vfkit >/dev/null 2>&1 || true
+        rm -f "${HOME}/.config/calf/docker.sock"
+        wait_for_vfkit_gone 30 || true
+        sleep 1
+        wait_for_docker_host_down "$product" 120 || true
+      else
+        stop_product "$product"
+        if ! curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
+          start_calf_daemon >/dev/null || {
+            write_result_row "$RUN_ID" "$product" "vm_boot" "skipped" "seconds" "daemon not running"
+            return 0
+          }
+        fi
+        env -u LIMA_HOME limactl stop "$CALF_VM_NAME" >/dev/null 2>&1 || true
+        wait_for_docker_host_down "$product" 120 || true
       fi
-      limactl stop "$CALF_VM_NAME" >/dev/null 2>&1 || true
-      wait_for_docker_host_down "$product" 120 || true
       ;;
     docker_desktop | orbstack)
+      stop_product "$product"
       wait_for_docker_host_down "$product" 120 || true
       ;;
   esac
@@ -132,7 +158,12 @@ benchmark_vm_boot() {
   start_ms=$(now_epoch_ms)
   case "$product" in
     calf)
-      limactl start "$CALF_VM_NAME" >/dev/null 2>&1 || true
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        # Daemon stays up (same as limactl start with daemon already running).
+        curl -sf -X POST "${CALF_API}/v1/runtime/start" >/dev/null 2>&1 || true
+      else
+        env -u LIMA_HOME limactl start "$CALF_VM_NAME" >/dev/null 2>&1 || true
+      fi
       ;;
     *)
       start_product "$product"
@@ -277,6 +308,13 @@ benchmark_idle_ram() {
     return 0
   fi
   sleep 5
+
+  if [[ "$product" == "calf" && "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+    # Drop any resurrected Lima VM before summing Virtualization RSS.
+    disable_lima_autostart_calf
+    pkill -9 -x limactl >/dev/null 2>&1 || true
+    sleep 1
+  fi
 
   local ram_mb
   ram_mb=$(measure_idle_ram_mb "$product")

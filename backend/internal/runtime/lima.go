@@ -47,6 +47,7 @@ type Lima struct {
 	vmKeepAlive    bool
 	proxy          ProxyConfig
 	started        atomic.Bool
+	shellReady     atomic.Bool
 	proxyResync    atomic.Bool
 	lastState      State
 	localhostProxy *localhostProxies
@@ -123,19 +124,10 @@ func (l *Lima) Start(ctx context.Context) error {
 		return err
 	}
 
-	if !running {
-		exists, err := l.instanceExists(ctx)
-		if err != nil {
-			return err
-		}
-
-		if !exists {
-			if _, err := runCommand(ctx, "limactl", "create", "--name", l.vmName, l.templatePath); err != nil {
-				return err
-			}
-		}
-
-		if _, err := runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", "start", l.vmName); err != nil {
+	if running {
+		l.shellReady.Store(true)
+	} else {
+		if err := l.startVMUntilDockerReady(ctx); err != nil {
 			return err
 		}
 	}
@@ -163,6 +155,95 @@ func (l *Lima) Start(ctx context.Context) error {
 	l.syncStartAtLogin(ctx)
 	l.markStarted(lifeCtx)
 	return nil
+}
+
+// startVMUntilDockerReady starts the Lima instance and returns as soon as the Docker API answers.
+// limactl start may still be finishing SSH/boot-script gates in the background; shell ops wait via waitForShellReady.
+func (l *Lima) startVMUntilDockerReady(ctx context.Context) error {
+	exists, err := l.instanceExists(ctx)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if _, err := runCommand(ctx, "limactl", "create", "--name", l.vmName, l.templatePath); err != nil {
+			return err
+		}
+	}
+
+	l.shellReady.Store(false)
+	errCh := make(chan error, 1)
+	go func() {
+		_, startErr := runCommandWithRetry(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, "", "limactl", "start", l.vmName)
+		if startErr == nil {
+			l.shellReady.Store(true)
+		}
+		errCh <- startErr
+	}()
+
+	dockerErrCh := make(chan error, 1)
+	go func() {
+		dockerErrCh <- l.waitForDockerAPI(ctx)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case startErr := <-errCh:
+		if startErr != nil {
+			return startErr
+		}
+		return nil
+	case dockerErr := <-dockerErrCh:
+		if dockerErr != nil {
+			select {
+			case startErr := <-errCh:
+				if startErr != nil {
+					return startErr
+				}
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+			return dockerErr
+		}
+		go func() {
+			if startErr := <-errCh; startErr != nil {
+				limaLogger.Warn("limactl start failed after Docker API was ready", "error", startErr)
+				l.shellReady.Store(false)
+			}
+		}()
+		return nil
+	}
+}
+
+// waitForShellReady blocks until limactl start has finished (SSH/shell usable) or ctx ends.
+func (l *Lima) waitForShellReady(ctx context.Context) error {
+	if l.shellReady.Load() {
+		return nil
+	}
+	deadline := time.Now().Add(10 * time.Minute)
+	delay := constants.DockerAPIReadyPollBase
+	for time.Now().Before(deadline) {
+		if l.shellReady.Load() {
+			return nil
+		}
+		if running, err := l.vmIsRunning(ctx); err == nil && running {
+			// Instance already Running; limactl shell works even if our start goroutine has not flipped the flag yet.
+			l.shellReady.Store(true)
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(delay):
+		}
+		if delay < constants.DockerAPIReadyPollMax {
+			delay *= 2
+			if delay > constants.DockerAPIReadyPollMax {
+				delay = constants.DockerAPIReadyPollMax
+			}
+		}
+	}
+	return fmt.Errorf("lima shell not ready for VM %q", l.vmName)
 }
 
 // hostSetupReady reports whether Start already brought up the host Docker socket proxy.
@@ -245,6 +326,7 @@ func (l *Lima) Stop(ctx context.Context) error {
 	l.localhostProxy.stopAll()
 	l.removeDockerCLISocket()
 	l.started.Store(false)
+	l.shellReady.Store(false)
 
 	exists, err := l.instanceExists(ctx)
 	if err != nil {
@@ -790,12 +872,18 @@ func (l *Lima) RestartContainer(ctx context.Context, id string) error {
 
 // runInVM executes a command inside the Lima VM via limactl shell.
 func (l *Lima) runInVM(ctx context.Context, command string, args ...string) ([]byte, error) {
+	if err := l.waitForShellReady(ctx); err != nil {
+		return nil, err
+	}
 	shellArgs := append([]string{"shell", l.vmName, "--"}, limaVMCommand(command, args...)...)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, limavm.ShellEnv(), "", "limactl", shellArgs...)
 }
 
 // runInVMWithStdin executes a command inside the VM with stdin via limactl shell.
 func (l *Lima) runInVMWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
+	if err := l.waitForShellReady(ctx); err != nil {
+		return nil, err
+	}
 	shellArgs := append([]string{"shell", l.vmName, "--"}, limaVMCommand(command, args...)...)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, limavm.ShellEnv(), stdin, "limactl", shellArgs...)
 }

@@ -56,6 +56,9 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("/v1/status", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handleStatus,
 	}))
+	mux.HandleFunc("/v1/runtime/start", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleRuntimeStart,
+	}))
 	mux.HandleFunc("/v1/containers", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handleContainers,
 	}))

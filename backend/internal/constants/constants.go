@@ -84,6 +84,15 @@ const DefaultNetworkScope = "local"
 // AlpineSmokeImage is the reference image used for lightweight runtime smoke checks.
 const AlpineSmokeImage = "alpine:3.20"
 
+// GitHubRepo is the canonical Calf repository used for releases and guest-disk downloads.
+const GitHubRepo = "enegalan/calf"
+
+// Vfkit guest disk release asset name prefixes (arch suffix added at runtime).
+const (
+	VfkitDiskAssetPrefix = "calf-vfkit-disk"
+	VfkitEFIAssetPrefix  = "calf-vfkit-efi"
+)
+
 // JobStatus values are persisted statuses for builds, volume exports, and similar jobs.
 const (
 	JobStatusRunning   = "running"

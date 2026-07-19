@@ -185,15 +185,23 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 5 — Fast boot runtime *(planned)*
+## Phase 5 — Fast boot runtime *(in progress)*
 
-**Goal:** close the remaining cold-start gap with OrbStack.
+**Goal:** close the remaining cold-start gap with OrbStack (and beat it).
 
-- [x] Evaluate Lima VZ save/restore (when upstream ships) vs a custom MicroVM / Apple Container-style guest
-- [ ] Stretch: fair stop→start → first `docker run` under 8 s on the reference Mac (OrbStack ± 1 s)
-- [ ] Keep `vm_keep_alive` as the default UX for quit/reopen; do not use it as the cold-start benchmark
+- [x] Evaluate Lima VZ save/restore vs custom/Apple-style guest — [docs/phase5-race.md](docs/phase5-race.md) (Lima save/restore no-go for &lt; 8 s)
+- [x] Stretch cold start under 8 s — experimental `CALF_RUNTIME=vfkit` path: median **~5.0 s** fair stop→start→`hello-world` on M3 Pro (OrbStack **6.4 s**)
+- [x] Keep `vm_keep_alive` as the default UX for quit/reopen; do not use it as the cold-start benchmark
+- [x] Publish experimental vfkit benchmark rows in `BENCHMARKS.md` (cold start, compose, bind write, idle RAM); guest DNS/NAT + virtiofs working
+- [x] Auto-select vfkit on macOS when guest disk + `vfkit` binary exist; bundle `vfkit` in `release-macos` when available; `CALF_RUNTIME=lima` escape hatch
+- [x] Reproducible guest build (`make guest-vfkit` / `scripts/guest-image/build-vfkit-guest.sh`) + first-run `.zst` extract; host bind-mount symlink via `/mnt/calf`
+- [x] VFKit VM-boot median under OrbStack (~5.9 s vs 6.1 s) via faster Docker readiness polling
+- [x] CI/release guest disk asset (`calf-vfkit-disk-<arch>.raw.zst`) + first-run download/extract (pure Go zstd)
+- [ ] buildx / `host.docker.internal` / localhost port-proxy parity with Lima
 
-**Exit criteria:** published cold-start number approaches OrbStack under the same procedure as Docker Desktop.
+**Exit criteria:** published cold-start number approaches (or beats) OrbStack under the same procedure as Docker Desktop; full table competitiveness documented in `BENCHMARKS.md`.
+
+Progress log: [docs/phase5-race.md](docs/phase5-race.md).
 
 ---
 
@@ -214,8 +222,8 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time (fair stop→start)      | < 20 s                | Met — 16.0 s on M3 Pro (faster than Docker Desktop); warm reopen via `vm_keep_alive` is separate UX |
-| Idle RAM                               | < 1 GB                | 1.4 GB (Calf); 1.5 GB (Docker Desktop) |
+| Cold start time (fair stop→start)      | < 20 s (Phase 5: beat OrbStack ~6.4 s) | Lima path ~15–16 s; experimental `CALF_RUNTIME=vfkit` median **~5.0 s** on M3 Pro (see `docs/phase5-race.md`) |
+| Idle RAM                               | < 1 GB                | Lima ~1.4 GB; experimental vfkit ~0.6 GB (see `BENCHMARKS.md`) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |
