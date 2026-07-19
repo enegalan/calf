@@ -63,9 +63,9 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: choco install innosetup -y
 
-      - name: Install create-dmg (macOS)
+      - name: Install create-dmg and vfkit (macOS)
         if: matrix.os == 'macos-latest'
-        run: brew install create-dmg
+        run: brew install create-dmg vfkit
 
       - name: Build and package ${{ matrix.os }}
         run: make ${{ matrix.target }}
