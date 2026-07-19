@@ -69,7 +69,6 @@ provision:
         swapon /swapfile
         grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
       fi
-      nerdctl run --rm hello-world || true
       sudo mkdir -p /etc/systemd/system/containerd.service.d
       sudo tee /etc/systemd/system/containerd.service.d/calf-proxy.conf >/dev/null <<'EOF'
       [Service]
@@ -110,6 +109,11 @@ SERVICEEOF
     script: |
       #!/bin/bash
       set -eux -o pipefail
+      if systemctl is-active --quiet containerd \
+        && systemctl is-active --quiet docker \
+        && systemctl is-active --quiet docker-tcp-proxy; then
+        exit 0
+      fi
       systemctl enable --now containerd
       systemctl enable --now docker
       systemctl enable --now docker-tcp-proxy

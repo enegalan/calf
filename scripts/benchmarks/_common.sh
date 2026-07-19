@@ -2,6 +2,9 @@
 # Shared helpers for Calf benchmark scripts.
 set -euo pipefail
 
+# Spike LIMA_HOME overrides must not leak into fair product benches.
+unset LIMA_HOME || true
+
 BENCHMARKS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${BENCHMARKS_DIR}/../.." && pwd)"
 EXAMPLE_DIR="${ROOT_DIR}/examples/hello-world"
@@ -63,6 +66,10 @@ wait_for_docker_host() {
   local timeout=${2:-$BENCHMARK_TIMEOUT}
   local start=$SECONDS
   local retried=false
+  local poll=1
+  if [[ "$product" == "calf" && "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+    poll=0.2
+  fi
   while (( SECONDS - start < timeout )); do
     if docker_engine_ready "$product"; then
       return 0
@@ -76,7 +83,7 @@ wait_for_docker_host() {
           ;;
       esac
     fi
-    sleep 1
+    sleep "$poll"
   done
   return 1
 }
@@ -213,8 +220,19 @@ stop_product() {
   log "stopping $(product_label "$product")"
   case "$product" in
     calf)
-      if command -v limactl >/dev/null 2>&1; then
-        limactl stop "$CALF_VM_NAME" >/dev/null 2>&1 || true
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        # Lima start-at-login fights vfkit benches (second Virtualization RSS + CPU).
+        disable_lima_autostart_calf
+        # Avoid `limactl stop -f` here: it can hang when the hostagent is wedged.
+        pkill -9 -x limactl >/dev/null 2>&1 || true
+        if [[ -f "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" ]]; then
+          kill -9 "$(cat "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" 2>/dev/null)" >/dev/null 2>&1 || true
+        fi
+        pkill -9 -x vfkit >/dev/null 2>&1 || true
+        wait_for_vfkit_gone 30 || true
+        sleep 1
+      elif command -v limactl >/dev/null 2>&1; then
+        env -u LIMA_HOME limactl stop "$CALF_VM_NAME" >/dev/null 2>&1 || true
       fi
       stop_calf_daemon
       ;;
@@ -227,6 +245,45 @@ stop_product() {
       wait_for_docker_host_down orbstack 120 || true
       ;;
   esac
+}
+
+# wait_for_vfkit_gone waits until the vfkit process has exited, then drains briefly.
+wait_for_vfkit_gone() {
+  local timeout=${1:-30}
+  local start=$SECONDS
+  while (( SECONDS - start < timeout )); do
+    if ! pgrep -x vfkit >/dev/null 2>&1; then
+      sleep 0.5
+      return 0
+    fi
+    sleep 0.2
+  done
+  return 1
+}
+
+# disable_lima_autostart_calf unloads the Lima start-at-login agent for the Calf VM.
+disable_lima_autostart_calf() {
+  local plist="${HOME}/Library/LaunchAgents/io.lima-vm.autostart.${CALF_VM_NAME}.plist"
+  if [[ -f "$plist" ]]; then
+    launchctl bootout "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
+  fi
+}
+
+# enable_lima_autostart_calf restores the Lima start-at-login agent if the plist exists.
+enable_lima_autostart_calf() {
+  local plist="${HOME}/Library/LaunchAgents/io.lima-vm.autostart.${CALF_VM_NAME}.plist"
+  if [[ -f "$plist" ]]; then
+    launchctl bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
+  fi
+}
+
+
+# enable_lima_autostart_calf restores the Lima start-at-login agent if the plist exists.
+enable_lima_autostart_calf() {
+  local plist="${HOME}/Library/LaunchAgents/io.lima-vm.autostart.${CALF_VM_NAME}.plist"
+  if [[ -f "$plist" ]]; then
+    launchctl bootstrap "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
+  fi
 }
 
 start_product() {
@@ -298,21 +355,43 @@ start_calf_daemon() {
   CALF_BENCHMARK_DAEMON_PID=""
   if daemon_bin=$(resolve_calf_daemon_bin); then
     log "starting Calf daemon for benchmarks (${daemon_bin})"
-    "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
+    if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+      env CALF_RUNTIME=vfkit CALF_VFKIT_MEMORY_GB="${CALF_VFKIT_MEMORY_GB:-2}" CALF_BENCHMARK=1 \
+        "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
+    else
+      "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
+    fi
   else
     warn "calf-daemon binary not found; falling back to go run (slower, may skew cold-start)"
     (
       cd "${ROOT_DIR}/backend"
-      CGO_ENABLED=0 go run ./cmd/calf
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        CALF_RUNTIME=vfkit CALF_VFKIT_MEMORY_GB="${CALF_VFKIT_MEMORY_GB:-2}" CALF_BENCHMARK=1 CGO_ENABLED=0 go run ./cmd/calf
+      else
+        CGO_ENABLED=0 go run ./cmd/calf
+      fi
     ) >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
   fi
   CALF_BENCHMARK_DAEMON_PID=$!
   local start=$SECONDS
-  while (( SECONDS - start < 60 )); do
+  local ready_timeout=60
+  if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+    ready_timeout=120
+  fi
+  while (( SECONDS - start < ready_timeout )); do
     if curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
-      return 0
+      # For vfkit, also wait until Docker API answers (daemon health is not enough).
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        if curl -sf --unix-socket "${HOME}/.config/calf/docker.sock" http://localhost/_ping >/dev/null 2>&1; then
+          return 0
+        fi
+        sleep 0.2
+        continue
+      else
+        return 0
+      fi
     fi
-    sleep 1
+    sleep 0.2
   done
   kill "$CALF_BENCHMARK_DAEMON_PID" >/dev/null 2>&1 || true
   CALF_BENCHMARK_DAEMON_PID=""
@@ -378,7 +457,12 @@ measure_idle_ram_mb() {
   local pattern
   case "$product" in
     calf)
-      pattern='/exe/calf|/limactl$|Virtualization\.VirtualMachine'
+      if [[ "${CALF_RUNTIME:-}" == "vfkit" ]]; then
+        # Exclude limactl: vfkit path must not count a leftover Lima VM.
+        pattern='/exe/calf|calf-daemon|vfkit$|Virtualization\.VirtualMachine'
+      else
+        pattern='/exe/calf|calf-daemon|vfkit$|/limactl$|Virtualization\.VirtualMachine'
+      fi
       ;;
     docker_desktop)
       pattern='com\.docker\.|Docker Desktop|docker-desktop|Virtualization\.VirtualMachine'
@@ -390,29 +474,22 @@ measure_idle_ram_mb() {
       return 1
       ;;
   esac
-  local ps_data
-  ps_data=$(ps -axo rss,comm)
-  PATTERN="$pattern" PS_DATA="$ps_data" python3 - <<'PY'
-import os
-import re
-
+  # Pipe ps via stdin — putting the full process table in an env var truncates on macOS.
+  ps -axo rss,comm | PATTERN="$pattern" python3 -c '
+import os, re, sys
 pattern = re.compile(os.environ["PATTERN"], re.I)
 total_kb = 0
-for line in os.environ.get("PS_DATA", "").splitlines():
+for line in sys.stdin:
     line = line.strip()
     if not line:
         continue
     parts = line.split(None, 1)
-    if len(parts) != 2:
+    if len(parts) != 2 or not parts[0].isdigit():
         continue
-    rss, comm = parts
-    if not rss.isdigit():
-        continue
-    if pattern.search(comm):
-        total_kb += int(rss)
-
+    if pattern.search(parts[1]):
+        total_kb += int(parts[0])
 print(f"{total_kb / 1024:.0f}")
-PY
+'
 }
 
 parse_dd_mbps() {

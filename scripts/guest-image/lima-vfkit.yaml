@@ -1,0 +1,88 @@
+# Lima template used only to *build* a vfkit guest disk (not the production Calf Lima VM).
+# Output disk is copied to ~/.config/calf/vfkit/<vm>/disk.raw by build-vfkit-guest.sh.
+minimumLimaVersion: 1.0.0
+
+vmType: vz
+
+images:
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img"
+    arch: x86_64
+  - location: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+    arch: aarch64
+
+cpus: 4
+memory: 4GiB
+disk: 20GiB
+
+mounts: []
+
+ssh:
+  loadDotSSHPubKeys: false
+
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update
+      apt-get install -y containerd docker.io docker-buildx curl ca-certificates socat systemd-resolved
+
+      systemctl enable --now containerd
+      systemctl enable --now docker
+      usermod -aG docker "{{.User}}" || true
+
+      mkdir -p /etc/docker
+      printf '%s\n' '{"features":{"buildkit":true}}' > /etc/docker/daemon.json
+
+      mkdir -p /etc/systemd/resolved.conf.d
+      printf '%s\n' '[Resolve]' 'DNS=1.1.1.1 8.8.8.8' 'FallbackDNS=9.9.9.9' > /etc/systemd/resolved.conf.d/calf-dns.conf
+      systemctl enable --now systemd-resolved || true
+      ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf || true
+
+      mkdir -p /etc/systemd/network
+      printf '%s\n' '[Match]' 'Name=enp*' 'Name=eth*' '' '[Network]' 'DHCP=yes' > /etc/systemd/network/20-calf-vz.network
+      systemctl enable systemd-networkd
+      systemctl restart systemd-networkd || true
+
+      printf '%s\n' \
+        '[Unit]' \
+        'Description=Docker vsock proxy for Calf vfkit' \
+        'After=docker.service' \
+        'Requires=docker.service' \
+        '' \
+        '[Service]' \
+        'Type=simple' \
+        'ExecStart=/usr/bin/socat VSOCK-LISTEN:2375,reuseaddr,fork UNIX-CONNECT:/var/run/docker.sock' \
+        'Restart=always' \
+        'RestartSec=1' \
+        '' \
+        '[Install]' \
+        'WantedBy=multi-user.target' \
+        > /etc/systemd/system/docker-vsock-proxy.service
+      systemctl enable --now docker-vsock-proxy
+
+      mkdir -p /mnt/calf
+      printf '%s\n' \
+        '[Unit]' \
+        'Description=Mount Calf virtiofs shares' \
+        'DefaultDependencies=no' \
+        'After=local-fs.target' \
+        'Before=docker.service' \
+        '' \
+        '[Service]' \
+        'Type=oneshot' \
+        'RemainAfterExit=yes' \
+        'ExecStart=/bin/mkdir -p /mnt/calf' \
+        'ExecStart=/bin/mount -t virtiofs calf-mounts /mnt/calf' \
+        'ExecStop=/bin/umount -l /mnt/calf' \
+        '' \
+        '[Install]' \
+        'WantedBy=multi-user.target' \
+        > /etc/systemd/system/calf-virtiofs.service
+      systemctl enable calf-virtiofs.service
+
+      systemctl restart docker
+      docker pull alpine:3.20
+      docker pull hello-world

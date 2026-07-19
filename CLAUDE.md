@@ -57,6 +57,7 @@ calf/
 │   │   │   ├── gateway.go                     HTTP Gateway: route registration, Run/Shutdown
 │   │   │   ├── health.go                      Health HTTP handler
 │   │   │   ├── status.go                      Status HTTP handler
+│   │   │   ├── runtime.go                     Runtime start HTTP handler (POST /v1/runtime/start)
 │   │   │   ├── config.go                      Config HTTP handler
 │   │   │   ├── builds.go                      Build HTTP handlers
 │   │   │   ├── containers.go                  Container HTTP handlers
@@ -98,9 +99,13 @@ calf/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
 │   │   ├── runtime/
-│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native/Lima
+│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Vfkit(auto) / Lima
+│   │   │   ├── select_darwin.go               Darwin runtime selection (vfkit when disk+binary ready)
+│   │   │   ├── select_other.go                Non-darwin stub for selection helper
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── lima.go                         Lima runtime: manages the Lima VM, runs ops via `limactl shell ... nerdctl`
+│   │   │   ├── vfkit_darwin.go                 Experimental macOS vfkit runtime: VZ guest + vsock Docker
+│   │   │   ├── vfkit_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
 │   │   │   ├── lima.yaml                       Embedded Lima VM template (go:embed)
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
 │   │   │   ├── buildx.go                       Docker buildx build --load args, builder bootstrap
@@ -233,6 +238,7 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `gateway.go` — `Gateway` struct; registers all `/v1/...` routes; `WithMiddleware`; `Run`/`Shutdown` for the HTTP server.
 - `health.go` — `/v1/health`.
 - `status.go` — `/v1/status`.
+- `runtime.go` — `POST /v1/runtime/start` (boot/ensure runtime while the daemon stays up).
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 
@@ -296,9 +302,12 @@ Docker Desktop → Calf migration engine.
 Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims for the username, and generates a PAT used as the nerdctl registry login password.
 
 ### `internal/runtime/` (core abstraction)
-- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, otherwise `NewLima`.
+- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux; on darwin prefers `NewVfkit` when a provisioned disk + vfkit binary exist (`CALF_RUNTIME=lima`/`vfkit` overrides); otherwise `NewLima` (Windows always Lima).
+- `select_darwin.go` / `select_other.go` — darwin runtime selection helpers (`vfkitReady`).
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `lima.go` — `Lima` runtime: manages a Lima VM (embeds a `lima.yaml` template via `go:embed`), starts/creates/stops the instance via `limactl`, runs all container operations via `limactl shell <vm> -- sudo nerdctl ...`. Includes `localhostProxies` for macOS port-forwarding and conflict detection, `host.docker.internal` via Lima `hostResolver`, sleep/wake proxy resync, and proxy application.
+- `vfkit_darwin.go` — experimental macOS `Vfkit` runtime: boots a provisioned raw disk with `vfkit` (bundled next to daemon, `CALF_VFKIT_BIN`, or PATH), bridges Docker over virtio-vsock, optional virtiofs mounts and Rosetta; see `docs/phase5-race.md` and `scripts/guest-image/`.
+- `vfkit_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-vfkit-disk-<arch>.raw.zst`.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.
 - `buildx.go` — Docker Buildx bootstrap and `buildx build --load` argument construction for Lima builds; covered by `backend/test/runtime/buildx_test.go`.
 - `rootless.go` — Linux native rootless socket discovery (`XDG_RUNTIME_DIR` / `~/.docker`) and `DOCKER_HOST` env wiring; covered by `backend/test/runtime/rootless_test.go`.

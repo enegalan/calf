@@ -75,6 +75,16 @@ release-macos:
 	cp backend/calf-daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
 	rm backend/calf-daemon
 	codesign --force --sign - --identifier com.enegalan.calf.daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
+	@# Bundle vfkit next to the daemon when available (Homebrew or CALF_VFKIT_BIN).
+	@VFKIT_SRC="$${CALF_VFKIT_BIN:-}"; \
+	  if [ -z "$$VFKIT_SRC" ] && command -v vfkit >/dev/null 2>&1; then VFKIT_SRC=$$(command -v vfkit); fi; \
+	  if [ -n "$$VFKIT_SRC" ] && [ -x "$$VFKIT_SRC" ]; then \
+	    cp "$$VFKIT_SRC" ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/vfkit; \
+	    codesign --force --sign - --identifier com.enegalan.calf.vfkit ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/vfkit; \
+	    echo "bundled vfkit from $$VFKIT_SRC"; \
+	  else \
+	    echo "warning: vfkit not found; app will fall back to Lima unless the user installs vfkit"; \
+	  fi
 	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
 	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
 
@@ -124,5 +134,14 @@ verify-docker-cli:
 benchmarks:
 	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
 	./scripts/benchmarks/run-all.sh
+
+# Opt-in vfkit engine benches (macOS). Requires brew install vfkit + prepared disk.
+benchmarks-vfkit:
+	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
+	CALF_RUNTIME=vfkit CALF_VFKIT_MEMORY_GB=$${CALF_VFKIT_MEMORY_GB:-2} ./scripts/benchmarks/run-all.sh --products calf
+
+# Build a reproducible vfkit guest disk via throwaway Lima (see scripts/guest-image/).
+guest-vfkit:
+	./scripts/guest-image/build-vfkit-guest.sh --pack
 
 dev: help

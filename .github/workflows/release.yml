@@ -77,8 +77,31 @@ jobs:
           path: ${{ matrix.artifacts }}
           if-no-files-found: error
 
+  vfkit-guest:
+    runs-on: macos-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Lima, zstd, vfkit tooling
+        run: brew install lima zstd
+
+      - name: Build and pack vfkit guest disk
+        run: make guest-vfkit
+
+      - name: Upload vfkit guest disk assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: calf-vfkit-guest
+          path: |
+            dist/calf-vfkit-disk-*.raw.zst
+            dist/calf-vfkit-efi-*.zst
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, vfkit-guest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -103,6 +126,12 @@ jobs:
           path: dist
           pattern: calf-installers-*
           merge-multiple: true
+
+      - name: Download vfkit guest disk artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: calf-vfkit-guest
+          path: dist
 
       - name: Create GitHub release
         run: |

@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.4] - 2026-07-17
+## [Unreleased]
+
+## [0.9.5] - 2026-07-19
+
+### Added
+
+- **Experimental fast-boot engine (macOS)** — when a provisioned vfkit guest disk (or release seed) and `vfkit` binary are present, Calf prefers that engine automatically; bundled apps download `calf-vfkit-disk-<arch>.raw.zst` from GitHub Releases on first start; build locally with `make guest-vfkit` (see `BENCHMARKS.md` and `docs/phase5-race.md`).
+- **Runtime start API** — `POST /v1/runtime/start` boots the container runtime while the daemon stays up (used for fair VM-boot benches on vfkit).
+
+### Changed
+
+- **Lima startup** — the Docker API can become ready before Lima finishes its SSH/boot-script gates, so the engine is usable sooner after a full VM stop.
+
+## [0.9.4] - 2026-07-18
 
 ### Added
 

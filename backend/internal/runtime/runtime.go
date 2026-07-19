@@ -159,5 +159,9 @@ func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapG
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, rootless, proxy)
 	}
 
+	if goruntime.GOOS == "darwin" {
+		return newDarwinRuntime(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
+	}
+
 	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 }

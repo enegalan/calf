@@ -28,6 +28,23 @@ Only one engine ran at a time. Each row uses the **same procedure** for all thre
 
 \* Bind-mount **read** uses a file already present from the write step; page cache inflates it. Prefer **write** when comparing file sharing.
 
+### Experimental: `CALF_RUNTIME=vfkit` (macOS)
+
+Bypasses Lima/`limactl` and boots the guest with [vfkit](https://github.com/crc-org/vfkit), exposing Docker over virtio-vsock. On machines with a provisioned guest disk and a `vfkit` binary, Calf **auto-selects** this engine (use `CALF_RUNTIME=lima` to force Lima). Reproduce benches with `make benchmarks-vfkit`. Same M3 Pro host; Lima start-at-login is unloaded for the run so idle RAM is not double-counted.
+
+| Metric                       | Calf `vfkit`     | Docker Desktop | OrbStack     |
+|------------------------------|-----------------:|---------------:|-------------:|
+| VM / engine boot             | **5.9 s†**       | 21.1 s         | 6.1 s        |
+| Cold start → first container | **5.0 s†**       | 30.7 s         | 6.4 s        |
+| `compose up` (hello-world)   | **0.50 s**       | 0.57 s         | 0.77 s       |
+| Bind mount write (256 MiB)   | **1121 MB/s**    | 839 MB/s       | 1126 MB/s    |
+| Bind mount read (256 MiB)    | cache-inflated*  | 2.2 GB/s*      | 3.1 GB/s*    |
+| Idle RAM (engine processes)  | **0.6 GB**       | 1.5 GB         | 0.9 GB       |
+
+† Cold start: median of five suite runs after a warm-up pass (samples ≈ 4.7–6.7 s). VM boot: median ≈ **5.9 s** (n=5 isolated `POST /v1/runtime/start` after guest kill; suite variance is higher right after a hard `vfkit` kill).
+
+Not yet the default for every install until a release publishes the guest disk asset. With a bundled `vfkit` + published `calf-vfkit-disk-arm64.raw.zst`, first launch downloads and extracts the guest automatically. Methodology: [`docs/phase5-race.md`](docs/phase5-race.md).
+
 ### Calf defaults outside the comparison
 
 These are **not** head-to-head metrics. They describe Calf's default lifecycle (`vm_keep_alive` + Lima start-at-login), which Docker Desktop and OrbStack do not share in this suite:
