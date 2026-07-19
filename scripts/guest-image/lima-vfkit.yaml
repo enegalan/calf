@@ -27,14 +27,14 @@ provision:
       export DEBIAN_FRONTEND=noninteractive
 
       apt-get update
-      apt-get install -y containerd docker.io docker-buildx curl ca-certificates socat systemd-resolved
+      apt-get install -y containerd docker.io docker-buildx curl ca-certificates socat systemd-resolved dnsmasq
 
       systemctl enable --now containerd
       systemctl enable --now docker
       usermod -aG docker "{{.User}}" || true
 
       mkdir -p /etc/docker
-      printf '%s\n' '{"features":{"buildkit":true}}' > /etc/docker/daemon.json
+      printf '%s\n' '{"features":{"buildkit":true},"dns":["172.17.0.1","1.1.1.1","8.8.8.8"]}' > /etc/docker/daemon.json
 
       mkdir -p /etc/systemd/resolved.conf.d
       printf '%s\n' '[Resolve]' 'DNS=1.1.1.1 8.8.8.8' 'FallbackDNS=9.9.9.9' > /etc/systemd/resolved.conf.d/calf-dns.conf
@@ -45,6 +45,26 @@ provision:
       printf '%s\n' '[Match]' 'Name=enp*' 'Name=eth*' '' '[Network]' 'DHCP=yes' > /etc/systemd/network/20-calf-vz.network
       systemctl enable systemd-networkd
       systemctl restart systemd-networkd || true
+
+      # host.docker.internal → NAT gateway (Mac host). Runtime refreshes the gateway IP on Start.
+      GW=$(ip -4 route show default | awk '{print $3; exit}' || true)
+      if [ -n "${GW:-}" ]; then
+        echo "$GW host.docker.internal" >> /etc/hosts
+      fi
+      mkdir -p /etc/dnsmasq.d
+      printf '%s\n' \
+        'bind-interfaces' \
+        'interface=docker0' \
+        'except-interface=lo' \
+        "address=/host.docker.internal/${GW:-127.0.0.1}" \
+        'no-resolv' \
+        'server=1.1.1.1' \
+        'server=8.8.8.8' \
+        > /etc/dnsmasq.d/calf-host.conf
+      systemctl enable dnsmasq
+      # docker0 exists after docker start; restart dnsmasq once docker is up
+      systemctl restart docker
+      systemctl restart dnsmasq || true
 
       printf '%s\n' \
         '[Unit]' \

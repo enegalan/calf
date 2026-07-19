@@ -5,13 +5,16 @@ package runtime
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,22 +26,28 @@ import (
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+var vfkitLogger = slog.Default()
+
 // Vfkit runs a Linux guest via vfkit and exposes Docker over virtio-vsock.
 type Vfkit struct {
-	mu           sync.Mutex
-	vmName       string
-	dockerSocket string
-	cpus         int
-	memoryGB     int
-	vmKeepAlive  bool
-	proxy        ProxyConfig
-	dataDir      string
-	started      atomic.Bool
-	cmd          *exec.Cmd
+	mu             sync.Mutex
+	vmName         string
+	dockerSocket   string
+	cpus           int
+	memoryGB       int
+	vmKeepAlive    bool
+	proxy          ProxyConfig
+	dataDir        string
+	started        atomic.Bool
+	proxyResync    atomic.Bool
+	cmd            *exec.Cmd
+	localhostProxy *localhostProxies
+	ownerCtx       context.Context
+	watcherCancel  context.CancelFunc
 }
 
 // NewVfkit constructs a vfkit-backed Runtime for macOS.
-func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, vmKeepAlive bool, proxy ProxyConfig) *Vfkit {
+func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Vfkit {
 	if vmName == "" {
 		vmName = constants.DefaultVMName
 	}
@@ -60,15 +69,19 @@ func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, vmKeepAlive
 			memoryGB = n
 		}
 	}
-	return &Vfkit{
-		vmName:       vmName,
-		dockerSocket: dockerSocket,
-		cpus:         cpus,
-		memoryGB:     memoryGB,
-		vmKeepAlive:  vmKeepAlive,
-		proxy:        proxy,
-		dataDir:      filepath.Join(home, ".config", "calf", "vfkit", vmName),
+	v := &Vfkit{
+		vmName:         vmName,
+		dockerSocket:   dockerSocket,
+		cpus:           cpus,
+		memoryGB:       memoryGB,
+		vmKeepAlive:    vmKeepAlive,
+		proxy:          proxy,
+		dataDir:        filepath.Join(home, ".config", "calf", "vfkit", vmName),
+		localhostProxy: newLocalhostProxies(),
+		ownerCtx:       context.Background(),
 	}
+	v.localhostProxy.setReservedPorts(apiListenPort)
+	return v
 }
 
 // DockerSocket returns the host unix socket bridged to guest Docker via vsock.
@@ -156,6 +169,129 @@ func (v *Vfkit) ensureHostMountSymlink(ctx context.Context) {
 	_, _ = v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "-v", "/:/host", "alpine:3.20", "sh", "-c", script)
 }
 
+// runGuestRoot runs a shell script in the guest init mount/network namespace.
+func (v *Vfkit) runGuestRoot(ctx context.Context, script string) ([]byte, error) {
+	return v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "--pid=host",
+		"alpine:3.20", "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "bash", "-lc", script)
+}
+
+// guestCommandRunner adapts guest root shells and docker CLI for shared helpers (proxy, buildx install).
+func (v *Vfkit) guestCommandRunner(ctx context.Context, command string, args ...string) ([]byte, error) {
+	if command == "nerdctl" || command == "docker" {
+		return v.runLocal(ctx, command, args...)
+	}
+	if command == "bash" && len(args) >= 2 && args[0] == "-lc" {
+		return v.runGuestRoot(ctx, args[1])
+	}
+	if command == "sudo" && len(args) >= 1 {
+		joined := strings.Join(args, " ")
+		return v.runGuestRoot(ctx, joined)
+	}
+	all := append([]string{command}, args...)
+	return v.runGuestRoot(ctx, strings.Join(all, " "))
+}
+
+// ensureHostDockerInternal maps host.docker.internal to the guest NAT gateway for containers.
+// Fast path only: never apt-get or restart Docker on Start (cold-start critical).
+func (v *Vfkit) ensureHostDockerInternal(ctx context.Context) {
+	script := `
+set -eu
+GW=$(ip -4 route show default | awk '{print $3; exit}')
+test -n "$GW"
+if grep -qE "address=/host\\.docker\\.internal/${GW}$" /etc/dnsmasq.d/calf-host.conf 2>/dev/null \
+  && grep -qE "^${GW}[[:space:]]+host\\.docker\\.internal$" /etc/hosts 2>/dev/null; then
+  exit 0
+fi
+if grep -qE '[[:space:]]host\.docker\.internal$' /etc/hosts 2>/dev/null; then
+  sed -i -E '/[[:space:]]host\.docker\.internal$/d' /etc/hosts
+fi
+echo "$GW host.docker.internal" >> /etc/hosts
+if [ -d /etc/dnsmasq.d ]; then
+  printf '%s\n' \
+    'bind-interfaces' \
+    'interface=docker0' \
+    'except-interface=lo' \
+    "address=/host.docker.internal/${GW}" \
+    'no-resolv' \
+    'server=1.1.1.1' \
+    'server=8.8.8.8' \
+    > /etc/dnsmasq.d/calf-host.conf
+  systemctl try-reload-or-restart dnsmasq >/dev/null 2>&1 || true
+fi
+`
+	if _, err := v.runGuestRoot(ctx, script); err != nil {
+		vfkitLogger.Warn("host.docker.internal setup failed (non-fatal)", "error", err)
+	}
+}
+
+// SetOwnerContext sets the parent context for vfkit background work (watchers, Buildx, proxy).
+func (v *Vfkit) SetOwnerContext(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.ownerCtx = ctx
+}
+
+// resetLifecycle cancels prior background work and returns a fresh lifecycle context.
+func (v *Vfkit) resetLifecycle() context.Context {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.watcherCancel != nil {
+		v.watcherCancel()
+		v.watcherCancel = nil
+	}
+	parent := v.ownerCtx
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	v.watcherCancel = cancel
+	return ctx
+}
+
+// ensureBuildxAsync bootstraps buildx off the Start critical path.
+func (v *Vfkit) ensureBuildxAsync(lifeCtx context.Context) {
+	go func() {
+		buildxCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
+		defer cancel()
+		if err := ensureBuildx(buildxCtx, v.guestCommandRunner); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			vfkitLogger.Warn("buildx setup failed (non-fatal)", "error", err)
+		}
+	}()
+}
+
+// watchPortProxies periodically resyncs localhost proxies with published container ports.
+func (v *Vfkit) watchPortProxies(ctx context.Context) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			status, err := v.Status(ctx)
+			if err != nil || status.State != State(constants.RuntimeStateRunning) || !v.started.Load() {
+				continue
+			}
+			containers, err := listContainers(ctx, v.runLocal)
+			if err != nil {
+				v.proxyResync.Store(true)
+				continue
+			}
+			force := v.proxyResync.Load()
+			v.localhostProxy.sync(publishedTCPPorts(containers), force)
+			if force {
+				v.proxyResync.Store(false)
+			}
+		}
+	}
+}
+
 // Start launches vfkit and waits for Docker /_ping on the vsock-bridged socket.
 func (v *Vfkit) Start(ctx context.Context) error {
 	vfkitBin := resolveVfkitBinary()
@@ -171,8 +307,33 @@ func (v *Vfkit) Start(ctx context.Context) error {
 	if err := os.MkdirAll(v.dataDir, 0o755); err != nil {
 		return err
 	}
+	lifeCtx := v.resetLifecycle()
 	if v.dockerAPIReady(ctx) && v.processAlive() {
+		v.ensureHostMountSymlink(ctx)
+		v.ensureBuildxAsync(lifeCtx)
+		if os.Getenv("CALF_BENCHMARK") != "1" {
+			go func() {
+				setupCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
+				defer cancel()
+				v.ensureHostDockerInternal(setupCtx)
+			}()
+		}
+		if v.proxy != (ProxyConfig{}) {
+			proxy := v.proxy
+			go func() {
+				applyCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
+				defer cancel()
+				if err := v.ApplyProxy(applyCtx, proxy); err != nil {
+					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+						return
+					}
+					vfkitLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
+				}
+			}()
+		}
 		v.started.Store(true)
+		v.proxyResync.Store(true)
+		go v.watchPortProxies(lifeCtx)
 		return nil
 	}
 	_ = v.stopProcess()
@@ -209,7 +370,13 @@ func (v *Vfkit) Start(ctx context.Context) error {
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts",
 		"--device", "virtio-vsock,port=2375,socketURL=" + v.dockerSocket + ",connect",
 	}
-	if os.Getenv("CALF_VFKIT_ROSETTA") == "1" {
+	// Rosetta on by default for arm64 (match Lima); disable with CALF_VFKIT_ROSETTA=0.
+	rosettaEnv := strings.TrimSpace(os.Getenv("CALF_VFKIT_ROSETTA"))
+	enableRosetta := goruntime.GOARCH == "arm64" && rosettaEnv != "0"
+	if rosettaEnv == "1" {
+		enableRosetta = true
+	}
+	if enableRosetta {
 		args = append(args, "--device", "rosetta,mountTag=calf-rosetta,install")
 	}
 	args = append(args,
@@ -230,13 +397,43 @@ func (v *Vfkit) Start(ctx context.Context) error {
 		return err
 	}
 	v.ensureHostMountSymlink(ctx)
+	v.ensureBuildxAsync(lifeCtx)
+	if os.Getenv("CALF_BENCHMARK") != "1" {
+		go func() {
+			setupCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
+			defer cancel()
+			v.ensureHostDockerInternal(setupCtx)
+		}()
+	}
+	if v.proxy != (ProxyConfig{}) {
+		proxy := v.proxy
+		go func() {
+			applyCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
+			defer cancel()
+			if err := v.ApplyProxy(applyCtx, proxy); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return
+				}
+				vfkitLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
+			}
+		}()
+	}
 	v.started.Store(true)
+	v.proxyResync.Store(true)
+	go v.watchPortProxies(lifeCtx)
 	return nil
 }
 
 // Stop kills vfkit unless vm_keep_alive is enabled (benchmarks force a full stop).
 func (v *Vfkit) Stop(ctx context.Context) error {
 	_ = ctx
+	v.mu.Lock()
+	if v.watcherCancel != nil {
+		v.watcherCancel()
+		v.watcherCancel = nil
+	}
+	v.mu.Unlock()
+	v.localhostProxy.stopAll()
 	v.started.Store(false)
 	if v.vmKeepAlive && os.Getenv("CALF_BENCHMARK") != "1" {
 		return nil
@@ -284,7 +481,12 @@ func (v *Vfkit) Status(ctx context.Context) (Status, error) {
 	st := Status{Mode: Mode(constants.RuntimeModeVM), State: State(constants.RuntimeStateStopped), DockerSocket: v.dockerSocket, VMName: v.vmName}
 	if v.dockerAPIReady(ctx) {
 		st.State = State(constants.RuntimeStateRunning)
+		if !v.started.Load() {
+			v.started.Store(true)
+			v.proxyResync.Store(true)
+		}
 	}
+	st.PortConflicts = v.localhostProxy.conflictsSnapshot()
 	return st, nil
 }
 
@@ -351,7 +553,20 @@ func (v *Vfkit) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 }
 
 func (v *Vfkit) ListContainers(ctx context.Context) ([]Container, error) {
-	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Container, error) { return listContainers(ctx, v.runLocal) })
+	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Container, error) {
+		if !v.started.Load() {
+			return []Container{}, nil
+		}
+		containers, err := listContainers(ctx, v.runLocal)
+		if err == nil {
+			force := v.proxyResync.Load()
+			v.localhostProxy.sync(publishedTCPPorts(containers), force)
+			if force {
+				v.proxyResync.Store(false)
+			}
+		}
+		return containers, err
+	})
 }
 func (v *Vfkit) ListImages(ctx context.Context) ([]Image, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Image, error) { return listImages(ctx, v.runLocal) })
@@ -386,7 +601,15 @@ func (v *Vfkit) RemoveNetwork(ctx context.Context, name string) error {
 	}
 	return removeNetwork(ctx, v.runLocal, name)
 }
-func (v *Vfkit) ApplyProxy(ctx context.Context, proxy ProxyConfig) error { v.proxy = proxy; return nil }
+func (v *Vfkit) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
+	v.mu.Lock()
+	v.proxy = proxy
+	v.mu.Unlock()
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return err
+	}
+	return applyProxyInVM(ctx, v.guestCommandRunner, proxy)
+}
 func (v *Vfkit) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
@@ -442,7 +665,12 @@ func (v *Vfkit) RunBuild(ctx context.Context, contextPath, tag, dockerfile, plat
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return BuildResult{}, err
 	}
-	return runBuild(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
+	result, err := runBuildx(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
+	if err != nil && isBuildxMissingError(err) {
+		vfkitLogger.Warn("buildx build failed; falling back to docker build", "error", err)
+		return runBuild(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
+	}
+	return result, err
 }
 func (v *Vfkit) StartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {

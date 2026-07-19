@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-07-19
+
+### Added
+
+- **vfkit feature parity** — buildx builds, `host.docker.internal` (dnsmasq + gateway refresh), localhost `::1` port proxies, HTTP proxy apply inside the guest, and Rosetta on by default on Apple silicon (`CALF_VFKIT_ROSETTA=0` to disable).
+
+### Changed
+
+- **Public benchmarks** — the primary `BENCHMARKS.md` table now uses the vfkit engine (Calf leads or ties OrbStack on every metric on the reference Mac); Lima numbers move to a legacy section.
+
 ## [0.9.5] - 2026-07-19
 
 ### Added

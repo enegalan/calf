@@ -12,7 +12,7 @@ Reference OrbStack (M3 Pro): cold start **6.4 s**, VM boot **6.1 s**, idle RAM *
 | 3 — Save/restore | ~5–6 s | **Skipped** | Already at OrbStack cold-start band without snapshots |
 | 4 — RAM + virtiofs + publish | Full table #1 | **Mostly done** | Bind write ~1121 MB/s; idle ~0.6 GB; VM boot median **~5.9 s** (beats OrbStack 6.1 s) |
 
-Default UX `vm_keep_alive` unchanged. Fair cold start always forces a full VM stop. Lima remains the default engine until packaging + feature parity land.
+Default UX `vm_keep_alive` unchanged. Fair cold start always forces a full VM stop. **vfkit is the preferred macOS engine** when a guest disk/seed or bundled `vfkit` is available; Lima remains the `CALF_RUNTIME=lima` escape hatch.
 
 ## Stage 1 — Early Docker ready (Lima)
 
@@ -77,8 +77,9 @@ On macOS, `runtime.New` prefers vfkit when a local `disk.raw` / `.zst` seed exis
 
 Release builds (`make release-macos`) copy Homebrew `vfkit` into the app. The release workflow also runs `make guest-vfkit` and attaches `calf-vfkit-disk-*.raw.zst` (and optional EFI) to the GitHub release.
 
-## Remaining work to claim default-engine #1 for all users
+## Remaining work after claiming table #1
 
-1. ~~Publish `disk.raw.zst` from CI + first-run download.~~ Release workflow builds `calf-vfkit-disk-<arch>.raw.zst`; app downloads on first Start when vfkit is bundled.
-2. Feature parity: buildx, `host.docker.internal`, localhost port proxies; optional login-item keep-alive for vfkit.
+1. Keep guest disk assets on every release (`calf-vfkit-disk-<arch>.raw.zst`); GHA nested VZ is unreliable — prefer local `make guest-vfkit` + `gh release upload` when CI fails.
+2. Optional vfkit login-item keep-alive (Lima start-at-login equivalent).
 3. Replace host Docker CLI shell-outs with direct Docker HTTP API where practical.
+4. Rebuild guest image when dnsmasq/`host.docker.internal` provision changes so first-run disks include DNS without a runtime refresh.

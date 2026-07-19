@@ -18,10 +18,10 @@ func newDarwinRuntime(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB,
 	case "lima":
 		return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 	case "vfkit":
-		return NewVfkit(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, vmKeepAlive, proxy)
+		return NewVfkit(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 	default:
 		if vfkitReady(vmName) {
-			return NewVfkit(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, vmKeepAlive, proxy)
+			return NewVfkit(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 		}
 		return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
 	}

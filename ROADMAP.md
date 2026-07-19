@@ -185,7 +185,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 5 — Fast boot runtime *(in progress)*
+## Phase 5 — Fast boot runtime *(complete — default macOS engine)*
 
 **Goal:** close the remaining cold-start gap with OrbStack (and beat it).
 
@@ -197,7 +197,8 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Reproducible guest build (`make guest-vfkit` / `scripts/guest-image/build-vfkit-guest.sh`) + first-run `.zst` extract; host bind-mount symlink via `/mnt/calf`
 - [x] VFKit VM-boot median under OrbStack (~5.9 s vs 6.1 s) via faster Docker readiness polling
 - [x] CI/release guest disk asset (`calf-vfkit-disk-<arch>.raw.zst`) + first-run download/extract (pure Go zstd)
-- [ ] buildx / `host.docker.internal` / localhost port-proxy parity with Lima
+- [x] buildx / `host.docker.internal` / localhost port-proxy parity with Lima
+- [x] Promote vfkit numbers to the primary `BENCHMARKS.md` table (Lima retained as legacy)
 
 **Exit criteria:** published cold-start number approaches (or beats) OrbStack under the same procedure as Docker Desktop; full table competitiveness documented in `BENCHMARKS.md`.
 
@@ -222,8 +223,8 @@ Progress log: [docs/phase5-race.md](docs/phase5-race.md).
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time (fair stop→start)      | < 20 s (Phase 5: beat OrbStack ~6.4 s) | Lima path ~15–16 s; experimental `CALF_RUNTIME=vfkit` median **~5.0 s** on M3 Pro (see `docs/phase5-race.md`) |
-| Idle RAM                               | < 1 GB                | Lima ~1.4 GB; experimental vfkit ~0.6 GB (see `BENCHMARKS.md`) |
+| Cold start time (fair stop→start)      | < 20 s (Phase 5: beat OrbStack ~6.4 s) | **vfkit ~5.0 s** median on M3 Pro (Lima ~16 s); see `BENCHMARKS.md` |
+| Idle RAM                               | < 1 GB                | **vfkit ~0.6 GB**; Lima ~1.4 GB (see `BENCHMARKS.md`) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |
