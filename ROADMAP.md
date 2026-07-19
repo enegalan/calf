@@ -189,7 +189,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 **Goal:** close the remaining cold-start gap with OrbStack.
 
-- [ ] Evaluate Lima VZ save/restore (when upstream ships) vs a custom MicroVM / Apple Container-style guest
+- [x] Evaluate Lima VZ save/restore (when upstream ships) vs a custom MicroVM / Apple Container-style guest
 - [ ] Stretch: fair stop→start → first `docker run` under 8 s on the reference Mac (OrbStack ± 1 s)
 - [ ] Keep `vm_keep_alive` as the default UX for quit/reopen; do not use it as the cold-start benchmark
 
