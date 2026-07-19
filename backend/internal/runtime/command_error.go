@@ -129,7 +129,7 @@ func IsTransientCommandError(err error) bool {
 	}
 	startupContexts := []string{
 		"nerdctl",
-		"limactl",
+		"vfkit",
 		"containerd",
 		"docker.sock",
 		"/run/containerd",

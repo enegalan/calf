@@ -4,5 +4,13 @@ package runtime
 
 // newDarwinRuntime is unused off darwin; New() never calls it there.
 func newDarwinRuntime(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) Runtime {
-	return NewLima(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
+	_ = vmName
+	_ = cpus
+	_ = memoryGB
+	_ = memorySwapGB
+	_ = diskGB
+	_ = apiListenPort
+	_ = vmKeepAlive
+	_ = proxy
+	return NewUnsupported(dockerSocket, "vfkit runtime is only available on macOS")
 }

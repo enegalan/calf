@@ -14,7 +14,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 | Extensions marketplace                 | Not a priority       |
 | Docker Scout / AI / Cloud              | Out of scope         |
 | Advanced BuildKit (SBOM, attestations) | Phase 4+             |
-| Windows support                        | Done (v0.7.0+)       |
+| Windows support                        | UI/installers ship; container engine pending (vfkit is macOS-only) |
 
 ## Target architecture
 
@@ -31,12 +31,11 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
                          │
 ┌────────────────────────▼─────────────────────────────────┐
 │  Container engine                                        │
-│  containerd + nerdctl  (or Podman API)                   │
+│  Docker / containerd (guest or native)                     │
 └────────────────────────┬─────────────────────────────────┘
                          │
 ┌────────────────────────▼─────────────────────────────────┐
-│  Lightweight VM (macOS/Windows) or native runtime (Linux)│
-│  Lima / vz + virtiofs                                    │
+│  vfkit + virtiofs (macOS) or native runtime (Linux)      │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -177,7 +176,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Warm start optimization (< 2 s when the Lima VM is kept alive via `vm_keep_alive`)
 - [x] Fair cold start (same stop→start procedure as competitors) under 20 s on reference hardware (~16 s with Lima/VZ; faster than Docker Desktop)
 - [x] Image and layer cache across restarts (Lima VM disk persistence)
-- [x] Rootless mode where the OS allows it (Linux native: prefer user Docker socket; macOS/Windows Lima guest stays rootful)
+- [x] Rootless mode where the OS allows it (Linux native: prefer user Docker socket; macOS vfkit guest stays rootful)
 - [x] Basic `buildx` support (`docker buildx build --load`, Rosetta cross-arch; multi-arch push later)
 - [ ] ~~Opt-in telemetry (errors and performance, no container data)~~ – Cancelled
 
@@ -185,20 +184,20 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 5 — Fast boot runtime *(complete — default macOS engine)*
+## Phase 5 — Fast boot runtime *(complete — macOS vfkit only)*
 
 **Goal:** close the remaining cold-start gap with OrbStack (and beat it).
 
-- [x] Evaluate Lima VZ save/restore vs custom/Apple-style guest — [docs/phase5-race.md](docs/phase5-race.md) (Lima save/restore no-go for &lt; 8 s)
-- [x] Stretch cold start under 8 s — experimental `CALF_RUNTIME=vfkit` path: median **~5.0 s** fair stop→start→`hello-world` on M3 Pro (OrbStack **6.4 s**)
+- [x] Evaluate Lima VZ save/restore vs custom/Apple-style guest — [docs/phase5-race.md](docs/phase5-race.md) (Lima save/restore no-go for &lt; 8 s; Lima product runtime later removed)
+- [x] Stretch cold start under 8 s — vfkit path: median **~5.0 s** fair stop→start→`hello-world` on M3 Pro (OrbStack **6.4 s**)
 - [x] Keep `vm_keep_alive` as the default UX for quit/reopen; do not use it as the cold-start benchmark
-- [x] Publish experimental vfkit benchmark rows in `BENCHMARKS.md` (cold start, compose, bind write, idle RAM); guest DNS/NAT + virtiofs working
-- [x] Auto-select vfkit on macOS when guest disk + `vfkit` binary exist; bundle `vfkit` in `release-macos` when available; `CALF_RUNTIME=lima` escape hatch
+- [x] Publish vfkit benchmark rows in `BENCHMARKS.md` (cold start, compose, bind write, idle RAM); guest DNS/NAT + virtiofs working
+- [x] macOS always uses vfkit; bundle `vfkit` in `release-macos`; guest disk download on first start
 - [x] Reproducible guest build (`make guest-vfkit` / `scripts/guest-image/build-vfkit-guest.sh`) + first-run `.zst` extract; host bind-mount symlink via `/mnt/calf`
 - [x] VFKit VM-boot median under OrbStack (~5.9 s vs 6.1 s) via faster Docker readiness polling
-- [x] CI/release guest disk asset (`calf-vfkit-disk-<arch>.raw.zst`) + first-run download/extract (pure Go zstd)
-- [x] buildx / `host.docker.internal` / localhost port-proxy parity with Lima
-- [x] Promote vfkit numbers to the primary `BENCHMARKS.md` table (Lima retained as legacy)
+- [x] Guest disk release asset (`calf-vfkit-disk-<arch>.raw.zst`) + first-run download/extract (pure Go zstd); bake on a real Mac (not GHA nested VZ)
+- [x] buildx / `host.docker.internal` / localhost port-proxy on vfkit
+- [x] Remove Lima product runtime; promote vfkit as the only macOS engine
 
 **Exit criteria:** published cold-start number approaches (or beats) OrbStack under the same procedure as Docker Desktop; full table competitiveness documented in `BENCHMARKS.md`.
 
@@ -223,8 +222,8 @@ Progress log: [docs/phase5-race.md](docs/phase5-race.md).
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time (fair stop→start)      | < 20 s (Phase 5: beat OrbStack ~6.4 s) | **vfkit ~5.0 s** median on M3 Pro (Lima ~16 s); see `BENCHMARKS.md` |
-| Idle RAM                               | < 1 GB                | **vfkit ~0.6 GB**; Lima ~1.4 GB (see `BENCHMARKS.md`) |
+| Cold start time (fair stop→start)      | < 20 s (Phase 5: beat OrbStack ~6.4 s) | **vfkit ~5.0 s** median on M3 Pro; see `BENCHMARKS.md` |
+| Idle RAM                               | < 1 GB                | **vfkit ~0.6 GB** (see `BENCHMARKS.md`) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |

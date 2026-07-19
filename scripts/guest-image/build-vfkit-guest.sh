@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-TEMPLATE="${SCRIPT_DIR}/lima-vfkit.yaml"
+TEMPLATE="${SCRIPT_DIR}/guest-provision.yaml"
 VM_NAME="${CALF_VM_NAME:-calf}"
 BUILD_VM="${CALF_VFKIT_BUILD_VM:-cvb}"
 DEST_DIR="${HOME}/.config/calf/vfkit/${VM_NAME}"
@@ -112,5 +112,4 @@ fi
 echo
 echo "Calf will auto-select vfkit when this disk + vfkit binary exist."
 echo "Test: make dev-backend"
-echo "Force Lima: CALF_RUNTIME=lima make dev-backend"
 echo "Optional cleanup: LIMA_HOME=$LIMA_HOME limactl delete -f $BUILD_VM"

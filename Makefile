@@ -83,7 +83,8 @@ release-macos:
 	    codesign --force --sign - --identifier com.enegalan.calf.vfkit ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/vfkit; \
 	    echo "bundled vfkit from $$VFKIT_SRC"; \
 	  else \
-	    echo "warning: vfkit not found; app will fall back to Lima unless the user installs vfkit"; \
+	    echo "warning: vfkit not found; macOS release requires vfkit next to calf-daemon"; \
+	    exit 1; \
 	  fi
 	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
 	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
@@ -140,7 +141,7 @@ benchmarks-vfkit:
 	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
 	CALF_RUNTIME=vfkit CALF_VFKIT_MEMORY_GB=$${CALF_VFKIT_MEMORY_GB:-2} ./scripts/benchmarks/run-all.sh --products calf
 
-# Build a reproducible vfkit guest disk via throwaway Lima (see scripts/guest-image/).
+# Build a reproducible vfkit guest disk via throwaway limactl bake (see scripts/guest-image/).
 guest-vfkit:
 	./scripts/guest-image/build-vfkit-guest.sh --pack
 
