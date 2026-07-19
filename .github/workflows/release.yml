@@ -80,6 +80,8 @@ jobs:
   vfkit-guest:
     runs-on: macos-latest
     timeout-minutes: 120
+    # Guest build is best-effort; installer release must not block on it.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,6 +91,10 @@ jobs:
         run: brew install lima zstd
 
       - name: Build and pack vfkit guest disk
+        env:
+          # Keep UNIX socket paths under UNIX_PATH_MAX on GitHub runners.
+          CALF_VFKIT_LIMA_HOME: ${{ runner.temp }}/cvb
+          CALF_VFKIT_BUILD_VM: cvb
         run: make guest-vfkit
 
       - name: Upload vfkit guest disk assets
@@ -102,6 +108,7 @@ jobs:
 
   release:
     needs: [build, vfkit-guest]
+    if: ${{ always() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -128,6 +135,7 @@ jobs:
           merge-multiple: true
 
       - name: Download vfkit guest disk artifacts
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: calf-vfkit-guest
