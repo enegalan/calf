@@ -56,9 +56,11 @@ require python3
 require make
 require install_name_tool
 require codesign
+# libkrun Darwin Makefile cross-compiles init with -fuse-ld=lld (Homebrew: brew install lld).
+require ld.lld
 
 if [[ ! -d /opt/homebrew/opt/libkrun ]]; then
-  echo "error: brew install libkrun krunkit (slp/krun tap)" >&2
+  echo "error: brew install libkrun krunkit (libkrun/krun tap)" >&2
   exit 1
 fi
 
