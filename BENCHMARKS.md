@@ -28,9 +28,14 @@ brew tap libkrun/krun
 brew install libkrun/krun/krunkit libkrun/krun/gvproxy
 make krunkit-stack   # local / release prerequisite
 
-# Fair bind-mount reads need passwordless purge once:
-#   echo "$(whoami) ALL=(root) NOPASSWD: /usr/sbin/purge" | sudo tee /etc/sudoers.d/calf-purge
-#   sudo chmod 440 /etc/sudoers.d/calf-purge
+# Fair bind-mount reads need one admin purge of the host page cache.
+# Prefer a one-shot credential cache (no persistent sudoers file):
+#   sudo -v && BENCHMARK_ALLOW_SUDO=1 make benchmarks
+# Or a temporary, narrowly scoped rule — validate with visudo, then remove it:
+#   printf '%s ALL=(root) NOPASSWD: /usr/sbin/purge\n' "$(whoami)" | sudo tee /etc/sudoers.d/calf-purge-tmp
+#   sudo chmod 440 /etc/sudoers.d/calf-purge-tmp && sudo visudo -cf /etc/sudoers.d/calf-purge-tmp
+#   BENCHMARK_ALLOW_SUDO=1 make benchmarks
+#   sudo rm -f /etc/sudoers.d/calf-purge-tmp
 
 BENCHMARK_ALLOW_SUDO=1 make benchmarks
 ```

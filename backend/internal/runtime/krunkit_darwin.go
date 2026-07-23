@@ -40,18 +40,22 @@ func NewKrunkit(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB, diskG
 	}
 }
 
+// krunkitPidPath returns the path of the krunkit process PID file.
 func (k *Krunkit) krunkitPidPath() string {
 	return filepath.Join(k.dataDir, "krunkit.pid")
 }
 
+// gvproxyPidPath returns the path of the gvproxy process PID file.
 func (k *Krunkit) gvproxyPidPath() string {
 	return filepath.Join(k.dataDir, "gvproxy.pid")
 }
 
+// gvproxySockPath returns the path of the gvproxy virtio-net unixgram socket.
 func (k *Krunkit) gvproxySockPath() string {
 	return filepath.Join(k.dataDir, "gvproxy.sock")
 }
 
+// gvproxyAPISockPath returns the path of the gvproxy HTTP services socket.
 func (k *Krunkit) gvproxyAPISockPath() string {
 	return filepath.Join(k.dataDir, "gvproxy-api.sock")
 }
@@ -120,10 +124,12 @@ func libkrunDirFor(krunkitBin string) string {
 	return ""
 }
 
+// krunkitAlive reports whether the krunkit process from the PID file is still running.
 func (k *Krunkit) krunkitAlive() bool {
 	return pidfileAlive(k.krunkitPidPath())
 }
 
+// gvproxyAlive reports whether the gvproxy process from the PID file is still running.
 func (k *Krunkit) gvproxyAlive() bool {
 	return pidfileAlive(k.gvproxyPidPath())
 }
@@ -154,7 +160,8 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker CLI not found: required for the krunkit runtime")
 	}
-	if err := k.ensureGuestDisk(ctx); err != nil {
+	// Guest-disk download allows up to 45 minutes; do not inherit Start's short deadline.
+	if err := k.ensureGuestDisk(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(k.dataDir, 0o755); err != nil {
@@ -364,8 +371,12 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 				return nil
 			}
 		}
-		if !k.gvproxyAlive() && cmd.ProcessState != nil {
-			return fmt.Errorf("gvproxy exited before creating %s", k.gvproxySockPath())
+		// gvproxyAlive alone misses the window before the PID file exists; confirm via the process handle
+		// (do not wait for Wait to set ProcessState — that lags behind a real exit).
+		if !k.gvproxyAlive() {
+			if cmd.Process == nil || syscall.Kill(cmd.Process.Pid, 0) != nil {
+				return fmt.Errorf("gvproxy exited before creating %s", k.gvproxySockPath())
+			}
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

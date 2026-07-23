@@ -173,9 +173,9 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 **Goal:** Calf is preferable to Docker Desktop for speed and resource usage.
 
 - [x] Public benchmarks vs Docker Desktop and OrbStack (VM boot, cold start, bind mount I/O, idle RAM)
-- [x] Warm start optimization (< 2 s when the Lima VM is kept alive via `vm_keep_alive`)
-- [x] Fair cold start (same stop→start procedure as competitors) under 20 s on reference hardware (~16 s with Lima/VZ; faster than Docker Desktop)
-- [x] Image and layer cache across restarts (Lima VM disk persistence)
+- [x] Warm start optimization (< 2 s when the guest VM is kept alive via `vm_keep_alive`)
+- [x] Fair cold start (same stop→start procedure as competitors) under 20 s on reference hardware (krunkit median ~8 s; faster than Docker Desktop)
+- [x] Image and layer cache across restarts (guest disk persistence)
 - [x] Rootless mode where the OS allows it (Linux native: prefer user Docker socket; macOS guest stays rootful)
 - [x] Basic `buildx` support (`docker buildx build --load`, Rosetta cross-arch; multi-arch push later)
 - [ ] ~~Opt-in telemetry (errors and performance, no container data)~~ – Cancelled
@@ -222,8 +222,8 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 | Metric                                 | Target                | Current (approx.)                |
 |----------------------------------------|-----------------------|----------------------------------|
-| Cold start time (fair stop→start)      | < 20 s                | **krunkit ~5.0 s**               |
-| Idle RAM                               | < 1 GB                | **krunkit ~0.6 GB**              |
+| Cold start → first container (fair stop→start) | < 20 s                | **krunkit 8.0 s** (see `BENCHMARKS.md`) |
+| Idle RAM (engine idle RSS)                     | < 1 GB                | **krunkit 0.07 GB** (see `BENCHMARKS.md`) |
 | Reference compose projects             | 3/3 without changes   | In validation                    |
 | Docker CLI compatibility               | 100%                  | ~100% (`make verify-docker-cli`) |
 | Install to first container             | < 5 min               | ~5 min                           |

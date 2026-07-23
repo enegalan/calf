@@ -32,6 +32,13 @@ type Core struct {
 	lifecycleCtx          context.Context
 	lifecycleCancel       context.CancelFunc
 	runtimeStartMu        sync.Mutex
+	runtimeStartInflight  *runtimeStartResult
+}
+
+// runtimeStartResult is the shared completion of one in-flight EnsureRuntimeRunning start.
+type runtimeStartResult struct {
+	done chan struct{}
+	err  error
 }
 
 // ownerContextSetter is implemented by runtimes whose background work should follow daemon shutdown.

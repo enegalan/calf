@@ -215,7 +215,7 @@ resume_product_vm() {
 resume_all_vms() {
   local product
   for product in "${PRODUCTS[@]}"; do
-    if ! should_skip_product "$product"; then
+    if product_installed "$product"; then
       resume_product_vm "$product"
     fi
   done
@@ -232,7 +232,7 @@ pause_other_vms() {
   resume_all_vms
   local product
   for product in "${PRODUCTS[@]}"; do
-    if [[ "$product" != "$keep" ]] && ! should_skip_product "$product"; then
+    if [[ "$product" != "$keep" ]] && product_installed "$product"; then
       pause_product_vm "$product"
     fi
   done

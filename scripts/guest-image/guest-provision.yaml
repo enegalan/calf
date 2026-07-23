@@ -94,6 +94,24 @@ provision:
       systemctl enable --now docker-vsock-proxy
 
       mkdir -p /mnt/calf
+      cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'
+#!/bin/sh
+set -e
+mkdir -p /mnt/calf
+if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
+  exit 0
+fi
+case "$err" in
+  *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
+    exec mount -t virtiofs -o noatime calf-mounts /mnt/calf
+    ;;
+  *)
+    echo "$err" >&2
+    exit 1
+    ;;
+esac
+EOF
+      chmod +x /usr/local/sbin/calf-mount-virtiofs
       printf '%s\n' \
         '[Unit]' \
         'Description=Mount Calf virtiofs shares' \
@@ -104,8 +122,7 @@ provision:
         '[Service]' \
         'Type=oneshot' \
         'RemainAfterExit=yes' \
-        'ExecStart=/bin/mkdir -p /mnt/calf' \
-        'ExecStart=/bin/sh -c "mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>/dev/null || mount -t virtiofs -o noatime calf-mounts /mnt/calf"' \
+        'ExecStart=/usr/local/sbin/calf-mount-virtiofs' \
         'ExecStop=/bin/umount -l /mnt/calf' \
         '' \
         '[Install]' \

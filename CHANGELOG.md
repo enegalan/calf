@@ -9,13 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **krunkit macOS engine** — release builds bundle patched krunkit + libkrun + gvproxy; local builds use `make krunkit-stack` (`~/.config/calf/krunkit`).
+- **Faster macOS engine** — release builds include the new macOS container engine; local builds can enable it with the documented setup steps.
 
 ### Changed
 
-- **macOS runtime** — Calf always uses krunkit. Guest disk layout is `~/.config/calf/guest/` (`guest_darwin.go`, `make guest-disk`, `calf-guest-disk-*`).
-- **macOS guest network** — pin virtio-net to `192.168.127.2`, DHCP/gateway via gvproxy; publish container ports to the host through gvproxy's forwarder API.
-- **Benchmarks** — with krunkit (`dax=inode`) Calf leads OrbStack on bind-mount write and cold bind-read on the reference Mac (see `BENCHMARKS.md`).
+- **macOS startup and file I/O** — quicker engine start and faster bind-mount reads and writes on the reference Mac (see `BENCHMARKS.md`).
+- **Guest disk persistence** — container images and data survive engine restarts on a durable guest disk downloaded on first start when needed.
+- **Container networking** — published container ports are reachable on the host.
 
 ## [0.9.7] - 2026-07-19
 

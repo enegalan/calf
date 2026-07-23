@@ -10,7 +10,6 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE="${SCRIPT_DIR}/guest-provision.yaml"
 VM_NAME="${CALF_VM_NAME:-calf}"
 BUILD_VM="${CALF_GUEST_BUILD_VM:-cvb}"

@@ -232,16 +232,20 @@ fn queue_loop(
     const QUEUE_TAG: u64 = 2;
 
     let epoll = Epoll::new().unwrap();
-    let _ = epoll.ctl(
-        ControlOperation::Add,
-        queue_evt.as_raw_fd(),
-        &EpollEvent::new(EventSet::IN, QUEUE_TAG),
-    );
-    let _ = epoll.ctl(
-        ControlOperation::Add,
-        stop_fd.as_raw_fd(),
-        &EpollEvent::new(EventSet::IN, STOP_TAG),
-    );
+    epoll
+        .ctl(
+            ControlOperation::Add,
+            queue_evt.as_raw_fd(),
+            &EpollEvent::new(EventSet::IN, QUEUE_TAG),
+        )
+        .unwrap_or_else(|e| panic!("fs-vq-{queue_index}: epoll add queue_evt: {e}"));
+    epoll
+        .ctl(
+            ControlOperation::Add,
+            stop_fd.as_raw_fd(),
+            &EpollEvent::new(EventSet::IN, STOP_TAG),
+        )
+        .unwrap_or_else(|e| panic!("fs-vq-{queue_index}: epoll add stop_fd: {e}"));
 
     loop {
         let mut epoll_events = vec![EpollEvent::new(EventSet::empty(), 0); 8];

@@ -53,16 +53,10 @@ cp "$GVPROXY_SRC" "$MACOS_DIR/gvproxy"
 chmod +x "$RES_DIR/bin/krunkit" "$MACOS_DIR/gvproxy"
 
 # Relocatable dylib load path (SIP ignores DYLD_LIBRARY_PATH for signed binaries).
-install_name_tool -change \
-  "${PREFIX}/lib/libkrun.1.dylib" \
-  "@loader_path/../lib/libkrun.1.dylib" \
-  "$RES_DIR/bin/krunkit" 2>/dev/null || true
-# Also rewrite absolute Homebrew-style paths if present.
-if otool -L "$RES_DIR/bin/krunkit" | grep -q 'libkrun'; then
-  current="$(otool -L "$RES_DIR/bin/krunkit" | awk '/libkrun/{print $1; exit}')"
-  if [[ -n "$current" && "$current" != "@loader_path/../lib/libkrun.1.dylib" ]]; then
-    install_name_tool -change "$current" "@loader_path/../lib/libkrun.1.dylib" "$RES_DIR/bin/krunkit"
-  fi
+desired="@loader_path/../lib/libkrun.1.dylib"
+current="$(otool -L "$RES_DIR/bin/krunkit" | awk '/libkrun/{print $1; exit}')"
+if [[ -n "$current" && "$current" != "$desired" ]]; then
+  install_name_tool -change "$current" "$desired" "$RES_DIR/bin/krunkit"
 fi
 
 ENTITLEMENTS=""

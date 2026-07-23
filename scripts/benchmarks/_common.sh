@@ -525,13 +525,13 @@ start_calf_daemon() {
   if daemon_bin=$(resolve_calf_daemon_bin); then
     log "starting Calf daemon for benchmarks (${daemon_bin})"
     # CALF_BENCHMARK disables watchParent so orphaned/detached launches stay up.
-    env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 "${runtime_env[@]}" \
+    env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 ${runtime_env[@]+"${runtime_env[@]}"} \
       "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
   else
     warn "calf-daemon binary not found; falling back to go run (slower, may skew cold-start)"
     (
       cd "${ROOT_DIR}/backend"
-      env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 "${runtime_env[@]}" \
+      env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 ${runtime_env[@]+"${runtime_env[@]}"} \
         CGO_ENABLED=0 go run ./cmd/calf
     ) >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
   fi

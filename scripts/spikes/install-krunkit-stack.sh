@@ -116,8 +116,15 @@ if n2 != 1:
 # are not serialized on the same file. Do not F_RDADVISE on every read (hurts cold
 # sequential throughput under dax=inode on APFS).
 if "do not close the shared fd" not in ms3:
+    old_read = (
+        "        let f = data.file.read().unwrap();\n"
+        "        w.write_from(&f, size as usize, offset)"
+    )
+    n_read = ms3.count(old_read)
+    if n_read != 1:
+        raise SystemExit(f"host read-path patch failed n={n_read}")
     ms3 = ms3.replace(
-        "        let f = data.file.read().unwrap();\n        w.write_from(&f, size as usize, offset)",
+        old_read,
         "        let fd = data.file.read().unwrap().as_raw_fd();\n"
         "        // Safety: handle keeps the File open for the lifetime of this HandleData.\n"
         "        let f = unsafe { std::fs::File::from_raw_fd(fd) };\n"
@@ -133,6 +140,8 @@ ms4, n3 = re.subn(
     ms3,
     count=1,
 )
+if n3 != 1:
+    raise SystemExit(f"writeback→false patch failed n={n3}")
 mp.write_text(ms4)
 print(f"patched DAX open_flags + CachePolicy::Always in {mp} (writeback→false n={n3})")
 PY
