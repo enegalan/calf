@@ -275,9 +275,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
     syncMatchIndex(matches);
     final displayIndex = displayMatchIndex(matches);
 
-    final emptyMessage = widget.runningCount == 0
-      ? ''
-      : null;
+    final emptyMessage = widget.runningCount == 0 ? '' : null;
 
     return _LogsViewerChrome(
       theme: theme,
