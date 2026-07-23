@@ -1,13 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/screens/build_detail_screen.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class BuildsScreen extends StatefulWidget {
   /// Creates a [BuildsScreen] widget.
@@ -114,7 +114,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
       );
     }
 
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final filtered = _searchQuery.isEmpty
         ? _builds
         : _builds
@@ -129,24 +129,24 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Builds', style: theme.textTheme.h3),
+        Text('Builds', style: theme.textTheme.headlineSmall),
 
         /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 16),
-        ShadInput(
+        TextField(
           controller: _searchController,
-          placeholder: const Text('Search'),
+          decoration: const InputDecoration(hintText: 'Search'),
         ),
 
         /// Creates a [_BuildsScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
+          Text('Loading...', style: theme.textTheme.titleMedium)
         else if (_error != null)
           Text(
             _error!,
-            style: theme.textTheme.large.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.titleMedium!.copyWith(
+              color: theme.colorScheme.error,
             ),
           )
         else if (filtered.isEmpty)
@@ -156,7 +156,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                 : _runtime?.state == 'stopped'
                 ? 'No builds yet. Runtime is stopped.'
                 : 'No builds yet.',
-            style: theme.textTheme.muted,
+            style: CalfTheme.muted(theme),
           )
         else
           Expanded(
@@ -189,12 +189,12 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(build.tag, style: theme.textTheme.large),
+                            Text(build.tag, style: theme.textTheme.titleMedium),
                             Text(
                               build.context.isNotEmpty
                                   ? '${build.context} · ${build.status}'
                                   : build.status,
-                              style: theme.textTheme.muted,
+                              style: CalfTheme.muted(theme),
                             ),
                             Text(
                               [
@@ -202,7 +202,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                                   _formatBuildDuration(build.durationMs),
                                 build.createdAt,
                               ].where((item) => item.isNotEmpty).join(' · '),
-                              style: theme.textTheme.muted,
+                              style: CalfTheme.muted(theme),
                             ),
                           ],
                         ),
@@ -219,16 +219,16 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
 }
 
 /// Returns the list-dot color for a build status.
-Color _buildStatusColor(String status, ShadThemeData theme) {
+Color _buildStatusColor(String status, ThemeData theme) {
   switch (status) {
     case 'success':
       return CalfColors.success;
     case 'failed':
-      return theme.colorScheme.destructive;
+      return theme.colorScheme.error;
     case 'running':
       return theme.colorScheme.primary;
     default:
-      return theme.colorScheme.mutedForeground;
+      return theme.colorScheme.onSurfaceVariant;
   }
 }
 

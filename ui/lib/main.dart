@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'package:ui/api/client.dart';
@@ -13,22 +12,7 @@ import 'package:ui/app_shell.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/platform/tray_status.dart';
-
-final _lightShadTheme = ShadThemeData(
-  brightness: Brightness.light,
-  colorScheme: const ShadBlueColorScheme.light(
-    primary: CalfColors.primary,
-    ring: CalfColors.primary,
-  ),
-);
-
-final _darkShadTheme = ShadThemeData(
-  brightness: Brightness.dark,
-  colorScheme: const ShadBlueColorScheme.dark(
-    primary: CalfColors.primary,
-    ring: CalfColors.primary,
-  ),
-);
+import 'package:ui/theme/calf_theme.dart';
 
 Process? _daemonProcess;
 bool _daemonShutdown = false;
@@ -215,31 +199,6 @@ Future<void> main() async {
   runApp(const MainApp());
 }
 
-/// Builds a Material [ThemeData] bridged from a Shadcn theme.
-ThemeData _materialTheme(ShadThemeData shadTheme) {
-  return ThemeData(
-    fontFamily: shadTheme.textTheme.family,
-    colorScheme: ColorScheme(
-      brightness: shadTheme.brightness,
-      primary: shadTheme.colorScheme.primary,
-      onPrimary: shadTheme.colorScheme.primaryForeground,
-      secondary: shadTheme.colorScheme.secondary,
-      onSecondary: shadTheme.colorScheme.secondaryForeground,
-      error: shadTheme.colorScheme.destructive,
-      onError: shadTheme.colorScheme.destructiveForeground,
-      surface: shadTheme.colorScheme.background,
-      onSurface: shadTheme.colorScheme.foreground,
-    ),
-    scaffoldBackgroundColor: shadTheme.colorScheme.background,
-    brightness: shadTheme.brightness,
-    dividerTheme: DividerThemeData(
-      color: shadTheme.separatorTheme.color ?? shadTheme.colorScheme.border,
-      thickness: shadTheme.separatorTheme.thickness ?? 1,
-    ),
-    useMaterial3: true,
-  );
-}
-
 class MainApp extends StatefulWidget {
   /// Creates a [MainApp] instance.
   const MainApp({super.key, this.apiClient});
@@ -352,43 +311,33 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      theme: _materialTheme(_lightShadTheme),
-      darkTheme: _materialTheme(_darkShadTheme),
+      theme: CalfTheme.light,
+      darkTheme: CalfTheme.dark,
       builder: (context, child) {
-        final brightness = Theme.of(context).brightness;
-        final shadTheme = brightness == Brightness.dark
-            ? _darkShadTheme
-            : _lightShadTheme;
-
-        return ShadTheme(
-          data: shadTheme,
+        final theme = Theme.of(context);
+        return Material(
+          color: theme.colorScheme.surface,
           child: DefaultTextStyle(
-            style: TextStyle(
-              color: shadTheme.colorScheme.foreground,
-              fontFamily: shadTheme.textTheme.family,
+            style: theme.textTheme.bodyMedium!.copyWith(
+              color: theme.colorScheme.onSurface,
             ),
-            child: ColoredBox(
-              color: shadTheme.colorScheme.background,
-              child: _daemonReady
-                  ? (child ?? const SizedBox.shrink())
-                  : Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(),
-                          if (_error != null) ...[
-                            const SizedBox(height: 16),
-                            Text(
-                              _error!,
-                              style: TextStyle(
-                                color: shadTheme.colorScheme.destructive,
-                              ),
-                            ),
-                          ],
+            child: _daemonReady
+                ? (child ?? const SizedBox.shrink())
+                : Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Text(
+                            _error!,
+                            style: TextStyle(color: theme.colorScheme.error),
+                          ),
                         ],
-                      ),
+                      ],
                     ),
-            ),
+                  ),
           ),
         );
       },

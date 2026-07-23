@@ -1,18 +1,11 @@
-import 'package:flutter/material.dart'
-    show
-        CircularProgressIndicator,
-        PopupMenuDivider,
-        PopupMenuItem,
-        RelativeRect,
-        RoundedRectangleBorder,
-        showMenu;
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class AppTopBar extends StatelessWidget {
   /// Renders the app header with branding, settings, and registry sign-in.
@@ -59,14 +52,14 @@ class AppTopBar extends StatelessWidget {
   /// Builds the top bar with settings and registry controls.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     const barHeight = 52.0;
 
     return Container(
       height: barHeight,
       decoration: BoxDecoration(
-        color: theme.colorScheme.background,
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
+        color: theme.colorScheme.surface,
+        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -84,7 +77,7 @@ class AppTopBar extends StatelessWidget {
                 Icon(
                   LucideIcons.settings,
                   size: 18,
-                  color: theme.colorScheme.foreground,
+                  color: theme.colorScheme.onSurface,
                 ),
                 if (updateAvailable)
                   Positioned(
@@ -97,7 +90,7 @@ class AppTopBar extends StatelessWidget {
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: theme.colorScheme.background,
+                          color: theme.colorScheme.surface,
                           width: 1.5,
                         ),
                       ),
@@ -138,7 +131,7 @@ class _BrandMark extends StatelessWidget {
   /// Renders the Calf logo and wordmark.
   const _BrandMark({required this.theme});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the logo and wordmark row.
   @override
@@ -160,7 +153,7 @@ class _BrandMark extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           'calf',
-          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
     );
@@ -180,7 +173,7 @@ class _AccountMenuButton extends StatefulWidget {
 
   final String initial;
   final String username;
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String accountSettingsUrl;
   final VoidCallback onOpenWhatsNew;
   final Future<void> Function() onSignOut;
@@ -205,7 +198,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
     final offset = box.localToGlobal(Offset.zero, ancestor: overlayBox);
     const menuWidth = 240.0;
-    final theme = ShadTheme.of(buttonContext);
+    final theme = Theme.of(buttonContext);
     final menuLeft = offset.dx + box.size.width - menuWidth;
     final menuTop = offset.dy + box.size.height + 8;
 
@@ -215,11 +208,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         Rect.fromLTWH(menuLeft, menuTop, menuWidth, 0),
         Offset.zero & overlayBox.size,
       ),
-      color: theme.colorScheme.popover,
+      color: theme.colorScheme.surface,
       surfaceTintColor: const Color(0x00000000),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: theme.colorScheme.border),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       constraints: const BoxConstraints(minWidth: menuWidth),
       items: [
@@ -242,7 +235,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   children: [
                     Text(
                       widget.username,
-                      style: theme.textTheme.large.copyWith(
+                      style: theme.textTheme.titleMedium!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -260,7 +253,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           child: _AccountMenuRow(
             icon: LucideIcons.sparkles,
             label: "What's new",
-            color: theme.colorScheme.foreground,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         PopupMenuItem<String>(
@@ -269,11 +262,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           child: _AccountMenuRow(
             icon: LucideIcons.user,
             label: 'Account Settings',
-            color: theme.colorScheme.foreground,
+            color: theme.colorScheme.onSurface,
             trailing: Icon(
               LucideIcons.externalLink,
               size: 14,
-              color: theme.colorScheme.mutedForeground,
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -284,7 +277,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           child: _AccountMenuRow(
             icon: LucideIcons.logOut,
             label: 'Sign out',
-            color: theme.colorScheme.destructive,
+            color: theme.colorScheme.error,
           ),
         ),
       ],
@@ -307,7 +300,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
   /// Builds the avatar button that opens the account menu.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return CalfButton.ghost(
       key: _buttonKey,
@@ -321,7 +314,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           Icon(
             LucideIcons.chevronDown,
             size: 14,
-            color: theme.colorScheme.foreground,
+            color: theme.colorScheme.onSurface,
           ),
         ],
       ),
@@ -346,7 +339,7 @@ class _AccountMenuRow extends StatelessWidget {
   /// Builds the menu row with icon, label, and optional trailing widget.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Row(
       children: [
@@ -356,7 +349,7 @@ class _AccountMenuRow extends StatelessWidget {
           child: Text(
             label,
             overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.small.copyWith(
+            style: theme.textTheme.bodySmall!.copyWith(
               color: color,
               fontWeight: FontWeight.w500,
             ),
@@ -378,7 +371,7 @@ class _UserAvatar extends StatelessWidget {
 
   final String initial;
   final double size;
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the circular user initial avatar.
   @override
@@ -393,9 +386,11 @@ class _UserAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: (size >= 32 ? theme.textTheme.large : theme.textTheme.small)
+        style: (size >= 32
+                ? theme.textTheme.titleMedium!
+                : theme.textTheme.bodySmall!)
             .copyWith(
-              color: theme.colorScheme.primaryForeground,
+              color: theme.colorScheme.onPrimary,
               fontWeight: FontWeight.w600,
             ),
       ),
@@ -411,7 +406,7 @@ Future<void> showRegistryLoginDialog({
   required ValueChanged<String?> onComplete,
   required ValueChanged<String> onFailed,
 }) {
-  return showShadDialog<void>(
+  return showDialog<void>(
     context: context,
     barrierDismissible: false,
     builder: (dialogContext) => _RegistryLoginDialog(
@@ -507,15 +502,118 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   /// Builds the browser login waiting dialog with confirmation code.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
-    return ShadDialog(
-      scrollable: false,
-      constraints: const BoxConstraints(maxWidth: 420),
-      gap: 16,
+    return AlertDialog(
       title: const Text('Sign in to Docker Hub'),
-      description: const Text(
-        'Complete sign-in in your browser. This dialog closes when you are done.',
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Complete sign-in in your browser. This dialog closes when you are done.',
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Waiting for browser sign-in...',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Confirmation code',
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.start.userCode,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        letterSpacing: 2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  CalfButton.ghost(
+                    onPressed: _copyCode,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          LucideIcons.copy,
+                          size: 14,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        const SizedBox(width: 6),
+                        const Text('Copy'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            CalfButton.outline(
+              onPressed: _openLoginPage,
+              width: double.infinity,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.externalLink,
+                    size: 14,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Open login page'),
+                ],
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
       actions: [
         CalfButton.ghost(
@@ -523,161 +621,63 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
           child: const Text('Cancel'),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.muted,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Waiting for browser sign-in...',
-                    style: theme.textTheme.small,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Confirmation code',
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.border),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.start.userCode,
-                    style: theme.textTheme.h4.copyWith(letterSpacing: 2),
-                  ),
-                ),
-                CalfButton.ghost(
-                  onPressed: _copyCode,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.copy,
-                        size: 14,
-                        color: theme.colorScheme.foreground,
-                      ),
-                      const SizedBox(width: 6),
-                      const Text('Copy'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          CalfButton.outline(
-            onPressed: _openLoginPage,
-            width: double.infinity,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  LucideIcons.externalLink,
-                  size: 14,
-                  color: theme.colorScheme.foreground,
-                ),
-                const SizedBox(width: 8),
-                const Text('Open login page'),
-              ],
-            ),
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.destructive,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 }
 
 /// Shows a dialog listing recent Calf release highlights.
 void showWhatsNewDialog(BuildContext context, String appVersion) {
-  final theme = ShadTheme.of(context);
+  final theme = Theme.of(context);
 
-  showShadDialog<void>(
+  showDialog<void>(
     context: context,
-    builder: (context) => ShadDialog(
-      scrollable: false,
-      constraints: const BoxConstraints(maxWidth: 440),
-      gap: 12,
+    builder: (dialogContext) => AlertDialog(
       title: const Text("What's new"),
-      description: Text('Calf $appVersion'),
+      content: SizedBox(
+        width: 440,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Calf $appVersion'),
+            const SizedBox(height: 12),
+            _ReleaseNote(
+              theme: theme,
+              icon: LucideIcons.logIn,
+              title: 'Docker Hub login',
+              description: 'Browser sign-in with Google, GitHub and SSO.',
+            ),
+            const SizedBox(height: 8),
+            _ReleaseNote(
+              theme: theme,
+              icon: LucideIcons.layers,
+              title: 'Image management',
+              description: 'Layers, run, pull and push from the Images screen.',
+            ),
+            const SizedBox(height: 8),
+            _ReleaseNote(
+              theme: theme,
+              icon: LucideIcons.globe,
+              title: 'localhost proxy',
+              description:
+                  'Published container ports work on localhost, not just 127.0.0.1.',
+            ),
+            const SizedBox(height: 8),
+            _ReleaseNote(
+              theme: theme,
+              icon: LucideIcons.download,
+              title: 'Docker Desktop migration',
+              description: 'Import images, volumes, containers and settings.',
+            ),
+          ],
+        ),
+      ),
       actions: [
         CalfButton(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ReleaseNote(
-            theme: theme,
-            icon: LucideIcons.logIn,
-            title: 'Docker Hub login',
-            description: 'Browser sign-in with Google, GitHub and SSO.',
-          ),
-          const SizedBox(height: 8),
-          _ReleaseNote(
-            theme: theme,
-            icon: LucideIcons.layers,
-            title: 'Image management',
-            description: 'Layers, run, pull and push from the Images screen.',
-          ),
-          const SizedBox(height: 8),
-          _ReleaseNote(
-            theme: theme,
-            icon: LucideIcons.globe,
-            title: 'localhost proxy',
-            description:
-                'Published container ports work on localhost, not just 127.0.0.1.',
-          ),
-          const SizedBox(height: 8),
-          _ReleaseNote(
-            theme: theme,
-            icon: LucideIcons.download,
-            title: 'Docker Desktop migration',
-            description: 'Import images, volumes, containers and settings.',
-          ),
-        ],
-      ),
     ),
   );
 }
@@ -691,7 +691,7 @@ class _ReleaseNote extends StatelessWidget {
     required this.description,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final IconData icon;
   final String title;
   final String description;
@@ -708,7 +708,7 @@ class _ReleaseNote extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: theme.colorScheme.muted,
+              color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
@@ -721,12 +721,12 @@ class _ReleaseNote extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: theme.textTheme.large.copyWith(
+                  style: theme.textTheme.titleMedium!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(description, style: theme.textTheme.muted),
+                Text(description, style: CalfTheme.muted(theme)),
               ],
             ),
           ),

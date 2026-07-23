@@ -1,13 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class NetworksScreen extends StatefulWidget {
   /// Creates a [NetworksScreen] widget.
@@ -164,7 +165,7 @@ class _NetworksScreenState extends State<NetworksScreen>
       itemCount: filtered.length,
       itemBuilder: (context, index) {
         final network = filtered[index];
-        final theme = ShadTheme.of(context);
+        final theme = Theme.of(context);
 
         return HoverListRow(
           theme: theme,
@@ -176,9 +177,9 @@ class _NetworksScreenState extends State<NetworksScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(network.name, style: theme.textTheme.large),
+                    Text(network.name, style: theme.textTheme.titleMedium),
                     if (network.subnet.isNotEmpty)
-                      Text(network.subnet, style: theme.textTheme.muted),
+                      Text(network.subnet, style: CalfTheme.muted(theme)),
                   ],
                 ),
               ),
@@ -188,7 +189,7 @@ class _NetworksScreenState extends State<NetworksScreen>
                 child: Icon(
                   LucideIcons.trash2,
                   size: 16,
-                  color: theme.colorScheme.mutedForeground,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -280,7 +281,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -292,18 +293,18 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
               child: Icon(
                 LucideIcons.chevronLeft,
                 size: 18,
-                color: theme.colorScheme.foreground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
 
             /// Creates a [_NetworkDetailViewState] widget.
             const SizedBox(width: 4),
-            Text('Networks', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
+            Text('Networks', style: CalfTheme.muted(theme)),
+            Text(' / ', style: CalfTheme.muted(theme)),
             Expanded(
               child: Text(
                 widget.networkName,
-                style: theme.textTheme.muted,
+                style: CalfTheme.muted(theme),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -317,12 +318,12 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
         /// Creates a [_NetworkDetailViewState] widget.
         const SizedBox(height: 24),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
+          Text('Loading...', style: theme.textTheme.titleMedium)
         else if (_error != null)
           Text(
             _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.large.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.titleMedium!.copyWith(
+              color: theme.colorScheme.error,
             ),
           )
         else if (_detail != null)
@@ -369,7 +370,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
                   if (_detail!.options.isNotEmpty) ...[
                     /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 24),
-                    Text('Options', style: theme.textTheme.h4),
+                    Text('Options', style: theme.textTheme.titleLarge),
 
                     /// Creates a [_NetworkDetailViewState] widget.
                     const SizedBox(height: 12),
@@ -393,7 +394,7 @@ class _InfoCard extends StatelessWidget {
   /// Creates a [_InfoCard] widget.
   const _InfoCard({required this.theme, required this.rows});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<_InfoRow> rows;
 
   /// Builds the widget tree for the current screen state.
@@ -403,9 +404,9 @@ class _InfoCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
-        color: theme.colorScheme.card,
+        color: theme.colorScheme.surface,
       ),
       child: Column(
         children: [
@@ -414,13 +415,13 @@ class _InfoCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(rows[index].label, style: theme.textTheme.large),
+                  child: Text(rows[index].label, style: theme.textTheme.titleMedium),
                 ),
                 Expanded(
                   child: Text(
                     rows[index].value,
                     textAlign: TextAlign.end,
-                    style: theme.textTheme.muted,
+                    style: CalfTheme.muted(theme),
                   ),
                 ),
               ],
@@ -444,7 +445,7 @@ class _OptionsTable extends StatelessWidget {
   /// Creates a [_OptionsTable] widget.
   const _OptionsTable({required this.theme, required this.options});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final Map<String, String> options;
 
   /// Builds the widget tree for the current screen state.
@@ -456,7 +457,7 @@ class _OptionsTable extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -464,15 +465,15 @@ class _OptionsTable extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: theme.colorScheme.muted,
+              color: theme.colorScheme.surfaceContainerHighest,
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(7),
               ),
             ),
             child: Row(
               children: [
-                Expanded(child: Text('Key', style: theme.textTheme.small)),
-                Expanded(child: Text('Value', style: theme.textTheme.small)),
+                Expanded(child: Text('Key', style: theme.textTheme.bodySmall)),
+                Expanded(child: Text('Value', style: theme.textTheme.bodySmall)),
               ],
             ),
           ),
@@ -482,7 +483,7 @@ class _OptionsTable extends StatelessWidget {
               decoration: BoxDecoration(
                 border: index < entries.length - 1
                     ? Border(
-                        bottom: BorderSide(color: theme.colorScheme.border),
+                        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
                       )
                     : null,
               ),
@@ -491,14 +492,14 @@ class _OptionsTable extends StatelessWidget {
                   Expanded(
                     child: Text(
                       entries[index].key,
-                      style: theme.textTheme.muted,
+                      style: CalfTheme.muted(theme),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Expanded(
                     child: Text(
                       entries[index].value,
-                      style: theme.textTheme.small,
+                      style: theme.textTheme.bodySmall,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

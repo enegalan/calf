@@ -1,10 +1,10 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/volume_export_form.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class VolumeQuickExportView extends StatefulWidget {
   /// Creates a [VolumeQuickExportView] widget.
@@ -166,7 +166,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -178,13 +178,13 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
 
         /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 16),
-        Text('Quick export', style: theme.textTheme.h3),
+        Text('Quick export', style: theme.textTheme.headlineSmall),
 
         /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 8),
         Text(
           'Quick export data backup to a specified location.',
-          style: theme.textTheme.muted,
+          style: CalfTheme.muted(theme),
         ),
 
         /// Creates a [_VolumeQuickExportViewState] widget.
@@ -193,7 +193,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           child: SingleChildScrollView(
             child: Container(
               decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.border),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
                 borderRadius: BorderRadius.circular(8),
               ),
               padding: const EdgeInsets.all(20),
@@ -202,7 +202,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                 children: [
                   Text(
                     'Location',
-                    style: theme.textTheme.large.copyWith(
+                    style: theme.textTheme.titleMedium!.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -223,10 +223,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                             children: [
                               /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
-                              ShadInput(
+                              TextField(
                                 controller: _fileNameController,
-                                placeholder: const Text('File name'),
                                 onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  hintText: 'File name',
+                                ),
                               ),
 
                               /// Creates a [_VolumeQuickExportViewState] widget.
@@ -234,10 +236,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                               Row(
                                 children: [
                                   Expanded(
-                                    child: ShadInput(
+                                    child: TextField(
                                       controller: _folderController,
-                                      placeholder: const Text('Select folder'),
                                       onChanged: (_) => setState(() {}),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Select folder',
+                                      ),
                                     ),
                                   ),
 
@@ -300,10 +304,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
                     child: _type == VolumeQuickExportType.newImage
                         ? Padding(
                             padding: const EdgeInsets.only(top: 12),
-                            child: ShadInput(
+                            child: TextField(
                               controller: _imageRefController,
-                              placeholder: const Text('Image name'),
                               onChanged: (_) => setState(() {}),
+                              decoration: const InputDecoration(
+                                hintText: 'Image name',
+                              ),
                             ),
                           )
                         : null,
@@ -328,12 +334,12 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
 
                               /// Creates a [_VolumeQuickExportViewState] widget.
                               const SizedBox(height: 12),
-                              ShadInput(
+                              TextField(
                                 controller: _imageRefController,
-                                placeholder: const Text(
-                                  '<user>/<repo-name>:<tag>',
-                                ),
                                 onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  hintText: '<user>/<repo-name>:<tag>',
+                                ),
                               ),
                             ],
                           )
@@ -349,8 +355,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
         ],

@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart'
-    show IconButton, MaterialTapTargetSize, ThemeMode, VisualDensity;
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/macos_menu.dart';
@@ -22,6 +20,7 @@ import 'package:ui/updates/update_dialog.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class AppShell extends StatefulWidget {
   /// Creates a [AppShell] instance.
@@ -293,7 +292,7 @@ class _AppShellState extends State<AppShell> {
   /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     const navItems = [
       (label: 'Containers', icon: LucideIcons.box),
       (label: 'Images', icon: LucideIcons.layers),
@@ -347,7 +346,7 @@ class _AppShellState extends State<AppShell> {
                       width: _isCollapsed ? 72 : 220,
                       decoration: BoxDecoration(
                         border: Border(
-                          right: BorderSide(color: theme.colorScheme.border),
+                          right: BorderSide(color: theme.colorScheme.outlineVariant),
                         ),
                       ),
                       padding: const EdgeInsets.all(16),
@@ -442,19 +441,19 @@ class _AppShellState extends State<AppShell> {
                         icon: Icon(
                           LucideIcons.panelLeft,
                           size: 14,
-                          color: theme.colorScheme.foreground,
+                          color: theme.colorScheme.onSurface,
                         ),
                         style: IconButton.styleFrom(
-                          backgroundColor: theme.colorScheme.background,
-                          foregroundColor: theme.colorScheme.foreground,
-                          side: BorderSide(color: theme.colorScheme.border),
+                          backgroundColor: theme.colorScheme.surface,
+                          foregroundColor: theme.colorScheme.onSurface,
+                          side: BorderSide(color: theme.colorScheme.outlineVariant),
                           padding: const EdgeInsets.all(6),
                           minimumSize: const Size(28, 28),
                           fixedSize: const Size(28, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
-                          shadowColor: theme.colorScheme.popoverForeground
+                          shadowColor: theme.colorScheme.onSurface
                               .withValues(alpha: 0.15),
                         ),
                       ),
@@ -506,10 +505,10 @@ class _NavItem extends StatelessWidget {
   /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final color = selected
-        ? theme.colorScheme.accentForeground
-        : theme.colorScheme.foreground;
+        ? theme.colorScheme.onSecondary
+        : theme.colorScheme.onSurface;
     final effectivePadding = collapsed
         ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
@@ -517,7 +516,7 @@ class _NavItem extends StatelessWidget {
     return CalfButton.ghost(
       width: double.infinity,
       onPressed: onTap,
-      backgroundColor: selected ? theme.colorScheme.accent : null,
+      backgroundColor: selected ? theme.colorScheme.secondary : null,
       padding: effectivePadding,
       child: Align(
         alignment: collapsed ? Alignment.center : Alignment.centerLeft,
@@ -533,7 +532,7 @@ class _NavItem extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.small.copyWith(color: color),
+                  style: theme.textTheme.bodySmall!.copyWith(color: color),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -919,18 +918,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Settings', style: theme.textTheme.h3),
+          Text('Settings', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 24),
           const SizedBox(height: 12),
           _settingRow(
             'Use Calf for Docker CLI',
-            ShadSwitch(
+            Switch(
               value: _dockerContextManaged,
               onChanged: _dockerContextSaving ? null : setDockerContextManaged,
             ),
@@ -943,13 +942,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : _config!.dockerContextName.isEmpty
                   ? 'Docker CLI context not set to calf'
                   : 'Active context: ${_config!.dockerContextName}',
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
             ),
           ],
           const SizedBox(height: 16),
           _settingRow(
             'Open at login',
-            ShadSwitch(
+            Switch(
               value: _launchAtLoginEnabled ?? false,
               onChanged: _launchAtLoginLoading || _launchAtLoginSaving
                   ? null
@@ -960,22 +959,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             Text(
               _launchAtLoginError!,
-              style: theme.textTheme.large.copyWith(
-                color: theme.colorScheme.destructive,
+              style: theme.textTheme.titleMedium!.copyWith(
+                color: theme.colorScheme.error,
               ),
             ),
           ],
           const SizedBox(height: 16),
-          Text('Theme', style: theme.textTheme.large),
+          Text('Theme', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              _themeCheckbox(ThemeMode.light, 'Light'),
-              const SizedBox(width: 20),
-              _themeCheckbox(ThemeMode.dark, 'Dark'),
-              const SizedBox(width: 20),
-              _themeCheckbox(ThemeMode.system, 'System'),
-            ],
+          RadioGroup<ThemeMode>(
+            groupValue: widget.themeMode,
+            onChanged: widget.onThemeModeChanged == null
+                ? (_) {}
+                : (selected) {
+                    if (selected != null) {
+                      widget.onThemeModeChanged!(selected);
+                    }
+                  },
+            child: Row(
+              children: [
+                _themeRadio(ThemeMode.light, 'Light'),
+                const SizedBox(width: 20),
+                _themeRadio(ThemeMode.dark, 'Dark'),
+                const SizedBox(width: 20),
+                _themeRadio(ThemeMode.system, 'System'),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           _sectionHeader('Updates', theme),
@@ -984,7 +993,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             widget.appVersion.isEmpty
                 ? 'Loading version...'
                 : 'Current version: ${widget.appVersion}',
-            style: theme.textTheme.muted,
+            style: CalfTheme.muted(theme),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1015,21 +1024,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (_updateCheckResult!.error != null)
               Text(
                 _updateCheckResult!.error!,
-                style: theme.textTheme.large.copyWith(
-                  color: theme.colorScheme.destructive,
+                style: theme.textTheme.titleMedium!.copyWith(
+                  color: theme.colorScheme.error,
                 ),
               )
             else if (_updateCheckResult!.hasUpdate &&
                 _updateCheckResult!.latest != null) ...[
               Text(
                 'Version ${_updateCheckResult!.latest!.version} is available.',
-                style: theme.textTheme.large,
+                style: theme.textTheme.titleMedium,
               ),
               if (_updateCheckResult!.latest!.releaseNotes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(
                   _updateCheckResult!.latest!.releaseNotes,
-                  style: theme.textTheme.muted,
+                  style: CalfTheme.muted(theme),
                 ),
               ],
               const SizedBox(height: 8),
@@ -1038,14 +1047,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: const Text('Skip this version'),
               ),
             ] else
-              Text('You are up to date.', style: theme.textTheme.muted),
+              Text('You are up to date.', style: CalfTheme.muted(theme)),
           ],
           const SizedBox(height: 24),
           _sectionHeader('Migration', theme),
           const SizedBox(height: 12),
           Text(
             'Import settings, images, volumes, containers and build history from Docker Desktop.',
-            style: theme.textTheme.muted,
+            style: CalfTheme.muted(theme),
           ),
           const SizedBox(height: 12),
           CalfButton(
@@ -1057,15 +1066,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           if (_migrationStatus != null) ...[
             const SizedBox(height: 16),
-            ShadProgress(value: _migrationStatus!.progress / 100),
+            LinearProgressIndicator(
+              value: _migrationStatus!.progress / 100,
+            ),
             const SizedBox(height: 8),
-            Text(_migrationStatus!.message, style: theme.textTheme.large),
+            Text(_migrationStatus!.message, style: theme.textTheme.titleMedium),
             if (_migrationStatus!.error != null &&
                 _migrationStatus!.error!.isNotEmpty)
               Text(
                 _migrationStatus!.error!,
-                style: theme.textTheme.large.copyWith(
-                  color: theme.colorScheme.destructive,
+                style: theme.textTheme.titleMedium!.copyWith(
+                  color: theme.colorScheme.error,
                 ),
               ),
             if (_migrationStatus!.phase == 'completed') ...[
@@ -1075,68 +1086,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Volumes: ${_migrationStatus!.summary.volumesOK}/${_migrationStatus!.summary.volumesTotal} · '
                 'Containers: ${_migrationStatus!.summary.containersOK}/${_migrationStatus!.summary.containersTotal} · '
                 'Builds: ${_migrationStatus!.summary.buildsOK}/${_migrationStatus!.summary.buildsTotal}',
-                style: theme.textTheme.muted,
+                style: CalfTheme.muted(theme),
               ),
             ],
           ],
           const SizedBox(height: 24),
-          ShadCard(
-            padding: const EdgeInsets.all(20),
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Proxy'),
-                if (_config != null &&
-                    (_config!.httpProxy.isNotEmpty ||
-                        _config!.httpsProxy.isNotEmpty ||
-                        _config!.noProxy.isNotEmpty))
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: ShadBadge.secondary(child: Text('Configured')),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Proxy'),
+                      if (_config != null &&
+                          (_config!.httpProxy.isNotEmpty ||
+                              _config!.httpsProxy.isNotEmpty ||
+                              _config!.noProxy.isNotEmpty))
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8),
+                          child: Chip(
+                            label: Text('Configured'),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                    ],
                   ),
-              ],
-            ),
-            description: const Text(
-              'HTTP and HTTPS proxy settings for image pulls inside the VM.',
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 12),
-                _proxyField(
-                  label: 'HTTP proxy',
-                  controller: _httpProxyController,
-                  placeholder: 'http://proxy.example.com:8080',
-                  icon: LucideIcons.globe,
-                  theme: theme,
-                  error: _httpProxyError,
-                  onChanged: _validateHttpProxy,
-                ),
-                const SizedBox(height: 12),
-                _proxyField(
-                  label: 'HTTPS proxy',
-                  controller: _httpsProxyController,
-                  placeholder: 'http://proxy.example.com:8080',
-                  icon: LucideIcons.lock,
-                  theme: theme,
-                  error: _httpsProxyError,
-                  onChanged: _validateHttpsProxy,
-                ),
-                const SizedBox(height: 12),
-                _noProxySection(theme),
-              ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'HTTP and HTTPS proxy settings for image pulls inside the VM.',
+                  ),
+                  const SizedBox(height: 12),
+                  _proxyField(
+                    label: 'HTTP proxy',
+                    controller: _httpProxyController,
+                    placeholder: 'http://proxy.example.com:8080',
+                    icon: LucideIcons.globe,
+                    theme: theme,
+                    error: _httpProxyError,
+                    onChanged: _validateHttpProxy,
+                  ),
+                  const SizedBox(height: 12),
+                  _proxyField(
+                    label: 'HTTPS proxy',
+                    controller: _httpsProxyController,
+                    placeholder: 'http://proxy.example.com:8080',
+                    icon: LucideIcons.lock,
+                    theme: theme,
+                    error: _httpsProxyError,
+                    onChanged: _validateHttpsProxy,
+                  ),
+                  const SizedBox(height: 12),
+                  _noProxySection(theme),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
           _sectionHeader('System', theme),
           const SizedBox(height: 12),
           if (_configLoading)
-            Text('Loading config...', style: theme.textTheme.muted)
+            Text('Loading config...', style: CalfTheme.muted(theme))
           else if (_configError != null)
             Text(
               _configError!,
-              style: theme.textTheme.large.copyWith(
-                color: theme.colorScheme.destructive,
+              style: theme.textTheme.titleMedium!.copyWith(
+                color: theme.colorScheme.error,
               ),
             )
           else if (_config != null) ...[
@@ -1185,39 +1202,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Builds a theme mode selection checkbox.
-  Widget _themeCheckbox(ThemeMode option, String label) {
-    return ShadCheckbox(
-      value: widget.themeMode == option,
-      onChanged: widget.onThemeModeChanged == null
-          ? null
-          : (checked) {
-              if (checked) {
-                widget.onThemeModeChanged!(option);
-              }
-            },
-      label: Text(label),
+  /// Builds a theme mode selection radio.
+  Widget _themeRadio(ThemeMode option, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Radio<ThemeMode>(
+          value: option,
+          enabled: widget.onThemeModeChanged != null,
+        ),
+        Text(label),
+      ],
     );
   }
 
   /// Builds a settings section header label.
-  Widget _sectionHeader(String label, ShadThemeData theme) {
+  Widget _sectionHeader(String label, ThemeData theme) {
     return Text(
       label,
-      style: theme.textTheme.h4.copyWith(
-        color: theme.colorScheme.mutedForeground,
-      ),
+      style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
     );
   }
 
   /// Builds a label-control row for a settings toggle.
   Widget _settingRow(String label, Widget control) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Expanded(
-          child: Text(label, style: ShadTheme.of(context).textTheme.large),
+        Flexible(
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
+        const SizedBox(width: 16),
         control,
       ],
     );
@@ -1232,32 +1246,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ValueChanged<double> onChanged, {
     Widget? trailing,
   }) {
-    final theme = ShadTheme.of(context);
-    final primary = theme.colorScheme.primary;
+    final theme = Theme.of(context);
     final divisions = (max - min).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: theme.textTheme.large),
+        Text(label, style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: ShadSlider(
-                key: ValueKey('$label-$value'),
-                initialValue: value,
+              child: Slider(
+                value: value,
                 min: min,
                 max: max,
                 divisions: divisions > 0 ? divisions : null,
-                enabled: !_saving,
-                onChanged: onChanged,
-                activeTrackColor: primary,
-                thumbColor: primary,
-                thumbBorderColor: primary,
+                // ignore: deprecated_member_use
+                year2023: false,
+                onChanged: _saving ? null : onChanged,
               ),
             ),
-            if (trailing != null) ...[const SizedBox(width: 12), trailing],
+            if (trailing != null) ...[
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 88,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: trailing,
+                ),
+              ),
+            ],
           ],
         ),
       ],
@@ -1294,14 +1313,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Builds the no-proxy host list editor section.
-  Widget _noProxySection(ShadThemeData theme) {
+  Widget _noProxySection(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'No proxy',
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.mutedForeground,
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 8),
@@ -1316,13 +1335,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.muted,
+                  color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(entry, style: theme.textTheme.small),
+                    Text(entry, style: theme.textTheme.bodySmall),
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () {
@@ -1331,7 +1350,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       child: Icon(
                         LucideIcons.x,
                         size: 12,
-                        color: theme.colorScheme.mutedForeground,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -1344,13 +1363,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Row(
           children: [
             Expanded(
-              child: ShadInput(
+              child: TextField(
                 controller: _noProxyInputController,
-                placeholder: const Text('localhost'),
-                leading: Icon(
-                  LucideIcons.ban,
-                  size: 16,
-                  color: theme.colorScheme.mutedForeground,
+                decoration: InputDecoration(
+                  hintText: 'localhost',
+                  prefixIcon: Icon(
+                    LucideIcons.ban,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 onChanged: (_) => setState(() {}),
                 onSubmitted: (value) {
@@ -1374,7 +1395,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               'Must be a valid hostname or IP address',
-              style: theme.textTheme.muted.copyWith(fontSize: 12),
+              style: CalfTheme.muted(theme).copyWith(fontSize: 12),
             ),
           ),
       ],
@@ -1382,7 +1403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Adds a validated host to the no-proxy list.
-  void _addNoProxyEntry(String rawValue, ShadThemeData theme) {
+  void _addNoProxyEntry(String rawValue, ThemeData theme) {
     final value = rawValue.trim();
     if (value.isEmpty || _noProxyEntries.contains(value)) return;
     if (!_isValidNoProxyEntry(value)) return;
@@ -1431,7 +1452,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required TextEditingController controller,
     required String placeholder,
     required IconData icon,
-    required ShadThemeData theme,
+    required ThemeData theme,
     String? error,
     required ValueChanged<String> onChanged,
   }) {
@@ -1440,35 +1461,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
       children: [
         Text(
           label,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.mutedForeground,
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 8),
-        ShadInput(
+        TextField(
           controller: controller,
-          placeholder: Text(placeholder),
-          leading: Icon(
-            icon,
-            size: 16,
-            color: theme.colorScheme.mutedForeground,
-          ),
-          trailing: controller.text.isNotEmpty
-              ? GestureDetector(
-                  onTap: () {
-                    controller.clear();
-                    onChanged('');
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
-                    child: Icon(
+          decoration: InputDecoration(
+            hintText: placeholder,
+            prefixIcon: Icon(
+              icon,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            suffixIcon: controller.text.isNotEmpty
+                ? IconButton(
+                    icon: Icon(
                       LucideIcons.x,
                       size: 14,
-                      color: theme.colorScheme.mutedForeground,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
-                  ),
-                )
-              : null,
+                    onPressed: () {
+                      controller.clear();
+                      onChanged('');
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                  )
+                : null,
+          ),
           onChanged: (value) {
             setState(() {});
             onChanged(value);
@@ -1479,9 +1502,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               error,
-              style: theme.textTheme.muted.copyWith(
+              style: CalfTheme.muted(theme).copyWith(
                 fontSize: 12,
-                color: theme.colorScheme.destructive,
+                color: theme.colorScheme.error,
               ),
             ),
           ),

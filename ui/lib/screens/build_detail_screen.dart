@@ -1,15 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart'
-    show
-        BoxDecoration,
-        BoxShadow,
-        PopupMenuItem,
-        RelativeRect,
-        SelectableText,
-        showMenu;
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -17,6 +9,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 enum _BuildDetailTab { info, source, logs, history }
 
@@ -258,7 +251,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final detail = _detail;
 
     return Column(
@@ -272,12 +265,12 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         /// Creates a [_BuildDetailViewState] widget.
         const SizedBox(height: 12),
         if (_detailLoading)
-          Text('Loading...', style: theme.textTheme.muted)
+          Text('Loading...', style: CalfTheme.muted(theme))
         else if (_detailError != null)
           Text(
             _detailError!,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           )
         else if (detail != null) ...[
@@ -288,13 +281,13 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(detail.tag, style: theme.textTheme.h3),
+                    Text(detail.tag, style: theme.textTheme.headlineSmall),
 
                     /// Creates a [_BuildDetailViewState] widget.
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        Text(detail.id, style: theme.textTheme.muted),
+                        Text(detail.id, style: CalfTheme.muted(theme)),
 
                         /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
@@ -304,7 +297,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                           child: Icon(
                             LucideIcons.copy,
                             size: 14,
-                            color: theme.colorScheme.mutedForeground,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -344,7 +337,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
             theme: theme,
             labels: const ['Info', 'Source', 'Logs', 'History'],
             selectedIndex: _tab.index,
-            labelStyle: theme.textTheme.large,
+            labelStyle: theme.textTheme.titleMedium,
             onSelected: (index) => _selectTab(_BuildDetailTab.values[index]),
           ),
 
@@ -357,7 +350,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   }
 
   /// Builds the widget for the currently selected tab.
-  Widget _buildTabContent(ShadThemeData theme, BuildDetail detail) {
+  Widget _buildTabContent(ThemeData theme, BuildDetail detail) {
     switch (_tab) {
       case _BuildDetailTab.info:
         return _InfoTab(
@@ -419,7 +412,7 @@ class _SummaryColumn extends StatelessWidget {
     this.link = false,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final String value;
   final Color? color;
@@ -433,8 +426,8 @@ class _SummaryColumn extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.mutedForeground,
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
 
@@ -442,12 +435,12 @@ class _SummaryColumn extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           value,
-          style: theme.textTheme.large.copyWith(
+          style: theme.textTheme.titleMedium!.copyWith(
             color:
                 color ??
                 (link
                     ? theme.colorScheme.primary
-                    : theme.colorScheme.foreground),
+                    : theme.colorScheme.onSurface),
           ),
         ),
       ],
@@ -465,7 +458,7 @@ class _InfoTab extends StatelessWidget {
     required this.onCopy,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final BuildDetail detail;
   final String platformFilter;
   final ValueChanged<String> onPlatformChanged;
@@ -584,7 +577,7 @@ class _PlatformFilter extends StatelessWidget {
     required this.onChanged,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String value;
   final List<String> options;
   final ValueChanged<String> onChanged;
@@ -595,7 +588,7 @@ class _PlatformFilter extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Filter by platform', style: theme.textTheme.small),
+        Text('Filter by platform', style: theme.textTheme.bodySmall),
 
         /// Creates a [_PlatformFilter] widget.
         const SizedBox(width: 8),
@@ -631,14 +624,14 @@ class _PlatformFilter extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(value, style: theme.textTheme.small),
+              Text(value, style: theme.textTheme.bodySmall),
 
               /// Creates a [_PlatformFilter] widget.
               const SizedBox(width: 4),
               Icon(
                 LucideIcons.chevronDown,
                 size: 14,
-                color: theme.colorScheme.foreground,
+                color: theme.colorScheme.onSurface,
               ),
             ],
           ),
@@ -658,7 +651,7 @@ class _TimingCharts extends StatelessWidget {
     required this.totalSteps,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final BuildTiming timing;
   final int totalMs;
   final int cachedSteps;
@@ -682,7 +675,7 @@ class _TimingCharts extends StatelessWidget {
       _TimingSlice(
         'Other steps',
         uncachedSteps.toDouble(),
-        theme.colorScheme.mutedForeground,
+        theme.colorScheme.onSurfaceVariant,
       ),
     ];
     final idleMs = timing.idleMs.clamp(0, totalMs);
@@ -728,7 +721,7 @@ class _TimingCharts extends StatelessWidget {
             _TimingSlice(
               'Idle',
               idleMs > 0 ? idleMs.toDouble() : 0,
-              theme.colorScheme.mutedForeground,
+              theme.colorScheme.onSurfaceVariant,
             ),
           ].where((slice) => slice.value > 0).toList(),
           formatValue: (value) => _formatDuration(value.toInt()),
@@ -778,7 +771,7 @@ class _TimingCharts extends StatelessWidget {
       _TimingSlice(
         'Idle',
         timing.idleMs.toDouble(),
-        theme.colorScheme.mutedForeground,
+        theme.colorScheme.onSurfaceVariant,
       ),
     ].where((slice) => slice.value > 0).toList();
   }
@@ -802,7 +795,7 @@ class _TimingChartCard extends StatefulWidget {
     required this.formatValue,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String title;
   final List<_TimingSlice> slices;
   final String Function(double value) formatValue;
@@ -835,7 +828,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: widget.theme.colorScheme.border),
+        border: Border.all(color: widget.theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -843,7 +836,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
         children: [
           Text(
             widget.title,
-            style: widget.theme.textTheme.small.copyWith(
+            style: widget.theme.textTheme.bodySmall!.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -855,7 +848,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                 ? Center(
                     child: Text(
                       'No timing data',
-                      style: widget.theme.textTheme.muted,
+                      style: CalfTheme.muted(widget.theme),
                     ),
                   )
                 : Stack(
@@ -905,14 +898,14 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: widget.theme.colorScheme.background,
+                              color: widget.theme.colorScheme.surface,
                               border: Border.all(
-                                color: widget.theme.colorScheme.border,
+                                color: widget.theme.colorScheme.outlineVariant,
                               ),
                               borderRadius: BorderRadius.circular(8),
                               boxShadow: [
                                 BoxShadow(
-                                  color: widget.theme.colorScheme.foreground
+                                  color: widget.theme.colorScheme.onSurface
                                       .withValues(alpha: 0.08),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
@@ -924,7 +917,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
-                                  style: widget.theme.textTheme.small.copyWith(
+                                  style: widget.theme.textTheme.bodySmall!.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -933,7 +926,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                                 const SizedBox(height: 2),
                                 Text(
                                   '${widget.formatValue(touchedSlice.value)} ($touchedPercent%)',
-                                  style: widget.theme.textTheme.muted,
+                                  style: CalfTheme.muted(widget.theme),
                                 ),
                               ],
                             ),
@@ -956,7 +949,7 @@ class _SectionHeader extends StatelessWidget {
     this.trailing,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String title;
   final Widget? trailing;
 
@@ -970,7 +963,7 @@ class _SectionHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: theme.textTheme.large.copyWith(
+              style: theme.textTheme.titleMedium!.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -991,7 +984,7 @@ class _InfoRow extends StatelessWidget {
     this.link = false,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final String value;
   final bool link;
@@ -1010,12 +1003,12 @@ class _InfoRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 180,
-            child: Text(label, style: theme.textTheme.muted),
+            child: Text(label, style: CalfTheme.muted(theme)),
           ),
           Expanded(
             child: Text(
               value,
-              style: theme.textTheme.large.copyWith(
+              style: theme.textTheme.titleMedium!.copyWith(
                 color: link ? theme.colorScheme.primary : null,
               ),
             ),
@@ -1036,7 +1029,7 @@ class _DataTable extends StatelessWidget {
     this.copyColumnIndex,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<String> columns;
   final List<List<String>> rows;
   final Future<void> Function(String value) onCopy;
@@ -1046,7 +1039,7 @@ class _DataTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
-      return Text('No data found', style: theme.textTheme.muted);
+      return Text('No data found', style: CalfTheme.muted(theme));
     }
 
     return Column(
@@ -1057,8 +1050,8 @@ class _DataTable extends StatelessWidget {
               Expanded(
                 child: Text(
                   column,
-                  style: theme.textTheme.small.copyWith(
-                    color: theme.colorScheme.mutedForeground,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -1080,7 +1073,7 @@ class _DataTable extends StatelessWidget {
                   Expanded(
                     child: Text(
                       row.length > index ? row[index] : '',
-                      style: theme.textTheme.large,
+                      style: theme.textTheme.titleMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -1101,7 +1094,7 @@ class _DataTable extends StatelessWidget {
                         child: Icon(
                           LucideIcons.copy,
                           size: 14,
-                          color: theme.colorScheme.mutedForeground,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       );
                     },
@@ -1125,7 +1118,7 @@ class _SourceTab extends StatelessWidget {
     required this.detail,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final String? error;
   final BuildSource? source;
@@ -1135,13 +1128,13 @@ class _SourceTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Text('Loading source...', style: theme.textTheme.muted);
+      return Text('Loading source...', style: CalfTheme.muted(theme));
     }
     if (error != null) {
       return Text(
         error!,
-        style: theme.textTheme.small.copyWith(
-          color: theme.colorScheme.destructive,
+        style: theme.textTheme.bodySmall!.copyWith(
+          color: theme.colorScheme.error,
         ),
       );
     }
@@ -1155,19 +1148,19 @@ class _SourceTab extends StatelessWidget {
             Icon(
               LucideIcons.box,
               size: 16,
-              color: theme.colorScheme.foreground,
+              color: theme.colorScheme.onSurface,
             ),
 
             /// Creates a [_SourceTab] widget.
             const SizedBox(width: 8),
             Text(
               source?.filename ?? detail.dockerfile,
-              style: theme.textTheme.large,
+              style: theme.textTheme.titleMedium,
             ),
 
             /// Creates a [_SourceTab] widget.
             const SizedBox(width: 12),
-            Text(_platformArch(detail.platform), style: theme.textTheme.muted),
+            Text(_platformArch(detail.platform), style: CalfTheme.muted(theme)),
           ],
         ),
 
@@ -1178,14 +1171,14 @@ class _SourceTab extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.muted.withValues(alpha: 0.2),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: theme.colorScheme.border),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
             ),
             child: SingleChildScrollView(
               child: SelectableText(
                 content,
-                style: theme.textTheme.small.copyWith(
+                style: theme.textTheme.bodySmall!.copyWith(
                   fontFamily: 'Menlo',
                   height: 1.5,
                 ),
@@ -1213,7 +1206,7 @@ class _LogsTab extends StatelessWidget {
     required this.onToggleStep,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final BuildDetail detail;
   final String rawLog;
   final List<BuildStep> steps;
@@ -1229,14 +1222,14 @@ class _LogsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return Center(
-        child: Text('Loading logs...', style: theme.textTheme.muted),
+        child: Text('Loading logs...', style: CalfTheme.muted(theme)),
       );
     }
     if (error != null) {
       return Text(
         error!,
-        style: theme.textTheme.small.copyWith(
-          color: theme.colorScheme.destructive,
+        style: theme.textTheme.bodySmall!.copyWith(
+          color: theme.colorScheme.error,
         ),
       );
     }
@@ -1244,7 +1237,7 @@ class _LogsTab extends StatelessWidget {
       return Center(
         child: Text(
           'No logs available for this build.',
-          style: theme.textTheme.muted,
+          style: CalfTheme.muted(theme),
         ),
       );
     }
@@ -1255,7 +1248,7 @@ class _LogsTab extends StatelessWidget {
         children: [
           CalfButton.ghost(
             onPressed: () => onTogglePlain(false),
-            child: Text('Step view', style: theme.textTheme.small),
+            child: Text('Step view', style: theme.textTheme.bodySmall),
           ),
 
           /// Creates a [_LogsTab] widget.
@@ -1265,14 +1258,14 @@ class _LogsTab extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.muted.withValues(alpha: 0.2),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.colorScheme.border),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
               ),
               child: SingleChildScrollView(
                 child: SelectableText(
                   rawLog,
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontFamily: 'Menlo',
                     height: 1.4,
                   ),
@@ -1293,7 +1286,7 @@ class _LogsTab extends StatelessWidget {
           children: [
             CalfButton.ghost(
               onPressed: () => onTogglePlain(true),
-              child: Text('Plain view', style: theme.textTheme.small),
+              child: Text('Plain view', style: theme.textTheme.bodySmall),
             ),
           ],
         ),
@@ -1332,7 +1325,7 @@ class _LogsTab extends StatelessWidget {
                           Expanded(
                             child: Text(
                               step.name,
-                              style: theme.textTheme.large.copyWith(
+                              style: theme.textTheme.titleMedium!.copyWith(
                                 fontFamily: 'Menlo',
                               ),
                             ),
@@ -1351,7 +1344,7 @@ class _LogsTab extends StatelessWidget {
                               ),
                               child: Text(
                                 'CACHED',
-                                style: theme.textTheme.small.copyWith(
+                                style: theme.textTheme.bodySmall!.copyWith(
                                   color: theme.colorScheme.primary,
                                 ),
                               ),
@@ -1361,7 +1354,7 @@ class _LogsTab extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             _formatDuration(step.durationMs),
-                            style: theme.textTheme.muted,
+                            style: CalfTheme.muted(theme),
                           ),
                           SizedBox(
                             width: 120,
@@ -1393,14 +1386,14 @@ class _LogsTab extends StatelessWidget {
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.muted.withValues(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(
                             alpha: 0.15,
                           ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: SelectableText(
                           step.log,
-                          style: theme.textTheme.small.copyWith(
+                          style: theme.textTheme.bodySmall!.copyWith(
                             fontFamily: 'Menlo',
                           ),
                         ),
@@ -1420,7 +1413,7 @@ class _StepBadge extends StatelessWidget {
   /// Creates a [_StepBadge] widget.
   const _StepBadge({required this.theme, required this.label});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
 
   /// Builds the widget tree for the current screen state.
@@ -1429,10 +1422,10 @@ class _StepBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(label, style: theme.textTheme.small),
+      child: Text(label, style: theme.textTheme.bodySmall),
     );
   }
 }
@@ -1448,7 +1441,7 @@ class _HistoryTab extends StatelessWidget {
     this.onOpenBuild,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final String? error;
   final List<BuildItem> history;
@@ -1459,13 +1452,13 @@ class _HistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Text('Loading history...', style: theme.textTheme.muted);
+      return Text('Loading history...', style: CalfTheme.muted(theme));
     }
     if (error != null) {
       return Text(
         error!,
-        style: theme.textTheme.small.copyWith(
-          color: theme.colorScheme.destructive,
+        style: theme.textTheme.bodySmall!.copyWith(
+          color: theme.colorScheme.error,
         ),
       );
     }
@@ -1476,12 +1469,12 @@ class _HistoryTab extends StatelessWidget {
       children: [
         Text(
           'Build history',
-          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
-          style: theme.textTheme.muted,
+          style: CalfTheme.muted(theme),
         ),
         const SizedBox(height: 12),
         _BuildHistoryChart(theme: theme, items: items),
@@ -1490,13 +1483,13 @@ class _HistoryTab extends StatelessWidget {
         const SizedBox(height: 24),
         Text(
           'Past builds',
-          style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
         ),
 
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
         if (history.isEmpty)
-          Text('No builds found for this image.', style: theme.textTheme.muted)
+          Text('No builds found for this image.', style: CalfTheme.muted(theme))
         else
           for (final item in history)
             HoverListRow(
@@ -1507,40 +1500,40 @@ class _HistoryTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               child: Row(
                 children: [
-                  Expanded(child: Text(item.tag, style: theme.textTheme.large)),
+                  Expanded(child: Text(item.tag, style: theme.textTheme.titleMedium)),
                   Expanded(
                     child: Text(
                       item.id,
-                      style: theme.textTheme.muted,
+                      style: CalfTheme.muted(theme),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  Text(item.builder, style: theme.textTheme.muted),
+                  Text(item.builder, style: CalfTheme.muted(theme)),
 
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _platformArch(item.platform),
-                    style: theme.textTheme.muted,
+                    style: CalfTheme.muted(theme),
                   ),
 
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     '${item.cachedSteps}/${item.totalSteps}',
-                    style: theme.textTheme.muted,
+                    style: CalfTheme.muted(theme),
                   ),
 
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
                     _formatDuration(item.durationMs),
-                    style: theme.textTheme.muted,
+                    style: CalfTheme.muted(theme),
                   ),
 
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
-                  Text(item.createdAt, style: theme.textTheme.muted),
+                  Text(item.createdAt, style: CalfTheme.muted(theme)),
                 ],
               ),
             ),
@@ -1564,16 +1557,16 @@ String _statusLabel(String status) {
 }
 
 /// Returns the display label or color for a status value.
-Color _statusColor(String status, ShadThemeData theme) {
+Color _statusColor(String status, ThemeData theme) {
   switch (status) {
     case 'success':
       return CalfColors.success;
     case 'failed':
-      return theme.colorScheme.destructive;
+      return theme.colorScheme.error;
     case 'running':
       return theme.colorScheme.primary;
     default:
-      return theme.colorScheme.mutedForeground;
+      return theme.colorScheme.onSurfaceVariant;
   }
 }
 
@@ -1608,7 +1601,7 @@ class _BuildHistoryChart extends StatefulWidget {
   /// Creates a build-history line chart for [items].
   const _BuildHistoryChart({required this.theme, required this.items});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<BuildItem> items;
 
   /// Creates the mutable state for [_BuildHistoryChart].
@@ -1682,7 +1675,7 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
       return SizedBox(
         height: _chartHeight,
         child: Center(
-          child: Text('No builds to chart yet.', style: theme.textTheme.muted),
+          child: Text('No builds to chart yet.', style: CalfTheme.muted(theme)),
         ),
       );
     }
@@ -1694,7 +1687,7 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
         .toList();
     final durationColor = theme.colorScheme.primary;
     final stepsColor = CalfColors.success;
-    final cachedColor = theme.colorScheme.mutedForeground;
+    final cachedColor = theme.colorScheme.onSurfaceVariant;
     final touched =
         _touchedIndex != null &&
             _touchedIndex! >= 0 &&
@@ -1751,7 +1744,7 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                     checkToShowHorizontalLine: (value) =>
                         value > 0.05 && value < 1.15,
                     getDrawingHorizontalLine: (_) =>
-                        FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                        FlLine(color: theme.colorScheme.outlineVariant, strokeWidth: 1),
                   ),
                   titlesData: const FlTitlesData(show: false),
                   borderData: FlBorderData(show: false),
@@ -1781,7 +1774,7 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                         for (final _ in spotIndexes)
                           TouchedSpotIndicatorData(
                             FlLine(
-                              color: theme.colorScheme.border.withValues(
+                              color: theme.colorScheme.outlineVariant.withValues(
                                 alpha: 0.55,
                               ),
                               strokeWidth: 1,
@@ -1793,7 +1786,7 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                                   radius: 4,
                                   color: bar.color ?? durationColor,
                                   strokeWidth: 2,
-                                  strokeColor: theme.colorScheme.background,
+                                  strokeColor: theme.colorScheme.surface,
                                 );
                               },
                             ),
@@ -1864,7 +1857,7 @@ class _BuildHistoryTooltip extends StatelessWidget {
     required this.width,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final BuildItem item;
   final Color durationColor;
   final Color stepsColor;
@@ -1875,13 +1868,13 @@ class _BuildHistoryTooltip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = item.tag.isNotEmpty ? item.tag : item.id;
-    final labelStyle = theme.textTheme.small.copyWith(
-      color: theme.colorScheme.mutedForeground,
+    final labelStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w500,
       height: 1.3,
     );
-    final valueStyle = theme.textTheme.small.copyWith(
-      color: theme.colorScheme.foreground,
+    final valueStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurface,
       fontWeight: FontWeight.w600,
       height: 1.3,
     );
@@ -1890,12 +1883,12 @@ class _BuildHistoryTooltip extends StatelessWidget {
       width: width,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.background,
+        color: theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: theme.colorScheme.foreground.withValues(alpha: 0.12),
+            color: theme.colorScheme.onSurface.withValues(alpha: 0.12),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -1975,7 +1968,7 @@ class _ChartLegendSwatch extends StatelessWidget {
     required this.label,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final Color color;
   final String label;
 
@@ -1994,7 +1987,7 @@ class _ChartLegendSwatch extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text(label, style: theme.textTheme.muted),
+        Text(label, style: CalfTheme.muted(theme)),
       ],
     );
   }

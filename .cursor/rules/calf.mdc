@@ -34,7 +34,7 @@ Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace,
 
 ### UI (`ui/`)
 - **Language/Framework:** Dart / Flutter, SDK `^3.12.2`
-- **UI kit:** `shadcn_ui` (theme, buttons, sliders, switches, progress bars)
+- **UI kit:** Material Design 3 (theme, buttons, sliders, switches, progress bars)
 - **Networking:** `http`, `web_socket_channel`
 - **Terminal emulation:** `xterm` (used for interactive exec)
 - **Charts:** `fl_chart` (container stats)
@@ -162,6 +162,8 @@ calf/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
 │   │   ├── constants/
 │   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
+│   │   ├── theme/
+│   │   │   └── calf_theme.dart                Material 3 light/dark ThemeData + muted text helper
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
 │   │   │   ├── tray_status.dart               macOS menu bar / Windows system tray status icon
@@ -330,7 +332,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ## UI File Reference (`ui/lib/`)
 
 ### `main.dart`
-App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds a Material `ThemeData` bridged from a `ShadThemeData` (shadcn_ui), with brand primary color from `CalfColors.primary`. Light/dark `ShadThemeData` instances are built once as top-level finals.
+App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds light/dark Material 3 `ThemeData` via `CalfTheme` with brand primary color from `CalfColors.primary`.
 
 ### `app_shell.dart`
 Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, and a top bar showing Docker Hub registry sign-in status. `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
@@ -340,6 +342,9 @@ Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` im
 
 ### `constants/calf_constants.dart`
 Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (base URL, poll interval, HTTP timeouts), `CalfStorageFiles` (JSON preference filenames), `CalfGitHub` (repository slug).
+
+### `theme/calf_theme.dart`
+Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`), shared panel radius, and `CalfTheme.muted` for secondary label text.
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.

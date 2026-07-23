@@ -1,7 +1,7 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/widgets/error_text.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class ResourceListScaffold extends StatelessWidget {
   /// Lays out a searchable resource list with loading, error, and empty states.
@@ -37,34 +37,34 @@ class ResourceListScaffold extends StatelessWidget {
   /// Builds the list scaffold with search, filter, and content area.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Expanded(child: Text(title, style: theme.textTheme.h3)),
+            Expanded(child: Text(title, style: theme.textTheme.headlineSmall)),
             ?headerActions,
           ],
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(subtitle!, style: theme.textTheme.muted),
+          Text(subtitle!, style: CalfTheme.muted(theme)),
         ],
         const SizedBox(height: 16),
-        ShadInput(
+        TextField(
           controller: searchController,
-          placeholder: const Text('Search'),
+          decoration: const InputDecoration(hintText: 'Search'),
         ),
         if (filter != null) ...[const SizedBox(height: 12), filter!],
         const SizedBox(height: 16),
         if (loading)
-          Text('Loading...', style: theme.textTheme.muted)
+          Text('Loading...', style: CalfTheme.muted(theme))
         else if (error != null && !errorAllowsList)
           ErrorText(error: error!)
         else if (empty)
-          Text(emptyMessage, style: theme.textTheme.muted)
+          Text(emptyMessage, style: CalfTheme.muted(theme))
         else
           Expanded(
             child: ListView.builder(

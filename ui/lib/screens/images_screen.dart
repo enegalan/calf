@@ -1,14 +1,13 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart'
-    show PopupMenuItem, RelativeRect, RoundedRectangleBorder, showMenu;
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class ImagesScreen extends StatefulWidget {
   /// Creates a [ImagesScreen] widget.
@@ -201,7 +200,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       );
     }
 
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final filtered = _searchQuery.isEmpty
         ? _images
         : _images
@@ -216,24 +215,24 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Images', style: theme.textTheme.h3),
+        Text('Images', style: theme.textTheme.headlineSmall),
 
         /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 16),
-        ShadInput(
+        TextField(
           controller: _searchController,
-          placeholder: const Text('Search'),
+          decoration: const InputDecoration(hintText: 'Search'),
         ),
 
         /// Creates a [_ImagesScreenState] widget.
         const SizedBox(height: 24),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
+          Text('Loading...', style: theme.textTheme.titleMedium)
         else if (_error != null)
           Text(
             _error!,
-            style: theme.textTheme.large.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.titleMedium!.copyWith(
+              color: theme.colorScheme.error,
             ),
           )
         else if (filtered.isEmpty)
@@ -243,7 +242,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
                 : _runtime?.state == 'stopped'
                 ? 'No images. Runtime is stopped.'
                 : 'No local images.',
-            style: theme.textTheme.muted,
+            style: CalfTheme.muted(theme),
           )
         else
           Expanded(
@@ -265,8 +264,8 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(image.reference, style: theme.textTheme.large),
-                            Text(image.size, style: theme.textTheme.muted),
+                            Text(image.reference, style: theme.textTheme.titleMedium),
+                            Text(image.size, style: CalfTheme.muted(theme)),
                           ],
                         ),
                       ),
@@ -335,7 +334,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     final overlayBox =
         Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
     final offset = box.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final theme = ShadTheme.of(buttonContext);
+    final theme = Theme.of(buttonContext);
     const menuWidth = 220.0;
 
     final selected = await showMenu<String>(
@@ -344,11 +343,11 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
         Rect.fromLTWH(offset.dx, offset.dy + box.size.height + 4, menuWidth, 0),
         Offset.zero & overlayBox.size,
       ),
-      color: theme.colorScheme.popover,
+      color: theme.colorScheme.surface,
       surfaceTintColor: const Color(0x00000000),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: theme.colorScheme.border),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       constraints: const BoxConstraints(minWidth: menuWidth),
       items: const [
@@ -403,7 +402,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final image = widget.image;
     final layers = widget.layers;
     final layersLoading = widget.layersLoading;
@@ -419,18 +418,18 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
               child: Icon(
                 LucideIcons.chevronLeft,
                 size: 18,
-                color: theme.colorScheme.foreground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
 
             /// Creates a [_ImageDetailViewState] widget.
             const SizedBox(width: 4),
-            Text('Images', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
+            Text('Images', style: CalfTheme.muted(theme)),
+            Text(' / ', style: CalfTheme.muted(theme)),
             Expanded(
               child: Text(
                 image.reference,
-                style: theme.textTheme.muted,
+                style: CalfTheme.muted(theme),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -448,34 +447,34 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 children: [
                   Text(
                     image.reference,
-                    style: theme.textTheme.h3,
+                    style: theme.textTheme.headlineSmall,
                     overflow: TextOverflow.ellipsis,
                   ),
 
                   /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 8),
-                  Text(image.shortId, style: theme.textTheme.muted),
+                  Text(image.shortId, style: CalfTheme.muted(theme)),
                   if (image.created.isNotEmpty) ...[
                     /// Creates a [_ImageDetailViewState] widget.
                     const SizedBox(height: 12),
                     Text(
                       'CREATED',
-                      style: theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.mutedForeground,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    Text(image.created, style: theme.textTheme.large),
+                    Text(image.created, style: theme.textTheme.titleMedium),
                   ],
 
                   /// Creates a [_ImageDetailViewState] widget.
                   const SizedBox(height: 12),
                   Text(
                     'SIZE',
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.mutedForeground,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  Text(image.size, style: theme.textTheme.large),
+                  Text(image.size, style: theme.textTheme.titleMedium),
                 ],
               ),
             ),
@@ -496,7 +495,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   child: Icon(
                     LucideIcons.chevronDown,
                     size: 16,
-                    color: theme.colorScheme.foreground,
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
 
@@ -509,7 +508,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   child: Icon(
                     LucideIcons.trash2,
                     size: 16,
-                    color: theme.colorScheme.destructiveForeground,
+                    color: theme.colorScheme.onError,
                   ),
                 ),
               ],
@@ -528,7 +527,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       _actionMessage!,
-                      style: theme.textTheme.small.copyWith(
+                      style: theme.textTheme.bodySmall!.copyWith(
                         color: theme.colorScheme.primary,
                       ),
                     ),
@@ -540,8 +539,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
                       _actionError!,
-                      style: theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.destructive,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.error,
                       ),
                     ),
                   ),
@@ -549,7 +548,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
               SliverToBoxAdapter(
                 child: Text(
                   'Layers (${layers?.length ?? 0})',
-                  style: theme.textTheme.large,
+                  style: theme.textTheme.titleMedium,
                 ),
               ),
 
@@ -565,14 +564,14 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
 
   /// Builds the sliver that lists image layers or loading/error states.
   Widget _buildLayersSliver(
-    ShadThemeData theme,
+    ThemeData theme,
     List<ImageLayer>? layers,
     bool layersLoading,
     String? layersError,
   ) {
     if (layersLoading) {
       return SliverToBoxAdapter(
-        child: Text('Loading layers...', style: theme.textTheme.muted),
+        child: Text('Loading layers...', style: CalfTheme.muted(theme)),
       );
     }
 
@@ -580,8 +579,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
       return SliverToBoxAdapter(
         child: Text(
           layersError,
-          style: theme.textTheme.large.copyWith(
-            color: theme.colorScheme.destructive,
+          style: theme.textTheme.titleMedium!.copyWith(
+            color: theme.colorScheme.error,
           ),
         ),
       );
@@ -589,14 +588,14 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
 
     if (layers == null || layers.isEmpty) {
       return SliverToBoxAdapter(
-        child: Text('No layers found.', style: theme.textTheme.muted),
+        child: Text('No layers found.', style: CalfTheme.muted(theme)),
       );
     }
 
     return SliverList.separated(
       itemCount: layers.length,
       separatorBuilder: (_, _) =>
-          Container(height: 1, color: theme.colorScheme.border),
+          Container(height: 1, color: theme.colorScheme.outlineVariant),
       itemBuilder: (context, index) {
         final layer = layers[index];
 
@@ -608,12 +607,12 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
             children: [
               SizedBox(
                 width: 28,
-                child: Text('${layer.index}', style: theme.textTheme.muted),
+                child: Text('${layer.index}', style: CalfTheme.muted(theme)),
               ),
               Expanded(
                 child: Text(
                   layer.createdBy,
-                  style: theme.textTheme.large,
+                  style: theme.textTheme.titleMedium,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -625,7 +624,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 width: 88,
                 child: Text(
                   layer.size,
-                  style: theme.textTheme.muted,
+                  style: CalfTheme.muted(theme),
                   textAlign: TextAlign.right,
                 ),
               ),

@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -12,6 +12,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 enum _VolumeDetailTab { storedData, containersInUse, exports }
 
@@ -373,7 +374,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
       );
     }
 
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final detail = _detail;
 
     return Column(
@@ -398,7 +399,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       Icon(
                         LucideIcons.hardDrive,
                         size: 20,
-                        color: theme.colorScheme.foreground,
+                        color: theme.colorScheme.onSurface,
                       ),
 
                       /// Creates a [_VolumeDetailViewState] widget.
@@ -406,7 +407,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       Expanded(
                         child: Text(
                           widget.volumeName,
-                          style: theme.textTheme.h3,
+                          style: theme.textTheme.headlineSmall,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -416,12 +417,12 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                   /// Creates a [_VolumeDetailViewState] widget.
                   const SizedBox(height: 8),
                   if (_detailLoading)
-                    Text('Loading...', style: theme.textTheme.muted)
+                    Text('Loading...', style: CalfTheme.muted(theme))
                   else if (_detailError != null)
                     Text(
                       _detailError!,
-                      style: theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.destructive,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.error,
                       ),
                     )
                   else if (detail != null) ...[
@@ -433,7 +434,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                           decoration: BoxDecoration(
                             color: detail.inUse
                                 ? CalfColors.success
-                                : theme.colorScheme.mutedForeground,
+                                : theme.colorScheme.onSurfaceVariant,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -442,7 +443,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                         const SizedBox(width: 8),
                         Text(
                           detail.inUse ? 'In use' : 'Not in use',
-                          style: theme.textTheme.large,
+                          style: theme.textTheme.titleMedium,
                         ),
                       ],
                     ),
@@ -451,7 +452,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                       const SizedBox(height: 12),
                       Text(
                         'Created ${detail.created}',
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                       ),
                     ],
                   ],
@@ -465,7 +466,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
               child: Icon(
                 LucideIcons.trash2,
                 size: 16,
-                color: theme.colorScheme.destructiveForeground,
+                color: theme.colorScheme.onError,
               ),
             ),
           ],
@@ -541,7 +542,7 @@ class _ExportsTab extends StatelessWidget {
     required this.onDownload,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final bool schedulesLoading;
   final String? error;
@@ -573,12 +574,12 @@ class _ExportsTab extends StatelessWidget {
             child: const Text('Add schedule'),
           ),
           child: schedulesLoading
-              ? Text('Loading schedules...', style: theme.textTheme.muted)
+              ? Text('Loading schedules...', style: CalfTheme.muted(theme))
               : schedulesError != null
               ? Text(
                   schedulesError!,
-                  style: theme.textTheme.small.copyWith(
-                    color: theme.colorScheme.destructive,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.error,
                   ),
                 )
               : schedules.isEmpty
@@ -587,14 +588,14 @@ class _ExportsTab extends StatelessWidget {
                     Icon(
                       LucideIcons.calendarClock,
                       size: 28,
-                      color: theme.colorScheme.mutedForeground,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
 
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 12),
                     Text(
                       'Schedule exports',
-                      style: theme.textTheme.large.copyWith(
+                      style: theme.textTheme.titleMedium!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -603,7 +604,7 @@ class _ExportsTab extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       'Use Add schedule to create recurring backups for this volume.',
-                      style: theme.textTheme.muted,
+                      style: CalfTheme.muted(theme),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -639,12 +640,12 @@ class _ExportsTab extends StatelessWidget {
             child: const Text('Quick export'),
           ),
           child: loading
-              ? Text('Loading exports...', style: theme.textTheme.muted)
+              ? Text('Loading exports...', style: CalfTheme.muted(theme))
               : error != null
               ? Text(
                   error!,
-                  style: theme.textTheme.small.copyWith(
-                    color: theme.colorScheme.destructive,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.error,
                   ),
                 )
               : exports.isEmpty
@@ -653,14 +654,14 @@ class _ExportsTab extends StatelessWidget {
                     Icon(
                       LucideIcons.fileText,
                       size: 28,
-                      color: theme.colorScheme.mutedForeground,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
 
                     /// Creates a [_ExportsTab] widget.
                     const SizedBox(height: 12),
                     Text(
                       'No data',
-                      style: theme.textTheme.large.copyWith(
+                      style: theme.textTheme.titleMedium!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -669,7 +670,7 @@ class _ExportsTab extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       'Use the Quick export button to create export history.',
-                      style: theme.textTheme.muted,
+                      style: CalfTheme.muted(theme),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -680,8 +681,8 @@ class _ExportsTab extends StatelessWidget {
                     if (downloadError != null) ...[
                       Text(
                         downloadError!,
-                        style: theme.textTheme.small.copyWith(
-                          color: theme.colorScheme.destructive,
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          color: theme.colorScheme.error,
                         ),
                       ),
 
@@ -699,7 +700,7 @@ class _ExportsTab extends StatelessWidget {
                             : null,
                       ),
                       if (export != exports.last)
-                        Container(height: 1, color: theme.colorScheme.border),
+                        Container(height: 1, color: theme.colorScheme.outlineVariant),
                     ],
                   ],
                 ),
@@ -719,7 +720,7 @@ class _ExportSectionCard extends StatelessWidget {
     this.action,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String title;
   final String subtitle;
   final Widget child;
@@ -730,7 +731,7 @@ class _ExportSectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.all(20),
@@ -746,14 +747,14 @@ class _ExportSectionCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: theme.textTheme.large.copyWith(
+                      style: theme.textTheme.titleMedium!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
 
                     /// Creates a [_ExportSectionCard] widget.
                     const SizedBox(height: 4),
-                    Text(subtitle, style: theme.textTheme.muted),
+                    Text(subtitle, style: CalfTheme.muted(theme)),
                   ],
                 ),
               ),
@@ -780,7 +781,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
     required this.onEnabledChanged,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final VolumeExportScheduleItem schedule;
   final bool toggling;
   final VoidCallback onEdit;
@@ -805,18 +806,18 @@ class _ScheduleHistoryRow extends StatelessWidget {
     final enabled = schedule.enabled;
     final enabledColor = enabled
         ? CalfColors.success
-        : theme.colorScheme.mutedForeground;
+        : theme.colorScheme.onSurfaceVariant;
     final lastStatusColor = schedule.lastStatus == 'completed'
         ? CalfColors.success
         : schedule.lastStatus == 'failed'
-        ? theme.colorScheme.destructive
-        : theme.colorScheme.mutedForeground;
+        ? theme.colorScheme.error
+        : theme.colorScheme.onSurfaceVariant;
 
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
-        color: enabled ? null : theme.colorScheme.muted.withValues(alpha: 0.25),
+        color: enabled ? null : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
       ),
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -841,7 +842,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
               children: [
                 Text(
                   schedule.typeLabel,
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -885,7 +886,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                             ? LucideIcons.folder
                             : LucideIcons.tag,
                         size: 14,
-                        color: theme.colorScheme.mutedForeground,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
 
                       /// Creates a [_ScheduleHistoryRow] widget.
@@ -893,7 +894,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                       Expanded(
                         child: Text(
                           schedule.destinationSummary,
-                          style: theme.textTheme.muted,
+                          style: CalfTheme.muted(theme),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -908,14 +909,14 @@ class _ScheduleHistoryRow extends StatelessWidget {
                       Icon(
                         LucideIcons.calendarClock,
                         size: 14,
-                        color: theme.colorScheme.mutedForeground,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
 
                       /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 6),
                       Text(
                         'Next run ${schedule.formattedNextRun}',
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                       ),
                     ],
                   ),
@@ -925,7 +926,7 @@ class _ScheduleHistoryRow extends StatelessWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      Text('Last run', style: theme.textTheme.small),
+                      Text('Last run', style: theme.textTheme.bodySmall),
 
                       /// Creates a [_ScheduleHistoryRow] widget.
                       const SizedBox(width: 8),
@@ -942,8 +943,8 @@ class _ScheduleHistoryRow extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     schedule.lastError,
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.destructive,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.error,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -960,12 +961,12 @@ class _ScheduleHistoryRow extends StatelessWidget {
             children: [
               Text(
                 enabled ? 'Enabled' : 'Paused',
-                style: theme.textTheme.small.copyWith(color: enabledColor),
+                style: theme.textTheme.bodySmall!.copyWith(color: enabledColor),
               ),
 
               /// Creates a [_ScheduleHistoryRow] widget.
               const SizedBox(width: 8),
-              ShadSwitch(
+              Switch(
                 value: enabled,
                 onChanged: toggling ? null : onEnabledChanged,
               ),
@@ -989,7 +990,7 @@ class _ScheduleBadge extends StatelessWidget {
     required this.color,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final Color color;
 
@@ -1004,7 +1005,7 @@ class _ScheduleBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: theme.textTheme.small.copyWith(
+        style: theme.textTheme.bodySmall!.copyWith(
           color: color,
           fontWeight: FontWeight.w600,
         ),
@@ -1022,7 +1023,7 @@ class _ScheduleMiniChip extends StatelessWidget {
     this.emphasized = false,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final IconData? icon;
   final bool emphasized;
@@ -1032,10 +1033,10 @@ class _ScheduleMiniChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = emphasized
         ? theme.colorScheme.primary.withValues(alpha: 0.12)
-        : theme.colorScheme.muted.withValues(alpha: 0.45);
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45);
     final foreground = emphasized
         ? theme.colorScheme.primary
-        : theme.colorScheme.foreground;
+        : theme.colorScheme.onSurface;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1059,7 +1060,7 @@ class _ScheduleMiniChip extends StatelessWidget {
           ],
           Text(
             label,
-            style: theme.textTheme.small.copyWith(
+            style: theme.textTheme.bodySmall!.copyWith(
               color: foreground,
               fontWeight: emphasized ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -1079,7 +1080,7 @@ class _ExportHistoryRow extends StatelessWidget {
     this.onDownload,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final VolumeExportItem export;
   final bool downloading;
   final VoidCallback? onDownload;
@@ -1089,10 +1090,10 @@ class _ExportHistoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusColor = switch (export.status) {
       'completed' => CalfColors.success,
-      'failed' => theme.colorScheme.destructive,
+      'failed' => theme.colorScheme.error,
 
       /// .
-      _ => theme.colorScheme.mutedForeground,
+      _ => theme.colorScheme.onSurfaceVariant,
     };
 
     return Padding(
@@ -1105,7 +1106,7 @@ class _ExportHistoryRow extends StatelessWidget {
               children: [
                 Text(
                   export.typeLabel,
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1114,7 +1115,7 @@ class _ExportHistoryRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   export.summary,
-                  style: theme.textTheme.muted,
+                  style: CalfTheme.muted(theme),
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (export.error.isNotEmpty) ...[
@@ -1122,8 +1123,8 @@ class _ExportHistoryRow extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     export.error,
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.destructive,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.error,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1132,12 +1133,12 @@ class _ExportHistoryRow extends StatelessWidget {
             ),
           ),
           if (export.size.isNotEmpty) ...[
-            Text(export.size, style: theme.textTheme.muted),
+            Text(export.size, style: CalfTheme.muted(theme)),
 
             /// Creates a [_ExportHistoryRow] widget.
             const SizedBox(width: 16),
           ],
-          Text(export.createdAt, style: theme.textTheme.muted),
+          Text(export.createdAt, style: CalfTheme.muted(theme)),
 
           /// Creates a [_ExportHistoryRow] widget.
           const SizedBox(width: 16),
@@ -1149,7 +1150,7 @@ class _ExportHistoryRow extends StatelessWidget {
             ),
             child: Text(
               export.status,
-              style: theme.textTheme.small.copyWith(color: statusColor),
+              style: theme.textTheme.bodySmall!.copyWith(color: statusColor),
             ),
           ),
           if (onDownload != null) ...[
@@ -1176,7 +1177,7 @@ class _ContainersInUseTab extends StatelessWidget {
     required this.containers,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final String? error;
   final List<VolumeContainerUsage> containers;
@@ -1185,14 +1186,14 @@ class _ContainersInUseTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return Text('Loading containers...', style: theme.textTheme.muted);
+      return Text('Loading containers...', style: CalfTheme.muted(theme));
     }
 
     if (error != null) {
       return Text(
         error!,
-        style: theme.textTheme.large.copyWith(
-          color: theme.colorScheme.destructive,
+        style: theme.textTheme.titleMedium!.copyWith(
+          color: theme.colorScheme.error,
         ),
       );
     }
@@ -1200,12 +1201,12 @@ class _ContainersInUseTab extends StatelessWidget {
     if (containers.isEmpty) {
       return Text(
         'No containers are using this volume.',
-        style: theme.textTheme.muted,
+        style: CalfTheme.muted(theme),
       );
     }
 
-    final labelStyle = theme.textTheme.small.copyWith(
-      color: theme.colorScheme.mutedForeground,
+    final labelStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
     );
 
@@ -1233,7 +1234,7 @@ class _ContainersInUseTab extends StatelessWidget {
           child: ListView.separated(
             itemCount: containers.length,
             separatorBuilder: (_, _) =>
-                Container(height: 1, color: theme.colorScheme.border),
+                Container(height: 1, color: theme.colorScheme.outlineVariant),
             itemBuilder: (context, index) {
               final container = containers[index];
 
@@ -1256,7 +1257,7 @@ class _ContainersInUseTab extends StatelessWidget {
                       flex: 3,
                       child: Text(
                         container.name,
-                        style: theme.textTheme.small.copyWith(
+                        style: theme.textTheme.bodySmall!.copyWith(
                           color: theme.colorScheme.primary,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -1266,14 +1267,14 @@ class _ContainersInUseTab extends StatelessWidget {
                       flex: 3,
                       child: Text(
                         container.image,
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Expanded(
                       child: Text(
                         container.port,
-                        style: theme.textTheme.small.copyWith(
+                        style: theme.textTheme.bodySmall!.copyWith(
                           color: theme.colorScheme.primary,
                         ),
                       ),
@@ -1282,7 +1283,7 @@ class _ContainersInUseTab extends StatelessWidget {
                       flex: 2,
                       child: Text(
                         container.target,
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

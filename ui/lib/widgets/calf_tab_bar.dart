@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 class CalfTabBar extends StatelessWidget {
   /// Creates a horizontal tab bar for [labels] with [selectedIndex].
@@ -12,7 +11,7 @@ class CalfTabBar extends StatelessWidget {
     this.labelStyle,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<String> labels;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -23,7 +22,7 @@ class CalfTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.colorScheme.border)),
+        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
       ),
       child: Row(
         children: [
@@ -53,7 +52,7 @@ class _CalfTabButton extends StatelessWidget {
     this.labelStyle,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -78,10 +77,10 @@ class _CalfTabButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: (labelStyle ?? theme.textTheme.small).copyWith(
+          style: (labelStyle ?? theme.textTheme.bodySmall!).copyWith(
             color: selected
-                ? theme.colorScheme.foreground
-                : theme.colorScheme.mutedForeground,
+                ? theme.colorScheme.onSurface
+                : theme.colorScheme.onSurfaceVariant,
             fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),

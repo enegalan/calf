@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/widgets/calf_button.dart';
 
@@ -11,11 +10,11 @@ Future<bool> confirmDialog(
   String confirmLabel = 'Confirm',
   bool destructive = false,
 }) {
-  return showShadDialog<bool>(
+  return showDialog<bool>(
     context: context,
-    builder: (dialogContext) => ShadDialog(
+    builder: (dialogContext) => AlertDialog(
       title: Text(title),
-      description: Text(description),
+      content: Text(description),
       actions: [
         CalfButton.outline(
           onPressed: () => Navigator.of(dialogContext).pop(false),

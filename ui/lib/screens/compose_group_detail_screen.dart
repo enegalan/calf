@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart' show Tooltip;
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 const _maxLogLines = 2000;
 
@@ -259,7 +259,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final running = _containers
         .where((container) => container.isRunning)
         .length;
@@ -274,14 +274,14 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               child: Icon(
                 LucideIcons.chevronLeft,
                 size: 18,
-                color: theme.colorScheme.foreground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
 
             /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 4),
-            Text('Containers', style: theme.textTheme.muted),
-            Text(' / ', style: theme.textTheme.muted),
+            Text('Containers', style: CalfTheme.muted(theme)),
+            Text(' / ', style: CalfTheme.muted(theme)),
             Icon(
               LucideIcons.layers,
               size: 20,
@@ -294,11 +294,11 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.project, style: theme.textTheme.h3),
+                  Text(widget.project, style: theme.textTheme.headlineSmall),
                   Text(
                     '$running running / ${_containers.length} total',
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.mutedForeground,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -316,7 +316,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               child: Icon(
                 LucideIcons.square,
                 size: 16,
-                color: theme.colorScheme.foreground,
+                color: theme.colorScheme.onSurface,
               ),
             ),
 
@@ -334,7 +334,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               child: Icon(
                 LucideIcons.play,
                 size: 16,
-                color: theme.colorScheme.primaryForeground,
+                color: theme.colorScheme.onPrimary,
               ),
             ),
 
@@ -354,7 +354,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               child: Icon(
                 LucideIcons.trash2,
                 size: 16,
-                color: theme.colorScheme.destructiveForeground,
+                color: theme.colorScheme.onError,
               ),
             ),
           ],
@@ -364,8 +364,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
         ],
@@ -426,7 +426,7 @@ class _ComposeContainerList extends StatelessWidget {
     required this.busy,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<ContainerItem> containers;
   final Map<String, Color> colors;
   final void Function(ContainerItem container) onOpen;
@@ -441,8 +441,8 @@ class _ComposeContainerList extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
-        borderRadius: theme.radius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: CalfTheme.radius,
         color: logsPanelBackground(theme),
       ),
       child: ListView(
@@ -480,7 +480,7 @@ class _ComposeContainerRow extends StatelessWidget {
     required this.busy,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final ContainerItem container;
   final Color accentColor;
   final VoidCallback onOpen;
@@ -508,11 +508,11 @@ class _ComposeContainerRow extends StatelessWidget {
             decoration: BoxDecoration(
               color: container.isRunning
                   ? accentColor
-                  : theme.colorScheme.mutedForeground,
+                  : theme.colorScheme.onSurfaceVariant,
               shape: BoxShape.circle,
               border: container.isRunning
                   ? null
-                  : Border.all(color: theme.colorScheme.mutedForeground),
+                  : Border.all(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
 
@@ -521,7 +521,7 @@ class _ComposeContainerRow extends StatelessWidget {
           Icon(
             LucideIcons.box,
             size: 18,
-            color: theme.colorScheme.mutedForeground,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
 
           /// Creates a [_ComposeContainerRow] widget.
@@ -535,13 +535,13 @@ class _ComposeContainerRow extends StatelessWidget {
                 children: [
                   Text(
                     container.displayName,
-                    style: theme.textTheme.large,
+                    style: theme.textTheme.titleMedium,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     container.subtitle,
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.mutedForeground,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -552,7 +552,7 @@ class _ComposeContainerRow extends StatelessWidget {
                       onTap: () => onOpenPort(port),
                       child: Text(
                         'localhost:$port',
-                        style: theme.textTheme.small.copyWith(
+                        style: theme.textTheme.bodySmall!.copyWith(
                           color: theme.colorScheme.primary,
                         ),
                       ),

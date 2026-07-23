@@ -1,64 +1,64 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 /// Shows the About Calf dialog with version info and links.
 void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
-  final theme = ShadTheme.of(context);
+  final theme = Theme.of(context);
   final logoAsset = theme.brightness == Brightness.dark
       ? 'assets/brand/calf_logo_white.png'
       : 'assets/brand/calf_logo_black.png';
   final versionLabel = appVersion.isEmpty ? 'dev' : appVersion;
 
-  showShadDialog<void>(
+  showDialog<void>(
     context: context,
-    builder: (dialogContext) => ShadDialog(
-      scrollable: false,
-      constraints: const BoxConstraints(maxWidth: 320),
-      gap: 16,
+    builder: (dialogContext) => AlertDialog(
       title: const Text('Calf'),
-      description: Text('Version $versionLabel'),
+      content: SizedBox(
+        width: 320,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Version $versionLabel'),
+            const SizedBox(height: 16),
+            Image.asset(logoAsset, width: 48, height: 48, fit: BoxFit.contain),
+            const SizedBox(height: 16),
+            Text(
+              'A lightweight alternative to Docker Desktop.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _AboutLink(
+                  label: 'GitHub',
+                  onPressed: () =>
+                      _openExternalLink(dialogContext, calfRepositoryUrl),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'MIT License · © ${DateTime.now().year}',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
       actions: [
         CalfButton(
           onPressed: () => Navigator.of(dialogContext).pop(),
           child: const Text('Close'),
         ),
       ],
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Image.asset(logoAsset, width: 48, height: 48, fit: BoxFit.contain),
-          const SizedBox(height: 16),
-          Text(
-            'A lightweight alternative to Docker Desktop.',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _AboutLink(
-                label: 'GitHub',
-                onPressed: () =>
-                    _openExternalLink(dialogContext, calfRepositoryUrl),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'MIT License · © ${DateTime.now().year}',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.mutedForeground,
-            ),
-          ),
-        ],
-      ),
     ),
   );
 }
@@ -67,11 +67,11 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
 Future<void> _openExternalLink(BuildContext context, String url) async {
   final opened = await openExternalUrl(url);
   if (!opened && context.mounted) {
-    await showShadDialog<void>(
+    await showDialog<void>(
       context: context,
-      builder: (errorContext) => ShadDialog(
+      builder: (errorContext) => AlertDialog(
         title: const Text('Could not open link'),
-        description: const Text(
+        content: const Text(
           'Your system could not open the URL in a browser.',
         ),
         actions: [
@@ -95,14 +95,14 @@ class _AboutLink extends StatelessWidget {
   /// Builds the styled text link button.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     return CalfButton.ghost(
       padding: EdgeInsets.zero,
       height: 28,
       onPressed: onPressed,
       child: Text(
         label,
-        style: theme.textTheme.small.copyWith(
+        style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.primary,
           fontWeight: FontWeight.w500,
         ),
