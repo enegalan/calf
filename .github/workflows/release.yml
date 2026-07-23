@@ -67,6 +67,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew tap libkrun/krun
+          # Fully-qualified install trusts only named formulae; libkrun deps (e.g. libkrunfw) need tap trust.
+          brew trust libkrun/krun
           brew install create-dmg libkrun/krun/libkrun libkrun/krun/krunkit libkrun/krun/gvproxy
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source "$HOME/.cargo/env"
