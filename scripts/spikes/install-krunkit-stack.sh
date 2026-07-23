@@ -16,9 +16,32 @@ KRUNKIT_BUILD="${CALF_KRUNKIT_DAX_ROOT:-/tmp/calf-krunkit-dax}"
 
 export PATH="${HOME}/.cargo/bin:/opt/homebrew/bin:${PATH}"
 unset CARGO_TARGET_DIR
-export LIBCLANG_PATH="${LIBCLANG_PATH:-/opt/homebrew/opt/llvm/lib}"
+
+# bindgen needs libclang.dylib. Prefer an explicit LIBCLANG_PATH, then Homebrew llvm, then Xcode.
+resolve_libclang_path() {
+  local cand
+  for cand in \
+    "${LIBCLANG_PATH:-}" \
+    /opt/homebrew/opt/llvm/lib \
+    /usr/local/opt/llvm/lib \
+    "$(xcode-select -p 2>/dev/null)/Toolchains/XcodeDefault.xctoolchain/usr/lib"
+  do
+    if [[ -n "$cand" && -f "${cand}/libclang.dylib" ]]; then
+      printf '%s\n' "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+LIBCLANG_PATH="$(resolve_libclang_path)" || {
+  echo "error: libclang.dylib not found (brew install llvm, or set LIBCLANG_PATH)" >&2
+  exit 1
+}
+export LIBCLANG_PATH
 export DYLD_LIBRARY_PATH="${LIBCLANG_PATH}:${DYLD_LIBRARY_PATH:-}"
 export DYLD_FALLBACK_LIBRARY_PATH="${LIBCLANG_PATH}"
+echo "using LIBCLANG_PATH=${LIBCLANG_PATH}"
 
 require() {
   command -v "$1" >/dev/null 2>&1 || {
