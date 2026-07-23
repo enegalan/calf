@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/api/client.dart';
 
@@ -13,13 +12,13 @@ class ErrorText extends StatelessWidget {
   /// Builds formatted error text from [error].
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Text(
       formatAsyncError(error),
       style:
           style ??
-          theme.textTheme.small.copyWith(color: theme.colorScheme.destructive),
+          theme.textTheme.bodySmall!.copyWith(color: theme.colorScheme.error),
     );
   }
 }

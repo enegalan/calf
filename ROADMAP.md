@@ -160,7 +160,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 - [x] Volume management
 - [x] Network management
-- [x] Consistent light/dark theme (shadcn_ui)
+- [x] Consistent light/dark theme (Material Design 3)
 - [x] Collapsible sidebar with persisted state and auto-collapse on narrow windows
 - [x] macOS native menu bar actions (Settings, navigation, Docker Hub, updates, help)
 

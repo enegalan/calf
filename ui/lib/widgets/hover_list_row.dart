@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 class HoverListRow extends StatefulWidget {
   /// Creates a list row that highlights on hover and optional selection.
@@ -12,7 +11,7 @@ class HoverListRow extends StatefulWidget {
     this.onTap,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final EdgeInsets padding;
   final Widget child;
   final bool selected;
@@ -31,9 +30,11 @@ class _HoverListRowState extends State<HoverListRow> {
   Widget build(BuildContext context) {
     Color? background;
     if (widget.selected) {
-      background = widget.theme.colorScheme.accent;
+      background = widget.theme.colorScheme.surfaceContainerHighest;
     } else if (_hovered) {
-      background = widget.theme.colorScheme.muted.withValues(alpha: 0.45);
+      background = widget.theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.45,
+      );
     }
 
     final content = Container(

@@ -1,7 +1,8 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class DetailBreadcrumb extends StatelessWidget {
   /// Creates a back button and slash-separated [segments] breadcrumb trail.
@@ -21,7 +22,7 @@ class DetailBreadcrumb extends StatelessWidget {
   /// Builds the breadcrumb row with optional [trailing] actions.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     return Row(
       children: [
@@ -30,24 +31,24 @@ class DetailBreadcrumb extends StatelessWidget {
           child: Icon(
             LucideIcons.chevronLeft,
             size: 18,
-            color: theme.colorScheme.foreground,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         const SizedBox(width: 4),
         for (var index = 0; index < segments.length; index++) ...[
-          if (index > 0) Text(' / ', style: theme.textTheme.muted),
+          if (index > 0) Text(' / ', style: CalfTheme.muted(theme)),
           if (index == segments.length - 1)
             Expanded(
               child: Text(
                 segments[index],
-                style: theme.textTheme.large.copyWith(
+                style: theme.textTheme.titleMedium!.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             )
           else
-            Text(segments[index], style: theme.textTheme.muted),
+            Text(segments[index], style: CalfTheme.muted(theme)),
         ],
         ?trailing,
       ],

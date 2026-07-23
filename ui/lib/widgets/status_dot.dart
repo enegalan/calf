@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/constants/calf_constants.dart';
 
@@ -21,7 +20,7 @@ class StatusDot extends StatelessWidget {
   /// Renders a filled, hollow, or inactive status dot.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
     if (hollow || !active) {
       return Container(
@@ -30,7 +29,7 @@ class StatusDot extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: theme.colorScheme.mutedForeground,
+            color: theme.colorScheme.onSurfaceVariant,
             width: 1.5,
           ),
         ),
@@ -45,7 +44,7 @@ class StatusDot extends StatelessWidget {
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
-        border: Border.all(color: theme.colorScheme.background, width: 1.5),
+        border: Border.all(color: theme.colorScheme.surface, width: 1.5),
       ),
     );
   }

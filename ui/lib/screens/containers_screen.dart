@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart' show Tooltip;
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -15,6 +14,7 @@ import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/storage/container_groups.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class ContainersScreen extends StatefulWidget {
   /// Creates a [ContainersScreen] widget.
@@ -296,7 +296,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       );
     }
 
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final filtered = _filteredContainers();
     final layout = _buildLayout(filtered);
     final runningCount = _containers
@@ -309,26 +309,28 @@ class _ContainersScreenState extends State<ContainersScreen>
       children: [
         Row(
           children: [
-            Text('Containers', style: theme.textTheme.h3),
+            Text('Containers', style: theme.textTheme.headlineSmall),
 
             /// Creates a [_ContainersScreenState] widget.
             const SizedBox(width: 12),
             Text(
               '$runningCount running / ${_containers.length} total',
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
             ),
           ],
         ),
 
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
-        ShadInput(
+        TextField(
           controller: _searchController,
-          placeholder: const Text('Search'),
-          leading: Icon(
-            LucideIcons.search,
-            size: 16,
-            color: theme.colorScheme.mutedForeground,
+          decoration: InputDecoration(
+            hintText: 'Search',
+            prefixIcon: Icon(
+              LucideIcons.search,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
 
@@ -348,8 +350,8 @@ class _ContainersScreenState extends State<ContainersScreen>
               _runtime!.portConflicts
                   .map((conflict) => conflict.hint)
                   .join('\n'),
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.destructive,
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.error,
               ),
             ),
           ),
@@ -358,13 +360,13 @@ class _ContainersScreenState extends State<ContainersScreen>
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               _error!,
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.destructive,
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.error,
               ),
             ),
           ),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
+          Text('Loading...', style: theme.textTheme.titleMedium)
         else if (isEmpty)
           Expanded(
             child: Center(
@@ -376,7 +378,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     : _runningOnly
                     ? 'No running containers.'
                     : 'No containers.',
-                style: theme.textTheme.muted,
+                style: CalfTheme.muted(theme),
               ),
             ),
           )
@@ -466,7 +468,7 @@ class _ComposeGroupTile extends StatelessWidget {
 
   final String project;
   final List<ContainerItem> containers;
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool expanded;
   final String? selectedId;
   final VoidCallback onToggle;
@@ -520,11 +522,11 @@ class _ComposeGroupTile extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(project, style: theme.textTheme.large),
+                            Text(project, style: theme.textTheme.titleMedium),
                             Text(
                               '$running running / ${containers.length} total',
-                              style: theme.textTheme.small.copyWith(
-                                color: theme.colorScheme.mutedForeground,
+                              style: theme.textTheme.bodySmall!.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -580,7 +582,7 @@ class _ContainerTile extends StatelessWidget {
   });
 
   final ContainerItem container;
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool selected;
   final bool indented;
   final VoidCallback onStart;
@@ -613,13 +615,13 @@ class _ContainerTile extends StatelessWidget {
                   children: [
                     Text(
                       container.displayName,
-                      style: theme.textTheme.large,
+                      style: theme.textTheme.titleMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       container.subtitle,
-                      style: theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.mutedForeground,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -662,7 +664,7 @@ class _ComposeStackIcon extends StatelessWidget {
   const _ComposeStackIcon({required this.containers, required this.theme});
 
   final List<ContainerItem> containers;
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -693,14 +695,14 @@ class _ContainerStatusIcon extends StatelessWidget {
   const _ContainerStatusIcon({required this.container, required this.theme});
 
   final ContainerItem container;
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     return _StatusDotIcon(
       icon: LucideIcons.box,
-      iconColor: theme.colorScheme.mutedForeground,
+      iconColor: theme.colorScheme.onSurfaceVariant,
       fillColor: _containerStatusColor(container, theme),
       theme: theme,
     );
@@ -719,7 +721,7 @@ class _StatusDotIcon extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final Color? fillColor;
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   static const _dotSize = 9.0;
   static const _borderWidth = 1.5;
@@ -728,8 +730,8 @@ class _StatusDotIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final borderColor = fillColor != null
-        ? theme.colorScheme.background
-        : theme.colorScheme.mutedForeground;
+        ? theme.colorScheme.surface
+        : theme.colorScheme.onSurfaceVariant;
 
     return SizedBox(
       width: 28,
@@ -758,7 +760,7 @@ class _StatusDotIcon extends StatelessWidget {
 }
 
 /// Returns the status color for the given container.
-Color? _containerStatusColor(ContainerItem container, ShadThemeData theme) {
+Color? _containerStatusColor(ContainerItem container, ThemeData theme) {
   if (container.isRunning) {
     return CalfColors.success;
   }
@@ -808,7 +810,7 @@ class _GroupStatusDot extends StatelessWidget {
   const _GroupStatusDot({required this.state, required this.theme});
 
   final _GroupRunState state;
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   static const _dotSize = 9.0;
   static const _borderWidth = 1.5;
@@ -816,8 +818,8 @@ class _GroupStatusDot extends StatelessWidget {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final background = theme.colorScheme.background;
-    final borderColor = theme.colorScheme.mutedForeground;
+    final background = theme.colorScheme.surface;
+    final borderColor = theme.colorScheme.onSurfaceVariant;
 
     return SizedBox(
       width: _dotSize,

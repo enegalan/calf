@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/export_name_pattern.dart';
@@ -7,6 +7,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/volume_export_form.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class VolumeScheduleExportView extends StatefulWidget {
   /// Creates a [VolumeScheduleExportView] widget.
@@ -478,7 +479,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final sortedDays = _dayTimes.keys.toList()
       ..sort(VolumeExportScheduleItem.compareWeekdays);
 
@@ -499,14 +500,14 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
         const SizedBox(height: 16),
         Text(
           widget.isEditing ? 'Edit schedule' : 'Schedule export',
-          style: theme.textTheme.h3,
+          style: theme.textTheme.headlineSmall,
         ),
 
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 8),
         Text(
           'Choose which days and times Calf should export this volume automatically.',
-          style: theme.textTheme.muted,
+          style: CalfTheme.muted(theme),
         ),
 
         /// Creates a [_VolumeScheduleExportViewState] widget.
@@ -518,7 +519,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
               children: [
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.border),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(20),
@@ -527,7 +528,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                     children: [
                       Text(
                         'Days',
-                        style: theme.textTheme.large.copyWith(
+                        style: theme.textTheme.titleMedium!.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -536,7 +537,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                       const SizedBox(height: 8),
                       Text(
                         'Select the days of the week when exports should run.',
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                       ),
 
                       /// Creates a [_VolumeScheduleExportViewState] widget.
@@ -566,7 +567,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                           Container(
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: theme.colorScheme.border,
+                                color: theme.colorScheme.outlineVariant,
                               ),
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -579,9 +580,10 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                     Expanded(
                                       child: Text(
                                         _weekdayLabel(sortedDays[dayIndex]),
-                                        style: theme.textTheme.large.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                        style: theme.textTheme.titleMedium!
+                                            .copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                       ),
                                     ),
                                     CalfButton.outline(
@@ -597,7 +599,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Set one or more export times for ${_weekdayLabel(sortedDays[dayIndex])}.',
-                                  style: theme.textTheme.muted,
+                                  style: CalfTheme.muted(theme),
                                 ),
 
                                 /// Creates a [_VolumeScheduleExportViewState] widget.
@@ -646,7 +648,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         const SizedBox(height: 16),
                         Text(
                           'Select at least one day to configure export times.',
-                          style: theme.textTheme.muted,
+                          style: CalfTheme.muted(theme),
                         ),
                       ],
                       if (_cronSummary.isNotEmpty) ...[
@@ -662,7 +664,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                           ),
                           child: Text(
                             _cronSummary,
-                            style: theme.textTheme.small,
+                            style: theme.textTheme.bodySmall,
                           ),
                         ),
                       ],
@@ -674,7 +676,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                 const SizedBox(height: 16),
                 Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: theme.colorScheme.border),
+                    border: Border.all(color: theme.colorScheme.outlineVariant),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(20),
@@ -683,7 +685,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                     children: [
                       Text(
                         'Location',
-                        style: theme.textTheme.large.copyWith(
+                        style: theme.textTheme.titleMedium!.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -729,10 +731,10 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                   Row(
                                     children: [
                                       Expanded(
-                                        child: ShadInput(
+                                        child: TextField(
                                           controller: _folderController,
-                                          placeholder: const Text(
-                                            'Select folder',
+                                          decoration: const InputDecoration(
+                                            hintText: 'Select folder',
                                           ),
                                           onChanged: (_) => setState(() {}),
                                         ),
@@ -837,10 +839,10 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
 
                                     /// Creates a [_VolumeScheduleExportViewState] widget.
                                     const SizedBox(height: 12),
-                                    ShadInput(
+                                    TextField(
                                       controller: _imageRefController,
-                                      placeholder: const Text(
-                                        '<user>/<repo-name>:<tag>',
+                                      decoration: const InputDecoration(
+                                        hintText: '<user>/<repo-name>:<tag>',
                                       ),
                                       onChanged: (_) => setState(() {}),
                                     ),
@@ -861,8 +863,8 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
         ],
@@ -918,7 +920,7 @@ class _ExportTimeRow extends StatefulWidget {
     required this.onRemove,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final TimeOfDay time;
   final bool enabled;
   final bool canRemove;
@@ -942,8 +944,6 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
 
   late int _hour;
   late int _minute;
-  late final ShadSelectController<String> _hourController;
-  late final ShadSelectController<String> _minuteController;
 
   /// Returns the `currentTime` value.
   TimeOfDay get currentTime => TimeOfDay(hour: _hour, minute: _minute);
@@ -954,10 +954,6 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
     super.initState();
     _hour = widget.time.hour;
     _minute = widget.time.minute;
-    _hourController = ShadSelectController(initialValue: {_formatHour(_hour)});
-    _minuteController = ShadSelectController(
-      initialValue: {_formatMinute(_minute)},
-    );
   }
 
   /// Refreshes local state when the parent widget changes.
@@ -967,17 +963,7 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
     if (oldWidget.time != widget.time) {
       _hour = widget.time.hour;
       _minute = widget.time.minute;
-      _hourController.value = {_formatHour(_hour)};
-      _minuteController.value = {_formatMinute(_minute)};
     }
-  }
-
-  /// Releases controllers, timers, and stream subscriptions.
-  @override
-  void dispose() {
-    _hourController.dispose();
-    _minuteController.dispose();
-    super.dispose();
   }
 
   /// Formats an hour as a two-digit string.
@@ -1012,21 +998,25 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        border: Border.all(color: widget.theme.colorScheme.border),
+        border: Border.all(color: widget.theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
           SizedBox(
             width: 76,
-            child: ShadSelect<String>(
-              controller: _hourController,
-              enabled: widget.enabled,
-              placeholder: const Text('HH'),
-              options: _hourOptions
-                  .map((value) => ShadOption(value: value, child: Text(value)))
+            child: DropdownButton<String>(
+              value: _formatHour(_hour),
+              isExpanded: true,
+              hint: const Text('HH'),
+              items: _hourOptions
+                  .map(
+                    (value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    ),
+                  )
                   .toList(),
-              selectedOptionBuilder: (context, value) => Text(value),
               onChanged: widget.enabled ? _updateHour : null,
             ),
           ),
@@ -1034,21 +1024,25 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
               ':',
-              style: widget.theme.textTheme.large.copyWith(
+              style: widget.theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
           SizedBox(
             width: 76,
-            child: ShadSelect<String>(
-              controller: _minuteController,
-              enabled: widget.enabled,
-              placeholder: const Text('MM'),
-              options: _minuteOptions
-                  .map((value) => ShadOption(value: value, child: Text(value)))
+            child: DropdownButton<String>(
+              value: _formatMinute(_minute),
+              isExpanded: true,
+              hint: const Text('MM'),
+              items: _minuteOptions
+                  .map(
+                    (value) => DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    ),
+                  )
                   .toList(),
-              selectedOptionBuilder: (context, value) => Text(value),
               onChanged: widget.enabled ? _updateMinute : null,
             ),
           ),
@@ -1061,7 +1055,7 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
               child: Icon(
                 LucideIcons.trash2,
                 size: 16,
-                color: widget.theme.colorScheme.destructive,
+                color: widget.theme.colorScheme.error,
               ),
             ),
           ],
@@ -1075,7 +1069,7 @@ class _DockerHubRegistryNotice extends StatelessWidget {
   /// Creates a [_DockerHubRegistryNotice] widget.
   const _DockerHubRegistryNotice({required this.theme});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1096,7 +1090,7 @@ class _DockerHubRegistryNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'This might make any data in the volume publicly accessible on Docker Hub.',
-              style: theme.textTheme.small,
+              style: theme.textTheme.bodySmall,
             ),
           ),
         ],
@@ -1119,7 +1113,7 @@ class _ExportNamePatternField extends StatelessWidget {
     required this.onInsertToken,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final TextEditingController controller;
   final String label;
   final String placeholder;
@@ -1143,20 +1137,22 @@ class _ExportNamePatternField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.bodySmall!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
-        ShadInput(
+        TextField(
           controller: controller,
-          placeholder: Text(placeholder),
+          decoration: InputDecoration(hintText: placeholder),
           onChanged: (_) => onChanged(),
         ),
 
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
-        Text(helperText, style: theme.textTheme.muted),
+        Text(helperText, style: CalfTheme.muted(theme)),
 
         /// Creates a [_ExportNamePatternField] widget.
         const SizedBox(height: 8),
@@ -1186,14 +1182,14 @@ class _ExportNamePatternField extends StatelessWidget {
               children: [
                 Text(
                   previewLabel,
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
 
                 /// Creates a [_ExportNamePatternField] widget.
                 const SizedBox(height: 4),
-                Text(preview, style: theme.textTheme.small),
+                Text(preview, style: theme.textTheme.bodySmall),
               ],
             ),
           ),
@@ -1203,8 +1199,8 @@ class _ExportNamePatternField extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Static name: each scheduled run will overwrite the previous export at this destination.',
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
         ],
@@ -1221,7 +1217,7 @@ class _PatternTokenChip extends StatefulWidget {
     required this.onTap,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final VoidCallback onTap;
 
@@ -1238,13 +1234,13 @@ class _PatternTokenChipState extends State<_PatternTokenChip> {
   Widget build(BuildContext context) {
     final borderColor = _hovered
         ? widget.theme.colorScheme.primary
-        : widget.theme.colorScheme.border;
+        : widget.theme.colorScheme.outlineVariant;
     final backgroundColor = _hovered
         ? widget.theme.colorScheme.primary.withValues(alpha: 0.12)
         : null;
     final textColor = _hovered
         ? widget.theme.colorScheme.primary
-        : widget.theme.colorScheme.foreground;
+        : widget.theme.colorScheme.onSurface;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1262,7 +1258,7 @@ class _PatternTokenChipState extends State<_PatternTokenChip> {
           ),
           child: Text(
             widget.label,
-            style: widget.theme.textTheme.small.copyWith(color: textColor),
+            style: widget.theme.textTheme.bodySmall!.copyWith(color: textColor),
           ),
         ),
       ),
@@ -1279,7 +1275,7 @@ class _DayChip extends StatelessWidget {
     required this.onTap,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final bool selected;
   final VoidCallback? onTap;
@@ -1300,16 +1296,16 @@ class _DayChip extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? theme.colorScheme.primary
-                : theme.colorScheme.border,
+                : theme.colorScheme.outlineVariant,
           ),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           label,
-          style: theme.textTheme.small.copyWith(
+          style: theme.textTheme.bodySmall!.copyWith(
             color: selected
                 ? theme.colorScheme.primary
-                : theme.colorScheme.foreground,
+                : theme.colorScheme.onSurface,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),

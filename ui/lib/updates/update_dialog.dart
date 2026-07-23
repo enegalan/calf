@@ -1,5 +1,4 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
 
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -12,16 +11,39 @@ Future<void> showUpdateAvailableDialog({
   required Future<void> Function() onDownload,
   required Future<void> Function() onSkip,
 }) {
-  final theme = ShadTheme.of(context);
+  final theme = Theme.of(context);
 
-  return showShadDialog<void>(
+  return showDialog<void>(
     context: context,
-    builder: (dialogContext) => ShadDialog(
-      scrollable: true,
-      constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
-      gap: 12,
+    builder: (dialogContext) => AlertDialog(
       title: Text('Update available (${update.version})'),
-      description: Text('You are running Calf $currentVersion.'),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('You are running Calf $currentVersion.'),
+              const SizedBox(height: 12),
+              if (update.releaseNotes.isNotEmpty)
+                Text(
+                  update.releaseNotes,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                )
+              else
+                Text(
+                  'A newer version is available on GitHub.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
       actions: [
         CalfButton.outline(
           onPressed: () async {
@@ -42,26 +64,6 @@ Future<void> showUpdateAvailableDialog({
           child: const Text('Download'),
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (update.releaseNotes.isNotEmpty)
-            Text(
-              update.releaseNotes,
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.mutedForeground,
-              ),
-            )
-          else
-            Text(
-              'A newer version is available on GitHub.',
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.mutedForeground,
-              ),
-            ),
-        ],
-      ),
     ),
   );
 }

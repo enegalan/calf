@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart' show Tooltip;
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
@@ -8,6 +7,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/widgets/status_dot.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class VolumesScreen extends StatefulWidget {
   /// Creates a screen that lists Docker volumes and supports search and actions.
@@ -158,13 +158,33 @@ class _VolumesScreenState extends State<VolumesScreen> {
   /// Prompts for a destination name and clones [volume] via the API.
   Future<void> _cloneVolume(VolumeItem volume) async {
     final nameController = TextEditingController(text: '${volume.name}-copy');
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
 
-    final confirmed = await showShadDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => ShadDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Clone volume'),
-        description: Text('Create a copy of "${volume.name}".'),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Create a copy of "${volume.name}".'),
+            const SizedBox(height: 16),
+            Text(
+              'Volume name',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+
+            /// Creates a [_VolumesScreenState] widget.
+            const SizedBox(height: 8),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(hintText: 'Volume name'),
+            ),
+          ],
+        ),
         actions: [
           CalfButton.outline(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -175,25 +195,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
             child: const Text('Clone'),
           ),
         ],
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Volume name',
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.mutedForeground,
-              ),
-            ),
-
-            /// Creates a [_VolumesScreenState] widget.
-            const SizedBox(height: 8),
-            ShadInput(
-              controller: nameController,
-              placeholder: const Text('Volume name'),
-            ),
-          ],
-        ),
       ),
     );
 
@@ -247,19 +248,19 @@ class _VolumesScreenState extends State<VolumesScreen> {
       );
     }
 
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final filtered = _filteredVolumes();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Volumes', style: theme.textTheme.h3),
+        Text('Volumes', style: theme.textTheme.headlineSmall),
 
         /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
-        ShadInput(
+        TextField(
           controller: _searchController,
-          placeholder: const Text('Search'),
+          decoration: const InputDecoration(hintText: 'Search'),
         ),
 
         /// Creates a [_VolumesScreenState] widget.
@@ -272,12 +273,12 @@ class _VolumesScreenState extends State<VolumesScreen> {
         /// Creates a [_VolumesScreenState] widget.
         const SizedBox(height: 16),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.large)
+          Text('Loading...', style: theme.textTheme.titleMedium)
         else if (_error != null)
           Text(
             _error!,
-            style: theme.textTheme.large.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.titleMedium!.copyWith(
+              color: theme.colorScheme.error,
             ),
           )
         else if (filtered.isEmpty)
@@ -289,7 +290,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                 : _runningOnly
                 ? 'No volumes in use.'
                 : 'No volumes.',
-            style: theme.textTheme.muted,
+            style: CalfTheme.muted(theme),
           )
         else
           Expanded(
@@ -315,11 +316,14 @@ class _VolumesScreenState extends State<VolumesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(volume.name, style: theme.textTheme.large),
+                            Text(
+                              volume.name,
+                              style: theme.textTheme.titleMedium,
+                            ),
                             if (volume.subtitle.isNotEmpty)
                               Text(
                                 volume.subtitle,
-                                style: theme.textTheme.muted,
+                                style: CalfTheme.muted(theme),
                               ),
                           ],
                         ),
@@ -332,7 +336,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
                           child: Icon(
                             LucideIcons.copy,
                             size: 16,
-                            color: theme.colorScheme.foreground,
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                       ),

@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart' show Divider, SelectableText;
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:xterm/xterm.dart';
 
@@ -17,6 +16,7 @@ import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/logs_panel.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 enum _ContainerDetailTab { logs, inspect, mounts, exec, files, stats }
 
@@ -386,7 +386,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final port = _container.primaryHostPort;
 
     return Column(
@@ -414,7 +414,10 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_container.displayName, style: theme.textTheme.h3),
+                  Text(
+                    _container.displayName,
+                    style: theme.textTheme.headlineSmall,
+                  ),
 
                   /// Creates a [_ContainerDetailViewState] widget.
                   const SizedBox(height: 4),
@@ -423,17 +426,17 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      Text(_container.shortId, style: theme.textTheme.muted),
+                      Text(_container.shortId, style: CalfTheme.muted(theme)),
                       Text(
                         _container.displayImage,
-                        style: theme.textTheme.muted,
+                        style: CalfTheme.muted(theme),
                       ),
                       if (port != null)
                         GestureDetector(
                           onTap: () => openPort(port),
                           child: Text(
                             '$port:$port',
-                            style: theme.textTheme.small.copyWith(
+                            style: theme.textTheme.bodySmall!.copyWith(
                               color: theme.colorScheme.primary,
                             ),
                           ),
@@ -441,7 +444,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       else
                         Text(
                           _container.displayPorts,
-                          style: theme.textTheme.muted,
+                          style: CalfTheme.muted(theme),
                         ),
                     ],
                   ),
@@ -453,11 +456,11 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               children: [
                 Text(
                   'STATUS',
-                  style: theme.textTheme.small.copyWith(
-                    color: theme.colorScheme.mutedForeground,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                Text(_container.status, style: theme.textTheme.small),
+                Text(_container.status, style: theme.textTheme.bodySmall),
 
                 /// Creates a [_ContainerDetailViewState] widget.
                 const SizedBox(height: 8),
@@ -475,7 +478,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       child: Icon(
                         LucideIcons.square,
                         size: 16,
-                        color: theme.colorScheme.foreground,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
 
@@ -494,7 +497,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       child: Icon(
                         LucideIcons.play,
                         size: 16,
-                        color: theme.colorScheme.primaryForeground,
+                        color: theme.colorScheme.onPrimary,
                       ),
                     ),
 
@@ -509,7 +512,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       child: Icon(
                         LucideIcons.rotateCw,
                         size: 16,
-                        color: theme.colorScheme.primaryForeground,
+                        color: theme.colorScheme.onPrimary,
                       ),
                     ),
 
@@ -529,7 +532,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       child: Icon(
                         LucideIcons.trash2,
                         size: 16,
-                        color: theme.colorScheme.destructiveForeground,
+                        color: theme.colorScheme.onError,
                       ),
                     ),
                   ],
@@ -543,8 +546,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           const SizedBox(height: 12),
           Text(
             _error!,
-            style: theme.textTheme.small.copyWith(
-              color: theme.colorScheme.destructive,
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
             ),
           ),
         ],
@@ -573,7 +576,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   /// Builds the widget for the currently selected tab.
-  Widget _buildTabContent(ShadThemeData theme) {
+  Widget _buildTabContent(ThemeData theme) {
     switch (_tab) {
       case _ContainerDetailTab.logs:
         return LogsPanel(
@@ -629,7 +632,7 @@ class _Panel extends StatelessWidget {
   /// Creates a [_Panel] widget.
   const _Panel({required this.theme, required this.child});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final Widget child;
 
   /// Builds the widget tree for the current screen state.
@@ -637,8 +640,8 @@ class _Panel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
-        borderRadius: theme.radius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: CalfTheme.radius,
         color: _panelBackgroundColor(theme),
       ),
       padding: const EdgeInsets.all(12),
@@ -659,7 +662,7 @@ class _InspectTab extends StatelessWidget {
     required this.onToggleRaw,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final String? error;
   final Map<String, dynamic>? inspect;
@@ -677,11 +680,11 @@ class _InspectTab extends StatelessWidget {
           children: [
             /// Creates a [_InspectTab] widget.
             const Spacer(),
-            Text('Raw JSON', style: theme.textTheme.small),
+            Text('Raw JSON', style: theme.textTheme.bodySmall),
 
             /// Creates a [_InspectTab] widget.
             const SizedBox(width: 8),
-            ShadSwitch(value: rawJson, onChanged: onToggleRaw),
+            Switch(value: rawJson, onChanged: onToggleRaw),
           ],
         ),
 
@@ -691,19 +694,19 @@ class _InspectTab extends StatelessWidget {
           child: _Panel(
             theme: theme,
             child: loading
-                ? Text('Loading inspect data...', style: theme.textTheme.muted)
+                ? Text('Loading inspect data...', style: CalfTheme.muted(theme))
                 : error != null
                 ? Text(
                     error!,
-                    style: theme.textTheme.small.copyWith(
-                      color: theme.colorScheme.destructive,
+                    style: theme.textTheme.bodySmall!.copyWith(
+                      color: theme.colorScheme.error,
                     ),
                   )
                 : rawJson
                 ? SingleChildScrollView(
                     child: SelectableText(
                       text,
-                      style: theme.textTheme.small.copyWith(
+                      style: theme.textTheme.bodySmall!.copyWith(
                         fontFamily: 'Menlo',
                       ),
                     ),
@@ -720,21 +723,21 @@ class _InspectFormattedView extends StatelessWidget {
   /// Creates a [_InspectFormattedView] widget.
   const _InspectFormattedView({required this.theme, required this.inspect});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final Map<String, dynamic>? inspect;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (inspect == null) {
-      return Text('No inspect data available.', style: theme.textTheme.muted);
+      return Text('No inspect data available.', style: CalfTheme.muted(theme));
     }
 
     final sections = _buildInspectSections(inspect!);
     if (sections.isEmpty) {
       return Text(
         'No inspect sections available.',
-        style: theme.textTheme.muted,
+        style: CalfTheme.muted(theme),
       );
     }
 
@@ -748,7 +751,7 @@ class _InspectFormattedView extends StatelessWidget {
           children: [
             Text(
               section.title,
-              style: theme.textTheme.large.copyWith(
+              style: theme.textTheme.titleMedium!.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -761,7 +764,7 @@ class _InspectFormattedView extends StatelessWidget {
               rowIndex++
             ) ...[
               if (rowIndex > 0)
-                Divider(color: theme.colorScheme.border, height: 1),
+                Divider(color: theme.colorScheme.outlineVariant, height: 1),
 
               /// Creates a [_InspectFormattedView] widget.
               const SizedBox(height: 10),
@@ -875,7 +878,7 @@ class _InspectRow extends StatelessWidget {
     required this.value,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final String value;
 
@@ -889,12 +892,14 @@ class _InspectRow extends StatelessWidget {
           flex: 2,
           child: Text(
             label,
-            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodySmall!.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         Expanded(
           flex: 4,
-          child: SelectableText(value, style: theme.textTheme.small),
+          child: SelectableText(value, style: theme.textTheme.bodySmall),
         ),
         CalfButton.ghost(
           padding: const EdgeInsets.all(6),
@@ -902,7 +907,7 @@ class _InspectRow extends StatelessWidget {
           child: Icon(
             LucideIcons.copy,
             size: 16,
-            color: theme.colorScheme.mutedForeground,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -919,7 +924,7 @@ class _MountsTab extends StatelessWidget {
     required this.mounts,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool loading;
   final String? error;
   final List<ContainerMount> mounts;
@@ -930,7 +935,7 @@ class _MountsTab extends StatelessWidget {
     if (loading) {
       return _Panel(
         theme: theme,
-        child: Text('Loading bind mounts...', style: theme.textTheme.muted),
+        child: Text('Loading bind mounts...', style: CalfTheme.muted(theme)),
       );
     }
     if (error != null) {
@@ -938,8 +943,8 @@ class _MountsTab extends StatelessWidget {
         theme: theme,
         child: Text(
           error!,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.destructive,
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.error,
           ),
         ),
       );
@@ -947,7 +952,7 @@ class _MountsTab extends StatelessWidget {
     if (mounts.isEmpty) {
       return _Panel(
         theme: theme,
-        child: Text('No bind mounts.', style: theme.textTheme.muted),
+        child: Text('No bind mounts.', style: CalfTheme.muted(theme)),
       );
     }
 
@@ -960,7 +965,7 @@ class _MountsTab extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Source (Host)',
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -968,7 +973,7 @@ class _MountsTab extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Destination (Container)',
-                  style: theme.textTheme.small.copyWith(
+                  style: theme.textTheme.bodySmall!.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -978,7 +983,7 @@ class _MountsTab extends StatelessWidget {
 
           /// Creates a [_MountsTab] widget.
           const SizedBox(height: 8),
-          Divider(color: theme.colorScheme.border, height: 1),
+          Divider(color: theme.colorScheme.outlineVariant, height: 1),
           for (final mount in mounts) ...[
             /// Creates a [_MountsTab] widget.
             const SizedBox(height: 10),
@@ -988,13 +993,16 @@ class _MountsTab extends StatelessWidget {
                 Expanded(
                   child: Text(
                     mount.source,
-                    style: theme.textTheme.small.copyWith(
+                    style: theme.textTheme.bodySmall!.copyWith(
                       color: theme.colorScheme.primary,
                     ),
                   ),
                 ),
                 Expanded(
-                  child: Text(mount.destination, style: theme.textTheme.small),
+                  child: Text(
+                    mount.destination,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),
@@ -1014,7 +1022,7 @@ class _ExecTab extends StatefulWidget {
     required this.isRunning,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String containerId;
   final CalfClient apiClient;
   final bool isRunning;
@@ -1109,7 +1117,7 @@ class _ExecTabState extends State<_ExecTab> {
         theme: widget.theme,
         child: Text(
           'Exec is available only for running containers.',
-          style: widget.theme.textTheme.muted,
+          style: CalfTheme.muted(widget.theme),
         ),
       );
     }
@@ -1135,7 +1143,7 @@ class _StatsTab extends StatelessWidget {
     required this.history,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool isRunning;
   final bool loading;
   final String? error;
@@ -1150,14 +1158,14 @@ class _StatsTab extends StatelessWidget {
         theme: theme,
         child: Text(
           'Stats are available only for running containers.',
-          style: theme.textTheme.muted,
+          style: CalfTheme.muted(theme),
         ),
       );
     }
     if (loading && stats == null) {
       return _Panel(
         theme: theme,
-        child: Text('Loading stats...', style: theme.textTheme.muted),
+        child: Text('Loading stats...', style: CalfTheme.muted(theme)),
       );
     }
     if (error != null && stats == null) {
@@ -1165,8 +1173,8 @@ class _StatsTab extends StatelessWidget {
         theme: theme,
         child: Text(
           error!,
-          style: theme.textTheme.small.copyWith(
-            color: theme.colorScheme.destructive,
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.error,
           ),
         ),
       );
@@ -1174,7 +1182,7 @@ class _StatsTab extends StatelessWidget {
     if (stats == null) {
       return _Panel(
         theme: theme,
-        child: Text('No stats available.', style: theme.textTheme.muted),
+        child: Text('No stats available.', style: CalfTheme.muted(theme)),
       );
     }
 
@@ -1269,7 +1277,7 @@ class _StatsChartCard extends StatelessWidget {
     required this.formatY,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String title;
   final List<_ChartSeries> series;
   final String Function(double value) formatY;
@@ -1288,7 +1296,9 @@ class _StatsChartCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.small.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodySmall!.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
 
           /// Creates a [_StatsChartCard] widget.
@@ -1302,8 +1312,10 @@ class _StatsChartCard extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: theme.colorScheme.outlineVariant,
+                    strokeWidth: 1,
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
@@ -1313,7 +1325,7 @@ class _StatsChartCard extends StatelessWidget {
                       reservedSize: 44,
                       getTitlesWidget: (value, meta) => Text(
                         formatY(value),
-                        style: theme.textTheme.muted.copyWith(fontSize: 10),
+                        style: CalfTheme.muted(theme).copyWith(fontSize: 10),
                       ),
                     ),
                   ),
@@ -1334,7 +1346,7 @@ class _StatsChartCard extends StatelessWidget {
                       for (final _ in spotIndexes)
                         TouchedSpotIndicatorData(
                           FlLine(
-                            color: theme.colorScheme.border,
+                            color: theme.colorScheme.outlineVariant,
                             strokeWidth: 1,
                           ),
                           FlDotData(
@@ -1344,7 +1356,7 @@ class _StatsChartCard extends StatelessWidget {
                                 radius: 4,
                                 color: bar.color ?? theme.colorScheme.primary,
                                 strokeWidth: 2,
-                                strokeColor: theme.colorScheme.background,
+                                strokeColor: theme.colorScheme.surface,
                               );
                             },
                           ),
@@ -1361,20 +1373,22 @@ class _StatsChartCard extends StatelessWidget {
                       horizontal: 12,
                       vertical: 10,
                     ),
-                    tooltipBorder: BorderSide(color: theme.colorScheme.border),
-                    getTooltipColor: (_) => theme.colorScheme.background,
+                    tooltipBorder: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                    getTooltipColor: (_) => theme.colorScheme.surface,
                     getTooltipItems: (spots) {
                       if (spots.isEmpty) {
                         return const [];
                       }
 
-                      final labelStyle = theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.mutedForeground,
+                      final labelStyle = theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w500,
                         height: 1.35,
                       );
-                      final valueStyle = theme.textTheme.small.copyWith(
-                        color: theme.colorScheme.foreground,
+                      final valueStyle = theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurface,
                         fontWeight: FontWeight.w600,
                         height: 1.35,
                       );
@@ -1445,7 +1459,7 @@ class _StatsChartCard extends StatelessWidget {
 
                     /// Creates a [_StatsChartCard] widget.
                     const SizedBox(width: 6),
-                    Text(item.label, style: theme.textTheme.muted),
+                    Text(item.label, style: CalfTheme.muted(theme)),
                   ],
                 ),
             ],
@@ -1543,10 +1557,10 @@ String _formatBytes(double value) {
 }
 
 /// Returns the themed background color for detail panels.
-Color _panelBackgroundColor(ShadThemeData theme) {
+Color _panelBackgroundColor(ThemeData theme) {
   return Color.alphaBlend(
-    theme.colorScheme.muted.withValues(alpha: 0.2),
-    theme.colorScheme.background,
+    theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+    theme.colorScheme.surface,
   );
 }
 
@@ -1577,14 +1591,14 @@ const _lightTerminalTheme = TerminalTheme(
 );
 
 /// Builds a terminal color theme from the app theme.
-TerminalTheme _terminalThemeFor(ShadThemeData theme) {
+TerminalTheme _terminalThemeFor(ThemeData theme) {
   final background = _panelBackgroundColor(theme);
-  final foreground = theme.colorScheme.foreground;
+  final foreground = theme.colorScheme.onSurface;
   final isLight = theme.brightness == Brightness.light;
   final base = isLight ? _lightTerminalTheme : TerminalThemes.defaultTheme;
 
   return TerminalTheme(
-    cursor: theme.colorScheme.foreground,
+    cursor: theme.colorScheme.onSurface,
     selection: isLight
         ? theme.colorScheme.primary.withValues(alpha: 0.25)
         : theme.colorScheme.primary.withValues(alpha: 0.35),
@@ -1597,8 +1611,10 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
     blue: base.blue,
     magenta: base.magenta,
     cyan: base.cyan,
-    white: isLight ? base.white : theme.colorScheme.mutedForeground,
-    brightBlack: isLight ? base.brightBlack : theme.colorScheme.mutedForeground,
+    white: isLight ? base.white : theme.colorScheme.onSurfaceVariant,
+    brightBlack: isLight
+        ? base.brightBlack
+        : theme.colorScheme.onSurfaceVariant,
     brightRed: base.brightRed,
     brightGreen: base.brightGreen,
     brightYellow: base.brightYellow,
@@ -1613,7 +1629,7 @@ TerminalTheme _terminalThemeFor(ShadThemeData theme) {
 }
 
 /// Returns the status color for the given container.
-Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
+Color _containerIconColor(ContainerItem container, ThemeData theme) {
   if (container.isRunning) {
     return CalfColors.success;
   }
@@ -1624,5 +1640,5 @@ Color _containerIconColor(ContainerItem container, ShadThemeData theme) {
   if (container.status.toLowerCase().contains('restarting')) {
     return CalfColors.warning;
   }
-  return theme.colorScheme.mutedForeground;
+  return theme.colorScheme.onSurfaceVariant;
 }

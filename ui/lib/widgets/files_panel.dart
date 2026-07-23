@@ -1,8 +1,9 @@
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 /// Loads directory entries for a path in the container file browser.
 typedef LoadDirectoryCallback =
@@ -16,7 +17,7 @@ class FilesPanel extends StatefulWidget {
     required this.loadDirectory,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final LoadDirectoryCallback loadDirectory;
 
   /// Creates the mutable state for this files panel.
@@ -116,12 +117,12 @@ class _FilesPanelState extends State<FilesPanel> {
     return FilesPanelContainer(
       theme: theme,
       child: _rootLoading
-          ? Text('Loading files...', style: theme.textTheme.muted)
+          ? Text('Loading files...', style: CalfTheme.muted(theme))
           : _rootError != null
           ? Text(
               _rootError!,
-              style: theme.textTheme.small.copyWith(
-                color: theme.colorScheme.destructive,
+              style: theme.textTheme.bodySmall!.copyWith(
+                color: theme.colorScheme.error,
               ),
             )
           : Column(
@@ -196,7 +197,7 @@ class FilesPanelContainer extends StatelessWidget {
     required this.child,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final Widget child;
 
   /// Builds the bordered panel container.
@@ -204,8 +205,8 @@ class FilesPanelContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: theme.colorScheme.border),
-        borderRadius: theme.radius,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: CalfTheme.radius,
         color: filesPanelBackgroundColor(theme),
       ),
       padding: const EdgeInsets.all(12),
@@ -218,13 +219,13 @@ class FilesPanelHeader extends StatelessWidget {
   /// Renders column headers for the files table.
   const FilesPanelHeader({super.key, required this.theme});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the column header row.
   @override
   Widget build(BuildContext context) {
-    final labelStyle = theme.textTheme.small.copyWith(
-      color: theme.colorScheme.mutedForeground,
+    final labelStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w600,
     );
 
@@ -256,7 +257,7 @@ class FilesPanelRow extends StatelessWidget {
     required this.onToggle,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final ContainerFileEntry entry;
   final int depth;
   final bool expanded;
@@ -279,21 +280,21 @@ class FilesPanelRow extends StatelessWidget {
                         ? LucideIcons.chevronDown
                         : LucideIcons.chevronRight,
                     size: 16,
-                    color: theme.colorScheme.mutedForeground,
+                    color: theme.colorScheme.onSurfaceVariant,
                   )
                 : null,
           ),
           Icon(
             entry.isDir ? LucideIcons.folder : LucideIcons.file,
             size: 16,
-            color: theme.colorScheme.mutedForeground,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 8),
           Expanded(
             flex: 3,
             child: Text(
               entry.name,
-              style: theme.textTheme.small,
+              style: theme.textTheme.bodySmall,
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -301,27 +302,27 @@ class FilesPanelRow extends StatelessWidget {
             flex: 2,
             child: Text(
               entry.note,
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
             child: Text(
               entry.isDir ? '' : formatFileSize(entry.size),
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
             ),
           ),
           Expanded(
             child: Text(
               entry.modified,
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           Expanded(
             child: Text(
               entry.mode,
-              style: theme.textTheme.muted,
+              style: CalfTheme.muted(theme),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -341,7 +342,7 @@ class FilesPanelStatusRow extends StatelessWidget {
     this.isError = false,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final int depth;
   final String message;
   final bool isError;
@@ -353,10 +354,10 @@ class FilesPanelStatusRow extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(8 + depth * 18.0 + 44, 4, 8, 4),
       child: Text(
         message,
-        style: theme.textTheme.small.copyWith(
+        style: theme.textTheme.bodySmall!.copyWith(
           color: isError
-              ? theme.colorScheme.destructive
-              : theme.colorScheme.mutedForeground,
+              ? theme.colorScheme.error
+              : theme.colorScheme.onSurfaceVariant,
         ),
       ),
     );
@@ -364,10 +365,10 @@ class FilesPanelStatusRow extends StatelessWidget {
 }
 
 /// Returns the muted background color used by the files panel.
-Color filesPanelBackgroundColor(ShadThemeData theme) {
+Color filesPanelBackgroundColor(ThemeData theme) {
   return Color.alphaBlend(
-    theme.colorScheme.muted.withValues(alpha: 0.2),
-    theme.colorScheme.background,
+    theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+    theme.colorScheme.surface,
   );
 }
 

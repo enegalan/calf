@@ -1,9 +1,10 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 enum VolumeQuickExportType { localFile, localImage, newImage, registry }
 
@@ -63,7 +64,7 @@ class VolumeExportOptionTile extends StatelessWidget {
     this.child,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String title;
   final String description;
   final bool selected;
@@ -79,7 +80,7 @@ class VolumeExportOptionTile extends StatelessWidget {
         border: Border.all(
           color: selected
               ? theme.colorScheme.primary
-              : theme.colorScheme.border,
+              : theme.colorScheme.outlineVariant,
         ),
         borderRadius: BorderRadius.circular(8),
       ),
@@ -97,7 +98,7 @@ class VolumeExportOptionTile extends StatelessWidget {
                   size: 18,
                   color: selected
                       ? theme.colorScheme.primary
-                      : theme.colorScheme.mutedForeground,
+                      : theme.colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -106,12 +107,12 @@ class VolumeExportOptionTile extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: theme.textTheme.large.copyWith(
+                        style: theme.textTheme.titleMedium!.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(description, style: theme.textTheme.muted),
+                      Text(description, style: CalfTheme.muted(theme)),
                     ],
                   ),
                 ),
@@ -137,7 +138,7 @@ class VolumeExportImageRefField extends StatelessWidget {
     required this.onChanged,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final TextEditingController controller;
   final List<ImageItem> images;
   final bool imagesLoading;
@@ -148,13 +149,13 @@ class VolumeExportImageRefField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (imagesLoading) {
-      return Text('Loading images...', style: theme.textTheme.muted);
+      return Text('Loading images...', style: CalfTheme.muted(theme));
     }
 
     if (imagesError != null || images.isEmpty) {
-      return ShadInput(
+      return TextField(
         controller: controller,
-        placeholder: const Text('Image name'),
+        decoration: const InputDecoration(hintText: 'Image name'),
         onChanged: (_) => onChanged(),
       );
     }
@@ -165,15 +166,18 @@ class VolumeExportImageRefField extends StatelessWidget {
         ? controller.text
         : null;
 
-    return ShadSelect<String>(
-      placeholder: const Text('Image name'),
-      initialValue: selected,
-      options: references
+    return DropdownButton<String>(
+      value: selected,
+      isExpanded: true,
+      hint: const Text('Image name'),
+      items: references
           .map(
-            (reference) => ShadOption(value: reference, child: Text(reference)),
+            (reference) => DropdownMenuItem<String>(
+              value: reference,
+              child: Text(reference),
+            ),
           )
           .toList(),
-      selectedOptionBuilder: (context, value) => Text(value),
       onChanged: (value) {
         if (value == null) {
           return;
@@ -189,7 +193,7 @@ class VolumeExportRegistryNotice extends StatelessWidget {
   /// Shows a notice that registry export may expose volume data publicly.
   const VolumeExportRegistryNotice({super.key, required this.theme});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the registry export privacy notice.
   @override
@@ -208,7 +212,7 @@ class VolumeExportRegistryNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'This might make any data in the volume publicly accessible on Docker Hub.',
-              style: theme.textTheme.small,
+              style: theme.textTheme.bodySmall,
             ),
           ),
         ],
@@ -221,7 +225,7 @@ class VolumeExportLocalImageWarning extends StatelessWidget {
   /// Warns that exporting to a local image overwrites the existing image.
   const VolumeExportLocalImageWarning({super.key, required this.theme});
 
-  final ShadThemeData theme;
+  final ThemeData theme;
 
   /// Builds the local image overwrite warning banner.
   @override
@@ -245,7 +249,7 @@ class VolumeExportLocalImageWarning extends StatelessWidget {
           Expanded(
             child: Text(
               'This overwrites the existing image with the volume contents and deletes the previous image.',
-              style: theme.textTheme.small,
+              style: theme.textTheme.bodySmall,
             ),
           ),
         ],

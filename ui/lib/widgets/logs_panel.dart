@@ -1,14 +1,13 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart'
-    show SelectableText, SelectionArea, Tooltip;
+import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:xterm/xterm.dart';
 
 import 'package:ui/storage/logs_viewer_preferences.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/theme/calf_theme.dart';
 
 class LogLine {
   /// A single log line with its receive timestamp.
@@ -44,10 +43,10 @@ class MixedLogBlock {
 }
 
 /// Returns the muted background color used by log panels.
-Color logsPanelBackground(ShadThemeData theme) {
+Color logsPanelBackground(ThemeData theme) {
   return Color.alphaBlend(
-    theme.colorScheme.muted.withValues(alpha: 0.2),
-    theme.colorScheme.background,
+    theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+    theme.colorScheme.surface,
   );
 }
 
@@ -140,7 +139,7 @@ class _LogsPanelState extends State<LogsPanel>
   /// Builds the single-container log viewer UI.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final matches = activeMatches();
     syncMatchIndex(matches);
 
@@ -166,9 +165,9 @@ class _LogsPanelState extends State<LogsPanel>
       scrollableContent: widget.error != null
           ? SelectableText(
               widget.error!,
-              style: theme.textTheme.small.copyWith(
+              style: theme.textTheme.bodySmall!.copyWith(
                 fontFamily: 'Menlo',
-                color: theme.colorScheme.destructive,
+                color: theme.colorScheme.error,
               ),
             )
           : widget.lines.isEmpty
@@ -270,7 +269,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
   /// Builds the multi-container log viewer UI.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final matches = activeMatches();
     syncMatchIndex(matches);
     final displayIndex = displayMatchIndex(matches);
@@ -299,7 +298,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
       scrollableContent: emptyMessage != null
           ? Align(
               alignment: Alignment.topLeft,
-              child: Text(emptyMessage, style: theme.textTheme.muted),
+              child: Text(emptyMessage, style: CalfTheme.muted(theme)),
             )
           : widget.blocks.isEmpty
           ? const SizedBox.shrink()
@@ -321,7 +320,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
                         width: 96,
                         child: Text(
                           block.containerName,
-                          style: theme.textTheme.small.copyWith(
+                          style: theme.textTheme.bodySmall!.copyWith(
                             color: block.color,
                             fontWeight: FontWeight.w600,
                           ),
@@ -564,7 +563,7 @@ class _LogsViewerChrome extends StatelessWidget {
     this.showSettings = true,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool searchOpen;
   final bool settingsOpen;
   final bool regexEnabled;
@@ -598,8 +597,8 @@ class _LogsViewerChrome extends StatelessWidget {
             Expanded(
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border.all(color: theme.colorScheme.border),
-                  borderRadius: theme.radius,
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                  borderRadius: CalfTheme.radius,
                   color: logsPanelBackground(theme),
                 ),
                 padding: const EdgeInsets.all(12),
@@ -674,7 +673,7 @@ class _LogsSearchBar extends StatelessWidget {
     required this.onClose,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final TextEditingController controller;
   final bool regexEnabled;
   final ValueChanged<String> onChanged;
@@ -689,14 +688,16 @@ class _LogsSearchBar extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: ShadInput(
+          child: TextField(
             controller: controller,
-            placeholder: const Text('Search...'),
             onChanged: onChanged,
-            leading: Icon(
-              LucideIcons.search,
-              size: 16,
-              color: theme.colorScheme.mutedForeground,
+            decoration: InputDecoration(
+              hintText: 'Search...',
+              prefixIcon: Icon(
+                LucideIcons.search,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ),
         ),
@@ -709,11 +710,11 @@ class _LogsSearchBar extends StatelessWidget {
           onPressed: () => onRegexChanged(!regexEnabled),
           child: Text(
             'Reg',
-            style: theme.textTheme.small.copyWith(
+            style: theme.textTheme.bodySmall!.copyWith(
               fontWeight: FontWeight.w600,
               color: regexEnabled
-                  ? theme.colorScheme.primaryForeground
-                  : theme.colorScheme.mutedForeground,
+                  ? theme.colorScheme.onPrimary
+                  : theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -756,7 +757,7 @@ class _LogsSearchNavButton extends StatelessWidget {
     required this.onPressed,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final IconData icon;
   final bool enabled;
   final VoidCallback? onPressed;
@@ -774,8 +775,8 @@ class _LogsSearchNavButton extends StatelessWidget {
         icon,
         size: 16,
         color: enabled
-            ? theme.colorScheme.foreground
-            : theme.colorScheme.mutedForeground,
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant,
       ),
     );
   }
@@ -794,7 +795,7 @@ class _LogsToolbar extends StatelessWidget {
     this.showSettings = true,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool searchOpen;
   final bool settingsOpen;
   final VoidCallback onToggleSearch;
@@ -853,7 +854,7 @@ class _LogsToolbarButton extends StatelessWidget {
     this.selected = false,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
@@ -870,7 +871,9 @@ class _LogsToolbarButton extends StatelessWidget {
           width: 36,
           height: 36,
           padding: EdgeInsets.zero,
-          backgroundColor: selected ? theme.colorScheme.muted : null,
+          backgroundColor: selected
+              ? theme.colorScheme.surfaceContainerHighest
+              : null,
           onPressed: onPressed,
           child: Icon(icon, size: 16, color: theme.colorScheme.primary),
         ),
@@ -889,7 +892,7 @@ class _LogsSettingsPopover extends StatelessWidget {
     required this.onWrapLinesChanged,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final bool showTimestamp;
   final bool wrapLines;
   final ValueChanged<bool> onShowTimestampChanged;
@@ -902,9 +905,9 @@ class _LogsSettingsPopover extends StatelessWidget {
       width: 220,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: theme.colorScheme.background,
-        border: Border.all(color: theme.colorScheme.border),
-        borderRadius: theme.radius,
+        color: theme.colorScheme.surface,
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: CalfTheme.radius,
         boxShadow: const [
           BoxShadow(
             color: Color(0x26000000),
@@ -944,7 +947,7 @@ class _LogsSettingRow extends StatelessWidget {
     required this.onChanged,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String label;
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -954,8 +957,8 @@ class _LogsSettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: theme.textTheme.small)),
-        ShadSwitch(value: value, onChanged: onChanged),
+        Expanded(child: Text(label, style: theme.textTheme.bodySmall)),
+        Switch(value: value, onChanged: onChanged),
       ],
     );
   }
@@ -974,7 +977,7 @@ class _LogTextView extends StatelessWidget {
     this.scrollController,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final List<LogLine> logLines;
   final bool showTimestamp;
   final bool wrapLines;
@@ -985,9 +988,9 @@ class _LogTextView extends StatelessWidget {
 
   /// Builds one highlighted log line row at [index].
   Widget _buildLineRow(int index) {
-    final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: 'Menlo');
     final timestampStyle = baseStyle.copyWith(
-      color: theme.colorScheme.mutedForeground,
+      color: theme.colorScheme.onSurfaceVariant,
     );
 
     return _LogLineRow(
@@ -1043,9 +1046,9 @@ class _LogTextView extends StatelessWidget {
       );
     }
 
-    final baseStyle = theme.textTheme.small.copyWith(fontFamily: 'Menlo');
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: 'Menlo');
     final timestampStyle = baseStyle.copyWith(
-      color: theme.colorScheme.mutedForeground,
+      color: theme.colorScheme.onSurfaceVariant,
     );
 
     return SelectionArea(
@@ -1090,7 +1093,7 @@ class _LogLineRow extends StatefulWidget {
     required this.currentMatchIndex,
   });
 
-  final ShadThemeData theme;
+  final ThemeData theme;
   final String? timestamp;
   final String text;
   final int lineIndex;
@@ -1132,7 +1135,9 @@ class _LogLineRowState extends State<_LogLineRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
         color: _hovered
-            ? widget.theme.colorScheme.muted.withValues(alpha: 1)
+            ? widget.theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 1,
+              )
             : null,
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(
@@ -1156,7 +1161,7 @@ class _LogLineRowState extends State<_LogLineRow> {
 
   /// Builds rich text spans for [line] with search match highlighting.
   List<InlineSpan> _lineSpans({
-    required ShadThemeData theme,
+    required ThemeData theme,
     required String line,
     required int lineIndex,
     required TextStyle baseStyle,
@@ -1482,7 +1487,7 @@ class _ExecPanelState extends State<ExecPanel> {
   /// Builds the exec terminal with shared log viewer chrome.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final matches = _searchOpen ? _findMatches() : const <_TerminalMatch>[];
 
     return _LogsViewerChrome(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shadcn_ui/shadcn_ui.dart';
 
 enum _CalfButtonVariant { primary, outline, ghost, destructive }
 
@@ -64,7 +63,7 @@ class CalfButton extends StatelessWidget {
   /// Builds the button for the configured variant and size constraints.
   @override
   Widget build(BuildContext context) {
-    final theme = ShadTheme.of(context);
+    final theme = Theme.of(context);
     final effectiveOnPressed = enabled ? onPressed : null;
     final style = _buttonStyle(theme);
 
@@ -106,8 +105,8 @@ class CalfButton extends StatelessWidget {
   }
 
   /// Returns the Material button style for the current variant and theme.
-  ButtonStyle _buttonStyle(ShadThemeData theme) {
-    final textStyle = theme.textTheme.small;
+  ButtonStyle _buttonStyle(ThemeData theme) {
+    final textStyle = theme.textTheme.bodySmall;
     final basePadding =
         padding ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     final compact = width != null && width! <= 40;
@@ -129,12 +128,13 @@ class CalfButton extends StatelessWidget {
           visualDensity: density,
           tapTargetSize: tapTarget,
           backgroundColor: theme.colorScheme.primary,
-          foregroundColor: theme.colorScheme.primaryForeground,
+          foregroundColor: theme.colorScheme.onPrimary,
           disabledBackgroundColor: theme.colorScheme.primary.withValues(
             alpha: 0.5,
           ),
-          disabledForegroundColor: theme.colorScheme.primaryForeground
-              .withValues(alpha: 0.7),
+          disabledForegroundColor: theme.colorScheme.onPrimary.withValues(
+            alpha: 0.7,
+          ),
         );
       case _CalfButtonVariant.outline:
         return OutlinedButton.styleFrom(
@@ -143,10 +143,10 @@ class CalfButton extends StatelessWidget {
           textStyle: textStyle,
           visualDensity: density,
           tapTargetSize: tapTarget,
-          foregroundColor: theme.colorScheme.foreground,
-          disabledForegroundColor: theme.colorScheme.mutedForeground,
+          foregroundColor: theme.colorScheme.onSurface,
+          disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
           backgroundColor: backgroundColor,
-          side: BorderSide(color: theme.colorScheme.border),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
         );
       case _CalfButtonVariant.ghost:
         return TextButton.styleFrom(
@@ -155,8 +155,8 @@ class CalfButton extends StatelessWidget {
           textStyle: textStyle,
           visualDensity: density,
           tapTargetSize: tapTarget,
-          foregroundColor: theme.colorScheme.foreground,
-          disabledForegroundColor: theme.colorScheme.mutedForeground,
+          foregroundColor: theme.colorScheme.onSurface,
+          disabledForegroundColor: theme.colorScheme.onSurfaceVariant,
           backgroundColor: backgroundColor,
         );
       case _CalfButtonVariant.destructive:
@@ -166,13 +166,14 @@ class CalfButton extends StatelessWidget {
           textStyle: textStyle,
           visualDensity: density,
           tapTargetSize: tapTarget,
-          backgroundColor: theme.colorScheme.destructive,
-          foregroundColor: theme.colorScheme.destructiveForeground,
-          disabledBackgroundColor: theme.colorScheme.destructive.withValues(
+          backgroundColor: theme.colorScheme.error,
+          foregroundColor: theme.colorScheme.onError,
+          disabledBackgroundColor: theme.colorScheme.error.withValues(
             alpha: 0.5,
           ),
-          disabledForegroundColor: theme.colorScheme.destructiveForeground
-              .withValues(alpha: 0.7),
+          disabledForegroundColor: theme.colorScheme.onError.withValues(
+            alpha: 0.7,
+          ),
         );
     }
   }
