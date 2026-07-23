@@ -157,16 +157,17 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 		if row.ID == "" {
 			continue
 		}
+		// Corrupt engine entries can appear in `ps` with an empty name while
+		// inspect returns "no such object". Skip them so they never show in UI.
+		if strings.TrimSpace(row.Names) == "" {
+			continue
+		}
 		if _, exists := seen[row.ID]; exists {
 			continue
 		}
 		seen[row.ID] = struct{}{}
 
 		containerName := row.Names
-		if containerName == "" {
-			containerName = row.ID
-		}
-
 		labels := parseLabels(row.Labels)
 		project, service := composeFields(containerName, labels)
 

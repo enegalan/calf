@@ -55,12 +55,18 @@ type nerdctlStatsLine struct {
 func inspectContainer(ctx context.Context, run commandRunner, id string) (json.RawMessage, error) {
 	output, err := run(ctx, "nerdctl", "inspect", id)
 	if err != nil {
+		if IsContainerNotFoundError(err) {
+			return nil, ErrContainerNotFound
+		}
 		return nil, err
 	}
 
 	var rows []json.RawMessage
-	if err := json.Unmarshal(output, &rows); err != nil || len(rows) == 0 {
-		return nil, fmt.Errorf("inspect container %s", id)
+	if err := json.Unmarshal(output, &rows); err != nil {
+		return nil, fmt.Errorf("inspect container %s: %w", id, err)
+	}
+	if len(rows) == 0 {
+		return nil, ErrContainerNotFound
 	}
 
 	return rows[0], nil
@@ -133,19 +139,62 @@ func parseBindMount(bind string) (string, string, string, bool) {
 	return source, destination, mode, true
 }
 
-// listContainerFiles runs ls -la inside a container at dirPath.
+// listContainerFiles lists directory entries inside a container at dirPath.
+// Running containers use exec; stopped containers fall back to docker/nerdctl cp + tar.
 func listContainerFiles(ctx context.Context, run commandRunner, id, dirPath string) ([]ContainerFileEntry, error) {
 	if dirPath == "" {
 		dirPath = "/"
 	}
 
-	script := fmt.Sprintf("ls -la %q", dirPath)
+	script := fmt.Sprintf("ls -la '%s'", shellQuote(dirPath))
 	output, err := run(ctx, "nerdctl", "exec", id, "sh", "-c", script)
-	if err != nil {
+	if err == nil {
+		return parseLsOutput(dirPath, output), nil
+	}
+
+	if IsContainerNotFoundError(err) {
+		return nil, ErrContainerNotFound
+	}
+
+	if !IsContainerNotRunningError(err) {
 		return nil, err
 	}
 
-	return parseLsOutput(dirPath, output), nil
+	entries, archiveErr := listContainerFilesFromArchive(ctx, run, id, dirPath)
+	if archiveErr == nil {
+		return entries, nil
+	}
+
+	if IsContainerNotFoundError(archiveErr) {
+		return nil, ErrContainerNotFound
+	}
+
+	return nil, fmt.Errorf("%w: %v", ErrContainerNotRunning, archiveErr)
+}
+
+// listContainerFilesFromArchive lists one directory level via `docker/nerdctl cp | tar -tv`.
+// Works for stopped containers where exec is unavailable.
+func listContainerFilesFromArchive(ctx context.Context, run commandRunner, id, dirPath string) ([]ContainerFileEntry, error) {
+	copyPath := dirPath
+	if copyPath == "" {
+		copyPath = "/"
+	}
+
+	ref := id + ":" + copyPath
+	script := fmt.Sprintf(
+		`(command -v docker >/dev/null 2>&1 && docker cp '%s' - || nerdctl cp '%s' -) | tar -tv`,
+		shellQuote(ref),
+		shellQuote(ref),
+	)
+	output, err := run(ctx, "sh", "-c", script)
+	if err != nil {
+		if IsContainerNotFoundError(err) {
+			return nil, ErrContainerNotFound
+		}
+		return nil, err
+	}
+
+	return parseTarTvOutput(dirPath, output), nil
 }
 
 // parseLsOutput converts ls -la output into entries for the given directory path.
@@ -209,6 +258,189 @@ func parseLsOutput(dirPath string, output []byte) []ContainerFileEntry {
 	}
 
 	return entries
+}
+
+// ParseTarTvOutput converts `tar -tv` output into immediate children of dirPath.
+func ParseTarTvOutput(dirPath string, output []byte) []ContainerFileEntry {
+	return parseTarTvOutput(dirPath, output)
+}
+
+// parseTarTvOutput converts `tar -tv` output into immediate children of dirPath.
+func parseTarTvOutput(dirPath string, output []byte) []ContainerFileEntry {
+	lines := strings.Split(string(output), "\n")
+	entries := make([]ContainerFileEntry, 0)
+	seen := make(map[string]struct{})
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		mode := fields[0]
+		name := fields[len(fields)-1]
+		note := ""
+		metaFields := fields
+		if arrow := strings.Index(line, " -> "); arrow >= 0 {
+			note = strings.TrimSpace(line[arrow+4:])
+			before := strings.TrimSpace(line[:arrow])
+			beforeFields := strings.Fields(before)
+			if len(beforeFields) > 0 {
+				name = beforeFields[len(beforeFields)-1]
+				metaFields = beforeFields
+			}
+		}
+
+		childName, ok := tarImmediateChildName(dirPath, name)
+		if !ok {
+			continue
+		}
+
+		if _, exists := seen[childName]; exists {
+			continue
+		}
+		seen[childName] = struct{}{}
+
+		isDir := strings.HasPrefix(mode, "d") || strings.HasSuffix(name, "/")
+		isLink := strings.HasPrefix(mode, "l")
+		entryPath := path.Join(dirPath, childName)
+		if dirPath == "/" {
+			entryPath = "/" + childName
+		}
+
+		size, modified := tarTvSizeAndModified(metaFields, isDir)
+
+		if isLink && note == "" {
+			note = "symlink"
+		}
+
+		entries = append(entries, ContainerFileEntry{
+			Name:     childName,
+			Path:     entryPath,
+			IsDir:    isDir,
+			Size:     size,
+			Mode:     mode,
+			Modified: modified,
+			Note:     note,
+		})
+	}
+
+	return entries
+}
+
+// tarTvSizeAndModified extracts size and mtime from BusyBox, GNU, or BSD `tar -tv` columns.
+// metaFields is mode plus owner/size/date columns and the member name (last field).
+func tarTvSizeAndModified(metaFields []string, isDir bool) (int64, string) {
+	if len(metaFields) < 3 {
+		return 0, ""
+	}
+
+	body := metaFields[1 : len(metaFields)-1]
+	dateStart := -1
+	for index, field := range body {
+		if tarTvIsMonth(field) || tarTvIsISODate(field) {
+			dateStart = index
+			break
+		}
+	}
+
+	if dateStart < 0 {
+		sizeIndex := -1
+		for index := len(body) - 1; index >= 0; index-- {
+			if tarTvAllDigits(body[index]) {
+				sizeIndex = index
+				break
+			}
+		}
+		if sizeIndex < 0 {
+			return 0, strings.Join(body, " ")
+		}
+		var size int64
+		if !isDir {
+			fmt.Sscanf(body[sizeIndex], "%d", &size)
+		}
+		return size, strings.Join(body[sizeIndex+1:], " ")
+	}
+
+	modified := strings.Join(body[dateStart:], " ")
+	var size int64
+	if !isDir {
+		for index := dateStart - 1; index >= 0; index-- {
+			if !tarTvAllDigits(body[index]) {
+				continue
+			}
+			fmt.Sscanf(body[index], "%d", &size)
+			break
+		}
+	}
+	return size, modified
+}
+
+// tarTvIsMonth reports whether field is an English month abbreviation used by tar.
+func tarTvIsMonth(field string) bool {
+	switch field {
+	case "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec":
+		return true
+	default:
+		return false
+	}
+}
+
+// tarTvIsISODate reports whether field looks like YYYY-MM-DD.
+func tarTvIsISODate(field string) bool {
+	if len(field) != 10 || field[4] != '-' || field[7] != '-' {
+		return false
+	}
+	return tarTvAllDigits(field[0:4]) && tarTvAllDigits(field[5:7]) && tarTvAllDigits(field[8:10])
+}
+
+// tarTvAllDigits reports whether value is a non-empty decimal integer field.
+func tarTvAllDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, runeValue := range value {
+		if runeValue < '0' || runeValue > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// tarImmediateChildName returns the immediate child basename under dirPath from a tar member path.
+func tarImmediateChildName(dirPath, entryName string) (string, bool) {
+	entryName = strings.TrimPrefix(entryName, "./")
+	entryName = strings.TrimPrefix(entryName, "/")
+	entryName = strings.TrimSuffix(entryName, "/")
+	if entryName == "" || entryName == "." {
+		return "", false
+	}
+
+	base := strings.Trim(dirPath, "/")
+	if base == "" {
+		if strings.Contains(entryName, "/") {
+			return "", false
+		}
+		return entryName, true
+	}
+
+	prefix := base + "/"
+	if !strings.HasPrefix(entryName, prefix) {
+		return "", false
+	}
+
+	rest := strings.TrimPrefix(entryName, prefix)
+	if rest == "" || strings.Contains(rest, "/") {
+		return "", false
+	}
+
+	return rest, true
 }
 
 // execInContainer runs a shell command in a container and returns trimmed stdout.

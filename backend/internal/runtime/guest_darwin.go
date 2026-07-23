@@ -465,7 +465,8 @@ func (v *Guest) ListVolumeFiles(ctx context.Context, name, path string) ([]Conta
 	if !isValidContainerPath(path) {
 		return nil, fmt.Errorf("invalid path")
 	}
-	return listVolumeFiles(ctx, v.runLocal, name, path)
+	// Volume mountpoints live inside the guest; runLocal would ls the macOS host.
+	return listVolumeFiles(ctx, v.guestCommandRunner, name, path)
 }
 func (v *Guest) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {

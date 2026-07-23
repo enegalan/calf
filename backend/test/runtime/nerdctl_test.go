@@ -42,6 +42,25 @@ func TestParseContainerLines(t *testing.T) {
 	}
 }
 
+func TestParseContainerLinesSkipsEmptyNames(t *testing.T) {
+	output := []byte(`{"ID":"5bd242b09030","Names":"","Image":"alpine","Status":"Exited (0) 4 days ago","Ports":"","Labels":{}}
+{"ID":"abc123","Names":"ok","Image":"alpine","Status":"Exited (0) 1 hour ago","Ports":"","Labels":{}}
+`)
+
+	containers, err := runtime.ParseContainerLines(output)
+	if err != nil {
+		t.Fatalf("ParseContainerLines() error: %v", err)
+	}
+
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container, got %d", len(containers))
+	}
+
+	if containers[0].ID != "abc123" {
+		t.Fatalf("expected abc123, got %q", containers[0].ID)
+	}
+}
+
 func TestParseContainerLinesInfersComposeFromName(t *testing.T) {
 	output := []byte(`{"ID":"def","Names":"p2p-lan-coturn-1","Image":"coturn/coturn:latest","Status":"Created","Ports":"","Labels":{}}
 `)

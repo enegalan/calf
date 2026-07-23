@@ -99,6 +99,28 @@ func WrapPushError(ref string, err error) error {
 	return fmt.Errorf("%s. Sign in to Docker Hub from Settings (browser login), then push again", message)
 }
 
+// IsContainerNotFoundError reports whether err indicates a missing container ID.
+func IsContainerNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "no such object") ||
+		strings.Contains(message, "no such container")
+}
+
+// IsContainerNotRunningError reports whether err indicates the container is stopped.
+func IsContainerNotRunningError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "is not running") ||
+		strings.Contains(message, "container not running")
+}
+
 // IsTransientCommandError reports whether err is likely temporary and worth retrying.
 func IsTransientCommandError(err error) bool {
 	if err == nil {
