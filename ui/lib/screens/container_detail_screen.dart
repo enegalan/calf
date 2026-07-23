@@ -414,7 +414,10 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_container.displayName, style: theme.textTheme.headlineSmall),
+                  Text(
+                    _container.displayName,
+                    style: theme.textTheme.headlineSmall,
+                  ),
 
                   /// Creates a [_ContainerDetailViewState] widget.
                   const SizedBox(height: 4),
@@ -889,7 +892,9 @@ class _InspectRow extends StatelessWidget {
           flex: 2,
           child: Text(
             label,
-            style: theme.textTheme.bodySmall!.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodySmall!.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         Expanded(
@@ -994,7 +999,10 @@ class _MountsTab extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: Text(mount.destination, style: theme.textTheme.bodySmall),
+                  child: Text(
+                    mount.destination,
+                    style: theme.textTheme.bodySmall,
+                  ),
                 ),
               ],
             ),
@@ -1288,7 +1296,9 @@ class _StatsChartCard extends StatelessWidget {
         children: [
           Text(
             title,
-            style: theme.textTheme.bodySmall!.copyWith(fontWeight: FontWeight.w600),
+            style: theme.textTheme.bodySmall!.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
 
           /// Creates a [_StatsChartCard] widget.
@@ -1302,8 +1312,10 @@ class _StatsChartCard extends StatelessWidget {
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) =>
-                      FlLine(color: theme.colorScheme.outlineVariant, strokeWidth: 1),
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: theme.colorScheme.outlineVariant,
+                    strokeWidth: 1,
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
@@ -1361,7 +1373,9 @@ class _StatsChartCard extends StatelessWidget {
                       horizontal: 12,
                       vertical: 10,
                     ),
-                    tooltipBorder: BorderSide(color: theme.colorScheme.outlineVariant),
+                    tooltipBorder: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
                     getTooltipColor: (_) => theme.colorScheme.surface,
                     getTooltipItems: (spots) {
                       if (spots.isEmpty) {
@@ -1598,7 +1612,9 @@ TerminalTheme _terminalThemeFor(ThemeData theme) {
     magenta: base.magenta,
     cyan: base.cyan,
     white: isLight ? base.white : theme.colorScheme.onSurfaceVariant,
-    brightBlack: isLight ? base.brightBlack : theme.colorScheme.onSurfaceVariant,
+    brightBlack: isLight
+        ? base.brightBlack
+        : theme.colorScheme.onSurfaceVariant,
     brightRed: base.brightRed,
     brightGreen: base.brightGreen,
     brightYellow: base.brightYellow,

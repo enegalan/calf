@@ -59,7 +59,9 @@ class AppTopBar extends StatelessWidget {
       height: barHeight,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
-        border: Border(bottom: BorderSide(color: theme.colorScheme.outlineVariant)),
+        border: Border(
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -153,7 +155,9 @@ class _BrandMark extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           'calf',
-          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -386,13 +390,14 @@ class _UserAvatar extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: (size >= 32
-                ? theme.textTheme.titleMedium!
-                : theme.textTheme.bodySmall!)
-            .copyWith(
-              color: theme.colorScheme.onPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+        style:
+            (size >= 32
+                    ? theme.textTheme.titleMedium!
+                    : theme.textTheme.bodySmall!)
+                .copyWith(
+                  color: theme.colorScheme.onPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
       ),
     );
   }

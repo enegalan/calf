@@ -316,7 +316,10 @@ class _VolumesScreenState extends State<VolumesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(volume.name, style: theme.textTheme.titleMedium),
+                            Text(
+                              volume.name,
+                              style: theme.textTheme.titleMedium,
+                            ),
                             if (volume.subtitle.isNotEmpty)
                               Text(
                                 volume.subtitle,

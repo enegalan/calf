@@ -264,7 +264,10 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(image.reference, style: theme.textTheme.titleMedium),
+                            Text(
+                              image.reference,
+                              style: theme.textTheme.titleMedium,
+                            ),
                             Text(image.size, style: CalfTheme.muted(theme)),
                           ],
                         ),

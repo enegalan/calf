@@ -32,7 +32,9 @@ class _HoverListRowState extends State<HoverListRow> {
     if (widget.selected) {
       background = widget.theme.colorScheme.surfaceContainerHighest;
     } else if (_hovered) {
-      background = widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45);
+      background = widget.theme.colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.45,
+      );
     }
 
     final content = Container(

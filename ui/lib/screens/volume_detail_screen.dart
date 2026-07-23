@@ -700,7 +700,10 @@ class _ExportsTab extends StatelessWidget {
                             : null,
                       ),
                       if (export != exports.last)
-                        Container(height: 1, color: theme.colorScheme.outlineVariant),
+                        Container(
+                          height: 1,
+                          color: theme.colorScheme.outlineVariant,
+                        ),
                     ],
                   ],
                 ),
@@ -817,7 +820,9 @@ class _ScheduleHistoryRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border.all(color: theme.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(8),
-        color: enabled ? null : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
+        color: enabled
+            ? null
+            : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.25),
       ),
       padding: const EdgeInsets.all(16),
       child: Row(

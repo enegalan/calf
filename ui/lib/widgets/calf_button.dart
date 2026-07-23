@@ -132,8 +132,9 @@ class CalfButton extends StatelessWidget {
           disabledBackgroundColor: theme.colorScheme.primary.withValues(
             alpha: 0.5,
           ),
-          disabledForegroundColor: theme.colorScheme.onPrimary
-              .withValues(alpha: 0.7),
+          disabledForegroundColor: theme.colorScheme.onPrimary.withValues(
+            alpha: 0.7,
+          ),
         );
       case _CalfButtonVariant.outline:
         return OutlinedButton.styleFrom(
@@ -170,8 +171,9 @@ class CalfButton extends StatelessWidget {
           disabledBackgroundColor: theme.colorScheme.error.withValues(
             alpha: 0.5,
           ),
-          disabledForegroundColor: theme.colorScheme.onError
-              .withValues(alpha: 0.7),
+          disabledForegroundColor: theme.colorScheme.onError.withValues(
+            alpha: 0.7,
+          ),
         );
     }
   }

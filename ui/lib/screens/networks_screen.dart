@@ -415,7 +415,10 @@ class _InfoCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(rows[index].label, style: theme.textTheme.titleMedium),
+                  child: Text(
+                    rows[index].label,
+                    style: theme.textTheme.titleMedium,
+                  ),
                 ),
                 Expanded(
                   child: Text(
@@ -473,7 +476,9 @@ class _OptionsTable extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(child: Text('Key', style: theme.textTheme.bodySmall)),
-                Expanded(child: Text('Value', style: theme.textTheme.bodySmall)),
+                Expanded(
+                  child: Text('Value', style: theme.textTheme.bodySmall),
+                ),
               ],
             ),
           ),
@@ -483,7 +488,9 @@ class _OptionsTable extends StatelessWidget {
               decoration: BoxDecoration(
                 border: index < entries.length - 1
                     ? Border(
-                        bottom: BorderSide(color: theme.colorScheme.outlineVariant),
+                        bottom: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
                       )
                     : null,
               ),

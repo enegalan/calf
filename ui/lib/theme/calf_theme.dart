@@ -49,8 +49,12 @@ abstract final class CalfTheme {
       outlineVariant: isLight
           ? const Color(0xFFE2E8F0)
           : const Color(0xFF1E293B),
-      inverseSurface: isLight ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-      onInverseSurface: isLight ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+      inverseSurface: isLight
+          ? const Color(0xFF1E293B)
+          : const Color(0xFFE2E8F0),
+      onInverseSurface: isLight
+          ? const Color(0xFFF8FAFC)
+          : const Color(0xFF0F172A),
     );
 
     final base = ThemeData(
@@ -81,7 +85,9 @@ abstract final class CalfTheme {
         activeTrackColor: colorScheme.primary,
         inactiveTrackColor: colorScheme.secondaryContainer,
         disabledActiveTrackColor: colorScheme.onSurface.withValues(alpha: 0.38),
-        disabledInactiveTrackColor: colorScheme.onSurface.withValues(alpha: 0.12),
+        disabledInactiveTrackColor: colorScheme.onSurface.withValues(
+          alpha: 0.12,
+        ),
         thumbColor: colorScheme.primary,
         disabledThumbColor: colorScheme.onSurface.withValues(alpha: 0.38),
         activeTickMarkColor: colorScheme.onPrimary,
@@ -101,7 +107,10 @@ abstract final class CalfTheme {
           borderRadius: radius,
           borderSide: BorderSide(color: colorScheme.primary),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
         isDense: true,
       ),
     );

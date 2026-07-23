@@ -580,9 +580,10 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                     Expanded(
                                       child: Text(
                                         _weekdayLabel(sortedDays[dayIndex]),
-                                        style: theme.textTheme.titleMedium!.copyWith(
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                        style: theme.textTheme.titleMedium!
+                                            .copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                       ),
                                     ),
                                     CalfButton.outline(
@@ -1136,7 +1137,9 @@ class _ExportNamePatternField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: theme.textTheme.bodySmall!.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.bodySmall!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         /// Creates a [_ExportNamePatternField] widget.

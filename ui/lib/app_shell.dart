@@ -346,7 +346,9 @@ class _AppShellState extends State<AppShell> {
                       width: _isCollapsed ? 72 : 220,
                       decoration: BoxDecoration(
                         border: Border(
-                          right: BorderSide(color: theme.colorScheme.outlineVariant),
+                          right: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
                         ),
                       ),
                       padding: const EdgeInsets.all(16),
@@ -446,15 +448,18 @@ class _AppShellState extends State<AppShell> {
                         style: IconButton.styleFrom(
                           backgroundColor: theme.colorScheme.surface,
                           foregroundColor: theme.colorScheme.onSurface,
-                          side: BorderSide(color: theme.colorScheme.outlineVariant),
+                          side: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                          ),
                           padding: const EdgeInsets.all(6),
                           minimumSize: const Size(28, 28),
                           fixedSize: const Size(28, 28),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: VisualDensity.compact,
                           elevation: 2,
-                          shadowColor: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.15),
+                          shadowColor: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.15,
+                          ),
                         ),
                       ),
                     ),
@@ -1066,9 +1071,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           if (_migrationStatus != null) ...[
             const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: _migrationStatus!.progress / 100,
-            ),
+            LinearProgressIndicator(value: _migrationStatus!.progress / 100),
             const SizedBox(height: 8),
             Text(_migrationStatus!.message, style: theme.textTheme.titleMedium),
             if (_migrationStatus!.error != null &&
@@ -1271,10 +1274,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 12),
               SizedBox(
                 width: 88,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: trailing,
-                ),
+                child: Align(alignment: Alignment.centerRight, child: trailing),
               ),
             ],
           ],
@@ -1502,10 +1502,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               error,
-              style: CalfTheme.muted(theme).copyWith(
-                fontSize: 12,
-                color: theme.colorScheme.error,
-              ),
+              style: CalfTheme.muted(
+                theme,
+              ).copyWith(fontSize: 12, color: theme.colorScheme.error),
             ),
           ),
       ],

@@ -917,9 +917,8 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
-                                  style: widget.theme.textTheme.bodySmall!.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: widget.theme.textTheme.bodySmall!
+                                      .copyWith(fontWeight: FontWeight.w600),
                                 ),
 
                                 /// Creates a [_TimingChartCardState] widget.
@@ -1145,11 +1144,7 @@ class _SourceTab extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(
-              LucideIcons.box,
-              size: 16,
-              color: theme.colorScheme.onSurface,
-            ),
+            Icon(LucideIcons.box, size: 16, color: theme.colorScheme.onSurface),
 
             /// Creates a [_SourceTab] widget.
             const SizedBox(width: 8),
@@ -1171,7 +1166,9 @@ class _SourceTab extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.2,
+              ),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: theme.colorScheme.outlineVariant),
             ),
@@ -1258,7 +1255,9 @@ class _LogsTab extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.2,
+                ),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: theme.colorScheme.outlineVariant),
               ),
@@ -1386,9 +1385,8 @@ class _LogsTab extends StatelessWidget {
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(
-                            alpha: 0.15,
-                          ),
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: SelectableText(
@@ -1469,7 +1467,9 @@ class _HistoryTab extends StatelessWidget {
       children: [
         Text(
           'Build history',
-          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -1483,7 +1483,9 @@ class _HistoryTab extends StatelessWidget {
         const SizedBox(height: 24),
         Text(
           'Past builds',
-          style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
+          style: theme.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
 
         /// Creates a [_HistoryTab] widget.
@@ -1500,7 +1502,9 @@ class _HistoryTab extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               child: Row(
                 children: [
-                  Expanded(child: Text(item.tag, style: theme.textTheme.titleMedium)),
+                  Expanded(
+                    child: Text(item.tag, style: theme.textTheme.titleMedium),
+                  ),
                   Expanded(
                     child: Text(
                       item.id,
@@ -1743,8 +1747,10 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                     drawVerticalLine: false,
                     checkToShowHorizontalLine: (value) =>
                         value > 0.05 && value < 1.15,
-                    getDrawingHorizontalLine: (_) =>
-                        FlLine(color: theme.colorScheme.outlineVariant, strokeWidth: 1),
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: theme.colorScheme.outlineVariant,
+                      strokeWidth: 1,
+                    ),
                   ),
                   titlesData: const FlTitlesData(show: false),
                   borderData: FlBorderData(show: false),
@@ -1774,9 +1780,8 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                         for (final _ in spotIndexes)
                           TouchedSpotIndicatorData(
                             FlLine(
-                              color: theme.colorScheme.outlineVariant.withValues(
-                                alpha: 0.55,
-                              ),
+                              color: theme.colorScheme.outlineVariant
+                                  .withValues(alpha: 0.55),
                               strokeWidth: 1,
                             ),
                             FlDotData(

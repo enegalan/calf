@@ -871,7 +871,9 @@ class _LogsToolbarButton extends StatelessWidget {
           width: 36,
           height: 36,
           padding: EdgeInsets.zero,
-          backgroundColor: selected ? theme.colorScheme.surfaceContainerHighest : null,
+          backgroundColor: selected
+              ? theme.colorScheme.surfaceContainerHighest
+              : null,
           onPressed: onPressed,
           child: Icon(icon, size: 16, color: theme.colorScheme.primary),
         ),
@@ -1133,7 +1135,9 @@ class _LogLineRowState extends State<_LogLineRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
         color: _hovered
-            ? widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1)
+            ? widget.theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 1,
+              )
             : null,
         padding: const EdgeInsets.symmetric(vertical: 1),
         child: Row(
