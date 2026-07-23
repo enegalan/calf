@@ -69,8 +69,8 @@ jobs:
           brew tap libkrun/krun
           # Fully-qualified install trusts only named formulae; libkrun deps (e.g. libkrunfw) need tap trust.
           brew trust libkrun/krun
-          brew install create-dmg llvm libkrun/krun/libkrun libkrun/krun/krunkit libkrun/krun/gvproxy
-          # Prefer Homebrew llvm for bindgen; install-krunkit-stack.sh also falls back to Xcode.
+          # llvm (bindgen) and lld (libkrun init_blob cross-link: -fuse-ld=lld) are separate formulae.
+          brew install create-dmg llvm lld libkrun/krun/libkrun libkrun/krun/krunkit libkrun/krun/gvproxy
           export LIBCLANG_PATH="$(brew --prefix llvm)/lib"
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source "$HOME/.cargo/env"
