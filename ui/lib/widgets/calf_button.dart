@@ -208,7 +208,7 @@ class CalfGroupAction {
   final String? tooltip;
 }
 
-/// Joined icon-action strip (e.g. stop / start / restart), Docker Desktop style.
+/// Joined icon-action strip (e.g. stop / start / restart).
 class CalfButtonGroup extends StatelessWidget {
   /// Creates a segmented control from [actions].
   const CalfButtonGroup({

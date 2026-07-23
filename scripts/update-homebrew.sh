@@ -32,8 +32,8 @@ cask "calf" do
   postflight do
     if OS.mac?
       system_command "/usr/bin/xattr",
-                     args: ["-dr", "com.apple.quarantine", "#{appdir}/Calf.app"],
-                     sudo: false
+                    args: ["-dr", "com.apple.quarantine", "#{appdir}/Calf.app"],
+                    sudo: false
     end
   end
 
