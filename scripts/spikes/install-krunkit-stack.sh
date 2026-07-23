@@ -134,13 +134,19 @@ if "do not close the shared fd" not in ms3:
         1,
     )
 # Keep writeback=false: true coalesces writes but tanks bind-mount write median on APFS+DAX.
+# Upstream default is already false (libkrun ≥1.19); only flip if true.
 ms4, n3 = re.subn(
     r"(writeback:\s*)true(\s*,)",
     r"\1false\2",
     ms3,
     count=1,
 )
-if n3 != 1:
+if n3 == 1:
+    pass
+elif re.search(r"writeback:\s*false\s*,", ms3):
+    ms4 = ms3
+    n3 = 0
+else:
     raise SystemExit(f"writeback→false patch failed n={n3}")
 mp.write_text(ms4)
 print(f"patched DAX open_flags + CachePolicy::Always in {mp} (writeback→false n={n3})")
