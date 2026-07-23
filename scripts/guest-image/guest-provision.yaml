@@ -95,22 +95,22 @@ provision:
 
       mkdir -p /mnt/calf
       cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'
-#!/bin/sh
-set -e
-mkdir -p /mnt/calf
-if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
-  exit 0
-fi
-case "$err" in
-  *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
-    exec mount -t virtiofs -o noatime calf-mounts /mnt/calf
-    ;;
-  *)
-    echo "$err" >&2
-    exit 1
-    ;;
-esac
-EOF
+      #!/bin/sh
+      set -e
+      mkdir -p /mnt/calf
+      if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
+        exit 0
+      fi
+      case "$err" in
+        *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
+          exec mount -t virtiofs -o noatime calf-mounts /mnt/calf
+          ;;
+        *)
+          echo "$err" >&2
+          exit 1
+          ;;
+      esac
+      EOF
       chmod +x /usr/local/sbin/calf-mount-virtiofs
       printf '%s\n' \
         '[Unit]' \
