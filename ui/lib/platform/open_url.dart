@@ -42,3 +42,30 @@ Future<bool> openExternalUrl(String url) async {
 
   return false;
 }
+
+/// Opens [path] in the platform file manager. Returns false on empty path or failure.
+Future<bool> openInFileExplorer(String path) async {
+  if (path.isEmpty) {
+    return false;
+  }
+
+  try {
+    if (Platform.isMacOS) {
+      final result = await Process.run('open', [path]);
+      return result.exitCode == 0;
+    }
+
+    if (Platform.isLinux) {
+      final result = await Process.run('xdg-open', [path]);
+      return result.exitCode == 0;
+    }
+
+    if (Platform.isWindows) {
+      final result = await Process.run('explorer', [path]);
+      // explorer.exe often returns a non-zero exit code even when it opens.
+      return result.exitCode == 0 || result.stdout.toString().isEmpty;
+    }
+  } catch (_) {}
+
+  return false;
+}

@@ -73,6 +73,7 @@ func inspectContainer(ctx context.Context, run commandRunner, id string) (json.R
 }
 
 // parseContainerMounts extracts mounts from inspect JSON, including HostConfig bind mounts.
+// Mounts is preferred; HostConfig.Binds fills gaps and is skipped when the destination already exists.
 func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	var payload struct {
 		Mounts []struct {
@@ -93,8 +94,24 @@ func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 	}
 
 	mounts := make([]ContainerMount, 0, len(payload.Mounts)+len(payload.HostConfig.Binds))
+	seenDestinations := make(map[string]struct{}, len(payload.Mounts)+len(payload.HostConfig.Binds))
+	addMount := func(mount ContainerMount) {
+		key := mount.Destination
+		if key == "" {
+			key = mount.Source
+		}
+		if key == "" {
+			return
+		}
+		if _, exists := seenDestinations[key]; exists {
+			return
+		}
+		seenDestinations[key] = struct{}{}
+		mounts = append(mounts, mount)
+	}
+
 	for _, mount := range payload.Mounts {
-		mounts = append(mounts, ContainerMount{
+		addMount(ContainerMount{
 			Type:        mount.Type,
 			Name:        mount.Name,
 			Source:      mount.Source,
@@ -110,7 +127,7 @@ func parseContainerMounts(inspect json.RawMessage) ([]ContainerMount, error) {
 			continue
 		}
 
-		mounts = append(mounts, ContainerMount{
+		addMount(ContainerMount{
 			Type:        "bind",
 			Source:      source,
 			Destination: destination,

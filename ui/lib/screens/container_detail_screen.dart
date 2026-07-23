@@ -15,6 +15,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
+import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -559,7 +560,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           labels: const [
             'Logs',
             'Inspect',
-            'Bind mounts',
+            'Mounts',
             'Exec',
             'Files',
             'Stats',
@@ -935,7 +936,7 @@ class _MountsTab extends StatelessWidget {
     if (loading) {
       return _Panel(
         theme: theme,
-        child: Text('Loading bind mounts...', style: CalfTheme.muted(theme)),
+        child: Text('Loading mounts...', style: CalfTheme.muted(theme)),
       );
     }
     if (error != null) {
@@ -952,7 +953,7 @@ class _MountsTab extends StatelessWidget {
     if (mounts.isEmpty) {
       return _Panel(
         theme: theme,
-        child: Text('No bind mounts.', style: CalfTheme.muted(theme)),
+        child: Text('No mounts.', style: CalfTheme.muted(theme)),
       );
     }
 
@@ -960,53 +961,149 @@ class _MountsTab extends StatelessWidget {
       theme: theme,
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Source (Host)',
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'Destination (Container)',
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          for (var index = 0; index < mounts.length; index++) ...[
+            if (index > 0)
+              Divider(color: theme.colorScheme.outlineVariant, height: 1),
+            _MountRow(theme: theme, mount: mounts[index]),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
-          /// Creates a [_MountsTab] widget.
-          const SizedBox(height: 8),
-          Divider(color: theme.colorScheme.outlineVariant, height: 1),
-          for (final mount in mounts) ...[
-            /// Creates a [_MountsTab] widget.
-            const SizedBox(height: 10),
-            Row(
+class _MountRow extends StatelessWidget {
+  /// Creates a single mount row with open and copy actions.
+  const _MountRow({required this.theme, required this.mount});
+
+  final ThemeData theme;
+  final ContainerMount mount;
+
+  /// Whether the host path can be opened in the system file manager.
+  bool get _canOpenHostPath {
+    if (mount.source.isEmpty) {
+      return false;
+    }
+    final type = mount.type.toLowerCase();
+    return type.isEmpty || type == 'bind';
+  }
+
+  /// Icon for the mount type (bind folder vs named volume).
+  IconData get _typeIcon {
+    final type = mount.type.toLowerCase();
+    if (type == 'volume') {
+      return LucideIcons.database;
+    }
+    return LucideIcons.folderSymlink;
+  }
+
+  /// Opens the host path in the system file manager when possible.
+  Future<void> _openHostPath(BuildContext context) async {
+    final opened = await openInFileExplorer(mount.source);
+    if (!opened && context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (errorContext) => AlertDialog(
+          title: const Text('Could not open path'),
+          content: Text(
+            'Your system could not open:\n${mount.source}',
+          ),
+          actions: [
+            CalfButton(
+              onPressed: () => Navigator.of(errorContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// Builds one mount mapping with open and copy actions.
+  @override
+  Widget build(BuildContext context) {
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return HoverListRow(
+      theme: theme,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(_typeIcon, size: 18, color: muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    mount.source,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: theme.colorScheme.primary,
+                if (mount.name.isNotEmpty) ...[
+                  Text(
+                    mount.name,
+                    style: CalfTheme.muted(theme).copyWith(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                MouseRegion(
+                  cursor: _canOpenHostPath
+                      ? SystemMouseCursors.click
+                      : SystemMouseCursors.basic,
+                  child: GestureDetector(
+                    onTap:
+                        _canOpenHostPath ? () => _openHostPath(context) : null,
+                    child: Text(
+                      mount.source,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                        decoration: _canOpenHostPath
+                            ? TextDecoration.underline
+                            : TextDecoration.none,
+                        decorationColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.35,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Text(
-                    mount.destination,
-                    style: theme.textTheme.bodySmall,
-                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(LucideIcons.arrowDown, size: 12, color: muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: SelectableText(
+                        mount.destination,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
+          const SizedBox(width: 4),
+          if (_canOpenHostPath)
+            Tooltip(
+              message: 'Open in file manager',
+              child: CalfButton.ghost(
+                padding: const EdgeInsets.all(6),
+                onPressed: () => _openHostPath(context),
+                child: Icon(LucideIcons.folderOpen, size: 16, color: muted),
+              ),
+            ),
+          Tooltip(
+            message: 'Copy host path',
+            child: CalfButton.ghost(
+              padding: const EdgeInsets.all(6),
+              onPressed: () =>
+                  Clipboard.setData(ClipboardData(text: mount.source)),
+              child: Icon(LucideIcons.copy, size: 16, color: muted),
+            ),
+          ),
         ],
       ),
     );

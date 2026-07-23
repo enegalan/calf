@@ -145,7 +145,7 @@ calf/
 │   │   ├── config/config_test.go
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -163,7 +163,7 @@ calf/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
 │   │   │   ├── tray_status.dart               macOS menu bar / Windows system tray status icon
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
-│   │   │   └── open_url.dart                  Platform-specific URL opener (Docker Hub sign-in)
+│   │   │   └── open_url.dart                  Platform-specific URL / file-manager opener (Docker Hub, bind mounts)
 │   │   ├── storage/
 │   │   │   ├── calf_ui_storage.dart            Shared JSON file read/write helper (~/.config/calf/ui/*.json)
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
@@ -345,7 +345,7 @@ Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
 - `tray_status.dart` — shows a Calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
 - `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
-- `open_url.dart` — platform-specific "open URL" helper used for Docker Hub sign-in.
+- `open_url.dart` — platform-specific "open URL" / "open path in file manager" helpers (Docker Hub sign-in, bind mount host paths).
 
 ### `storage/`
 Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s application-support dir as fallback).

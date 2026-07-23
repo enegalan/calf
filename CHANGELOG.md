@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Mounts tab** — mount rows open bind paths in the system file manager and copy the host path.
 - **UI toolkit** — the app uses Material Design 3 for theme and controls; the previous shadcn-based UI kit is gone. Icons use Lucide.
+
+### Fixed
+
+- **Bind mounts** — the same mount no longer appears twice when the engine reports it in both Mounts and HostConfig.Binds.
 
 ## [0.9.8] - 2026-07-23
 

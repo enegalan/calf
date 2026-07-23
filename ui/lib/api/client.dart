@@ -222,11 +222,13 @@ class ContainerMount {
     required this.type,
     required this.source,
     required this.destination,
+    this.name = '',
     this.mode = '',
     this.rw = true,
   });
 
   final String type;
+  final String name;
   final String source;
   final String destination;
   final String mode;
@@ -236,6 +238,7 @@ class ContainerMount {
   factory ContainerMount.fromJson(Map<String, dynamic> json) {
     return ContainerMount(
       type: json['type'] as String? ?? '',
+      name: json['name'] as String? ?? '',
       source: json['source'] as String? ?? '',
       destination: json['destination'] as String? ?? '',
       mode: json['mode'] as String? ?? '',
