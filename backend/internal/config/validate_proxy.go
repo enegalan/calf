@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path/filepath"
 	"strings"
 )
 
@@ -12,6 +13,8 @@ type UpdateRequest struct {
 	CPUs                 *int    `json:"cpus,omitempty"`
 	MemoryGB             *int    `json:"memory_gb,omitempty"`
 	MemorySwapGB         *int    `json:"memory_swap_gb,omitempty"`
+	DiskGB               *int    `json:"disk_gb,omitempty"`
+	DiskImage            *string `json:"disk_image,omitempty"`
 	DockerContextManaged *bool   `json:"docker_context_managed,omitempty"`
 	Rootless             *bool   `json:"rootless,omitempty"`
 	HTTPProxy            *string `json:"http_proxy,omitempty"`
@@ -19,13 +22,16 @@ type UpdateRequest struct {
 	NoProxy              *string `json:"no_proxy,omitempty"`
 }
 
-// ValidateResourceUpdate checks CPU and memory fields in a config update against host capacity.
-func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB int) error {
+// ValidateResourceUpdate checks CPU, memory, and disk fields in a config update against host capacity.
+func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB, hostDiskGB int) error {
 	if hostCPUs < 1 {
 		hostCPUs = 1
 	}
 	if hostMemoryGB < 1 {
 		hostMemoryGB = 1
+	}
+	if hostDiskGB < 1 {
+		hostDiskGB = 1
 	}
 
 	if req.CPUs != nil {
@@ -44,6 +50,21 @@ func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB int) error
 		swapGB := *req.MemorySwapGB
 		if swapGB < 0 || swapGB > hostMemoryGB {
 			return fmt.Errorf("memory_swap_gb: must be between 0 and %d", hostMemoryGB)
+		}
+	}
+	if req.DiskGB != nil {
+		diskGB := *req.DiskGB
+		if diskGB < 1 || diskGB > hostDiskGB {
+			return fmt.Errorf("disk_gb: must be between 1 and %d", hostDiskGB)
+		}
+	}
+	if req.DiskImage != nil {
+		path := strings.TrimSpace(*req.DiskImage)
+		if path != "" {
+			expanded := ExpandHomePath(path)
+			if !filepath.IsAbs(expanded) {
+				return fmt.Errorf("disk_image: must be an absolute path")
+			}
 		}
 	}
 

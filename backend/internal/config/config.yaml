@@ -8,6 +8,7 @@ cpus: 4
 memory_gb: 4
 memory_swap_gb: 1
 disk_gb: 100
+disk_image: ""
 http_proxy: ""
 https_proxy: ""
 no_proxy: ""

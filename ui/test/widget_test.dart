@@ -403,6 +403,15 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<void> logoutRegistry({String server = 'docker.io'}) async {}
+
+  @override
+  Future<RuntimeStatus> startRuntime() async => status.runtime;
+
+  @override
+  Future<RuntimeStatus> stopRuntime() async => status.runtime;
+
+  @override
+  Future<RuntimeStatus> killRuntime() async => status.runtime;
 }
 
 class _LoggedInCalfClient extends FakeCalfClient {
@@ -780,4 +789,28 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<void> logoutRegistry({String server = 'docker.io'}) async {}
+
+  @override
+  Future<RuntimeStatus> startRuntime() async =>
+      const RuntimeStatus(
+        mode: 'vm',
+        state: 'stopped',
+        dockerSocket: '/tmp/calf.sock',
+      );
+
+  @override
+  Future<RuntimeStatus> stopRuntime() async =>
+      const RuntimeStatus(
+        mode: 'vm',
+        state: 'stopped',
+        dockerSocket: '/tmp/calf.sock',
+      );
+
+  @override
+  Future<RuntimeStatus> killRuntime() async =>
+      const RuntimeStatus(
+        mode: 'vm',
+        state: 'stopped',
+        dockerSocket: '/tmp/calf.sock',
+      );
 }

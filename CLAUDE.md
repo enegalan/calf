@@ -57,7 +57,7 @@ calf/
 │   │   │   ├── gateway.go                     HTTP Gateway: route registration, Run/Shutdown
 │   │   │   ├── health.go                      Health HTTP handler
 │   │   │   ├── status.go                      Status HTTP handler
-│   │   │   ├── runtime.go                     Runtime start HTTP handler (POST /v1/runtime/start)
+│   │   │   ├── runtime.go                     Runtime start/stop/kill HTTP handlers
 │   │   │   ├── config.go                      Config HTTP handler
 │   │   │   ├── builds.go                      Build HTTP handlers
 │   │   │   ├── containers.go                  Container HTTP handlers
@@ -104,6 +104,7 @@ calf/
 │   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Krunkit (darwin) / Unsupported (windows)
 │   │   │   ├── select_darwin.go               Darwin runtime: always krunkit
 │   │   │   ├── krunkit_darwin.go              macOS krunkit + gvproxy runtime
+│   │   │   ├── process_resources_darwin.go    Host CPU/RAM probe for status bar (proc_info, ps fallback)
 │   │   │   ├── select_other.go                Non-darwin stub for selection helper
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── guest_darwin.go                 Shared guest disk/EFI/vsock helpers (embedded by Krunkit)
@@ -155,7 +156,7 @@ calf/
 ├── ui/                                      Flutter application
 │   ├── lib/
 │   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
-│   │   ├── app_shell.dart                     Sidebar nav, top bar, SettingsScreen (resources, migration, theme)
+│   │   ├── app_shell.dart                     Sidebar nav, top/bottom bars, SettingsScreen (resources, migration, theme)
 │   │   ├── api/
 │   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
 │   │   ├── constants/
@@ -192,6 +193,7 @@ calf/
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
+│   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
@@ -233,7 +235,7 @@ calf/
 Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts.
 
 ### `internal/config/`
-- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
+- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `disk_image`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
 - `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
 
 ### `internal/api/`
@@ -241,8 +243,8 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 
 - `gateway.go` — `Gateway` struct; registers all `/v1/...` routes; `WithMiddleware`; `Run`/`Shutdown` for the HTTP server.
 - `health.go` — `/v1/health`.
-- `status.go` — `/v1/status`.
-- `runtime.go` — `POST /v1/runtime/start` (boot/ensure runtime while the daemon stays up).
+- `status.go` — `/v1/status` (version, runtime state, RAM/disk used vs reserved).
+- `runtime.go` — `POST /v1/runtime/start|stop|kill` (boot, graceful stop, force stop).
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 
@@ -308,9 +310,10 @@ Docker Desktop → Calf migration engine.
 Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims for the username, and generates a PAT used as the nerdctl registry login password.
 
 ### `internal/runtime/` (core abstraction)
-- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWindowsUnsupported` on Windows.
+- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle including `ForceStop`/`ResourceUsage`, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `ResourceUsage`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWindowsUnsupported` on Windows.
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
 - `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; DAX remount `dax=inode` by default).
+- `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
@@ -335,7 +338,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds light/dark Material 3 `ThemeData` via `CalfTheme` with brand primary color from `CalfColors.primary`.
 
 ### `app_shell.dart`
-Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, and a top bar showing Docker Hub registry sign-in status. `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
+Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, a top bar showing Docker Hub registry sign-in status, and a bottom engine status bar (Start/Stop/Kill, RAM/disk used vs reserved, app version). `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
 
 ### `api/client.dart`
 Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
@@ -381,6 +384,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 ### `widgets/`
 - `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
+- `app_bottom_bar.dart` — engine status badge, Start/Stop/Kill, RAM/disk used vs reserved, app version.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.

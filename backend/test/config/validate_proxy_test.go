@@ -1,6 +1,7 @@
 package config_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestValidateResourceUpdateWithinBounds(t *testing.T) {
 		MemoryGB:     &memoryGB,
 		MemorySwapGB: &swapGB,
 	}
-	if err := config.ValidateResourceUpdate(req, 8, 16); err != nil {
+	if err := config.ValidateResourceUpdate(req, 8, 16, 500); err != nil {
 		t.Fatalf("ValidateResourceUpdate() error: %v", err)
 	}
 }
@@ -56,11 +57,57 @@ func TestValidateResourceUpdateWithinBounds(t *testing.T) {
 func TestValidateResourceUpdateCPUsOutOfRange(t *testing.T) {
 	cpus := 32
 	req := config.UpdateRequest{CPUs: &cpus}
-	err := config.ValidateResourceUpdate(req, 8, 16)
+	err := config.ValidateResourceUpdate(req, 8, 16, 500)
 	if err == nil {
 		t.Fatal("expected error for cpus above host capacity")
 	}
 	if !strings.Contains(err.Error(), "cpus:") {
 		t.Fatalf("expected cpus error, got: %v", err)
+	}
+}
+
+func TestValidateResourceUpdateDiskOutOfRange(t *testing.T) {
+	diskGB := 1000
+	req := config.UpdateRequest{DiskGB: &diskGB}
+	err := config.ValidateResourceUpdate(req, 8, 16, 500)
+	if err == nil {
+		t.Fatal("expected error for disk_gb above host capacity")
+	}
+	if !strings.Contains(err.Error(), "disk_gb:") {
+		t.Fatalf("expected disk_gb error, got: %v", err)
+	}
+}
+
+func TestValidateResourceUpdateDiskImageRelative(t *testing.T) {
+	path := "relative/disk.raw"
+	req := config.UpdateRequest{DiskImage: &path}
+	err := config.ValidateResourceUpdate(req, 8, 16, 500)
+	if err == nil {
+		t.Fatal("expected error for relative disk_image path")
+	}
+	if !strings.Contains(err.Error(), "disk_image:") {
+		t.Fatalf("expected disk_image error, got: %v", err)
+	}
+}
+
+func TestEffectiveDiskImageDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	path := config.EffectiveDiskImage(config.Config{VMName: "calf"})
+	want := filepath.Join(dir, ".config", "calf", "guest", "calf", "disk.raw")
+	if path != want {
+		t.Fatalf("expected %q, got %q", want, path)
+	}
+}
+
+func TestEffectiveDiskImageOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	custom := filepath.Join(dir, "custom", "disk.raw")
+	path := config.EffectiveDiskImage(config.Config{DiskImage: custom})
+	if path != custom {
+		t.Fatalf("expected %q, got %q", custom, path)
 	}
 }

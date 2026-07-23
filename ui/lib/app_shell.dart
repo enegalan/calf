@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/macos_menu.dart';
@@ -18,9 +20,13 @@ import 'package:ui/storage/update_preferences.dart';
 import 'package:ui/updates/update_checker.dart';
 import 'package:ui/updates/update_dialog.dart';
 import 'package:ui/updates/update_info.dart';
+import 'package:ui/widgets/about_dialog.dart';
+import 'package:ui/widgets/app_bottom_bar.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/constants/calf_constants.dart';
 
 class AppShell extends StatefulWidget {
   /// Creates a [AppShell] instance.
@@ -47,6 +53,9 @@ class _AppShellState extends State<AppShell> {
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
   String _appVersion = '';
+  DaemonStatus? _daemonStatus;
+  bool _engineActionBusy = false;
+  Timer? _statusPollTimer;
   UpdateCheckResult? _updateCheckResult;
   bool _updateDialogShown = false;
   late final UpdateChecker _updateChecker = UpdateChecker();
@@ -63,6 +72,7 @@ class _AppShellState extends State<AppShell> {
   /// Releases resources when the widget is removed.
   @override
   void dispose() {
+    _statusPollTimer?.cancel();
     if (supportsTrayStatusIcon) {
       CalfTrayStatus.unregisterAppActions();
     }
@@ -77,6 +87,7 @@ class _AppShellState extends State<AppShell> {
     _loadSidebarPreference();
     loadRegistryStatus();
     loadAppVersion();
+    _startStatusPolling();
     if (supportsTrayStatusIcon) {
       CalfTrayStatus.registerAppActions(
         CalfTrayAppActions(
@@ -88,6 +99,99 @@ class _AppShellState extends State<AppShell> {
         ),
       );
     }
+  }
+
+  /// Starts periodic daemon status polling for the bottom bar.
+  void _startStatusPolling() {
+    _statusPollTimer?.cancel();
+    unawaited(_refreshDaemonStatus());
+    _statusPollTimer = Timer.periodic(
+      const Duration(milliseconds: CalfDefaults.defaultPollIntervalMs),
+      (_) => unawaited(_refreshDaemonStatus()),
+    );
+  }
+
+  /// Refreshes daemon status used by the bottom bar.
+  Future<void> _refreshDaemonStatus() async {
+    try {
+      final status = await widget.apiClient.fetchStatus();
+      if (!mounted) return;
+      setState(() {
+        _daemonStatus = status;
+        if (status.version.isNotEmpty) {
+          _appVersion = status.version;
+        }
+      });
+    } on ApiException catch (error) {
+      debugPrint('Failed to poll daemon status: ${error.message}');
+    } on TimeoutException catch (error) {
+      debugPrint('Timed out polling daemon status: $error');
+    } on FormatException catch (error) {
+      debugPrint('Failed to parse daemon status: $error');
+    }
+  }
+
+  /// Starts the container engine from the bottom bar.
+  Future<void> _startEngine() async {
+    await _runEngineAction(() => widget.apiClient.startRuntime());
+  }
+
+  /// Gracefully stops the container engine from the bottom bar.
+  Future<void> _stopEngine() async {
+    await _runEngineAction(() => widget.apiClient.stopRuntime());
+  }
+
+  /// Force-stops the container engine from the bottom bar.
+  Future<void> _killEngine() async {
+    await _runEngineAction(() => widget.apiClient.killRuntime());
+  }
+
+  /// Runs a start/stop/kill action and refreshes status afterward.
+  Future<void> _runEngineAction(
+    Future<RuntimeStatus> Function() action,
+  ) async {
+    if (_engineActionBusy) return;
+    setState(() => _engineActionBusy = true);
+    try {
+      final runtime = await action();
+      if (!mounted) return;
+      setState(() {
+        final current = _daemonStatus;
+        if (current != null) {
+          _daemonStatus = DaemonStatus(
+            version: current.version,
+            uptimeSeconds: current.uptimeSeconds,
+            listenAddr: current.listenAddr,
+            logLevel: current.logLevel,
+            runtime: runtime,
+            resources: current.resources,
+          );
+        }
+      });
+      await _refreshDaemonStatus();
+    } on ApiException catch (error) {
+      debugPrint('Engine action failed: ${error.message}');
+      if (!mounted) return;
+      _showEngineSnackBar(error.message);
+    } on TimeoutException catch (error) {
+      debugPrint('Engine action timed out: $error');
+      if (!mounted) return;
+      _showEngineSnackBar('Engine action timed out');
+    } finally {
+      if (mounted) {
+        setState(() => _engineActionBusy = false);
+      }
+    }
+  }
+
+  /// Shows an engine-action error when a [Scaffold] is available.
+  void _showEngineSnackBar(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) {
+      debugPrint('Engine snackbar skipped (no Scaffold): $message');
+      return;
+    }
+    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Builds live tray menu data (running containers and registry state).
@@ -469,6 +573,17 @@ class _AppShellState extends State<AppShell> {
             ],
           ),
         ),
+        AppBottomBar(
+          status: _daemonStatus,
+          appVersion: _appVersion,
+          busy: _engineActionBusy,
+          onStart: () => unawaited(_startEngine()),
+          onStop: () => unawaited(_stopEngine()),
+          onKill: () => unawaited(_killEngine()),
+          onOpenSettings: openSettings,
+          onOpenAbout: () =>
+              showAboutCalfDialog(context, appVersion: _appVersion),
+        ),
       ],
     );
 
@@ -486,7 +601,7 @@ class _AppShellState extends State<AppShell> {
       onToggleSidebar: toggleSidebar,
       onReportIssue: () => openExternalUrl(calfReportIssueUrl),
       onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
-      child: shell,
+      child: Scaffold(body: shell),
     );
   }
 }
@@ -583,6 +698,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _draftCpus = 4;
   double _draftMemory = 4;
   double _draftSwap = 1;
+  double _draftDisk = 100;
+  final _diskImageController = TextEditingController();
   final _httpProxyController = TextEditingController();
   final _httpsProxyController = TextEditingController();
   final _noProxyInputController = TextEditingController();
@@ -606,6 +723,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       (_draftCpus.toInt() != _config!.cpus ||
           _draftMemory.toInt() != _config!.memoryGB ||
           _draftSwap.toInt() != _config!.memorySwapGB ||
+          _draftDisk.toInt() != _config!.diskGB ||
+          _diskImageController.text.trim() != _config!.diskImage ||
           _httpProxyController.text.trim() != _config!.httpProxy ||
           _httpsProxyController.text.trim() != _config!.httpsProxy ||
           _noProxyEntries.join(',') != _config!.noProxy);
@@ -613,6 +732,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Releases resources when the widget is removed.
   @override
   void dispose() {
+    _diskImageController.dispose();
     _httpProxyController.dispose();
     _httpsProxyController.dispose();
     _noProxyInputController.dispose();
@@ -697,6 +817,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftCpus = config.cpus.toDouble();
         _draftMemory = config.memoryGB.toDouble();
         _draftSwap = config.memorySwapGB.toDouble();
+        _draftDisk = config.diskGB.toDouble();
+        _diskImageController.text = config.diskImage;
         _httpProxyController.text = config.httpProxy;
         _httpsProxyController.text = config.httpsProxy;
         _noProxyEntries = config.noProxy
@@ -731,6 +853,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           cpus: _draftCpus.toInt(),
           memoryGB: _draftMemory.toInt(),
           memorySwapGB: _draftSwap.toInt(),
+          diskGB: _draftDisk.toInt(),
+          diskImage: _diskImageController.text.trim(),
           httpProxy: _httpProxyController.text.trim(),
           httpsProxy: _httpsProxyController.text.trim(),
           noProxy: _noProxyEntries.join(','),
@@ -742,6 +866,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftCpus = updated.cpus.toDouble();
         _draftMemory = updated.memoryGB.toDouble();
         _draftSwap = updated.memorySwapGB.toDouble();
+        _draftDisk = updated.diskGB.toDouble();
+        _diskImageController.text = updated.diskImage;
         _httpProxyController.text = updated.httpProxy;
         _httpsProxyController.text = updated.httpsProxy;
         _noProxyEntries = updated.noProxy
@@ -1186,6 +1312,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               (value) => setState(() => _draftCpus = value),
               trailing: Text('${_draftCpus.toInt()} cores'),
             ),
+            const SizedBox(height: 16),
+            _sliderRow(
+              'Disk image size',
+              _draftDisk,
+              1,
+              _config!.hostDiskGB.toDouble(),
+              (value) => setState(() => _draftDisk = value),
+              trailing: Text('${_draftDisk.toInt()} GB'),
+            ),
+            const SizedBox(height: 16),
+            _diskImageField(theme),
             const SizedBox(height: 24),
             CalfButton(
               onPressed:
@@ -1250,7 +1387,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     Widget? trailing,
   }) {
     final theme = Theme.of(context);
-    final divisions = (max - min).round();
+    final safeMax = max < min ? min : max;
+    final safeValue = value.clamp(min, safeMax);
+    final divisions = (safeMax - min).round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1261,9 +1400,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Expanded(
               child: Slider(
-                value: value,
+                value: safeValue,
                 min: min,
-                max: max,
+                max: safeMax,
                 divisions: divisions > 0 ? divisions : null,
                 // ignore: deprecated_member_use
                 year2023: false,
@@ -1281,6 +1420,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  /// Builds the disk image location text field with a folder browse button.
+  Widget _diskImageField(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Disk image location', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _diskImageController,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  hintText: '~/.config/calf/guest/calf/disk.raw',
+                  prefixIcon: Icon(
+                    LucideIcons.folder,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            const SizedBox(width: 8),
+            CalfButton.outline(
+              onPressed: _saving ? null : _browseDiskImageDirectory,
+              child: const Text('Browse'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Opens a folder picker and sets the disk image path under the chosen directory.
+  Future<void> _browseDiskImageDirectory() async {
+    try {
+      final directory = await getDirectoryPath(confirmButtonText: 'Select');
+      if (directory == null || !mounted) {
+        return;
+      }
+      final current = _diskImageController.text.trim();
+      final fileName = current.isEmpty ? 'disk.raw' : p.basename(current);
+      setState(() {
+        _diskImageController.text = p.join(directory, fileName);
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = folderPickerErrorMessage(error);
+      if (message == null) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   /// Validates the HTTP proxy field and updates the error state.

@@ -46,6 +46,7 @@ func run() int {
 		cfg.MemoryGB,
 		cfg.MemorySwapGB,
 		cfg.DiskGB,
+		config.EffectiveDiskImage(cfg),
 		runtime.ParseListenPort(cfg.ListenAddr),
 		cfg.VMKeepAlive,
 		cfg.Rootless,

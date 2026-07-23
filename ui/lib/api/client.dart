@@ -49,6 +49,9 @@ class RuntimeStatus {
   /// Returns the list of port conflicts, or empty if none.
   List<PortConflict> get portConflicts => _portConflicts ?? const [];
 
+  /// Whether the container engine reports as running.
+  bool get isRunning => state == 'running';
+
   /// Creates a [RuntimeStatus] from a JSON map.
   factory RuntimeStatus.fromJson(Map<String, dynamic> json) {
     final conflictsJson = json['port_conflicts'];
@@ -70,6 +73,36 @@ class RuntimeStatus {
   }
 }
 
+/// Live engine CPU, RAM, and disk usage relative to reserved capacity.
+class EngineResources {
+  /// Creates an [EngineResources] instance.
+  const EngineResources({
+    this.cpuPercent = 0,
+    this.memoryUsedBytes = 0,
+    this.memoryReservedBytes = 0,
+    this.diskUsedBytes = 0,
+    this.diskReservedBytes = 0,
+  });
+
+  final double cpuPercent;
+  final int memoryUsedBytes;
+  final int memoryReservedBytes;
+  final int diskUsedBytes;
+  final int diskReservedBytes;
+
+  /// Creates an [EngineResources] from a JSON map.
+  factory EngineResources.fromJson(Map<String, dynamic> json) {
+    return EngineResources(
+      cpuPercent: (json['cpu_percent'] as num?)?.toDouble() ?? 0,
+      memoryUsedBytes: (json['memory_used_bytes'] as num?)?.toInt() ?? 0,
+      memoryReservedBytes:
+          (json['memory_reserved_bytes'] as num?)?.toInt() ?? 0,
+      diskUsedBytes: (json['disk_used_bytes'] as num?)?.toInt() ?? 0,
+      diskReservedBytes: (json['disk_reserved_bytes'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class DaemonStatus {
   /// Creates a [DaemonStatus] instance.
   const DaemonStatus({
@@ -78,6 +111,7 @@ class DaemonStatus {
     required this.listenAddr,
     required this.logLevel,
     required this.runtime,
+    this.resources = const EngineResources(),
   });
 
   final String version;
@@ -85,6 +119,7 @@ class DaemonStatus {
   final String listenAddr;
   final String logLevel;
   final RuntimeStatus runtime;
+  final EngineResources resources;
 
   /// Creates a [DaemonStatus] from a JSON map.
   factory DaemonStatus.fromJson(Map<String, dynamic> json) {
@@ -115,12 +150,18 @@ class DaemonStatus {
       throw FormatException('expected object "runtime", got $runtimeJson');
     }
 
+    final resourcesJson = json['resources'];
+    final resources = resourcesJson is Map<String, dynamic>
+        ? EngineResources.fromJson(resourcesJson)
+        : const EngineResources();
+
     return DaemonStatus(
       version: version,
       uptimeSeconds: uptimeSeconds,
       listenAddr: listenAddr,
       logLevel: logLevel,
       runtime: RuntimeStatus.fromJson(runtimeJson),
+      resources: resources,
     );
   }
 }
@@ -1422,6 +1463,15 @@ abstract class CalfClient implements StatusClient {
 
   /// Logs out from a container registry.
   Future<void> logoutRegistry({String server = 'docker.io'});
+
+  /// Starts the container engine while the daemon stays up.
+  Future<RuntimeStatus> startRuntime();
+
+  /// Gracefully stops the container engine.
+  Future<RuntimeStatus> stopRuntime();
+
+  /// Force-stops the container engine.
+  Future<RuntimeStatus> killRuntime();
 }
 
 class ApiClient implements CalfClient {
@@ -1441,6 +1491,36 @@ class ApiClient implements CalfClient {
   Future<DaemonStatus> fetchStatus() async {
     final json = await _getJson('/v1/status');
     return DaemonStatus.fromJson(json);
+  }
+
+  /// Starts the container engine while the daemon stays up.
+  @override
+  Future<RuntimeStatus> startRuntime() async {
+    final json = await _postEmptyJson(
+      '/v1/runtime/start',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
+    return RuntimeStatus.fromJson(json);
+  }
+
+  /// Gracefully stops the container engine.
+  @override
+  Future<RuntimeStatus> stopRuntime() async {
+    final json = await _postEmptyJson(
+      '/v1/runtime/stop',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
+    return RuntimeStatus.fromJson(json);
+  }
+
+  /// Force-stops the container engine.
+  @override
+  Future<RuntimeStatus> killRuntime() async {
+    final json = await _postEmptyJson(
+      '/v1/runtime/kill',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
+    return RuntimeStatus.fromJson(json);
   }
 
   /// Fetches the list of containers.
@@ -2257,6 +2337,28 @@ class ApiClient implements CalfClient {
     }
   }
 
+  /// Performs a POST request with no body and returns the decoded JSON object.
+  Future<Map<String, dynamic>> _postEmptyJson(
+    String path, {
+    Duration? timeout,
+  }) async {
+    final requestTimeout = timeout ?? this.timeout;
+    try {
+      final response = await httpClient
+          .post(Uri.parse('$baseUrl$path'))
+          .timeout(requestTimeout);
+      if (response.statusCode != 200) {
+        throw ApiException(
+          _errorMessage(response),
+          statusCode: response.statusCode,
+        );
+      }
+      return _decodeObject(response);
+    } on TimeoutException {
+      throw ApiException('Request timed out');
+    }
+  }
+
   /// Performs a POST request with no body and checks for success.
   Future<void> _postEmpty(String path) async {
     final response = await httpClient
@@ -2450,8 +2552,11 @@ class Config {
     required this.cpus,
     required this.memoryGB,
     this.memorySwapGB = 1,
+    this.diskGB = 100,
+    this.diskImage = '',
     this.hostCPUs = 4,
     this.hostMemoryGB = 8,
+    this.hostDiskGB = 500,
     this.dockerContextManaged = true,
     this.dockerContextActive = false,
     this.dockerContextName = '',
@@ -2466,8 +2571,11 @@ class Config {
   final int cpus;
   final int memoryGB;
   final int memorySwapGB;
+  final int diskGB;
+  final String diskImage;
   final int hostCPUs;
   final int hostMemoryGB;
+  final int hostDiskGB;
   final bool dockerContextManaged;
   final bool dockerContextActive;
   final String dockerContextName;
@@ -2482,6 +2590,8 @@ class Config {
     'cpus': cpus,
     'memory_gb': memoryGB,
     'memory_swap_gb': memorySwapGB,
+    'disk_gb': diskGB,
+    'disk_image': diskImage,
     'docker_context_managed': dockerContextManaged,
     'rootless': rootless,
     'http_proxy': httpProxy,
@@ -2498,8 +2608,11 @@ class Config {
       cpus: (json['cpus'] as num?)?.toInt() ?? 4,
       memoryGB: (json['memory_gb'] as num?)?.toInt() ?? 4,
       memorySwapGB: (json['memory_swap_gb'] as num?)?.toInt() ?? 1,
+      diskGB: (json['disk_gb'] as num?)?.toInt() ?? 100,
+      diskImage: json['disk_image'] as String? ?? '',
       hostCPUs: (json['host_cpus'] as num?)?.toInt() ?? 4,
       hostMemoryGB: (json['host_memory_gb'] as num?)?.toInt() ?? 8,
+      hostDiskGB: (json['host_disk_gb'] as num?)?.toInt() ?? 500,
       dockerContextManaged: json['docker_context_managed'] as bool? ?? true,
       dockerContextActive: json['docker_context_active'] as bool? ?? false,
       dockerContextName: json['docker_context_name'] as String? ?? '',
@@ -2517,8 +2630,11 @@ class Config {
     int? cpus,
     int? memoryGB,
     int? memorySwapGB,
+    int? diskGB,
+    String? diskImage,
     int? hostCPUs,
     int? hostMemoryGB,
+    int? hostDiskGB,
     bool? dockerContextManaged,
     bool? dockerContextActive,
     String? dockerContextName,
@@ -2533,8 +2649,11 @@ class Config {
       cpus: cpus ?? this.cpus,
       memoryGB: memoryGB ?? this.memoryGB,
       memorySwapGB: memorySwapGB ?? this.memorySwapGB,
+      diskGB: diskGB ?? this.diskGB,
+      diskImage: diskImage ?? this.diskImage,
       hostCPUs: hostCPUs ?? this.hostCPUs,
       hostMemoryGB: hostMemoryGB ?? this.hostMemoryGB,
+      hostDiskGB: hostDiskGB ?? this.hostDiskGB,
       dockerContextManaged: dockerContextManaged ?? this.dockerContextManaged,
       dockerContextActive: dockerContextActive ?? this.dockerContextActive,
       dockerContextName: dockerContextName ?? this.dockerContextName,

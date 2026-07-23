@@ -9,6 +9,7 @@ import (
 	goruntime "runtime"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/enegalan/calf/backend/internal/constants"
 )
@@ -29,6 +30,32 @@ func HostMemoryGB() int {
 		return 1
 	}
 	return gb
+}
+
+// HostDiskGB returns free disk space in gigabytes on the home volume.
+func HostDiskGB() int {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return constants.DefaultHostDiskGB
+	}
+	bytes, ok := hostDiskAvailableBytes(home)
+	if !ok {
+		return constants.DefaultHostDiskGB
+	}
+	gb := int(bytes / constants.BytesPerGiB)
+	if gb < 1 {
+		return 1
+	}
+	return gb
+}
+
+// hostDiskAvailableBytes returns free bytes on the filesystem containing path.
+func hostDiskAvailableBytes(path string) (int64, bool) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return 0, false
+	}
+	return int64(st.Bavail) * int64(st.Bsize), true
 }
 
 // hostMemoryBytes returns total host memory in bytes for the current platform.

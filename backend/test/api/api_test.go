@@ -93,10 +93,62 @@ func TestStatusReturnsMetadata(t *testing.T) {
 		t.Fatalf("Decode() error: %v", err)
 	}
 
-	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime"} {
+	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime", "resources"} {
 		if _, ok := payload[key]; !ok {
 			t.Fatalf("expected %q in response", key)
 		}
+	}
+
+	resources, ok := payload["resources"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected resources object, got %T", payload["resources"])
+	}
+	for _, key := range []string{"cpu_percent", "memory_used_bytes", "memory_reserved_bytes", "disk_used_bytes", "disk_reserved_bytes"} {
+		if _, ok := resources[key]; !ok {
+			t.Fatalf("expected resources.%q in response", key)
+		}
+	}
+}
+
+func TestRuntimeStopAndKill(t *testing.T) {
+	mock := runtime.NewMock()
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	stopResp, err := http.Post(server.URL+"/v1/runtime/stop", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/stop error: %v", err)
+	}
+	defer stopResp.Body.Close()
+	if stopResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected stop status 200, got %d", stopResp.StatusCode)
+	}
+	if mock.Started {
+		t.Fatal("expected mock runtime stopped after /stop")
+	}
+
+	startResp, err := http.Post(server.URL+"/v1/runtime/start", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/start error: %v", err)
+	}
+	defer startResp.Body.Close()
+	if startResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected start status 200, got %d", startResp.StatusCode)
+	}
+	if !mock.Started {
+		t.Fatal("expected mock runtime started after /start")
+	}
+
+	killResp, err := http.Post(server.URL+"/v1/runtime/kill", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/kill error: %v", err)
+	}
+	defer killResp.Body.Close()
+	if killResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected kill status 200, got %d", killResp.StatusCode)
+	}
+	if mock.Started {
+		t.Fatal("expected mock runtime stopped after /kill")
 	}
 }
 

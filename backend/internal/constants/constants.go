@@ -9,8 +9,11 @@ const (
 	LogTailLineCount      = 500
 )
 
-// Host defaults apply when total memory cannot be read from the OS.
-const DefaultHostMemoryGB = 8
+// Host defaults apply when total memory or free disk cannot be read from the OS.
+const (
+	DefaultHostMemoryGB = 8
+	DefaultHostDiskGB   = 500
+)
 
 // Build defaults cap persisted build history and bound build-related work.
 const (

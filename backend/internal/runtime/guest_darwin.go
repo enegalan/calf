@@ -33,6 +33,8 @@ type Guest struct {
 	dockerSocket   string
 	cpus           int
 	memoryGB       int
+	diskGB         int
+	diskImage      string
 	vmKeepAlive    bool
 	proxy          ProxyConfig
 	dataDir        string
@@ -45,7 +47,7 @@ type Guest struct {
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
-func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Guest {
+func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskImage string, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Guest {
 	if vmName == "" {
 		vmName = constants.DefaultVMName
 	}
@@ -62,17 +64,26 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPo
 	if memoryGB < 1 {
 		memoryGB = 4
 	}
+	if diskGB < 1 {
+		diskGB = 100
+	}
 	if override := os.Getenv("CALF_GUEST_MEMORY_GB"); override != "" {
 		if n, err := strconv.Atoi(override); err == nil && n > 0 {
 			memoryGB = n
 		}
 	}
 	dataDir := filepath.Join(home, ".config", "calf", "guest", vmName)
+	resolvedDisk := strings.TrimSpace(diskImage)
+	if resolvedDisk == "" {
+		resolvedDisk = filepath.Join(dataDir, "disk.raw")
+	}
 	v := &Guest{
 		vmName:         vmName,
 		dockerSocket:   dockerSocket,
 		cpus:           cpus,
 		memoryGB:       memoryGB,
+		diskGB:         diskGB,
+		diskImage:      resolvedDisk,
 		vmKeepAlive:    vmKeepAlive,
 		proxy:          proxy,
 		dataDir:        dataDir,
@@ -86,7 +97,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPo
 // DockerSocket returns the host unix socket bridged to guest Docker via vsock.
 func (v *Guest) DockerSocket() string { return v.dockerSocket }
 
-func (v *Guest) diskPath() string { return filepath.Join(v.dataDir, "disk.raw") }
+func (v *Guest) diskPath() string { return v.diskImage }
 func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
 
 // resolveSeedArchive returns a compressed guest disk path used for first-run extract.
@@ -122,6 +133,9 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 		return nil
 	}
 	if err := os.MkdirAll(v.dataDir, 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(v.diskPath()), 0o755); err != nil {
 		return err
 	}
 	seed := resolveSeedArchive(v.dataDir)

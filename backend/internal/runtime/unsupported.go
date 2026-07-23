@@ -41,6 +41,14 @@ func (u *Unsupported) Start(context.Context) error { return u.err() }
 // Stop is a no-op for the unsupported runtime.
 func (u *Unsupported) Stop(context.Context) error { return nil }
 
+// ForceStop is a no-op for the unsupported runtime.
+func (u *Unsupported) ForceStop(context.Context) error { return nil }
+
+// ResourceUsage returns zeros for the unsupported runtime.
+func (u *Unsupported) ResourceUsage(context.Context) (ResourceUsage, error) {
+	return ResourceUsage{}, nil
+}
+
 // Status reports a stopped engine with the unsupported reason in Log.
 func (u *Unsupported) Status(context.Context) (Status, error) {
 	return Status{

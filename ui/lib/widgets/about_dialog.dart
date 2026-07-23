@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:ui/platform/open_url.dart';
+import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/calf_button.dart';
 
 /// Shows the About Calf dialog with version info and links.
@@ -13,53 +14,65 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
 
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Calf'),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Version $versionLabel'),
-            const SizedBox(height: 16),
-            Image.asset(logoAsset, width: 48, height: 48, fit: BoxFit.contain),
-            const SizedBox(height: 16),
-            Text(
-              'A lightweight alternative to Docker Desktop.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    builder: (dialogContext) {
+      final dialogTheme = Theme.of(dialogContext);
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: CalfTheme.radius,
+          side: BorderSide(color: dialogTheme.colorScheme.outlineVariant),
+        ),
+        title: const Text('Calf'),
+        content: SizedBox(
+          width: 320,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Version $versionLabel'),
+              const SizedBox(height: 16),
+              Image.asset(
+                logoAsset,
+                width: 48,
+                height: 48,
+                fit: BoxFit.contain,
               ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _AboutLink(
-                  label: 'GitHub',
-                  onPressed: () =>
-                      _openExternalLink(dialogContext, calfRepositoryUrl),
+              const SizedBox(height: 16),
+              Text(
+                'A lightweight alternative to Docker Desktop.',
+                textAlign: TextAlign.center,
+                style: dialogTheme.textTheme.bodySmall?.copyWith(
+                  color: dialogTheme.colorScheme.onSurfaceVariant,
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'MIT License · © ${DateTime.now().year}',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _AboutLink(
+                    label: 'GitHub',
+                    onPressed: () =>
+                        _openExternalLink(dialogContext, calfRepositoryUrl),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'MIT License · © ${DateTime.now().year}',
+                textAlign: TextAlign.center,
+                style: dialogTheme.textTheme.bodySmall?.copyWith(
+                  color: dialogTheme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      actions: [
-        CalfButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
-          child: const Text('Close'),
-        ),
-      ],
-    ),
+        actions: [
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    },
   );
 }
 

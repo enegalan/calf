@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Disk image settings** — Settings → System includes a disk image size slider and a disk image location field (default `~/.config/calf/guest/<vm>/disk.raw`).
+- **Engine status bar** — a bottom bar shows whether the engine is running, Start/Stop/Kill controls, RAM and disk used versus reserved, and the app version; the menu opens Settings.
 - **Container Stats history** — Stats keep a rolling ~15 minute resource history while the engine is running, so charts survive leaving and reopening a container; history is cleared when the container is removed.
+
+### Fixed
+
+- **Guest disk arch on Apple Silicon** — when the Go toolchain runs under Rosetta, Calf still selects the arm64 guest disk instead of looking for an amd64 asset.
+- **Engine start** — starting gvproxy no longer fails when its pid file is written a moment after the process starts.
+- **Status polling** — engine RAM/disk stats use fast host probes so `/v1/status` stays responsive for the UI.
+- **Engine status bar** — the bar also shows live engine CPU usage.
+- **Engine RAM/CPU** — status bar RAM and CPU use the macOS process API (not `/bin/ps`), so values stay correct when the daemon runs under an IDE sandbox that blocks `ps`.
+- **Engine Start/Stop/Kill** — bottom-bar engine actions wait long enough for a slow VM boot, and failed actions no longer crash when showing an error.
+- **Published ports after restart** — reopening Calf no longer spams gvproxy errors when a port forward was already active from the previous session.
 
 ### Changed
 

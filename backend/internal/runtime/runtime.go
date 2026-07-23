@@ -31,6 +31,13 @@ type Status struct {
 	Log           string         `json:"log,omitempty"`
 }
 
+// ResourceUsage reports live engine CPU, RAM, and disk consumption.
+type ResourceUsage struct {
+	CpuPercent      float64 `json:"cpu_percent"`
+	MemoryUsedBytes int64   `json:"memory_used_bytes"`
+	DiskUsedBytes   int64   `json:"disk_used_bytes"`
+}
+
 // Container represents a container.
 type Container struct {
 	ID             string `json:"id"`
@@ -114,7 +121,9 @@ type NetworkDetail struct {
 type Runtime interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
+	ForceStop(ctx context.Context) error
 	Status(ctx context.Context) (Status, error)
+	ResourceUsage(ctx context.Context) (ResourceUsage, error)
 	DockerSocket() string
 	ListContainers(ctx context.Context) ([]Container, error)
 	ListImages(ctx context.Context) ([]Image, error)
@@ -154,13 +163,13 @@ type Runtime interface {
 }
 
 // New returns the platform-appropriate Runtime implementation.
-func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, apiListenPort int, vmKeepAlive bool, rootless bool, proxy ProxyConfig) Runtime {
+func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapGB int, diskGB int, diskImage string, apiListenPort int, vmKeepAlive bool, rootless bool, proxy ProxyConfig) Runtime {
 	if goruntime.GOOS == "linux" {
 		return NewNative(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, rootless, proxy)
 	}
 
 	if goruntime.GOOS == "darwin" {
-		return newDarwinRuntime(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy)
+		return newDarwinRuntime(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, diskImage, apiListenPort, vmKeepAlive, proxy)
 	}
 
 	return NewWindowsUnsupported(dockerSocket)

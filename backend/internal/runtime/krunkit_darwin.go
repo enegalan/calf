@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -33,9 +34,9 @@ type Krunkit struct {
 }
 
 // NewKrunkit constructs the macOS Runtime (shared Guest disk helpers + krunkit/gvproxy).
-func NewKrunkit(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Krunkit {
+func NewKrunkit(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB, diskGB int, diskImage string, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Krunkit {
 	return &Krunkit{
-		Guest:          NewGuest(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, apiListenPort, vmKeepAlive, proxy),
+		Guest:          NewGuest(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, diskImage, apiListenPort, vmKeepAlive, proxy),
 		forwardedPorts: make(map[int]struct{}),
 	}
 }
@@ -144,7 +145,9 @@ func pidfileAlive(path string) bool {
 	if err != nil || pid < 1 {
 		return false
 	}
-	return syscall.Kill(pid, 0) == nil
+	err = syscall.Kill(pid, 0)
+	// EPERM means the process exists but we cannot signal it.
+	return err == nil || errors.Is(err, syscall.EPERM)
 }
 
 // Start launches gvproxy + krunkit and waits for Docker /_ping on the vsock socket.
@@ -371,7 +374,9 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 				return nil
 			}
 		}
-		if !k.gvproxyAlive() {
+		// Use the child ProcessState, not the pidfile: gvproxy writes the pidfile
+		// asynchronously, so pidfileAlive races and falsely reports "exited".
+		if cmd.ProcessState != nil {
 			return fmt.Errorf("gvproxy exited before creating %s", k.gvproxySockPath())
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -430,6 +435,16 @@ func (k *Krunkit) syncGvproxyForwards(ctx context.Context, ports map[int]struct{
 	client := k.gvproxyHTTPClient()
 	k.forwardMu.Lock()
 	defer k.forwardMu.Unlock()
+
+	// Adopt forwards left by a previous daemon that shared this gvproxy process.
+	if existing, err := k.gvproxyListForwardPorts(ctx, client); err == nil {
+		for port := range existing {
+			if _, wanted := ports[port]; wanted {
+				k.forwardedPorts[port] = struct{}{}
+			}
+		}
+	}
+
 	for port := range k.forwardedPorts {
 		if _, ok := ports[port]; ok {
 			continue
@@ -467,8 +482,56 @@ func (k *Krunkit) gvproxyHTTPClient() *http.Client {
 }
 
 type gvproxyForward struct {
-	Local  string `json:"local"`
-	Remote string `json:"remote"`
+	Local    string `json:"local"`
+	Remote   string `json:"remote"`
+	Protocol string `json:"protocol,omitempty"`
+}
+
+// gvproxyListForwardPorts returns host TCP ports already exposed by gvproxy.
+func (k *Krunkit) gvproxyListForwardPorts(ctx context.Context, client *http.Client) (map[int]struct{}, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://gvproxy/services/forwarder/all", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list forwards status %d", resp.StatusCode)
+	}
+	var forwards []gvproxyForward
+	if err := json.NewDecoder(resp.Body).Decode(&forwards); err != nil {
+		return nil, err
+	}
+	ports := make(map[int]struct{}, len(forwards))
+	for _, forward := range forwards {
+		port, ok := localForwardPort(forward.Local)
+		if !ok {
+			continue
+		}
+		ports[port] = struct{}{}
+	}
+	return ports, nil
+}
+
+// localForwardPort extracts the host port from a gvproxy local listen address.
+func localForwardPort(local string) (int, bool) {
+	local = strings.TrimSpace(local)
+	if local == "" {
+		return 0, false
+	}
+	if strings.HasPrefix(local, ":") {
+		port, err := strconv.Atoi(local[1:])
+		return port, err == nil && port > 0
+	}
+	_, portStr, err := net.SplitHostPort(local)
+	if err != nil {
+		return 0, false
+	}
+	port, err := strconv.Atoi(portStr)
+	return port, err == nil && port > 0
 }
 
 // gvproxyExpose asks gvproxy to listen on host :port and forward to guestIP:port.
@@ -490,10 +553,19 @@ func (k *Krunkit) gvproxyExpose(ctx context.Context, client *http.Client, port i
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode < 300 {
+		return nil
+	}
+	msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+	text := strings.TrimSpace(string(msg))
+	// Same gvproxy may already hold the forward from a previous daemon process.
+	if resp.StatusCode == http.StatusInternalServerError && strings.Contains(strings.ToLower(text), "already") {
+		return nil
+	}
+	if text == "" {
 		return fmt.Errorf("expose status %d", resp.StatusCode)
 	}
-	return nil
+	return fmt.Errorf("expose status %d: %s", resp.StatusCode, text)
 }
 
 // gvproxyUnexpose removes a host port forward from gvproxy.
@@ -579,6 +651,64 @@ func (k *Krunkit) Stop(ctx context.Context) error {
 	_ = k.stopKrunkitStack()
 	_ = os.Remove(k.dockerSocket)
 	return nil
+}
+
+// ForceStop tears down krunkit and gvproxy even when vm_keep_alive is set.
+func (k *Krunkit) ForceStop(ctx context.Context) error {
+	_ = ctx
+	k.mu.Lock()
+	if k.watcherCancel != nil {
+		k.watcherCancel()
+		k.watcherCancel = nil
+	}
+	k.mu.Unlock()
+	k.localhostProxy.stopAll()
+	k.started.Store(false)
+	_ = k.stopKrunkitStack()
+	_ = os.Remove(k.dockerSocket)
+	return nil
+}
+
+// ResourceUsage reports engine CPU, RAM, and disk used for the status bar.
+// Uses host-side probes only (krunkit RSS via proc_info + disk.raw allocation)
+// so GET /v1/status stays fast enough for UI polling.
+func (k *Krunkit) ResourceUsage(ctx context.Context) (ResourceUsage, error) {
+	_ = ctx
+	usage := ResourceUsage{DiskUsedBytes: allocatedFileBytes(k.diskPath())}
+	pidPath := k.krunkitPidPath()
+	if cpu, mem, err := processCpuAndRSS(pidPath); err == nil {
+		usage.CpuPercent = cpu
+		usage.MemoryUsedBytes = mem
+		return usage, nil
+	}
+	// When Start attached to an already-running guest, prefer the live child PID.
+	k.mu.Lock()
+	cmd := k.cmd
+	k.mu.Unlock()
+	if cmd != nil && cmd.Process != nil {
+		if cpu, mem, err := processCpuAndRSSForPID(cmd.Process.Pid); err == nil {
+			usage.CpuPercent = cpu
+			usage.MemoryUsedBytes = mem
+			return usage, nil
+		}
+	}
+	if cpu, mem, err := processCpuAndRSSByCommand(k.diskPath()); err == nil {
+		usage.CpuPercent = cpu
+		usage.MemoryUsedBytes = mem
+	}
+	return usage, nil
+}
+
+// allocatedFileBytes returns the on-disk allocated size of path, or 0 if missing.
+func allocatedFileBytes(path string) int64 {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Blocks > 0 {
+		return st.Blocks * 512
+	}
+	return info.Size()
 }
 
 // stopKrunkitStack terminates krunkit then gvproxy and removes their pid/socket files.
