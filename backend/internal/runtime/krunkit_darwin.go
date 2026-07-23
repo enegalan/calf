@@ -371,12 +371,8 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 				return nil
 			}
 		}
-		// gvproxyAlive alone misses the window before the PID file exists; confirm via the process handle
-		// (do not wait for Wait to set ProcessState — that lags behind a real exit).
 		if !k.gvproxyAlive() {
-			if cmd.Process == nil || syscall.Kill(cmd.Process.Pid, 0) != nil {
-				return fmt.Errorf("gvproxy exited before creating %s", k.gvproxySockPath())
-			}
+			return fmt.Errorf("gvproxy exited before creating %s", k.gvproxySockPath())
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
