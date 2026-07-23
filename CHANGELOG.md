@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.8] - 2026-07-23
+
+### Added
+
+- **Faster macOS engine** — release builds include the new macOS container engine; local builds can enable it with the documented setup steps.
+
+### Changed
+
+- **macOS startup and file I/O** — quicker engine start and faster bind-mount reads and writes on the reference Mac (see `BENCHMARKS.md`).
+- **Guest disk persistence** — container images and data survive engine restarts on a durable guest disk downloaded on first start when needed.
+- **Container networking** — published container ports are reachable on the host.
 
 ## [0.9.7] - 2026-07-19
 
@@ -32,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Experimental fast-boot engine (macOS)** — when a provisioned vfkit guest disk (or release seed) and `vfkit` binary are present, Calf prefers that engine automatically; bundled apps download `calf-vfkit-disk-<arch>.raw.zst` from GitHub Releases on first start; build locally with `make guest-vfkit` (see `BENCHMARKS.md` and `docs/phase5-race.md`).
+- **Experimental fast-boot engine (macOS)** — when a provisioned vfkit guest disk (or release seed) and `vfkit` binary are present, Calf prefers that engine automatically; bundled apps download `calf-vfkit-disk-<arch>.raw.zst` from GitHub Releases on first start; build locally with `make guest-vfkit` (see `BENCHMARKS.md`).
 - **Runtime start API** — `POST /v1/runtime/start` boots the container runtime while the daemon stays up (used for fair VM-boot benches on vfkit).
 
 ### Changed

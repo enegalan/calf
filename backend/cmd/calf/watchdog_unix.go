@@ -12,7 +12,11 @@ import (
 // watchParent shuts the daemon down when its parent dies (ppid becomes 1).
 // The Flutter app spawns calf-daemon as a child; without this, orphans keep
 // running after the GUI exits unexpectedly.
+// Disabled for CALF_BENCHMARK=1 so nohup/setsid bench launches are not killed.
 func watchParent(ctx context.Context, _ int, stop context.CancelFunc, logger *slog.Logger) {
+	if os.Getenv("CALF_BENCHMARK") == "1" {
+		return
+	}
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {

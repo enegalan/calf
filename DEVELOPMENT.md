@@ -24,13 +24,13 @@ vm_keep_alive: true
 rootless: true
 ```
 
-`vm_keep_alive` (default `true` on macOS) leaves the vfkit guest running when Calf quits so the next launch is a warm start. The host Docker socket is torn down on quit and restored when the Calf daemon starts again. Set `vm_keep_alive` to `false` to stop the guest on quit.
+`vm_keep_alive` (default `true` on macOS) leaves the guest running when Calf quits so the next launch is a warm start. The host Docker socket is torn down on quit and restored when the Calf daemon starts again. Set `vm_keep_alive` to `false` to stop the guest on quit.
 
-`rootless` (default `true`) applies on **Linux** only. When enabled, Calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points Docker CLI at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS the container engine runs inside the vfkit guest (rootful Docker); the host Calf process stays user-level. Windows does not ship a container engine in this release. Restart the daemon after changing `rootless`.
+`rootless` (default `true`) applies on **Linux** only. When enabled, Calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points Docker CLI at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS the container engine runs inside the krunkit guest (rootful Docker); the host Calf process stays user-level. Windows does not ship a container engine in this release. Restart the daemon after changing `rootless`.
 
 ## Image and build cache
 
-Images, volumes, and BuildKit layers live on the vfkit guest disk (`~/.config/calf/vfkit/<vm>/disk.raw`). They survive:
+Images, volumes, and BuildKit layers live on the guest disk (`~/.config/calf/guest/<vm>/disk.raw`). They survive:
 
 - Quitting and reopening the Calf app
 - Stopping and starting the guest (`POST /v1/runtime/start` after a stop)
@@ -64,7 +64,17 @@ docker save my-image:latest -o my-image.tar
 
 2. Stop Docker Desktop.
 
-3. Install [vfkit](https://github.com/crc-org/vfkit) on macOS (`brew install vfkit`) and ensure a guest disk exists (`make guest-vfkit` or first-run download from GitHub Releases).
+3. On macOS, install the krunkit stack and ensure a guest disk exists (`make guest-disk` or first-run download from GitHub Releases):
+
+```bash
+brew tap libkrun/krun
+brew install libkrun/krun/krunkit libkrun/krun/gvproxy
+make krunkit-stack   # ~/.config/calf/krunkit (required for local macOS engine + release bundle)
+# Guest mount defaults to dax=inode; CALF_KRUN_DAX_MODE=always for max bind-write;
+#   CALF_KRUN_DAX=0 for plain virtiofs.
+```
+
+Known limit: Docker attach/stdout over vsock can be empty; the fair bench suite reads Calf `dd` logs from the host share.
 
 4. Start Calf:
 

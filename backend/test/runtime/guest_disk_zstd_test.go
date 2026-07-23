@@ -15,7 +15,7 @@ func TestDecompressZstdRoundTrip(t *testing.T) {
 	zstPath := filepath.Join(dir, "disk.raw.zst")
 	outPath := filepath.Join(dir, "out.raw")
 
-	payload := []byte("calf-vfkit-guest-seed-test-payload")
+	payload := []byte("calf-guest-seed-test-payload")
 	if err := os.WriteFile(rawPath, payload, 0o644); err != nil {
 		t.Fatalf("write raw: %v", err)
 	}

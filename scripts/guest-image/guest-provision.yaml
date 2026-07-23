@@ -1,5 +1,5 @@
-# Lima template used only as a one-shot bake tool for the vfkit guest disk (not a Calf product runtime).
-# Output disk is copied to ~/.config/calf/vfkit/<vm>/disk.raw by build-vfkit-guest.sh.
+# Lima template used only as a one-shot bake tool for the guest disk (not a Calf product runtime).
+# Output disk is copied to ~/.config/calf/guest/<vm>/disk.raw by build-guest.sh.
 minimumLimaVersion: 1.0.0
 
 vmType: vz
@@ -42,7 +42,17 @@ provision:
       ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf || true
 
       mkdir -p /etc/systemd/network
-      printf '%s\n' '[Match]' 'Name=enp*' 'Name=eth*' '' '[Network]' 'DHCP=yes' > /etc/systemd/network/20-calf-vz.network
+      # Whitespace-separated globs are OR'd; two Name= lines would be AND and never match.
+      # Static .2 matches gvproxy's default VM address used for host port forwards.
+      printf '%s\n' \
+        '[Match]' \
+        'Name=enp* eth*' \
+        '' \
+        '[Network]' \
+        'Address=192.168.127.2/24' \
+        'Gateway=192.168.127.1' \
+        'DNS=192.168.127.1' \
+        > /etc/systemd/network/20-calf-eth.network
       systemctl enable systemd-networkd
       systemctl restart systemd-networkd || true
 
@@ -68,7 +78,7 @@ provision:
 
       printf '%s\n' \
         '[Unit]' \
-        'Description=Docker vsock proxy for Calf vfkit' \
+        'Description=Docker vsock proxy for Calf guest' \
         'After=docker.service' \
         'Requires=docker.service' \
         '' \
@@ -84,6 +94,24 @@ provision:
       systemctl enable --now docker-vsock-proxy
 
       mkdir -p /mnt/calf
+      cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'
+      #!/bin/sh
+      set -e
+      mkdir -p /mnt/calf
+      if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
+        exit 0
+      fi
+      case "$err" in
+        *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
+          exec mount -t virtiofs -o noatime calf-mounts /mnt/calf
+          ;;
+        *)
+          echo "$err" >&2
+          exit 1
+          ;;
+      esac
+      EOF
+      chmod +x /usr/local/sbin/calf-mount-virtiofs
       printf '%s\n' \
         '[Unit]' \
         'Description=Mount Calf virtiofs shares' \
@@ -94,8 +122,7 @@ provision:
         '[Service]' \
         'Type=oneshot' \
         'RemainAfterExit=yes' \
-        'ExecStart=/bin/mkdir -p /mnt/calf' \
-        'ExecStart=/bin/mount -t virtiofs calf-mounts /mnt/calf' \
+        'ExecStart=/usr/local/sbin/calf-mount-virtiofs' \
         'ExecStop=/bin/umount -l /mnt/calf' \
         '' \
         '[Install]' \

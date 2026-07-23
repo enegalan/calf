@@ -29,7 +29,7 @@ func checkMigrationDiskSpace(ctx context.Context, calfSocket, ddSocket string) e
 
 	recommendedGiB := bytesToGiB(required) + 10
 	return fmt.Errorf(
-		"engine has %s free but migration needs ~%s (~%d GiB recommended). Free space in the guest or rebuild the vfkit disk (make guest-vfkit), then retry",
+		"engine has %s free but migration needs ~%s (~%d GiB recommended). Free space in the guest or rebuild the guest disk (make guest-disk), then retry",
 		utils.FormatBytes(free),
 		utils.FormatBytes(required),
 		recommendedGiB,

@@ -75,17 +75,7 @@ release-macos:
 	cp backend/calf-daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
 	rm backend/calf-daemon
 	codesign --force --sign - --identifier com.enegalan.calf.daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
-	@# Bundle vfkit next to the daemon when available (Homebrew or CALF_VFKIT_BIN).
-	@VFKIT_SRC="$${CALF_VFKIT_BIN:-}"; \
-	  if [ -z "$$VFKIT_SRC" ] && command -v vfkit >/dev/null 2>&1; then VFKIT_SRC=$$(command -v vfkit); fi; \
-	  if [ -n "$$VFKIT_SRC" ] && [ -x "$$VFKIT_SRC" ]; then \
-	    cp "$$VFKIT_SRC" ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/vfkit; \
-	    codesign --force --sign - --identifier com.enegalan.calf.vfkit ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/vfkit; \
-	    echo "bundled vfkit from $$VFKIT_SRC"; \
-	  else \
-	    echo "warning: vfkit not found; macOS release requires vfkit next to calf-daemon"; \
-	    exit 1; \
-	  fi
+	./scripts/bundle-krunkit-macos.sh ui/build/macos/Build/Products/Release/Calf.app
 	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
 	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
 
@@ -136,13 +126,12 @@ benchmarks:
 	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
 	./scripts/benchmarks/run-all.sh
 
-# Opt-in vfkit engine benches (macOS). Requires brew install vfkit + prepared disk.
-benchmarks-vfkit:
-	cd backend && CGO_ENABLED=0 go build -o calf-daemon ./cmd/calf
-	CALF_RUNTIME=vfkit CALF_VFKIT_MEMORY_GB=$${CALF_VFKIT_MEMORY_GB:-2} ./scripts/benchmarks/run-all.sh --products calf
+# Build/install the macOS krunkit+libkrun stack to ~/.config/calf/krunkit/ (required for release + local macOS engine).
+krunkit-stack:
+	./scripts/spikes/install-krunkit-stack.sh
 
-# Build a reproducible vfkit guest disk via throwaway limactl bake (see scripts/guest-image/).
-guest-vfkit:
-	./scripts/guest-image/build-vfkit-guest.sh --pack
+# Build a reproducible guest disk via throwaway limactl bake (see scripts/guest-image/).
+guest-disk:
+	./scripts/guest-image/build-guest.sh --pack
 
 dev: help

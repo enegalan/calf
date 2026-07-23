@@ -31,37 +31,12 @@ func guestDiskArch() string {
 
 // guestDiskAssetName is the GitHub Release asset name for the compressed guest disk.
 func guestDiskAssetName() string {
-	return fmt.Sprintf("%s-%s.raw.zst", constants.VfkitDiskAssetPrefix, guestDiskArch())
+	return fmt.Sprintf("%s-%s.raw.zst", constants.GuestDiskAssetPrefix, guestDiskArch())
 }
 
 // guestEFIAssetName is the optional compressed EFI variable store asset name.
 func guestEFIAssetName() string {
-	return fmt.Sprintf("%s-%s.zst", constants.VfkitEFIAssetPrefix, guestDiskArch())
-}
-
-// isBundledVfkit reports whether vfkit sits next to the running calf-daemon (app bundle).
-func isBundledVfkit(bin string) bool {
-	exe, err := os.Executable()
-	if err != nil {
-		return false
-	}
-	return filepath.Clean(filepath.Dir(bin)) == filepath.Clean(filepath.Dir(exe))
-}
-
-// localDiskOrSeed reports whether disk.raw or a local .zst seed exists for vmName.
-func localDiskOrSeed(vmName string) bool {
-	if vmName == "" {
-		vmName = constants.DefaultVMName
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return false
-	}
-	dataDir := filepath.Join(home, ".config", "calf", "vfkit", vmName)
-	if _, err := os.Stat(filepath.Join(dataDir, "disk.raw")); err == nil {
-		return true
-	}
-	return resolveSeedArchive(dataDir) != ""
+	return fmt.Sprintf("%s-%s.zst", constants.GuestEFIAssetPrefix, guestDiskArch())
 }
 
 // decompressZstdFile writes a zstd archive to destPath using a pure-Go decoder.
@@ -94,16 +69,16 @@ func decompressZstdFile(srcPath, destPath string) error {
 }
 
 // extractGuestSeed decompresses seed (.zst) into disk.raw (and optional efi-store).
-func (v *Vfkit) extractGuestSeed(seed string) error {
+func (v *Guest) extractGuestSeed(seed string) error {
 	if err := decompressZstdFile(seed, v.diskPath()); err != nil {
-		return fmt.Errorf("extract vfkit disk from %s: %w", seed, err)
+		return fmt.Errorf("extract guest disk from %s: %w", seed, err)
 	}
 	efiSeed := ""
 	if strings.HasSuffix(seed, "disk.raw.zst") {
 		efiSeed = strings.TrimSuffix(seed, "disk.raw.zst") + "efi-store.zst"
 	}
 	base := filepath.Base(seed)
-	if strings.HasPrefix(base, constants.VfkitDiskAssetPrefix) {
+	if strings.HasPrefix(base, constants.GuestDiskAssetPrefix) {
 		efiSeed = filepath.Join(filepath.Dir(seed), guestEFIAssetName())
 	}
 	if efiSeed != "" {
@@ -115,12 +90,12 @@ func (v *Vfkit) extractGuestSeed(seed string) error {
 }
 
 // downloadGuestDisk fetches the compressed guest disk from GitHub Releases into dataDir.
-func (v *Vfkit) downloadGuestDisk(ctx context.Context) (string, error) {
-	if os.Getenv("CALF_VFKIT_NO_DOWNLOAD") == "1" {
-		return "", fmt.Errorf("vfkit disk download disabled (CALF_VFKIT_NO_DOWNLOAD=1)")
+func (v *Guest) downloadGuestDisk(ctx context.Context) (string, error) {
+	if strings.TrimSpace(os.Getenv("CALF_GUEST_NO_DOWNLOAD")) == "1" {
+		return "", fmt.Errorf("guest disk download disabled (CALF_GUEST_NO_DOWNLOAD=1)")
 	}
 	dest := filepath.Join(v.dataDir, guestDiskAssetName())
-	url := strings.TrimSpace(os.Getenv("CALF_VFKIT_DISK_URL"))
+	url := strings.TrimSpace(os.Getenv("CALF_GUEST_DISK_URL"))
 	if url == "" {
 		var err error
 		url, err = resolveGuestDiskDownloadURL(ctx)
@@ -129,9 +104,9 @@ func (v *Vfkit) downloadGuestDisk(ctx context.Context) (string, error) {
 		}
 	}
 	if err := downloadFile(ctx, url, dest); err != nil {
-		return "", fmt.Errorf("download vfkit disk: %w", err)
+		return "", fmt.Errorf("download guest disk: %w", err)
 	}
-	efiURL := strings.TrimSpace(os.Getenv("CALF_VFKIT_EFI_URL"))
+	efiURL := strings.TrimSpace(os.Getenv("CALF_GUEST_EFI_URL"))
 	if efiURL == "" {
 		efiURL = strings.Replace(url, guestDiskAssetName(), guestEFIAssetName(), 1)
 	}

@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 
 	"golang.org/x/sys/windows"
@@ -13,7 +14,11 @@ import (
 // watchParent shuts the daemon down when its parent dies. The Flutter app
 // spawns calf-daemon as a child; without this, orphans keep running after
 // the GUI exits unexpectedly.
+// Disabled for CALF_BENCHMARK=1 so detached bench launches are not killed.
 func watchParent(ctx context.Context, parentPID int, stop context.CancelFunc, logger *slog.Logger) {
+	if os.Getenv("CALF_BENCHMARK") == "1" {
+		return
+	}
 	handle, err := windows.OpenProcess(windows.SYNCHRONIZE, false, uint32(parentPID))
 	if err != nil {
 		logger.Warn("could not open parent process handle, skipping parent watchdog", "error", err)

@@ -87,10 +87,10 @@ const AlpineSmokeImage = "alpine:3.20"
 // GitHubRepo is the canonical Calf repository used for releases and guest-disk downloads.
 const GitHubRepo = "enegalan/calf"
 
-// Vfkit guest disk release asset name prefixes (arch suffix added at runtime).
+// Guest disk release asset name prefixes (arch suffix added at runtime).
 const (
-	VfkitDiskAssetPrefix = "calf-vfkit-disk"
-	VfkitEFIAssetPrefix  = "calf-vfkit-efi"
+	GuestDiskAssetPrefix = "calf-guest-disk"
+	GuestEFIAssetPrefix  = "calf-guest-efi"
 )
 
 // JobStatus values are persisted statuses for builds, volume exports, and similar jobs.

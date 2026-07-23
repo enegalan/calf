@@ -1,22 +1,21 @@
 #!/usr/bin/env bash
-# Build a reproducible vfkit guest disk via a throwaway Lima VM, then copy/pack it.
+# Build a reproducible guest disk via a throwaway Lima VM, then copy/pack it.
 #
 # Requires: limactl, (optional) zstd for --pack
 #
 # Usage:
-#   ./scripts/guest-image/build-vfkit-guest.sh
-#   ./scripts/guest-image/build-vfkit-guest.sh --pack
-#   CALF_VM_NAME=calf ./scripts/guest-image/build-vfkit-guest.sh --pack
+#   ./scripts/guest-image/build-guest.sh
+#   ./scripts/guest-image/build-guest.sh --pack
+#   CALF_VM_NAME=calf ./scripts/guest-image/build-guest.sh --pack
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEMPLATE="${SCRIPT_DIR}/guest-provision.yaml"
 VM_NAME="${CALF_VM_NAME:-calf}"
-BUILD_VM="${CALF_VFKIT_BUILD_VM:-cvb}"
-DEST_DIR="${HOME}/.config/calf/vfkit/${VM_NAME}"
+BUILD_VM="${CALF_GUEST_BUILD_VM:-cvb}"
+DEST_DIR="${HOME}/.config/calf/guest/${VM_NAME}"
 DEST_DISK="${DEST_DIR}/disk.raw"
-LIMA_HOME_BUILD="${CALF_VFKIT_LIMA_HOME:-${HOME}/.calf-vfkit-build}"
+LIMA_HOME_BUILD="${CALF_GUEST_LIMA_HOME:-${HOME}/.calf-guest-build}"
 PACK=false
 
 while [[ $# -gt 0 ]]; do
@@ -106,10 +105,10 @@ ls -lh "$DEST_DISK"
 
 if [[ "$PACK" == "true" ]]; then
   require zstd
-  "${SCRIPT_DIR}/pack-vfkit-disk.sh" "$DEST_DISK" "$DEST_DIR"
+  "${SCRIPT_DIR}/pack-guest-disk.sh" "$DEST_DISK" "$DEST_DIR"
 fi
 
 echo
-echo "Calf will auto-select vfkit when this disk + vfkit binary exist."
+echo "Guest disk ready under ${DEST_DIR} (krunkit uses this on start)."
 echo "Test: make dev-backend"
 echo "Optional cleanup: LIMA_HOME=$LIMA_HOME limactl delete -f $BUILD_VM"
