@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -267,34 +268,26 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        DetailBreadcrumb(
+          segments: ['Containers', widget.project],
+          onBack: widget.onBack,
+        ),
+        const SizedBox(height: 16),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(
-                LucideIcons.chevronLeft,
-                size: 18,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 4),
-            Text('Containers', style: CalfTheme.muted(theme)),
-            Text(' / ', style: CalfTheme.muted(theme)),
             Icon(
               LucideIcons.layers,
-              size: 20,
+              size: 28,
               color: theme.colorScheme.primary,
             ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.project, style: theme.textTheme.headlineSmall),
+                  const SizedBox(height: 4),
                   Text(
                     '$running running / ${_containers.length} total',
                     style: theme.textTheme.bodySmall!.copyWith(
@@ -304,45 +297,33 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 ],
               ),
             ),
-            CalfButton.outline(
-              enabled: !_busy && running > 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running > 0
-                  ? () => _runGroupAction(
-                      widget.apiClient.stopContainer,
-                      runningOnly: true,
-                    )
-                  : null,
-              child: Icon(
-                LucideIcons.square,
-                size: 16,
-                color: theme.colorScheme.onSurface,
-              ),
+            CalfButtonGroup(
+              actions: [
+                CalfGroupAction(
+                  icon: LucideIcons.square,
+                  tooltip: 'Stop all',
+                  enabled: !_busy && running > 0,
+                  onPressed: () => _runGroupAction(
+                    widget.apiClient.stopContainer,
+                    runningOnly: true,
+                  ),
+                ),
+                CalfGroupAction(
+                  icon: LucideIcons.play,
+                  tooltip: 'Start all',
+                  enabled: !_busy && running < _containers.length,
+                  onPressed: () => _runGroupAction(
+                    widget.apiClient.startContainer,
+                    stoppedOnly: true,
+                  ),
+                ),
+              ],
             ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 8),
-            CalfButton(
-              enabled: !_busy && running < _containers.length,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running < _containers.length
-                  ? () => _runGroupAction(
-                      widget.apiClient.startContainer,
-                      stoppedOnly: true,
-                    )
-                  : null,
-              child: Icon(
-                LucideIcons.play,
-                size: 16,
-                color: theme.colorScheme.onPrimary,
-              ),
-            ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton.destructive(
               enabled: !_busy,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              width: 40,
+              height: 40,
               onPressed: () async {
                 final ok = await _runGroupAction(
                   widget.apiClient.removeContainer,

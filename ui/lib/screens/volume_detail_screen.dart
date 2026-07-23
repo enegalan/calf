@@ -461,7 +461,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
             ),
             CalfButton.destructive(
               enabled: !_busy,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              width: 36,
+              height: 36,
               onPressed: _removeVolume,
               child: Icon(
                 LucideIcons.trash2,

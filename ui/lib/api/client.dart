@@ -281,6 +281,40 @@ class ContainerFileEntry {
   }
 }
 
+class ContainerStatsSample {
+  /// Creates a [ContainerStatsSample] instance.
+  const ContainerStatsSample({
+    required this.t,
+    required this.cpuPercent,
+    required this.memUsage,
+    required this.memPercent,
+    required this.netIo,
+    required this.blockIo,
+    required this.pids,
+  });
+
+  final int t;
+  final String cpuPercent;
+  final String memUsage;
+  final String memPercent;
+  final String netIo;
+  final String blockIo;
+  final String pids;
+
+  /// Creates a [ContainerStatsSample] from a JSON map.
+  factory ContainerStatsSample.fromJson(Map<String, dynamic> json) {
+    return ContainerStatsSample(
+      t: (json['t'] as num?)?.toInt() ?? 0,
+      cpuPercent: json['cpu_percent'] as String? ?? '',
+      memUsage: json['mem_usage'] as String? ?? '',
+      memPercent: json['mem_percent'] as String? ?? '',
+      netIo: json['net_io'] as String? ?? '',
+      blockIo: json['block_io'] as String? ?? '',
+      pids: json['pids'] as String? ?? '',
+    );
+  }
+}
+
 class ContainerStats {
   /// Creates a [ContainerStats] instance.
   const ContainerStats({
@@ -290,6 +324,7 @@ class ContainerStats {
     required this.netIo,
     required this.blockIo,
     required this.pids,
+    this.samples = const [],
   });
 
   final String cpuPercent;
@@ -298,9 +333,24 @@ class ContainerStats {
   final String netIo;
   final String blockIo;
   final String pids;
+  final List<ContainerStatsSample> samples;
 
   /// Creates a [ContainerStats] from a JSON map.
   factory ContainerStats.fromJson(Map<String, dynamic> json) {
+    final rawSamples = json['samples'];
+    final samples = <ContainerStatsSample>[];
+    if (rawSamples is List) {
+      for (final entry in rawSamples) {
+        if (entry is Map<String, dynamic>) {
+          samples.add(ContainerStatsSample.fromJson(entry));
+        } else if (entry is Map) {
+          samples.add(
+            ContainerStatsSample.fromJson(Map<String, dynamic>.from(entry)),
+          );
+        }
+      }
+    }
+
     return ContainerStats(
       cpuPercent: json['cpu_percent'] as String? ?? '',
       memUsage: json['mem_usage'] as String? ?? '',
@@ -308,6 +358,7 @@ class ContainerStats {
       netIo: json['net_io'] as String? ?? '',
       blockIo: json['block_io'] as String? ?? '',
       pids: json['pids'] as String? ?? '',
+      samples: samples,
     );
   }
 }

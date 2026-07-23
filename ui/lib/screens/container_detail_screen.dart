@@ -302,7 +302,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
 
     _refreshStats();
     _statsTimer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 5),
       (_) => _refreshStats(),
     );
   }
@@ -343,7 +343,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       }
       setState(() {
         _stats = stats;
-        _statsHistory.add(stats);
+        _statsHistory.replaceFrom(stats);
         _statsLoading = false;
       });
     } catch (error) {
@@ -467,61 +467,43 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    CalfButton.outline(
-                      enabled: !_busy && _container.isRunning,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: _container.isRunning
-                          ? () => _runAction(
-                              () =>
-                                  widget.apiClient.stopContainer(_container.id),
-                            )
-                          : null,
-                      child: Icon(
-                        LucideIcons.square,
-                        size: 16,
-                        color: theme.colorScheme.onSurface,
-                      ),
+                    CalfButtonGroup(
+                      actions: [
+                        CalfGroupAction(
+                          icon: LucideIcons.square,
+                          tooltip: 'Stop',
+                          enabled: !_busy && _container.isRunning,
+                          onPressed: () => _runAction(
+                            () =>
+                                widget.apiClient.stopContainer(_container.id),
+                          ),
+                        ),
+                        CalfGroupAction(
+                          icon: LucideIcons.play,
+                          tooltip: 'Start',
+                          enabled: !_busy && !_container.isRunning,
+                          onPressed: () => _runAction(
+                            () => widget.apiClient.startContainer(
+                              _container.id,
+                            ),
+                          ),
+                        ),
+                        CalfGroupAction(
+                          icon: LucideIcons.rotateCw,
+                          tooltip: 'Restart',
+                          enabled: !_busy,
+                          onPressed: () => _runAction(
+                            () =>
+                                widget.apiClient.restartContainer(_container.id),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
-                    const SizedBox(width: 8),
-                    CalfButton(
-                      enabled: !_busy && !_container.isRunning,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: !_container.isRunning
-                          ? () => _runAction(
-                              () => widget.apiClient.startContainer(
-                                _container.id,
-                              ),
-                            )
-                          : null,
-                      child: Icon(
-                        LucideIcons.play,
-                        size: 16,
-                        color: theme.colorScheme.onPrimary,
-                      ),
-                    ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
-                    const SizedBox(width: 8),
-                    CalfButton(
-                      enabled: !_busy,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: () => _runAction(
-                        () => widget.apiClient.restartContainer(_container.id),
-                      ),
-                      child: Icon(
-                        LucideIcons.rotateCw,
-                        size: 16,
-                        color: theme.colorScheme.onPrimary,
-                      ),
-                    ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton.destructive(
                       enabled: !_busy,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      width: 40,
+                      height: 40,
                       onPressed: () async {
                         await _runAction(
                           () => widget.apiClient.removeContainer(_container.id),
@@ -903,7 +885,8 @@ class _InspectRow extends StatelessWidget {
           child: SelectableText(value, style: theme.textTheme.bodySmall),
         ),
         CalfButton.ghost(
-          padding: const EdgeInsets.all(6),
+          width: 28,
+          height: 28,
           onPressed: () => Clipboard.setData(ClipboardData(text: value)),
           child: Icon(
             LucideIcons.copy,
@@ -1090,7 +1073,8 @@ class _MountRow extends StatelessWidget {
             Tooltip(
               message: 'Open in file manager',
               child: CalfButton.ghost(
-                padding: const EdgeInsets.all(6),
+                width: 28,
+                height: 28,
                 onPressed: () => _openHostPath(context),
                 child: Icon(LucideIcons.folderOpen, size: 16, color: muted),
               ),
@@ -1098,7 +1082,8 @@ class _MountRow extends StatelessWidget {
           Tooltip(
             message: 'Copy host path',
             child: CalfButton.ghost(
-              padding: const EdgeInsets.all(6),
+              width: 28,
+              height: 28,
               onPressed: () =>
                   Clipboard.setData(ClipboardData(text: mount.source)),
               child: Icon(LucideIcons.copy, size: 16, color: muted),
@@ -1568,8 +1553,6 @@ class _StatsChartCard extends StatelessWidget {
 }
 
 class _StatsHistory {
-  static const _maxPoints = 60;
-
   final cpu = <double>[];
   final memUsed = <double>[];
   final diskRead = <double>[];
@@ -1577,24 +1560,50 @@ class _StatsHistory {
   final netRx = <double>[];
   final netTx = <double>[];
 
-  /// Records a stats sample in the rolling history buffers.
-  void add(ContainerStats stats) {
-    _append(cpu, _parsePercent(stats.cpuPercent));
-    _append(memUsed, _parsePair(stats.memUsage).$1);
-    final block = _parsePair(stats.blockIo);
-    _append(diskRead, block.$1);
-    _append(diskWrite, block.$2);
-    final net = _parsePair(stats.netIo);
-    _append(netRx, net.$1);
-    _append(netTx, net.$2);
+  /// Replaces chart series from the server history window (and live snapshot).
+  void replaceFrom(ContainerStats stats) {
+    cpu.clear();
+    memUsed.clear();
+    diskRead.clear();
+    diskWrite.clear();
+    netRx.clear();
+    netTx.clear();
+
+    if (stats.samples.isNotEmpty) {
+      for (final sample in stats.samples) {
+        _appendSample(
+          sample.cpuPercent,
+          sample.memUsage,
+          sample.blockIo,
+          sample.netIo,
+        );
+      }
+      return;
+    }
+
+    _appendSample(
+      stats.cpuPercent,
+      stats.memUsage,
+      stats.blockIo,
+      stats.netIo,
+    );
   }
 
-  /// Appends a value to the rolling history buffer.
-  void _append(List<double> target, double value) {
-    target.add(value);
-    if (target.length > _maxPoints) {
-      target.removeAt(0);
-    }
+  /// Appends one parsed sample into the chart series buffers.
+  void _appendSample(
+    String cpuPercent,
+    String memUsage,
+    String blockIo,
+    String netIo,
+  ) {
+    cpu.add(_parsePercent(cpuPercent));
+    memUsed.add(_parsePair(memUsage).$1);
+    final block = _parsePair(blockIo);
+    diskRead.add(block.$1);
+    diskWrite.add(block.$2);
+    final net = _parsePair(netIo);
+    netRx.add(net.$1);
+    netTx.add(net.$2);
   }
 }
 

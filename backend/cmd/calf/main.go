@@ -92,6 +92,7 @@ func run() int {
 	}()
 
 	go gateway.Backend().StartBuildSync(rtCtx)
+	go gateway.Backend().StartStatsSampler(rtCtx)
 	go gateway.Backend().DockerCLI.Start(rtCtx)
 
 	errCh := make(chan error, 1)

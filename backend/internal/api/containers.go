@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/daemon"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/utils"
@@ -96,11 +97,13 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 		},
 	}, map[string]httpkit.PartsHandler{
 		http.MethodDelete: func(w http.ResponseWriter, r *http.Request, parts []string) {
-			if err := g.backend.Runtime.RemoveContainer(r.Context(), parts[0]); err != nil {
+			id := parts[0]
+			if err := g.backend.Runtime.RemoveContainer(r.Context(), id); err != nil {
 				httpkit.WriteRuntimeOrFail(w, err)
 				return
 			}
 
+			g.backend.ForgetContainerStats(id)
 			utils.WriteOK(w)
 		},
 	})
@@ -191,7 +194,18 @@ func (g *Gateway) handleContainerExecOnce(w http.ResponseWriter, r *http.Request
 	httpkit.WriteJSON(w, http.StatusOK, map[string]string{"output": output})
 }
 
-// handleContainerStats serves GET /v1/containers/{id}/stats with live resource usage.
+// containerStatsResponse is the live stats snapshot plus retained history samples.
+type containerStatsResponse struct {
+	CPUPerc  string               `json:"cpu_percent"`
+	MemUsage string               `json:"mem_usage"`
+	MemPerc  string               `json:"mem_percent"`
+	NetIO    string               `json:"net_io"`
+	BlockIO  string               `json:"block_io"`
+	PIDs     string               `json:"pids"`
+	Samples  []daemon.StatsSample `json:"samples"`
+}
+
+// handleContainerStats serves GET /v1/containers/{id}/stats with live usage and retained samples.
 func (g *Gateway) handleContainerStats(w http.ResponseWriter, r *http.Request, id string) {
 	stats, err := g.backend.Runtime.ContainerStats(r.Context(), id)
 	if err != nil {
@@ -199,5 +213,18 @@ func (g *Gateway) handleContainerStats(w http.ResponseWriter, r *http.Request, i
 		return
 	}
 
-	httpkit.WriteJSON(w, http.StatusOK, stats)
+	samples := g.backend.ContainerStatsSamples(id)
+	if samples == nil {
+		samples = []daemon.StatsSample{}
+	}
+
+	httpkit.WriteJSON(w, http.StatusOK, containerStatsResponse{
+		CPUPerc:  stats.CPUPerc,
+		MemUsage: stats.MemUsage,
+		MemPerc:  stats.MemPerc,
+		NetIO:    stats.NetIO,
+		BlockIO:  stats.BlockIO,
+		PIDs:     stats.PIDs,
+		Samples:  samples,
+	})
 }

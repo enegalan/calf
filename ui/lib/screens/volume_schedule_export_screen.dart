@@ -1051,6 +1051,8 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
             const SizedBox(width: 8),
             CalfButton.ghost(
               enabled: widget.enabled,
+              width: 32,
+              height: 32,
               onPressed: widget.onRemove,
               child: Icon(
                 LucideIcons.trash2,

@@ -157,6 +157,72 @@ func TestContainerInspectAndMounts(t *testing.T) {
 	if statsResponse.StatusCode != http.StatusOK {
 		t.Fatalf("expected stats status 200, got %d", statsResponse.StatusCode)
 	}
+
+	var statsPayload map[string]any
+	if err := json.NewDecoder(statsResponse.Body).Decode(&statsPayload); err != nil {
+		t.Fatalf("Decode stats error: %v", err)
+	}
+	if _, ok := statsPayload["samples"]; !ok {
+		t.Fatal("expected samples field in stats response")
+	}
+}
+
+func TestContainerStatsHistoryClearedOnDelete(t *testing.T) {
+	mock := runtime.NewMock()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+	gateway := newTestGateway(cfg, slog.Default(), mock)
+	server := httptest.NewServer(gateway.Handler())
+	t.Cleanup(func() {
+		_ = gateway.Shutdown(context.Background())
+		server.Close()
+	})
+
+	gateway.Backend().RecordContainerStats("abc123", runtime.ContainerStats{
+		CPUPerc:  "3.00%",
+		MemUsage: "1MB / 1GB",
+		MemPerc:  "0.10%",
+		NetIO:    "1B / 1B",
+		BlockIO:  "1B / 1B",
+		PIDs:     "2",
+	}, time.Now())
+
+	statsResponse, err := http.Get(server.URL + "/v1/containers/abc123/stats")
+	if err != nil {
+		t.Fatalf("GET stats error: %v", err)
+	}
+	defer statsResponse.Body.Close()
+
+	var before map[string]any
+	if err := json.NewDecoder(statsResponse.Body).Decode(&before); err != nil {
+		t.Fatalf("Decode stats error: %v", err)
+	}
+	samples, ok := before["samples"].([]any)
+	if !ok || len(samples) == 0 {
+		t.Fatalf("expected retained samples before delete, got %#v", before["samples"])
+	}
+
+	deleteRequest, err := http.NewRequest(http.MethodDelete, server.URL+"/v1/containers/abc123", nil)
+	if err != nil {
+		t.Fatalf("NewRequest DELETE error: %v", err)
+	}
+	deleteResponse, err := http.DefaultClient.Do(deleteRequest)
+	if err != nil {
+		t.Fatalf("DELETE container error: %v", err)
+	}
+	defer deleteResponse.Body.Close()
+	if deleteResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected delete status 200, got %d", deleteResponse.StatusCode)
+	}
+
+	if len(gateway.Backend().ContainerStatsSamples("abc123")) != 0 {
+		t.Fatal("expected stats history cleared after container delete")
+	}
 }
 
 func TestImagesReturnsList(t *testing.T) {

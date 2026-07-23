@@ -292,7 +292,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                         /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
                         CalfButton.ghost(
-                          padding: const EdgeInsets.all(4),
+                          width: 28,
+                          height: 28,
                           onPressed: () => _copyText(detail.id),
                           child: Icon(
                             LucideIcons.copy,
@@ -1088,7 +1089,8 @@ class _DataTable extends StatelessWidget {
                       }
 
                       return CalfButton.ghost(
-                        padding: const EdgeInsets.all(4),
+                        width: 28,
+                        height: 28,
                         onPressed: () => onCopy(row[copyIndex]),
                         child: Icon(
                           LucideIcons.copy,

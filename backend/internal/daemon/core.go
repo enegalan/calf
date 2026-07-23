@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/dockercli"
 	"github.com/enegalan/calf/backend/internal/migration"
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -28,6 +29,7 @@ type Core struct {
 	registryLoginSessions *sync.Map
 	logBroadcaster        *logBroadcaster
 	exportScheduler       *exportScheduler
+	statsHistory          *statsHistory
 	DockerCLI             *dockercli.Manager
 	lifecycleCtx          context.Context
 	lifecycleCancel       context.CancelFunc
@@ -59,6 +61,7 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 		StartTime:       time.Now(),
 		migrateStatus:   migration.IdleStatus(),
 		logBroadcaster:  newLogBroadcaster(logger),
+		statsHistory:    newStatsHistory(constants.StatsHistoryRetention),
 		lifecycleCtx:    lifecycleCtx,
 		lifecycleCancel: lifecycleCancel,
 	}

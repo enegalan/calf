@@ -331,7 +331,8 @@ class _VolumesScreenState extends State<VolumesScreen> {
                       Tooltip(
                         message: 'Clone',
                         child: CalfButton.outline(
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          width: 36,
+                          height: 36,
                           onPressed: () => _cloneVolume(volume),
                           child: Icon(
                             LucideIcons.copy,

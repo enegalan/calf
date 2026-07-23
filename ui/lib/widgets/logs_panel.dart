@@ -703,7 +703,7 @@ class _LogsSearchBar extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         CalfButton.outline(
-          width: 40,
+          width: 36,
           height: 36,
           padding: EdgeInsets.zero,
           backgroundColor: regexEnabled ? theme.colorScheme.primary : null,
@@ -768,7 +768,7 @@ class _LogsSearchNavButton extends StatelessWidget {
     return CalfButton.ghost(
       enabled: enabled,
       width: 32,
-      height: 36,
+      height: 32,
       padding: EdgeInsets.zero,
       onPressed: onPressed,
       child: Icon(

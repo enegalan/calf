@@ -21,6 +21,12 @@ const (
 	MigratedBuildName        = "migrated-build"
 )
 
+// Stats history defaults control background container resource sampling.
+const (
+	StatsSampleInterval   = 5 * time.Second
+	StatsHistoryRetention = 15 * time.Minute
+)
+
 // Command defaults apply to shell-outs and other retried runtime operations.
 const (
 	DefaultActionTimeout     = 30 * time.Second

@@ -1325,40 +1325,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 8),
         if (_noProxyEntries.isNotEmpty) ...[
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _noProxyEntries.map((entry) {
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(entry, style: theme.textTheme.bodySmall),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _noProxyEntries.remove(entry));
-                      },
-                      child: Icon(
-                        LucideIcons.x,
-                        size: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+          Semantics(
+            container: true,
+            label: 'No proxy hosts',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final entry in _noProxyEntries)
+                  InputChip(
+                    label: Text(entry),
+                    labelStyle: theme.textTheme.bodyMedium!.copyWith(
+                      fontWeight: FontWeight.w500,
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
+                    deleteIcon: const Padding(
+                      padding: EdgeInsets.all(3),
+                      child: Icon(LucideIcons.x, size: 12),
+                    ),
+                    deleteIconColor: theme.colorScheme.onSurfaceVariant,
+                    deleteButtonTooltipMessage:
+                        'Remove $entry from no proxy list',
+                    onDeleted: () {
+                      setState(() => _noProxyEntries.remove(entry));
+                    },
+                    side: BorderSide(color: theme.colorScheme.outline),
+                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: CalfTheme.radius,
+                    ),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
         ],
         Row(
           children: [

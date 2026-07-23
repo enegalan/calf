@@ -417,6 +417,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
         Row(
           children: [
             CalfButton.ghost(
+              width: 36,
+              height: 36,
               onPressed: widget.onBack,
               child: Icon(
                 LucideIcons.chevronLeft,
@@ -493,7 +495,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 CalfButton.outline(
                   key: _menuButtonKey,
                   enabled: !_busy,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  width: 36,
+                  height: 36,
                   onPressed: _openActionsMenu,
                   child: Icon(
                     LucideIcons.chevronDown,
@@ -506,7 +509,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 const SizedBox(width: 8),
                 CalfButton.destructive(
                   enabled: !_busy,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  width: 36,
+                  height: 36,
                   onPressed: widget.onRemove,
                   child: Icon(
                     LucideIcons.trash2,

@@ -99,7 +99,9 @@ calf/
 │   │   │   ├── log_broadcaster.go             Fan-out of one nerdctl log stream to N subscribers
 │   │   │   ├── migrate.go                     Docker Desktop migration runner
 │   │   │   ├── registry_login.go              Docker Hub device-flow session manager
-│   │   │   └── runtime_ready.go               Start/wait for runtime (non-HTTP)
+│   │   │   ├── runtime_ready.go               Start/wait for runtime (non-HTTP)
+│   │   │   ├── stats_history.go               In-memory rolling container stats ring buffer
+│   │   │   └── stats_sampler.go               Background sampler for running container stats
 │   │   ├── config/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
@@ -148,6 +150,7 @@ calf/
 │   │   ├── buildhistory/history_test.go
 │   │   ├── buildstore/buildstore_test.go
 │   │   ├── config/config_test.go
+│   │   ├── daemon/                             stats_history tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
 │   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
@@ -194,7 +197,7 @@ calf/
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
-│   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive)
+│   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
 │   │       ├── detail_breadcrumb.dart          Detail view back navigation header
@@ -280,6 +283,8 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `migrate.go` — Docker Desktop migration runner.
 - `registry_login.go` — Docker Hub device-flow session manager.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
+- `stats_history.go` — in-memory rolling stats samples per container (15m retention).
+- `stats_sampler.go` — background sampler that appends stats for running containers.
 
 ### `internal/dockercli/`
 Docker CLI context management for pointing `docker` at the Calf socket.
@@ -381,7 +386,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 ### `widgets/`
 - `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
-- `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`).
+- `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.

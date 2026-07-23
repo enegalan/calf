@@ -184,7 +184,8 @@ class _NetworksScreenState extends State<NetworksScreen>
                 ),
               ),
               CalfButton.ghost(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                width: 36,
+                height: 36,
                 onPressed: () => _removeNetwork(network),
                 child: Icon(
                   LucideIcons.trash2,
@@ -289,6 +290,8 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
         Row(
           children: [
             CalfButton.ghost(
+              width: 36,
+              height: 36,
               onPressed: widget.onBack,
               child: Icon(
                 LucideIcons.chevronLeft,
