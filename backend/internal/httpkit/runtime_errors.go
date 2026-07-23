@@ -19,6 +19,16 @@ func WriteRuntimeError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 
+	if errors.Is(err, runtime.ErrContainerNotFound) {
+		WriteError(w, http.StatusNotFound, "container not found")
+		return true
+	}
+
+	if errors.Is(err, runtime.ErrContainerNotRunning) {
+		WriteError(w, http.StatusConflict, "container is not running")
+		return true
+	}
+
 	return false
 }
 

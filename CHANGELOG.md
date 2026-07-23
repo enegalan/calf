@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Guest disk persistence** — container images and data survive engine restarts on a durable guest disk downloaded on first start when needed.
 - **Container networking** — published container ports are reachable on the host.
 
+### Fixed
+
+- **Volumes list** — opening Volumes no longer fails when a container shows up in the engine list but cannot be inspected.
+- **Volume stored data** — browsing files inside a volume works again on macOS (paths are read from the guest, not the Mac host).
+- **Chart tooltips** — build History uses a real floating overlay tooltip (not clipped by tabs); container Stats tooltips stay readable inside the plot.
+- **Stopped containers** — Files works when a container is stopped (reads the filesystem without exec); Inspect and Bind mounts show a clear “container not found” error for broken entries instead of “operation failed”.
+- **Container list** — corrupt engine leftovers that appear in `ps` but cannot be inspected are no longer shown in the list.
+- **Container Stats** — the “only for running containers” note uses the same muted style as Exec, not an error color.
+
 ## [0.9.7] - 2026-07-19
 
 ### Removed

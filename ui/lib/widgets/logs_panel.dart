@@ -276,8 +276,8 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
     final displayIndex = displayMatchIndex(matches);
 
     final emptyMessage = widget.runningCount == 0
-        ? 'No running containers in this stack.'
-        : null;
+      ? ''
+      : null;
 
     return _LogsViewerChrome(
       theme: theme,

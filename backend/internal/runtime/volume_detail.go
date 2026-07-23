@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -252,6 +251,8 @@ func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName st
 }
 
 // volumeNamesInUse collects volume names referenced by any container.
+// Inspects containers one-by-one so a single uninspectable or vanished ID
+// (docker ps can list entries that docker inspect rejects) does not fail the list.
 func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct{}, error) {
 	containers, err := listContainers(ctx, run)
 	if err != nil {
@@ -259,28 +260,13 @@ func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct
 	}
 
 	inUse := make(map[string]struct{})
-	if len(containers) == 0 {
-		return inUse, nil
-	}
+	for _, container := range containers {
+		inspect, err := inspectContainer(ctx, run, container.ID)
+		if err != nil {
+			continue
+		}
 
-	ids := make([]string, len(containers))
-	for index, container := range containers {
-		ids[index] = container.ID
-	}
-
-	args := append([]string{"inspect"}, ids...)
-	output, err := run(ctx, "nerdctl", args...)
-	if err != nil {
-		return nil, err
-	}
-
-	rows, err := decodeInspectDocuments[json.RawMessage](output)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, row := range rows {
-		mounts, err := parseContainerMounts(row)
+		mounts, err := parseContainerMounts(inspect)
 		if err != nil {
 			continue
 		}
@@ -315,7 +301,7 @@ func volumeMountName(mount ContainerMount) string {
 func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume) ([]Volume, error) {
 	inUse, err := volumeNamesInUse(ctx, run)
 	if err != nil {
-		return nil, err
+		inUse = map[string]struct{}{}
 	}
 
 	names := make([]string, len(volumes))

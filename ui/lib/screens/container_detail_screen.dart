@@ -293,7 +293,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       }
       setState(() {
         _stats = null;
-        _statsError = 'Stats are available only for running containers.';
+        _statsError = null;
         _statsLoading = false;
       });
       return;
@@ -321,7 +321,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       }
       setState(() {
         _stats = null;
-        _statsError = 'Stats are available only for running containers.';
+        _statsError = null;
         _statsLoading = false;
       });
       return;
@@ -615,6 +615,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       case _ContainerDetailTab.stats:
         return _StatsTab(
           theme: theme,
+          isRunning: _container.isRunning,
           loading: _statsLoading,
           error: _statsError,
           stats: _stats,
@@ -1127,6 +1128,7 @@ class _StatsTab extends StatelessWidget {
   /// Creates a [_StatsTab] widget.
   const _StatsTab({
     required this.theme,
+    required this.isRunning,
     required this.loading,
     required this.error,
     required this.stats,
@@ -1134,6 +1136,7 @@ class _StatsTab extends StatelessWidget {
   });
 
   final ShadThemeData theme;
+  final bool isRunning;
   final bool loading;
   final String? error;
   final ContainerStats? stats;
@@ -1142,6 +1145,15 @@ class _StatsTab extends StatelessWidget {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
+    if (!isRunning) {
+      return _Panel(
+        theme: theme,
+        child: Text(
+          'Stats are available only for running containers.',
+          style: theme.textTheme.muted,
+        ),
+      );
+    }
     if (loading && stats == null) {
       return _Panel(
         theme: theme,
@@ -1286,6 +1298,7 @@ class _StatsChartCard extends StatelessWidget {
               LineChartData(
                 minY: 0,
                 maxY: maxValue <= 0 ? 1 : maxValue * 1.2,
+                clipData: const FlClipData.none(),
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -1312,6 +1325,94 @@ class _StatsChartCard extends StatelessWidget {
                   ),
                   topTitles: const AxisTitles(
                     sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                lineTouchData: LineTouchData(
+                  enabled: series.any((item) => item.values.isNotEmpty),
+                  getTouchedSpotIndicator: (barData, spotIndexes) {
+                    return [
+                      for (final _ in spotIndexes)
+                        TouchedSpotIndicatorData(
+                          FlLine(
+                            color: theme.colorScheme.border,
+                            strokeWidth: 1,
+                          ),
+                          FlDotData(
+                            show: true,
+                            getDotPainter: (spot, percent, bar, index) {
+                              return FlDotCirclePainter(
+                                radius: 4,
+                                color: bar.color ?? theme.colorScheme.primary,
+                                strokeWidth: 2,
+                                strokeColor: theme.colorScheme.background,
+                              );
+                            },
+                          ),
+                        ),
+                    ];
+                  },
+                  touchTooltipData: LineTouchTooltipData(
+                    fitInsideHorizontally: true,
+                    fitInsideVertically: true,
+                    maxContentWidth: 180,
+                    tooltipRoundedRadius: 8,
+                    tooltipMargin: 8,
+                    tooltipPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    tooltipBorder: BorderSide(color: theme.colorScheme.border),
+                    getTooltipColor: (_) => theme.colorScheme.background,
+                    getTooltipItems: (spots) {
+                      if (spots.isEmpty) {
+                        return const [];
+                      }
+
+                      final labelStyle = theme.textTheme.small.copyWith(
+                        color: theme.colorScheme.mutedForeground,
+                        fontWeight: FontWeight.w500,
+                        height: 1.35,
+                      );
+                      final valueStyle = theme.textTheme.small.copyWith(
+                        color: theme.colorScheme.foreground,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      );
+                      final children = <TextSpan>[];
+                      for (var i = 0; i < spots.length; i++) {
+                        final spot = spots[i];
+                        final seriesIndex = spot.barIndex.clamp(
+                          0,
+                          series.length - 1,
+                        );
+                        final item = series[seriesIndex];
+                        children.add(
+                          TextSpan(
+                            text: item.label,
+                            style: labelStyle.copyWith(color: item.color),
+                          ),
+                        );
+                        children.add(
+                          TextSpan(
+                            text:
+                                '  ${formatY(spot.y)}${i == spots.length - 1 ? '' : '\n'}',
+                            style: valueStyle,
+                          ),
+                        );
+                      }
+
+                      return [
+                        for (var i = 0; i < spots.length; i++)
+                          i == 0
+                              ? LineTooltipItem(
+                                  '',
+                                  valueStyle,
+                                  textAlign: TextAlign.left,
+                                  children: children,
+                                )
+                              : null,
+                      ];
+                    },
                   ),
                 ),
                 lineBarsData: [

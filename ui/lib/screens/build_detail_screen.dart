@@ -1471,11 +1471,6 @@ class _HistoryTab extends StatelessWidget {
     }
 
     final items = history.take(30).toList().reversed.toList();
-    final durations = items.map((item) => item.durationMs.toDouble()).toList();
-    final totalSteps = items.map((item) => item.totalSteps.toDouble()).toList();
-    final cachedSteps = items
-        .map((item) => item.cachedSteps.toDouble())
-        .toList();
 
     return ListView(
       children: [
@@ -1483,100 +1478,13 @@ class _HistoryTab extends StatelessWidget {
           'Build history',
           style: theme.textTheme.large.copyWith(fontWeight: FontWeight.w600),
         ),
-
-        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 4),
         Text(
           'Each series is scaled to its own peak in this window.',
           style: theme.textTheme.muted,
         ),
-
-        /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 12),
-        SizedBox(
-          height: 220,
-          child: items.isEmpty
-              ? Center(
-                  child: Text(
-                    'No builds to chart yet.',
-                    style: theme.textTheme.muted,
-                  ),
-                )
-              : LineChart(
-                  LineChartData(
-                    minX: 0,
-                    maxX: items.length <= 1 ? 1 : (items.length - 1).toDouble(),
-                    minY: 0,
-                    maxY: 1.2,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      getDrawingHorizontalLine: (_) => FlLine(
-                        color: theme.colorScheme.border,
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: const FlTitlesData(show: false),
-                    borderData: FlBorderData(show: false),
-                    lineTouchData: LineTouchData(
-                      enabled: items.isNotEmpty,
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipItems: (spots) {
-                          return spots.map((spot) {
-                            final index = spot.x.round().clamp(
-                              0,
-                              items.length - 1,
-                            );
-                            final item = items[index];
-                            String label;
-                            String value;
-                            switch (spot.barIndex) {
-                              case 1:
-                                label = 'Steps';
-                                value = '${item.totalSteps}';
-                              case 2:
-                                label = 'Cached';
-                                value = '${item.cachedSteps}';
-                              default:
-                                label = 'Duration';
-                                value = _formatDuration(item.durationMs);
-                            }
-                            return LineTooltipItem(
-                              '$label\n$value',
-                              theme.textTheme.small.copyWith(
-                                color: theme.colorScheme.foreground,
-                              ),
-                            );
-                          }).toList();
-                        },
-                      ),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _normalizedHistorySpots(durations),
-                        isCurved: items.length > 2,
-                        color: theme.colorScheme.primary,
-                        barWidth: 2,
-                        dotData: FlDotData(show: items.length <= 3),
-                      ),
-                      LineChartBarData(
-                        spots: _normalizedHistorySpots(totalSteps),
-                        isCurved: items.length > 2,
-                        color: CalfColors.success,
-                        barWidth: 2,
-                        dotData: FlDotData(show: items.length <= 3),
-                      ),
-                      LineChartBarData(
-                        spots: _normalizedHistorySpots(cachedSteps),
-                        isCurved: items.length > 2,
-                        color: theme.colorScheme.mutedForeground,
-                        barWidth: 2,
-                        dotData: FlDotData(show: items.length <= 3),
-                      ),
-                    ],
-                  ),
-                ),
-        ),
+        _BuildHistoryChart(theme: theme, items: items),
 
         /// Creates a [_HistoryTab] widget.
         const SizedBox(height: 24),
@@ -1693,6 +1601,403 @@ String _platformArch(String platform) {
   }
 
   return platform;
+}
+
+/// Line chart of recent builds with an overlay tooltip above the widget tree.
+class _BuildHistoryChart extends StatefulWidget {
+  /// Creates a build-history line chart for [items].
+  const _BuildHistoryChart({required this.theme, required this.items});
+
+  final ShadThemeData theme;
+  final List<BuildItem> items;
+
+  /// Creates the mutable state for [_BuildHistoryChart].
+  @override
+  State<_BuildHistoryChart> createState() => _BuildHistoryChartState();
+}
+
+class _BuildHistoryChartState extends State<_BuildHistoryChart> {
+  static const double _chartHeight = 220;
+  static const double _tooltipWidth = 196;
+  static const double _tooltipHeight = 108;
+  static const double _tooltipGap = 12;
+
+  final LayerLink _layerLink = LayerLink();
+  final OverlayPortalController _tooltipPortal = OverlayPortalController();
+  final GlobalKey _chartKey = GlobalKey();
+
+  int? _touchedIndex;
+  Offset _localTouch = Offset.zero;
+
+  /// Clears the overlay tooltip when this chart leaves the tree.
+  @override
+  void dispose() {
+    if (_tooltipPortal.isShowing) {
+      _tooltipPortal.hide();
+    }
+    super.dispose();
+  }
+
+  /// Shows or updates the overlay tooltip for [index] at [localPosition].
+  void _showTooltip(int index, Offset localPosition) {
+    _touchedIndex = index;
+    _localTouch = localPosition;
+    if (!_tooltipPortal.isShowing) {
+      _tooltipPortal.show();
+    }
+    setState(() {});
+  }
+
+  /// Hides the overlay tooltip.
+  void _hideTooltip() {
+    if (_touchedIndex == null && !_tooltipPortal.isShowing) {
+      return;
+    }
+    _touchedIndex = null;
+    if (_tooltipPortal.isShowing) {
+      _tooltipPortal.hide();
+    }
+    setState(() {});
+  }
+
+  /// Places the tooltip near the touch point, flipping below when near the top.
+  Offset _tooltipOffset(Size chartSize) {
+    var dx = _localTouch.dx - _tooltipWidth / 2;
+    var dy = _localTouch.dy - _tooltipHeight - _tooltipGap;
+    if (dy < 8) {
+      dy = _localTouch.dy + _tooltipGap;
+    }
+    final maxDx = (chartSize.width - _tooltipWidth).clamp(0.0, double.infinity);
+    dx = dx.clamp(0.0, maxDx);
+    return Offset(dx, dy);
+  }
+
+  /// Builds the chart, legend, and overlay tooltip portal.
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final items = widget.items;
+
+    if (items.isEmpty) {
+      return SizedBox(
+        height: _chartHeight,
+        child: Center(
+          child: Text('No builds to chart yet.', style: theme.textTheme.muted),
+        ),
+      );
+    }
+
+    final durations = items.map((item) => item.durationMs.toDouble()).toList();
+    final totalSteps = items.map((item) => item.totalSteps.toDouble()).toList();
+    final cachedSteps = items
+        .map((item) => item.cachedSteps.toDouble())
+        .toList();
+    final durationColor = theme.colorScheme.primary;
+    final stepsColor = CalfColors.success;
+    final cachedColor = theme.colorScheme.mutedForeground;
+    final touched =
+        _touchedIndex != null &&
+            _touchedIndex! >= 0 &&
+            _touchedIndex! < items.length
+        ? items[_touchedIndex!]
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        OverlayPortal(
+          controller: _tooltipPortal,
+          overlayChildBuilder: (context) {
+            if (touched == null) {
+              return const SizedBox.shrink();
+            }
+
+            final box =
+                _chartKey.currentContext?.findRenderObject() as RenderBox?;
+            final chartSize = box?.size ?? const Size(300, _chartHeight);
+
+            return UnconstrainedBox(
+              child: CompositedTransformFollower(
+                link: _layerLink,
+                showWhenUnlinked: false,
+                offset: _tooltipOffset(chartSize),
+                child: IgnorePointer(
+                  child: _BuildHistoryTooltip(
+                    theme: theme,
+                    item: touched,
+                    durationColor: durationColor,
+                    stepsColor: stepsColor,
+                    cachedColor: cachedColor,
+                    width: _tooltipWidth,
+                  ),
+                ),
+              ),
+            );
+          },
+          child: CompositedTransformTarget(
+            link: _layerLink,
+            child: SizedBox(
+              key: _chartKey,
+              height: _chartHeight,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: items.length <= 1 ? 1 : (items.length - 1).toDouble(),
+                  minY: 0,
+                  maxY: 1.2,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    checkToShowHorizontalLine: (value) =>
+                        value > 0.05 && value < 1.15,
+                    getDrawingHorizontalLine: (_) =>
+                        FlLine(color: theme.colorScheme.border, strokeWidth: 1),
+                  ),
+                  titlesData: const FlTitlesData(show: false),
+                  borderData: FlBorderData(show: false),
+                  lineTouchData: LineTouchData(
+                    enabled: true,
+                    handleBuiltInTouches: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (_) => const [],
+                    ),
+                    touchCallback: (event, response) {
+                      final local = event.localPosition;
+                      if (!event.isInterestedForInteractions ||
+                          local == null ||
+                          response?.lineBarSpots == null ||
+                          response!.lineBarSpots!.isEmpty) {
+                        _hideTooltip();
+                        return;
+                      }
+
+                      final index = response.lineBarSpots!.first.x
+                          .round()
+                          .clamp(0, items.length - 1);
+                      _showTooltip(index, local);
+                    },
+                    getTouchedSpotIndicator: (barData, spotIndexes) {
+                      return [
+                        for (final _ in spotIndexes)
+                          TouchedSpotIndicatorData(
+                            FlLine(
+                              color: theme.colorScheme.border.withValues(
+                                alpha: 0.55,
+                              ),
+                              strokeWidth: 1,
+                            ),
+                            FlDotData(
+                              show: true,
+                              getDotPainter: (spot, percent, bar, index) {
+                                return FlDotCirclePainter(
+                                  radius: 4,
+                                  color: bar.color ?? durationColor,
+                                  strokeWidth: 2,
+                                  strokeColor: theme.colorScheme.background,
+                                );
+                              },
+                            ),
+                          ),
+                      ];
+                    },
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: _normalizedHistorySpots(durations),
+                      isCurved: items.length > 2,
+                      color: durationColor,
+                      barWidth: 2,
+                      dotData: FlDotData(show: items.length <= 3),
+                    ),
+                    LineChartBarData(
+                      spots: _normalizedHistorySpots(totalSteps),
+                      isCurved: items.length > 2,
+                      color: stepsColor,
+                      barWidth: 2,
+                      dotData: FlDotData(show: items.length <= 3),
+                    ),
+                    LineChartBarData(
+                      spots: _normalizedHistorySpots(cachedSteps),
+                      isCurved: items.length > 2,
+                      color: cachedColor,
+                      barWidth: 2,
+                      dotData: FlDotData(show: items.length <= 3),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 16,
+          runSpacing: 8,
+          children: [
+            _ChartLegendSwatch(
+              theme: theme,
+              color: durationColor,
+              label: 'Duration',
+            ),
+            _ChartLegendSwatch(theme: theme, color: stepsColor, label: 'Steps'),
+            _ChartLegendSwatch(
+              theme: theme,
+              color: cachedColor,
+              label: 'Cached',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Floating overlay tooltip for one build-history point.
+class _BuildHistoryTooltip extends StatelessWidget {
+  /// Creates a styled tooltip card for [item].
+  const _BuildHistoryTooltip({
+    required this.theme,
+    required this.item,
+    required this.durationColor,
+    required this.stepsColor,
+    required this.cachedColor,
+    required this.width,
+  });
+
+  final ShadThemeData theme;
+  final BuildItem item;
+  final Color durationColor;
+  final Color stepsColor;
+  final Color cachedColor;
+  final double width;
+
+  /// Builds the tooltip card.
+  @override
+  Widget build(BuildContext context) {
+    final title = item.tag.isNotEmpty ? item.tag : item.id;
+    final labelStyle = theme.textTheme.small.copyWith(
+      color: theme.colorScheme.mutedForeground,
+      fontWeight: FontWeight.w500,
+      height: 1.3,
+    );
+    final valueStyle = theme.textTheme.small.copyWith(
+      color: theme.colorScheme.foreground,
+      fontWeight: FontWeight.w600,
+      height: 1.3,
+    );
+
+    return Container(
+      width: width,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: theme.colorScheme.foreground.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: valueStyle.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          _tooltipRow(
+            label: 'Duration',
+            value: _formatDuration(item.durationMs),
+            swatch: durationColor,
+            labelStyle: labelStyle,
+            valueStyle: valueStyle,
+          ),
+          const SizedBox(height: 4),
+          _tooltipRow(
+            label: 'Steps',
+            value: '${item.totalSteps}',
+            swatch: stepsColor,
+            labelStyle: labelStyle,
+            valueStyle: valueStyle,
+          ),
+          const SizedBox(height: 4),
+          _tooltipRow(
+            label: 'Cached',
+            value: '${item.cachedSteps}',
+            swatch: cachedColor,
+            labelStyle: labelStyle,
+            valueStyle: valueStyle,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Builds one metric row with a color swatch.
+  Widget _tooltipRow({
+    required String label,
+    required String value,
+    required Color swatch,
+    required TextStyle labelStyle,
+    required TextStyle valueStyle,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: swatch,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: labelStyle)),
+        Text(value, style: valueStyle),
+      ],
+    );
+  }
+}
+
+/// Color key used under build and stats line charts.
+class _ChartLegendSwatch extends StatelessWidget {
+  /// Creates a small color square with [label].
+  const _ChartLegendSwatch({
+    required this.theme,
+    required this.color,
+    required this.label,
+  });
+
+  final ShadThemeData theme;
+  final Color color;
+  final String label;
+
+  /// Builds the legend swatch row.
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: theme.textTheme.muted),
+      ],
+    );
+  }
 }
 
 /// Normalizes values for chart rendering.

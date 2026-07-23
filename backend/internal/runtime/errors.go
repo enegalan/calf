@@ -13,6 +13,12 @@ var ErrRuntimeNotRunning = errors.New("runtime is not running")
 // ErrNetworkNotFound is returned when a network is not found.
 var ErrNetworkNotFound = errors.New("network not found")
 
+// ErrContainerNotFound is returned when a container ID does not exist in the engine.
+var ErrContainerNotFound = errors.New("container not found")
+
+// ErrContainerNotRunning is returned when an operation requires a running container.
+var ErrContainerNotRunning = errors.New("container is not running")
+
 // emptyIfStopped runs listFn only when the runtime is running; otherwise returns an empty slice so list endpoints stay 200 while the VM is starting.
 func emptyIfStopped[T any](
 	ctx context.Context,
