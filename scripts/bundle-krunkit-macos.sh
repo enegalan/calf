@@ -39,6 +39,11 @@ MACOS_DIR="$APP/Contents/MacOS"
 RES_DIR="$APP/Contents/Resources/krunkit"
 mkdir -p "$MACOS_DIR" "$RES_DIR/bin" "$RES_DIR/lib" "$RES_DIR/share/krunkit"
 
+# rm before cp: brew binaries are often mode 555; a prior bundle leaves non-writable dests.
+rm -f "$RES_DIR/bin/krunkit" "$MACOS_DIR/gvproxy"
+rm -rf "$RES_DIR/lib" "$RES_DIR/share/krunkit"
+mkdir -p "$RES_DIR/lib" "$RES_DIR/share/krunkit"
+
 cp "$KRUNKIT_BIN" "$RES_DIR/bin/krunkit"
 cp -R "${PREFIX}/lib/." "$RES_DIR/lib/"
 if [[ -d "$FIRMWARE_DIR" ]]; then
@@ -50,7 +55,7 @@ else
   exit 1
 fi
 cp "$GVPROXY_SRC" "$MACOS_DIR/gvproxy"
-chmod +x "$RES_DIR/bin/krunkit" "$MACOS_DIR/gvproxy"
+chmod u+w,a+x "$RES_DIR/bin/krunkit" "$MACOS_DIR/gvproxy"
 
 # Relocatable dylib load path (SIP ignores DYLD_LIBRARY_PATH for signed binaries).
 desired="@loader_path/../lib/libkrun.1.dylib"
