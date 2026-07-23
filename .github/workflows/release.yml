@@ -73,6 +73,9 @@ jobs:
           make krunkit-stack
 
       - name: Build and package ${{ matrix.os }}
+        env:
+          # Fail the macOS Xcode embed phase if krunkit bundling fails (stack installed above).
+          CALF_REQUIRE_KRUNKIT: ${{ matrix.os == 'macos-latest' && '1' || '0' }}
         run: make ${{ matrix.target }}
 
       - name: Upload installer artifacts

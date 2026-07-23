@@ -338,7 +338,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nDEST_DIR=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME/Contents/MacOS\"\nmkdir -p \"$DEST_DIR\"\n(cd \"$PROJECT_DIR/../../backend\" && CGO_ENABLED=0 go build -o \"$DEST_DIR/calf-daemon\" ./cmd/calf)\nchmod +x \"$DEST_DIR/calf-daemon\"\nif command -v codesign >/dev/null 2>&1; then codesign --force --sign - --identifier com.enegalan.calf.daemon \"$DEST_DIR/calf-daemon\" 2>/dev/null || true; fi\nAPP=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME\"\nif [ -x \"$PROJECT_DIR/../../scripts/bundle-krunkit-macos.sh\" ]; then\n  \"$PROJECT_DIR/../../scripts/bundle-krunkit-macos.sh\" \"$APP\"\nfi\n";
+			shellScript = "set -eu\nDEST_DIR=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME/Contents/MacOS\"\nmkdir -p \"$DEST_DIR\"\n(cd \"$PROJECT_DIR/../../backend\" && CGO_ENABLED=0 go build -o \"$DEST_DIR/calf-daemon\" ./cmd/calf)\nchmod +x \"$DEST_DIR/calf-daemon\"\nif command -v codesign >/dev/null 2>&1; then codesign --force --sign - --identifier com.enegalan.calf.daemon \"$DEST_DIR/calf-daemon\" 2>/dev/null || true; fi\nAPP=\"$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME\"\nif [ -x \"$PROJECT_DIR/../../scripts/bundle-krunkit-macos.sh\" ]; then\n  if ! \"$PROJECT_DIR/../../scripts/bundle-krunkit-macos.sh\" \"$APP\"; then\n    echo \"warning: krunkit stack not bundled (run make krunkit-stack)\" >&2\n    # CI smoke builds lack the stack; release sets CALF_REQUIRE_KRUNKIT=1 and must fail closed.\n    if [ \"${CALF_REQUIRE_KRUNKIT:-}\" = \"1\" ] || [ -z \"${GITHUB_ACTIONS:-}\" ]; then\n      exit 1\n    fi\n  fi\nfi\n";
 		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
