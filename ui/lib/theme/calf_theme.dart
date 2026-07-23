@@ -20,6 +20,14 @@ abstract final class CalfTheme {
     );
   }
 
+  /// Dialog shape with radius and outline so modals read against the surface.
+  static ShapeBorder dialogShape(ColorScheme colorScheme) {
+    return RoundedRectangleBorder(
+      borderRadius: radius,
+      side: BorderSide(color: colorScheme.outlineVariant),
+    );
+  }
+
   /// Builds a Material 3 [ThemeData] for the given brightness.
   static ThemeData _build(Brightness brightness) {
     final isLight = brightness == Brightness.light;
@@ -35,7 +43,7 @@ abstract final class CalfTheme {
       onSecondaryContainer: isLight
           ? const Color(0xFF0F172A)
           : const Color(0xFFE2E8F0),
-      error: isLight ? const Color(0xFFEF4444) : const Color(0xFF7F1D1D),
+      error: isLight ? const Color(0xFFEF4444) : const Color(0xFFF87171),
       onError: Colors.white,
       surface: isLight ? const Color(0xFFFFFFFF) : const Color(0xFF020817),
       onSurface: isLight ? const Color(0xFF020817) : const Color(0xFFF8FAFC),
@@ -68,6 +76,10 @@ abstract final class CalfTheme {
       ),
       cardTheme: const CardThemeData(
         shape: RoundedRectangleBorder(borderRadius: radius),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: dialogShape(colorScheme),
       ),
       // Opt into Material 3 2024 slider (gapped track + handle thumb).
       // thumbSize/trackGap are required by HandleThumbShape/GappedSliderTrackShape.

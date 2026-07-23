@@ -8,11 +8,19 @@ class UpdatePreferencesData {
     this.lastCheckAt,
     this.skippedVersion = '',
     this.cachedUpdate,
+    this.whatsNewVersion = '',
+    this.whatsNewNotes = '',
   });
 
   final DateTime? lastCheckAt;
   final String skippedVersion;
   final UpdateInfo? cachedUpdate;
+
+  /// App version whose What's New notes are stored in [whatsNewNotes].
+  final String whatsNewVersion;
+
+  /// Cached GitHub release-notes body for [whatsNewVersion].
+  final String whatsNewNotes;
 }
 
 class UpdatePreferences {
@@ -36,10 +44,15 @@ class UpdatePreferences {
       cachedUpdate = _parseCachedUpdate(cachedUpdateRaw);
     }
 
+    final whatsNewVersion = raw['whats_new_version'];
+    final whatsNewNotes = raw['whats_new_notes'];
+
     return UpdatePreferencesData(
       lastCheckAt: lastCheckAt,
       skippedVersion: skippedVersion is String ? skippedVersion : '',
       cachedUpdate: cachedUpdate,
+      whatsNewVersion: whatsNewVersion is String ? whatsNewVersion : '',
+      whatsNewNotes: whatsNewNotes is String ? whatsNewNotes : '',
     );
   }
 
@@ -49,11 +62,14 @@ class UpdatePreferences {
     required UpdateInfo? latest,
     String skippedVersion = '',
   }) async {
+    final current = await load();
     await _save(
       UpdatePreferencesData(
         lastCheckAt: checkedAt,
         skippedVersion: skippedVersion,
         cachedUpdate: latest,
+        whatsNewVersion: current.whatsNewVersion,
+        whatsNewNotes: current.whatsNewNotes,
       ),
     );
   }
@@ -66,6 +82,25 @@ class UpdatePreferences {
         lastCheckAt: current.lastCheckAt,
         skippedVersion: version,
         cachedUpdate: current.cachedUpdate,
+        whatsNewVersion: current.whatsNewVersion,
+        whatsNewNotes: current.whatsNewNotes,
+      ),
+    );
+  }
+
+  /// Caches What's New release notes for [version].
+  static Future<void> saveWhatsNewNotes({
+    required String version,
+    required String notes,
+  }) async {
+    final current = await load();
+    await _save(
+      UpdatePreferencesData(
+        lastCheckAt: current.lastCheckAt,
+        skippedVersion: current.skippedVersion,
+        cachedUpdate: current.cachedUpdate,
+        whatsNewVersion: version,
+        whatsNewNotes: notes,
       ),
     );
   }
@@ -84,6 +119,10 @@ class UpdatePreferences {
           'download_url': data.cachedUpdate!.downloadUrl,
           'release_page_url': data.cachedUpdate!.releasePageUrl,
         },
+      if (data.whatsNewVersion.isNotEmpty)
+        'whats_new_version': data.whatsNewVersion,
+      if (data.whatsNewNotes.isNotEmpty)
+        'whats_new_notes': data.whatsNewNotes,
     });
   }
 

@@ -14,6 +14,7 @@ class AppBottomBar extends StatelessWidget {
     required this.status,
     required this.appVersion,
     required this.busy,
+    required this.pendingAction,
     required this.onStart,
     required this.onStop,
     required this.onKill,
@@ -24,6 +25,9 @@ class AppBottomBar extends StatelessWidget {
   final DaemonStatus? status;
   final String appVersion;
   final bool busy;
+
+  /// Non-empty while Start/Stop/Kill is in flight (e.g. `Engine starting…`).
+  final String pendingAction;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onKill;
@@ -38,11 +42,13 @@ class AppBottomBar extends StatelessWidget {
     final runtime = status?.runtime;
     final running = runtime?.isRunning == true;
     final resources = status?.resources ?? const EngineResources();
-    final label = _engineLabel(runtime);
-    final badgeColor = running
+    final pending = pendingAction.isNotEmpty;
+    final label = pending ? pendingAction : _engineLabel(runtime);
+    final activeBadge = pending || running;
+    final badgeColor = activeBadge
         ? CalfColors.primary
         : theme.colorScheme.surfaceContainerHighest;
-    final badgeForeground = running
+    final badgeForeground = activeBadge
         ? Colors.white
         : theme.colorScheme.onSurfaceVariant;
 
@@ -69,11 +75,21 @@ class AppBottomBar extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        LucideIcons.container,
-                        size: 14,
-                        color: badgeForeground,
-                      ),
+                      if (pending)
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: badgeForeground,
+                          ),
+                        )
+                      else
+                        Icon(
+                          LucideIcons.container,
+                          size: 14,
+                          color: badgeForeground,
+                        ),
                       const SizedBox(width: 8),
                       Text(
                         label,
@@ -138,17 +154,37 @@ class AppBottomBar extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            Text(
-              'RAM ${_formatPair(resources.memoryUsedBytes, resources.memoryReservedBytes)}'
-              '   '
-              'CPU ${_formatCpu(resources.cpuPercent)}'
-              '   '
-              'Disk ${_formatPair(resources.diskUsedBytes, resources.diskReservedBytes)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: CalfTheme.muted(theme).copyWith(fontSize: 12),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Tooltip(
+                    message: 'Open Settings',
+                    child: InkWell(
+                      onTap: onOpenSettings,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 6,
+                        ),
+                        child: Text(
+                          'RAM ${_formatPair(resources.memoryUsedBytes, resources.memoryReservedBytes)}'
+                          '   '
+                          'CPU ${_formatCpu(resources.cpuPercent)}'
+                          '   '
+                          'Disk ${_formatPair(resources.diskUsedBytes, resources.diskReservedBytes)}',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: CalfTheme.muted(theme).copyWith(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-            const Spacer(),
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: Tooltip(
@@ -190,15 +226,15 @@ class AppBottomBar extends StatelessWidget {
     return 'Engine ${runtime.state}';
   }
 
-  /// Prefixes the version with `v` when missing.
+  /// Returns a display version label, falling back to `dev` when empty.
   static String _versionLabel(String version) {
-    if (version.isEmpty) {
-      return '';
+    final label = CalfVersion.displayLabel(version);
+    if (label == 'dev' ||
+        label.startsWith('v') ||
+        label == 'unavailable') {
+      return label;
     }
-    if (version.startsWith('v') || version == 'unavailable') {
-      return version;
-    }
-    return 'v$version';
+    return 'v$label';
   }
 
   /// Formats used/reserved bytes as `1.1 GB / 4.0 GB`.

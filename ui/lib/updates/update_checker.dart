@@ -17,6 +17,9 @@ class UpdateChecker {
 
   final http.Client _client;
 
+  /// In-memory What's New notes keyed by normalized version.
+  static final Map<String, String> _whatsNewMemoryCache = {};
+
   /// Compares two semantic version strings; returns negative if [left] is older.
   static int compareVersions(String left, String right) {
     final leftParts = _parseVersionParts(left);
@@ -31,6 +34,81 @@ class UpdateChecker {
     }
 
     return 0;
+  }
+
+  /// Fetches GitHub release notes for [version] (tag `vX.Y.Z`).
+  ///
+  /// Returns cached notes for that version when available (memory, then disk).
+  Future<String?> fetchReleaseNotes(String version) async {
+    final normalized = normalizeTagName(version);
+    if (normalized.isEmpty ||
+        normalized == 'dev' ||
+        normalized == 'unavailable') {
+      return null;
+    }
+
+    final memory = _whatsNewMemoryCache[normalized];
+    if (memory != null && memory.isNotEmpty) {
+      return memory;
+    }
+
+    final preferences = await UpdatePreferences.load();
+    if (preferences.whatsNewVersion == normalized &&
+        preferences.whatsNewNotes.isNotEmpty) {
+      _whatsNewMemoryCache[normalized] = preferences.whatsNewNotes;
+      return preferences.whatsNewNotes;
+    }
+
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/${CalfGitHub.repo}/releases/tags/v$normalized',
+            ),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'Calf',
+            },
+          )
+          .timeout(_requestTimeout);
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final body = decoded['body'];
+      if (body is! String) {
+        return null;
+      }
+      final trimmed = body.trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+
+      _whatsNewMemoryCache[normalized] = trimmed;
+      await UpdatePreferences.saveWhatsNewNotes(
+        version: normalized,
+        notes: trimmed,
+      );
+      return trimmed;
+    } on TimeoutException {
+      return null;
+    } on FormatException {
+      return null;
+    } on http.ClientException {
+      return null;
+    } on SocketException {
+      return null;
+    } on HandshakeException {
+      return null;
+    } on OSError {
+      return null;
+    }
   }
 
   /// Strips a leading "v" from a Git tag name.

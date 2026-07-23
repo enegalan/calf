@@ -13,6 +13,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -505,8 +506,20 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       width: 40,
                       height: 40,
                       onPressed: () async {
+                        final confirmed = await confirmDialog(
+                          context,
+                          title: 'Delete container',
+                          description:
+                              'Delete "${_container.name}"? This cannot be undone.',
+                          confirmLabel: 'Delete',
+                          destructive: true,
+                        );
+                        if (!confirmed || !mounted) {
+                          return;
+                        }
                         await _runAction(
-                          () => widget.apiClient.removeContainer(_container.id),
+                          () =>
+                              widget.apiClient.removeContainer(_container.id),
                         );
                         if (mounted) {
                           widget.onBack();

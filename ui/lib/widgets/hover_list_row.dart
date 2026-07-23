@@ -37,7 +37,8 @@ class _HoverListRowState extends State<HoverListRow> {
       );
     }
 
-    final content = Container(
+    final content = AnimatedContainer(
+      duration: const Duration(milliseconds: 100),
       color: background,
       padding: widget.padding,
       child: widget.child,
@@ -48,10 +49,16 @@ class _HoverListRowState extends State<HoverListRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: widget.onTap == null
           ? content
-          : GestureDetector(
-              onTap: widget.onTap,
-              behavior: HitTestBehavior.deferToChild,
-              child: content,
+          : Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: widget.onTap,
+                hoverColor: Colors.transparent,
+                splashColor: widget.theme.colorScheme.onSurface.withValues(
+                  alpha: 0.06,
+                ),
+                child: content,
+              ),
             ),
     );
   }

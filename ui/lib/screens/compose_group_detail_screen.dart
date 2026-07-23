@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
@@ -325,6 +326,17 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               width: 40,
               height: 40,
               onPressed: () async {
+                final confirmed = await confirmDialog(
+                  context,
+                  title: 'Delete all containers',
+                  description:
+                      'Delete ${_containers.length} containers in "${widget.project}"? This cannot be undone.',
+                  confirmLabel: 'Delete all',
+                  destructive: true,
+                );
+                if (!confirmed || !mounted) {
+                  return;
+                }
                 final ok = await _runGroupAction(
                   widget.apiClient.removeContainer,
                 );
@@ -368,8 +380,28 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                       _runAction(() => widget.apiClient.startContainer(id)),
                   onStop: (id) =>
                       _runAction(() => widget.apiClient.stopContainer(id)),
-                  onRemove: (id) =>
-                      _runAction(() => widget.apiClient.removeContainer(id)),
+                  onRemove: (id) async {
+                    final match = _containers
+                        .where((c) => c.id == id)
+                        .firstOrNull;
+                    if (match == null) {
+                      return;
+                    }
+                    final confirmed = await confirmDialog(
+                      context,
+                      title: 'Delete container',
+                      description:
+                          'Delete "${match.name}"? This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    );
+                    if (!confirmed || !mounted) {
+                      return;
+                    }
+                    await _runAction(
+                      () => widget.apiClient.removeContainer(id),
+                    );
+                  },
                   onOpenPort: openPort,
                   busy: _busy,
                 ),

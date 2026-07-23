@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
@@ -121,8 +122,19 @@ class _NetworksScreenState extends State<NetworksScreen>
         .toList();
   }
 
-  /// Removes the selected resource via the API.
+  /// Removes the selected resource via the API after confirmation.
   Future<void> _removeNetwork(NetworkItem network) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove network',
+      description:
+          'Remove "${network.name}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     try {
       await widget.apiClient.removeNetwork(network.name);
       if (_selectedNetwork == network.name) {
@@ -150,6 +162,8 @@ class _NetworksScreenState extends State<NetworksScreen>
     }
 
     final filtered = _filteredNetworks();
+    final theme = Theme.of(context);
+    final runtimeStopped = _runtime?.state == 'stopped';
 
     return ResourceListScaffold(
       title: 'Networks',
@@ -159,13 +173,18 @@ class _NetworksScreenState extends State<NetworksScreen>
       empty: filtered.isEmpty,
       emptyMessage: _searchQuery.isNotEmpty
           ? 'No networks match "$_searchQuery".'
-          : _runtime?.state == 'stopped'
+          : runtimeStopped
           ? 'No networks. Runtime is stopped.'
           : 'No networks.',
+      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+          ? CalfButton(
+              onPressed: _startEngine,
+              child: const Text('Start engine'),
+            )
+          : null,
       itemCount: filtered.length,
       itemBuilder: (context, index) {
         final network = filtered[index];
-        final theme = Theme.of(context);
 
         return HoverListRow(
           theme: theme,
@@ -183,21 +202,31 @@ class _NetworksScreenState extends State<NetworksScreen>
                   ],
                 ),
               ),
-              CalfButton.ghost(
-                width: 36,
-                height: 36,
+              CalfButton.outline(
                 onPressed: () => _removeNetwork(network),
-                child: Icon(
-                  LucideIcons.trash2,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+                child: const Text('Remove'),
               ),
             ],
           ),
         );
       },
     );
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
+      }
+      await _loadNetworks();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 }
 
@@ -262,8 +291,19 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     }
   }
 
-  /// Removes the selected resource via the API.
+  /// Removes the selected resource via the API after confirmation.
   Future<void> _removeNetwork() async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove network',
+      description:
+          'Remove "${widget.networkName}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     try {
       await widget.apiClient.removeNetwork(widget.networkName);
       if (!mounted) {

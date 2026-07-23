@@ -26,3 +26,9 @@ abstract final class CalfStorageFiles {
 abstract final class CalfGitHub {
   static const String repo = 'enegalan/calf';
 }
+
+abstract final class CalfVersion {
+  /// Returns a user-facing version label; empty versions show as `dev`.
+  static String displayLabel(String version) =>
+      version.trim().isEmpty ? 'dev' : version.trim();
+}

@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Disk image settings** — Settings → System includes a disk image size slider and a disk image location field (default `~/.config/calf/guest/<vm>/disk.raw`).
 - **Engine status bar** — a bottom bar shows whether the engine is running, Start/Stop/Kill controls, RAM and disk used versus reserved, and the app version; the menu opens Settings.
 - **Container Stats history** — Stats keep a rolling ~15 minute resource history while the engine is running, so charts survive leaving and reopening a container; history is cleared when the container is removed.
+- **Destructive action confirms** — deleting containers, images, volumes, or networks, and Kill engine, ask for confirmation first.
+- **Start engine from empty lists** — when the runtime is stopped, empty resource lists offer a Start engine button.
+- **Volumes refresh** — the Volumes screen includes a refresh control (lists still load on demand without polling).
 
 ### Fixed
 
@@ -21,12 +24,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Engine status bar** — the bar also shows live engine CPU usage.
 - **Engine RAM/CPU** — status bar RAM and CPU use the macOS process API (not `/bin/ps`), so values stay correct when the daemon runs under an IDE sandbox that blocks `ps`.
 - **Engine Start/Stop/Kill** — bottom-bar engine actions wait long enough for a slow VM boot, and failed actions no longer crash when showing an error.
+- **Engine Stop** — Stop from the status bar always shuts down the engine; keep-alive only leaves the VM running when you quit Calf.
+- **Engine status feedback** — while Start, Stop, or Kill is in progress, the status bar shows a spinner and a starting/stopping/killing label.
 - **Published ports after restart** — reopening Calf no longer spams gvproxy errors when a port forward was already active from the previous session.
+- **Settings save errors** — failed Apply now shows an error instead of failing silently.
+- **Registry sign-in errors** — Docker Hub status, sign-in, and sign-out failures show a message in the UI.
+- **Dark theme errors** — error text is readable on dark backgrounds.
+- **Dialog borders** — confirmation and other modals use the same outlined edge as About, so they stay visible on light and dark surfaces.
 
 ### Changed
 
+- **Theme settings** — Light, Dark, and System use preview cards instead of plain radios.
 - **Mounts tab** — mount rows open bind paths in the system file manager and copy the host path.
 - **UI toolkit** — the app uses Material Design 3 for theme and controls; the previous shadcn-based UI kit is gone. Icons use Lucide.
+- **Settings** — Close control to leave Settings; clearer selected sidebar color; sidebar collapse control stays lightly visible.
+- **Resource lists** — shared search, loading spinner, centered empty states, and consistent Remove actions across Images, Volumes, Networks, and Builds.
+- **What's New** — shows GitHub release notes for the installed version as rendered markdown; notes are cached so the dialog opens quickly after the first load (with a link to Releases when offline).
+- **About** — logo-first layout with GitHub, Docs, and Report issue links.
+- **Status bar** — tapping RAM/CPU/Disk opens Settings.
 
 ### Fixed
 

@@ -9,6 +9,13 @@ String get calfReportIssueUrl =>
 /// URL for the Calf GitHub repository home page.
 String get calfRepositoryUrl => 'https://github.com/${CalfGitHub.repo}';
 
+/// URL for the Calf README on GitHub.
+String get calfReadmeUrl => 'https://github.com/${CalfGitHub.repo}#readme';
+
+/// URL for Calf GitHub Releases.
+String get calfReleasesUrl =>
+    'https://github.com/${CalfGitHub.repo}/releases';
+
 /// Opens [port] in the system browser via `http://localhost`.
 void openPort(int port) {
   openExternalUrl('http://localhost:$port');

@@ -3,8 +3,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
+import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class AppTopBar extends StatelessWidget {
@@ -68,37 +71,43 @@ class AppTopBar extends StatelessWidget {
         children: [
           _BrandMark(theme: theme),
           const Spacer(),
-          CalfButton.ghost(
-            width: 36,
-            height: 36,
-            padding: EdgeInsets.zero,
-            onPressed: onOpenSettings,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  LucideIcons.settings,
-                  size: 18,
-                  color: theme.colorScheme.onSurface,
-                ),
-                if (updateAvailable)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 1.5,
+          Tooltip(
+            message: updateAvailable ? 'Update available — Settings' : 'Settings',
+            child: CalfButton.ghost(
+              width: 36,
+              height: 36,
+              padding: EdgeInsets.zero,
+              onPressed: onOpenSettings,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    LucideIcons.settings,
+                    size: 18,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  if (updateAvailable)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Semantics(
+                        label: 'Update available',
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.surface,
+                              width: 1.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -294,10 +303,13 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     switch (selected) {
       case 'whatsnew':
         widget.onOpenWhatsNew();
+        return;
       case 'settings':
         await openExternalUrl(widget.accountSettingsUrl);
+        return;
       case 'signout':
         await widget.onSignOut();
+        return;
     }
   }
 
@@ -630,113 +642,116 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   }
 }
 
-/// Shows a dialog listing recent Calf release highlights.
+/// Shows a dialog with GitHub release notes for the running version.
 void showWhatsNewDialog(BuildContext context, String appVersion) {
-  final theme = Theme.of(context);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!navigator.mounted) {
+      return;
+    }
+    showDialog<void>(
+      context: navigator.context,
+      useRootNavigator: true,
+      builder: (dialogContext) => _WhatsNewDialog(appVersion: appVersion),
+    );
+  });
+}
 
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
+class _WhatsNewDialog extends StatefulWidget {
+  /// Creates the What's New dialog for [appVersion].
+  const _WhatsNewDialog({required this.appVersion});
+
+  final String appVersion;
+
+  @override
+  State<_WhatsNewDialog> createState() => _WhatsNewDialogState();
+}
+
+class _WhatsNewDialogState extends State<_WhatsNewDialog> {
+  final _checker = UpdateChecker();
+  bool _loading = true;
+  String? _notes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  @override
+  void dispose() {
+    _checker.close();
+    super.dispose();
+  }
+
+  /// Loads release notes for the current app version from GitHub.
+  Future<void> _loadNotes() async {
+    final notes = await _checker.fetchReleaseNotes(widget.appVersion);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _notes = notes;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final versionLabel = CalfVersion.displayLabel(widget.appVersion);
+
+    return AlertDialog(
       title: const Text("What's new"),
       content: SizedBox(
         width: 440,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Calf $appVersion'),
-            const SizedBox(height: 12),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.logIn,
-              title: 'Docker Hub login',
-              description: 'Browser sign-in with Google, GitHub and SSO.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.layers,
-              title: 'Image management',
-              description: 'Layers, run, pull and push from the Images screen.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.globe,
-              title: 'localhost proxy',
-              description:
-                  'Published container ports work on localhost, not just 127.0.0.1.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.download,
-              title: 'Docker Desktop migration',
-              description: 'Import images, volumes, containers and settings.',
-            ),
-          ],
-        ),
+        child: _loading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Calf $versionLabel'),
+                  const SizedBox(height: 12),
+                  if (_notes != null)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 320),
+                      child: SingleChildScrollView(
+                        child: ReleaseNotesMarkdown(data: _notes!),
+                      ),
+                    )
+                  else ...[
+                    Text(
+                      'Release notes are not available offline.',
+                      style: CalfTheme.muted(theme),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: CalfButton.outline(
+                        onPressed: () => openExternalUrl(calfReleasesUrl),
+                        child: const Text('View releases on GitHub'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
       ),
       actions: [
         CalfButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
       ],
-    ),
-  );
-}
-
-class _ReleaseNote extends StatelessWidget {
-  /// Renders one icon, title, and description row in the What's New dialog.
-  const _ReleaseNote({
-    required this.theme,
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final ThemeData theme;
-  final IconData icon;
-  final String title;
-  final String description;
-
-  /// Builds one release highlight row with icon and text.
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 16, color: theme.colorScheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(description, style: CalfTheme.muted(theme)),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -4,7 +4,9 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/widgets/status_dot.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -210,6 +212,9 @@ class _VolumesScreenState extends State<VolumesScreen> {
       if (!mounted) {
         return;
       }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cloned volume to "$destination"')),
+      );
       await _loadVolumes();
     } catch (error) {
       if (!mounted) {
@@ -221,6 +226,17 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
   /// Removes [volume] via the API and refreshes the list.
   Future<void> _removeVolume(VolumeItem volume) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove volume',
+      description:
+          'Remove "${volume.name}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     try {
       await widget.apiClient.removeVolume(volume.name);
       if (!mounted) {
@@ -236,7 +252,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
   }
 
   /// Builds the volume list or the selected volume detail view.
-  /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     if (_selectedVolume != null) {
@@ -250,111 +265,109 @@ class _VolumesScreenState extends State<VolumesScreen> {
 
     final theme = Theme.of(context);
     final filtered = _filteredVolumes();
+    final runtimeStopped = _runtime?.state == 'stopped';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Volumes', style: theme.textTheme.headlineSmall),
-
-        /// Creates a [_VolumesScreenState] widget.
-        const SizedBox(height: 16),
-        TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(hintText: 'Search'),
-        ),
-
-        /// Creates a [_VolumesScreenState] widget.
-        const SizedBox(height: 12),
-        RunningFilterSwitch(
-          value: _runningOnly,
-          onChanged: (value) => setState(() => _runningOnly = value),
-        ),
-
-        /// Creates a [_VolumesScreenState] widget.
-        const SizedBox(height: 16),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
-        else if (_error != null)
-          Text(
-            _error!,
-            style: theme.textTheme.titleMedium!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No volumes match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                ? 'No volumes. Runtime is stopped.'
-                : _runningOnly
-                ? 'No volumes in use.'
-                : 'No volumes.',
-            style: CalfTheme.muted(theme),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final volume = filtered[index];
-
-                return HoverListRow(
-                  theme: theme,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  onTap: () => _openVolume(volume),
-                  child: Row(
-                    children: [
-                      StatusDot(active: volume.inUse, hollow: !volume.inUse),
-
-                      /// Creates a [_VolumesScreenState] widget.
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              volume.name,
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            if (volume.subtitle.isNotEmpty)
-                              Text(
-                                volume.subtitle,
-                                style: CalfTheme.muted(theme),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Tooltip(
-                        message: 'Clone',
-                        child: CalfButton.outline(
-                          width: 36,
-                          height: 36,
-                          onPressed: () => _cloneVolume(volume),
-                          child: Icon(
-                            LucideIcons.copy,
-                            size: 16,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-
-                      /// Creates a [_VolumesScreenState] widget.
-                      const SizedBox(width: 8),
-                      CalfButton.outline(
-                        onPressed: () => _removeVolume(volume),
-                        child: const Text('Remove'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+    return ResourceListScaffold(
+      title: 'Volumes',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No volumes match "$_searchQuery".'
+          : runtimeStopped
+          ? 'No volumes. Runtime is stopped.'
+          : _runningOnly
+          ? 'No volumes in use.'
+          : 'No volumes.',
+      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+          ? CalfButton(
+              onPressed: _startEngine,
+              child: const Text('Start engine'),
+            )
+          : null,
+      filter: RunningFilterSwitch(
+        value: _runningOnly,
+        onChanged: (value) => setState(() => _runningOnly = value),
+      ),
+      headerActions: Tooltip(
+        message: 'Refresh',
+        child: CalfButton.ghost(
+          width: 36,
+          height: 36,
+          enabled: !_loading && !_refreshInFlight,
+          onPressed: _loadVolumes,
+          child: Icon(
+            LucideIcons.refreshCw,
+            size: 16,
+            color: theme.colorScheme.onSurface,
           ),
-      ],
+        ),
+      ),
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final volume = filtered[index];
+
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: () => _openVolume(volume),
+          child: Row(
+            children: [
+              StatusDot(
+                active: volume.inUse,
+                hollow: !volume.inUse,
+                tooltip: volume.inUse ? 'In use' : 'Not in use',
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(volume.name, style: theme.textTheme.titleMedium),
+                    if (volume.subtitle.isNotEmpty)
+                      Text(volume.subtitle, style: CalfTheme.muted(theme)),
+                  ],
+                ),
+              ),
+              Tooltip(
+                message: 'Clone',
+                child: CalfButton.outline(
+                  width: 36,
+                  height: 36,
+                  onPressed: () => _cloneVolume(volume),
+                  child: Icon(
+                    LucideIcons.copy,
+                    size: 16,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              CalfButton.outline(
+                onPressed: () => _removeVolume(volume),
+                child: const Text('Remove'),
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
+      }
+      await _loadVolumes();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 }

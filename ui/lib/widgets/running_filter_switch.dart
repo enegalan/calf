@@ -18,12 +18,19 @@ class RunningFilterSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Row(
-      children: [
-        Switch(value: value, onChanged: onChanged),
-        const SizedBox(width: 8),
-        Text(label, style: theme.textTheme.bodySmall),
-      ],
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            Switch(value: value, onChanged: onChanged),
+            const SizedBox(width: 8),
+            Text(label, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/widgets/error_text.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -18,6 +19,7 @@ class ResourceListScaffold extends StatelessWidget {
     this.subtitle,
     this.filter,
     this.headerActions,
+    this.emptyAction,
     this.errorAllowsList = false,
   });
 
@@ -32,6 +34,7 @@ class ResourceListScaffold extends StatelessWidget {
   final Widget? Function(BuildContext context, int index) itemBuilder;
   final Widget? filter;
   final Widget? headerActions;
+  final Widget? emptyAction;
   final bool errorAllowsList;
 
   /// Builds the list scaffold with search, filter, and content area.
@@ -55,16 +58,49 @@ class ResourceListScaffold extends StatelessWidget {
         const SizedBox(height: 16),
         TextField(
           controller: searchController,
-          decoration: const InputDecoration(hintText: 'Search'),
+          decoration: const InputDecoration(
+            hintText: 'Search',
+            prefixIcon: Icon(LucideIcons.search, size: 16),
+          ),
         ),
         if (filter != null) ...[const SizedBox(height: 12), filter!],
         const SizedBox(height: 16),
         if (loading)
-          Text('Loading...', style: CalfTheme.muted(theme))
+          Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text('Loading...', style: CalfTheme.muted(theme)),
+            ],
+          )
         else if (error != null && !errorAllowsList)
           ErrorText(error: error!)
         else if (empty)
-          Text(emptyMessage, style: CalfTheme.muted(theme))
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    emptyMessage,
+                    textAlign: TextAlign.center,
+                    style: CalfTheme.muted(theme),
+                  ),
+                  if (emptyAction != null) ...[
+                    const SizedBox(height: 16),
+                    emptyAction!,
+                  ],
+                ],
+              ),
+            ),
+          )
         else
           Expanded(
             child: ListView.builder(

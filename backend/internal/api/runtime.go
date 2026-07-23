@@ -22,12 +22,13 @@ func (g *Gateway) handleRuntimeStart(w http.ResponseWriter, r *http.Request) {
 	httpkit.WriteJSON(w, http.StatusOK, status)
 }
 
-// handleRuntimeStop serves POST /v1/runtime/stop and gracefully stops the container runtime.
+// handleRuntimeStop serves POST /v1/runtime/stop and stops the container runtime.
+// Always tears the engine down; vm_keep_alive only applies when the daemon itself quits.
 func (g *Gateway) handleRuntimeStop(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 	defer cancel()
 
-	if err := g.backend.Runtime.Stop(ctx); err != nil {
+	if err := g.backend.Runtime.ForceStop(ctx); err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

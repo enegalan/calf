@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -10,30 +11,33 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
   final logoAsset = theme.brightness == Brightness.dark
       ? 'assets/brand/calf_logo_white.png'
       : 'assets/brand/calf_logo_black.png';
-  final versionLabel = appVersion.isEmpty ? 'dev' : appVersion;
+  final versionLabel = CalfVersion.displayLabel(appVersion);
 
   showDialog<void>(
     context: context,
     builder: (dialogContext) {
       final dialogTheme = Theme.of(dialogContext);
       return AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: CalfTheme.radius,
-          side: BorderSide(color: dialogTheme.colorScheme.outlineVariant),
-        ),
-        title: const Text('Calf'),
+        shape: CalfTheme.dialogShape(dialogTheme.colorScheme),
         content: SizedBox(
           width: 320,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Version $versionLabel'),
-              const SizedBox(height: 16),
               Image.asset(
                 logoAsset,
-                width: 48,
-                height: 48,
+                width: 56,
+                height: 56,
                 fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16),
+              Text('Calf', style: dialogTheme.textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text(
+                'Version $versionLabel',
+                style: dialogTheme.textTheme.bodySmall?.copyWith(
+                  color: dialogTheme.colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -51,6 +55,18 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
                     label: 'GitHub',
                     onPressed: () =>
                         _openExternalLink(dialogContext, calfRepositoryUrl),
+                  ),
+                  const SizedBox(width: 12),
+                  _AboutLink(
+                    label: 'Docs',
+                    onPressed: () =>
+                        _openExternalLink(dialogContext, calfReadmeUrl),
+                  ),
+                  const SizedBox(width: 12),
+                  _AboutLink(
+                    label: 'Report issue',
+                    onPressed: () =>
+                        _openExternalLink(dialogContext, calfReportIssueUrl),
                   ),
                 ],
               ),
@@ -84,7 +100,7 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
       context: context,
       builder: (errorContext) => AlertDialog(
         title: const Text('Could not open link'),
-        content: const Text('Your system could not open the URL in a browser.'),
+        content: const Text('Your system could not open the URL in the browser.'),
         actions: [
           CalfButton(
             onPressed: () => Navigator.of(errorContext).pop(),

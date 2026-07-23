@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/screens/build_detail_screen.dart';
+import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
+import 'package:ui/widgets/status_dot.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class BuildsScreen extends StatefulWidget {
@@ -125,96 +128,85 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                     b.status.toLowerCase().contains(_searchQuery),
               )
               .toList();
+    final runtimeStopped = _runtime?.state == 'stopped';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Builds', style: theme.textTheme.headlineSmall),
+    return ResourceListScaffold(
+      title: 'Builds',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No builds match "$_searchQuery".'
+          : runtimeStopped
+          ? 'No builds yet. Runtime is stopped.'
+          : 'No builds yet.',
+      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+          ? CalfButton(
+              onPressed: _startEngine,
+              child: const Text('Start engine'),
+            )
+          : null,
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final build = filtered[index];
 
-        /// Creates a [_BuildsScreenState] widget.
-        const SizedBox(height: 16),
-        TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(hintText: 'Search'),
-        ),
-
-        /// Creates a [_BuildsScreenState] widget.
-        const SizedBox(height: 24),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
-        else if (_error != null)
-          Text(
-            _error!,
-            style: theme.textTheme.titleMedium!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No builds match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                ? 'No builds yet. Runtime is stopped.'
-                : 'No builds yet.',
-            style: CalfTheme.muted(theme),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final build = filtered[index];
-
-                return HoverListRow(
-                  theme: theme,
-                  onTap: () => _openBuild(build),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _buildStatusColor(build.status, theme),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-
-                      /// Creates a [_BuildsScreenState] widget.
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(build.tag, style: theme.textTheme.titleMedium),
-                            Text(
-                              build.context.isNotEmpty
-                                  ? '${build.context} · ${build.status}'
-                                  : build.status,
-                              style: CalfTheme.muted(theme),
-                            ),
-                            Text(
-                              [
-                                if (build.durationMs > 0)
-                                  _formatBuildDuration(build.durationMs),
-                                build.createdAt,
-                              ].where((item) => item.isNotEmpty).join(' · '),
-                              style: CalfTheme.muted(theme),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        return HoverListRow(
+          theme: theme,
+          onTap: () => _openBuild(build),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          child: Row(
+            children: [
+              StatusDot(
+                active: true,
+                hollow: false,
+                activeColor: _buildStatusColor(build.status, theme),
+                tooltip: build.status,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(build.tag, style: theme.textTheme.titleMedium),
+                    Text(
+                      build.context.isNotEmpty
+                          ? '${build.context} · ${build.status}'
+                          : build.status,
+                      style: CalfTheme.muted(theme),
+                    ),
+                    Text(
+                      [
+                        if (build.durationMs > 0)
+                          _formatBuildDuration(build.durationMs),
+                        build.createdAt,
+                      ].where((item) => item.isNotEmpty).join(' · '),
+                      style: CalfTheme.muted(theme),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-      ],
+        );
+      },
     );
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
+      }
+      await _loadBuilds();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 }
 

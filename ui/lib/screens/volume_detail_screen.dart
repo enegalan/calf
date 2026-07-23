@@ -10,6 +10,7 @@ import 'package:ui/screens/volume_quick_export_screen.dart';
 import 'package:ui/screens/volume_schedule_export_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -202,8 +203,19 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     }
   }
 
-  /// Removes the selected resource via the API.
+  /// Removes the selected resource via the API after confirmation.
   Future<void> _removeVolume() async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove volume',
+      description:
+          'Remove "${widget.volumeName}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     setState(() {
       _busy = true;
     });

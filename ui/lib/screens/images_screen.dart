@@ -5,8 +5,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class ImagesScreen extends StatefulWidget {
@@ -154,8 +156,19 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     });
   }
 
-  /// Removes the selected resource via the API.
+  /// Removes the selected resource via the API after confirmation.
   Future<void> _removeImage(ImageItem image) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove image',
+      description:
+          'Remove "${image.reference}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
     await widget.apiClient.removeImage(image.reference);
     if (_selectedImage?.id == image.id) {
       _closeImage();
@@ -181,6 +194,22 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   /// Pushes the image to Docker Hub via the API.
   Future<void> _pushImage(ImageItem image) async {
     await widget.apiClient.pushImage(image.reference);
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
+      }
+      await _loadImages();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 
   /// Builds the widget tree for the current screen state.
@@ -211,78 +240,52 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
                     img.id.toLowerCase().contains(_searchQuery),
               )
               .toList();
+    final runtimeStopped = _runtime?.state == 'stopped';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Images', style: theme.textTheme.headlineSmall),
+    return ResourceListScaffold(
+      title: 'Images',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No images match "$_searchQuery".'
+          : runtimeStopped
+          ? 'No images. Runtime is stopped.'
+          : 'No local images.',
+      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+          ? CalfButton(
+              onPressed: _startEngine,
+              child: const Text('Start engine'),
+            )
+          : null,
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final image = filtered[index];
 
-        /// Creates a [_ImagesScreenState] widget.
-        const SizedBox(height: 16),
-        TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(hintText: 'Search'),
-        ),
-
-        /// Creates a [_ImagesScreenState] widget.
-        const SizedBox(height: 24),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
-        else if (_error != null)
-          Text(
-            _error!,
-            style: theme.textTheme.titleMedium!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No images match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                ? 'No images. Runtime is stopped.'
-                : 'No local images.',
-            style: CalfTheme.muted(theme),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final image = filtered[index];
-
-                return HoverListRow(
-                  theme: theme,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  onTap: () => _openImage(image),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              image.reference,
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            Text(image.size, style: CalfTheme.muted(theme)),
-                          ],
-                        ),
-                      ),
-                      CalfButton.outline(
-                        onPressed: () => _removeImage(image),
-                        child: const Text('Remove'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: () => _openImage(image),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(image.reference, style: theme.textTheme.titleMedium),
+                    Text(image.size, style: CalfTheme.muted(theme)),
+                  ],
+                ),
+              ),
+              CalfButton.outline(
+                onPressed: () => _removeImage(image),
+                child: const Text('Remove'),
+              ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }

@@ -194,6 +194,7 @@ calf/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
+│   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
@@ -385,6 +386,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
 - `app_bottom_bar.dart` — engine status badge, Start/Stop/Kill, RAM/disk used vs reserved, app version.
+- `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.

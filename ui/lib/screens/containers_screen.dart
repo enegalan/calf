@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,9 +9,12 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
+import 'package:ui/widgets/status_dot.dart';
 import 'package:ui/storage/container_groups.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -124,6 +126,54 @@ class _ContainersScreenState extends State<ContainersScreen>
       await action();
       if (mounted) {
         setState(() => _error = null);
+      }
+      await _loadContainers();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
+  }
+
+  /// Confirms then removes a single container.
+  Future<void> _confirmRemoveContainer(ContainerItem container) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Delete container',
+      description:
+          'Delete "${container.name}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    await _runAction(() => widget.apiClient.removeContainer(container.id));
+  }
+
+  /// Confirms then removes every container in [containers].
+  Future<void> _confirmRemoveAll(List<ContainerItem> containers) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Delete all containers',
+      description:
+          'Delete ${containers.length} containers in this group? This cannot be undone.',
+      confirmLabel: 'Delete all',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    await _runGroupAction(containers, widget.apiClient.removeContainer);
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
       }
       await _loadContainers();
     } catch (error) {
@@ -358,27 +408,49 @@ class _ContainersScreenState extends State<ContainersScreen>
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
+            child: ErrorText(error: _error!),
           ),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
+          Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text('Loading...', style: CalfTheme.muted(theme)),
+            ],
+          )
         else if (isEmpty)
           Expanded(
             child: Center(
-              child: Text(
-                _searchQuery.isNotEmpty
-                    ? 'No containers match "$_searchQuery".'
-                    : _runtime?.state == 'stopped'
-                    ? 'No containers. Runtime is stopped.'
-                    : _runningOnly
-                    ? 'No running containers.'
-                    : 'No containers.',
-                style: CalfTheme.muted(theme),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _searchQuery.isNotEmpty
+                        ? 'No containers match "$_searchQuery".'
+                        : _runtime?.state == 'stopped'
+                        ? 'No containers. Runtime is stopped.'
+                        : _runningOnly
+                        ? 'No running containers.'
+                        : 'No containers.',
+                    textAlign: TextAlign.center,
+                    style: CalfTheme.muted(theme),
+                  ),
+                  if (_runtime?.state == 'stopped' &&
+                      _searchQuery.isEmpty) ...[
+                    const SizedBox(height: 16),
+                    CalfButton(
+                      onPressed: _startEngine,
+                      child: const Text('Start engine'),
+                    ),
+                  ],
+                ],
               ),
             ),
           )
@@ -400,17 +472,21 @@ class _ContainersScreenState extends State<ContainersScreen>
                         _runAction(() => widget.apiClient.startContainer(id)),
                     onStop: (id) =>
                         _runAction(() => widget.apiClient.stopContainer(id)),
-                    onRemove: (id) =>
-                        _runAction(() => widget.apiClient.removeContainer(id)),
+                    onRemove: (id) async {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      if (match != null) {
+                        await _confirmRemoveContainer(match);
+                      }
+                    },
                     onStopAll: () => _runGroupAction(
                       group.value,
                       widget.apiClient.stopContainer,
                       runningOnly: true,
                     ),
-                    onRemoveAll: () => _runGroupAction(
-                      group.value,
-                      widget.apiClient.removeContainer,
-                    ),
+                    onRemoveAll: () =>
+                        unawaited(_confirmRemoveAll(group.value)),
                     onOpen: _openContainer,
                     onOpenPort: openPort,
                   ),
@@ -425,9 +501,8 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onStop: () => _runAction(
                       () => widget.apiClient.stopContainer(container.id),
                     ),
-                    onRemove: () => _runAction(
-                      () => widget.apiClient.removeContainer(container.id),
-                    ),
+                    onRemove: () =>
+                        unawaited(_confirmRemoveContainer(container)),
                     onOpen: () => _openContainer(container),
                     onOpenPort: openPort,
                   ),
@@ -679,9 +754,25 @@ class _ComposeStackIcon extends StatelessWidget {
           Positioned(
             right: 0,
             bottom: 0,
-            child: _GroupStatusDot(
-              state: _groupRunState(containers),
-              theme: theme,
+            child: Builder(
+              builder: (context) {
+                final runState = _groupRunState(containers);
+                return StatusDot.fromState(
+                  state: switch (runState) {
+                    _GroupRunState.allRunning => StatusDotState.active,
+                    _GroupRunState.partial => StatusDotState.partial,
+                    _GroupRunState.stopped => StatusDotState.inactive,
+                  },
+                  activeColor: runState == _GroupRunState.partial
+                      ? theme.colorScheme.primary
+                      : null,
+                  tooltip: switch (runState) {
+                    _GroupRunState.allRunning => 'All running',
+                    _GroupRunState.partial => 'Partially running',
+                    _GroupRunState.stopped => 'Stopped',
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -705,6 +796,11 @@ class _ContainerStatusIcon extends StatelessWidget {
       iconColor: theme.colorScheme.onSurfaceVariant,
       fillColor: _containerStatusColor(container, theme),
       theme: theme,
+      tooltip: container.isRunning
+          ? 'Running'
+          : container.state == 'created'
+          ? 'Created'
+          : 'Stopped',
     );
   }
 }
@@ -716,23 +812,18 @@ class _StatusDotIcon extends StatelessWidget {
     required this.iconColor,
     required this.fillColor,
     required this.theme,
+    this.tooltip,
   });
 
   final IconData icon;
   final Color iconColor;
   final Color? fillColor;
   final ThemeData theme;
-
-  static const _dotSize = 9.0;
-  static const _borderWidth = 1.5;
+  final String? tooltip;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final borderColor = fillColor != null
-        ? theme.colorScheme.surface
-        : theme.colorScheme.onSurfaceVariant;
-
     return SizedBox(
       width: 28,
       height: 28,
@@ -743,14 +834,11 @@ class _StatusDotIcon extends StatelessWidget {
           Positioned(
             right: 0,
             bottom: 0,
-            child: Container(
-              width: _dotSize,
-              height: _dotSize,
-              decoration: BoxDecoration(
-                color: fillColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: _borderWidth),
-              ),
+            child: StatusDot(
+              active: fillColor != null,
+              hollow: fillColor == null,
+              activeColor: fillColor,
+              tooltip: tooltip,
             ),
           ),
         ],
@@ -803,91 +891,6 @@ _GroupRunState _groupRunState(List<ContainerItem> containers) {
   }
 
   return _GroupRunState.stopped;
-}
-
-class _GroupStatusDot extends StatelessWidget {
-  /// Creates a [_GroupStatusDot] widget.
-  const _GroupStatusDot({required this.state, required this.theme});
-
-  final _GroupRunState state;
-  final ThemeData theme;
-
-  static const _dotSize = 9.0;
-  static const _borderWidth = 1.5;
-
-  /// Builds the widget tree for the current screen state.
-  @override
-  Widget build(BuildContext context) {
-    final background = theme.colorScheme.surface;
-    final borderColor = theme.colorScheme.onSurfaceVariant;
-
-    return SizedBox(
-      width: _dotSize,
-      height: _dotSize,
-      child: switch (state) {
-        _GroupRunState.allRunning => Container(
-          decoration: BoxDecoration(
-            color: CalfColors.success,
-            shape: BoxShape.circle,
-            border: Border.all(color: background, width: _borderWidth),
-          ),
-        ),
-        _GroupRunState.stopped => Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: _borderWidth),
-          ),
-        ),
-        _GroupRunState.partial => CustomPaint(
-          painter: _HalfFilledCirclePainter(
-            fillColor: theme.colorScheme.primary,
-            borderColor: borderColor,
-            borderWidth: _borderWidth,
-          ),
-        ),
-      },
-    );
-  }
-}
-
-class _HalfFilledCirclePainter extends CustomPainter {
-  /// Creates a [_HalfFilledCirclePainter] widget.
-  const _HalfFilledCirclePainter({
-    required this.fillColor,
-    required this.borderColor,
-    required this.borderWidth,
-  });
-
-  final Color fillColor;
-  final Color borderColor;
-  final double borderWidth;
-
-  /// Draws the custom painter content onto [canvas].
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - borderWidth) / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-
-    final fillPaint = Paint()
-      ..color = fillColor
-      ..style = PaintingStyle.fill;
-    canvas.drawArc(rect, math.pi / 2, math.pi, true, fillPaint);
-
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-    canvas.drawCircle(center, radius, borderPaint);
-  }
-
-  /// Returns whether this painter should repaint.
-  @override
-  bool shouldRepaint(covariant _HalfFilledCirclePainter oldDelegate) {
-    return fillColor != oldDelegate.fillColor ||
-        borderColor != oldDelegate.borderColor ||
-        borderWidth != oldDelegate.borderWidth;
-  }
 }
 
 class _ActionIcon extends StatelessWidget {
