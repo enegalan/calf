@@ -12,6 +12,8 @@ EXAMPLE_DIR="${ROOT_DIR}/examples/hello-world"
 BENCHMARK_TIMEOUT="${BENCHMARK_TIMEOUT:-300}"
 BENCHMARK_RUN_ID="${BENCHMARK_RUN_ID:-calf-bench-$$}"
 RESULTS_DIR="${RESULTS_DIR:-${BENCHMARKS_DIR}/results}"
+BENCHMARK_REPEATS="${BENCHMARK_REPEATS:-5}"
+BENCHMARK_WARMUP="${BENCHMARK_WARMUP:-1}"
 
 # Product socket paths (macOS defaults).
 CALF_DOCKER_HOST="unix://${HOME}/.config/calf/docker.sock"
@@ -21,9 +23,32 @@ ORBSTACK_HOST="unix://${HOME}/.orbstack/run/docker.sock"
 CALF_VM_NAME="${CALF_VM_NAME:-calf}"
 CALF_API="${CALF_API:-http://127.0.0.1:8765}"
 BENCHMARK_MOUNT_DIR="${BENCHMARK_MOUNT_DIR:-${HOME}/.config/calf/mounts/benchmarks}"
+# Guest path for Calf virtiofs share of ~/.config/calf/mounts (see ensureHostMountSymlink).
+CALF_GUEST_MOUNT_ROOT="${CALF_GUEST_MOUNT_ROOT:-/mnt/calf}"
 
 log() {
   printf '[benchmark] %s\n' "$*" >&2
+}
+
+# bench_host_dir is the host directory used for bind-mount I/O for a product.
+bench_host_dir() {
+  local product=$1
+  printf '%s\n' "${BENCHMARK_MOUNT_DIR}/${product}"
+}
+
+# bench_volume_src is the path passed to docker -v for a real host bind mount.
+# Calf must use the guest virtiofs mount (/mnt/calf/...); a macOS $HOME path is
+# created as a plain directory on the guest root disk and is not a bind mount.
+bench_volume_src() {
+  local product=$1
+  case "$product" in
+    calf)
+      printf '%s\n' "${CALF_GUEST_MOUNT_ROOT}/benchmarks/${product}"
+      ;;
+    *)
+      printf '%s\n' "$(bench_host_dir "$product")"
+      ;;
+  esac
 }
 
 warn() {
@@ -119,7 +144,7 @@ product_installed() {
   local product=$1
   case "$product" in
     calf)
-      [[ -S "${HOME}/.config/calf/docker.sock" ]] || command -v vfkit >/dev/null 2>&1
+      [[ -S "${HOME}/.config/calf/docker.sock" ]] || command -v krunkit >/dev/null 2>&1 || [[ -x "${HOME}/.config/calf/krunkit/bin/krunkit" ]]
       ;;
     docker_desktop)
       [[ -d "/Applications/Docker.app" ]]
@@ -198,6 +223,128 @@ write_result_row() {
   echo "$outfile"
 }
 
+# median_numbers prints the median of numeric arguments.
+median_numbers() {
+  if [[ $# -eq 0 ]]; then
+    echo ""
+    return 1
+  fi
+  printf '%s\n' "$@" | python3 -c '
+import sys
+vals = []
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        vals.append(float(line))
+    except ValueError:
+        continue
+if not vals:
+    raise SystemExit(1)
+vals.sort()
+n = len(vals)
+mid = n // 2
+v = vals[mid] if n % 2 else (vals[mid - 1] + vals[mid]) / 2.0
+if abs(v - round(v)) < 1e-9:
+    print(int(round(v)))
+elif v >= 100:
+    print(f"{v:.1f}")
+else:
+    print(f"{v:.2f}")
+'
+}
+
+# drop_guest_page_cache drops Linux page cache inside the product engine (all products).
+drop_guest_page_cache() {
+  local product=$1
+  # Detached run: krunkit vsock attach/stdout is unreliable for --rm foreground.
+  # Use the same privileged container drop for every product so Calf is not colder
+  # than OrbStack/Docker (nsenter-to-init was over-dropping virtiofs vs competitors).
+  local cid
+  cid=$(docker_cmd "$product" run -d --privileged alpine:3.20 \
+    sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches' 2>/dev/null) || return 0
+  docker_cmd "$product" wait "$cid" >/dev/null 2>&1 || true
+  docker_cmd "$product" rm -f "$cid" >/dev/null 2>&1 || true
+}
+
+# _purge_ok runs a purge command and fails if macOS reports it could not purge.
+_purge_ok() {
+  local out
+  out=$("$@" 2>&1) || return 1
+  if printf '%s' "$out" | grep -qi 'unable to purge\|operation not permitted\|permission denied'; then
+    return 1
+  fi
+  return 0
+}
+
+# drop_host_page_cache flushes dirty pages and drops the macOS unified buffer cache.
+# Bind-mount reads otherwise hit host page cache and are not comparable across engines.
+# After one failed interactive purge attempt, skip further osascript prompts for this process.
+_BENCHMARK_PURGE_GUI_FAILED="${_BENCHMARK_PURGE_GUI_FAILED:-0}"
+_BENCHMARK_PURGE_BIN="${_BENCHMARK_PURGE_BIN:-/usr/sbin/purge}"
+
+drop_host_page_cache() {
+  sync 2>/dev/null || true
+  local purge_bin="${_BENCHMARK_PURGE_BIN}"
+  if [[ ! -x "$purge_bin" ]]; then
+    if command -v purge >/dev/null 2>&1; then
+      purge_bin=$(command -v purge)
+    else
+      warn "purge not found; bind_mount_read may stay cache-inflated"
+      return 1
+    fi
+  fi
+  if _purge_ok "$purge_bin"; then
+    return 0
+  fi
+  if _purge_ok sudo -n "$purge_bin"; then
+    return 0
+  fi
+  if [[ "${BENCHMARK_ALLOW_SUDO:-}" == "1" ]] && _purge_ok sudo "$purge_bin"; then
+    return 0
+  fi
+  if [[ "${_BENCHMARK_PURGE_GUI_FAILED}" == "1" ]]; then
+    return 1
+  fi
+  # GUI admin prompt (caches for a few minutes). Hard timeout so the suite never hangs forever.
+  if command -v osascript >/dev/null 2>&1; then
+    if python3 - <<PY
+import subprocess
+import sys
+try:
+    r = subprocess.run(
+        ["osascript", "-e", 'do shell script "${purge_bin}" with administrator privileges'],
+        capture_output=True,
+        text=True,
+        timeout=45,
+    )
+except subprocess.TimeoutExpired:
+    sys.exit(2)
+out = (r.stdout or "") + (r.stderr or "")
+if r.returncode != 0:
+    sys.exit(1)
+low = out.lower()
+if "unable to purge" in low or "operation not permitted" in low or "permission denied" in low:
+    sys.exit(1)
+sys.exit(0)
+PY
+    then
+      return 0
+    fi
+  fi
+  _BENCHMARK_PURGE_GUI_FAILED=1
+  warn "could not run purge within 45s (approve the macOS admin prompt, or: sudo visudo → NOPASSWD: /usr/sbin/purge); bind_mount_read may stay cache-inflated"
+  return 1
+}
+
+# drop_bind_mount_caches clears guest then host caches before a bind-mount read sample.
+drop_bind_mount_caches() {
+  local product=$1
+  drop_guest_page_cache "$product" || true
+  drop_host_page_cache || true
+}
+
 preflight_docker() {
   local product=$1
   docker_cmd "$product" run -d --name "${BENCHMARK_RUN_ID}-preflight" alpine:3.20 sleep 1 >/dev/null 2>&1 \
@@ -223,31 +370,51 @@ stop_product() {
       # Unload leftover Lima login agents from older installs (would inflate idle RSS).
       disable_lima_autostart_calf
       pkill -9 -x limactl >/dev/null 2>&1 || true
-      if [[ -f "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" ]]; then
-        kill -9 "$(cat "${HOME}/.config/calf/vfkit/${CALF_VM_NAME}/vfkit.pid" 2>/dev/null)" >/dev/null 2>&1 || true
+      guest_dir="${HOME}/.config/calf/guest/${CALF_VM_NAME}"
+      if [[ -f "${guest_dir}/krunkit.pid" ]]; then
+        kill -9 "$(cat "${guest_dir}/krunkit.pid" 2>/dev/null)" >/dev/null 2>&1 || true
       fi
-      pkill -9 -x vfkit >/dev/null 2>&1 || true
-      wait_for_vfkit_gone 30 || true
+      if [[ -f "${guest_dir}/gvproxy.pid" ]]; then
+        kill -9 "$(cat "${guest_dir}/gvproxy.pid" 2>/dev/null)" >/dev/null 2>&1 || true
+      fi
+      pkill -9 -x krunkit >/dev/null 2>&1 || true
+      pkill -9 -x gvproxy >/dev/null 2>&1 || true
+      wait_for_krunkit_gone 30 || true
       sleep 1
       stop_calf_daemon
+      # Daemon kill can leave krunkit/gvproxy holding ports/CPU; clear before Orb/Docker.
+      pkill -9 -x krunkit >/dev/null 2>&1 || true
+      pkill -9 -x gvproxy >/dev/null 2>&1 || true
+      sleep 1
       ;;
     docker_desktop)
       osascript -e 'quit app "Docker"' >/dev/null 2>&1 || true
-      wait_for_docker_host_down docker_desktop 120 || true
+      if ! wait_for_docker_host_down docker_desktop 45; then
+        warn "Docker Desktop still up after quit; forcing process exit"
+        pkill -9 -f 'Docker Desktop' >/dev/null 2>&1 || true
+        pkill -9 -f 'com.docker.backend' >/dev/null 2>&1 || true
+        wait_for_docker_host_down docker_desktop 30 || true
+      fi
       ;;
     orbstack)
       osascript -e 'quit app "OrbStack"' >/dev/null 2>&1 || true
-      wait_for_docker_host_down orbstack 120 || true
+      if ! wait_for_docker_host_down orbstack 90; then
+        warn "OrbStack still up after quit; forcing process exit"
+        # Avoid pkill -f 'OrbStack' — it can match helper paths and break clean relaunch.
+        pkill -9 -x OrbStack >/dev/null 2>&1 || true
+        wait_for_docker_host_down orbstack 60 || true
+      fi
+      sleep 2
       ;;
   esac
 }
 
-# wait_for_vfkit_gone waits until the vfkit process has exited, then drains briefly.
-wait_for_vfkit_gone() {
+# wait_for_krunkit_gone waits until the krunkit process has exited.
+wait_for_krunkit_gone() {
   local timeout=${1:-30}
   local start=$SECONDS
   while (( SECONDS - start < timeout )); do
-    if ! pgrep -x vfkit >/dev/null 2>&1; then
+    if ! pgrep -x krunkit >/dev/null 2>&1; then
       sleep 0.5
       return 0
     fi
@@ -279,12 +446,16 @@ start_product() {
       if ! curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
         start_calf_daemon >/dev/null || return 1
       fi
+      # Daemon up does not imply guest up after a hard stop — start the runtime explicitly.
+      curl -sf -X POST "${CALF_API}/v1/runtime/start" >/dev/null 2>&1 || true
       ;;
     docker_desktop)
       open -ga Docker
       ;;
     orbstack)
       open -ga OrbStack
+      # OrbStack often needs a few seconds after quit before docker.sock returns.
+      sleep 5
       ;;
   esac
 }
@@ -295,7 +466,7 @@ restart_product() {
   case "$product" in
     docker_desktop | orbstack)
       stop_product "$product"
-      sleep 3
+      sleep 8
       start_product "$product"
       ;;
     *)
@@ -336,20 +507,37 @@ CALF_BENCHMARK_DAEMON_PID=""
 start_calf_daemon() {
   local daemon_bin=""
   CALF_BENCHMARK_DAEMON_PID=""
+  local mem_gb="${CALF_GUEST_MEMORY_GB:-2}"
+  local runtime_env=()
+  if [[ -x "${HOME}/.config/calf/krunkit/bin/krunkit" ]] && command -v gvproxy >/dev/null 2>&1; then
+    # Respect CALF_KRUN_DAX=0 (plain virtiofs); default on for the stack.
+    if [[ "${CALF_KRUN_DAX:-1}" == "0" ]]; then
+      runtime_env+=(CALF_KRUN_DAX=0)
+      log "Calf benchmarks: krunkit stack (DAX off)"
+    else
+      runtime_env+=(CALF_KRUN_DAX_MODE="${CALF_KRUN_DAX_MODE:-inode}")
+      log "Calf benchmarks: krunkit stack (DAX_MODE=${CALF_KRUN_DAX_MODE:-inode})"
+    fi
+    mem_gb="${CALF_GUEST_MEMORY_GB:-4}"
+  else
+    warn "krunkit stack or gvproxy missing; macOS engine will fail until make krunkit-stack"
+  fi
   if daemon_bin=$(resolve_calf_daemon_bin); then
     log "starting Calf daemon for benchmarks (${daemon_bin})"
-    env CALF_VFKIT_MEMORY_GB="${CALF_VFKIT_MEMORY_GB:-2}" CALF_BENCHMARK=1 \
+    # CALF_BENCHMARK disables watchParent so orphaned/detached launches stay up.
+    env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 "${runtime_env[@]}" \
       "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
   else
     warn "calf-daemon binary not found; falling back to go run (slower, may skew cold-start)"
     (
       cd "${ROOT_DIR}/backend"
-      CALF_VFKIT_MEMORY_GB="${CALF_VFKIT_MEMORY_GB:-2}" CALF_BENCHMARK=1 CGO_ENABLED=0 go run ./cmd/calf
+      env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 "${runtime_env[@]}" \
+        CGO_ENABLED=0 go run ./cmd/calf
     ) >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &
   fi
   CALF_BENCHMARK_DAEMON_PID=$!
   local start=$SECONDS
-  local ready_timeout=120
+  local ready_timeout=180
   while (( SECONDS - start < ready_timeout )); do
     if curl -sf "${CALF_API}/v1/health" >/dev/null 2>&1; then
       if curl -sf --unix-socket "${HOME}/.config/calf/docker.sock" http://localhost/_ping >/dev/null 2>&1; then
@@ -422,22 +610,23 @@ stop_calf_daemon() {
 measure_idle_ram_mb() {
   local product=$1
   local pattern
+  # Do not match generic Virtualization.VirtualMachine — other engines' VMs inflate the sum.
   case "$product" in
     calf)
-      pattern='/exe/calf|calf-daemon|vfkit$|Virtualization\.VirtualMachine'
+      pattern='calf-daemon|/exe/calf|\bkrunkit\b|\bgvproxy\b'
       ;;
     docker_desktop)
-      pattern='com\.docker\.|Docker Desktop|docker-desktop|Virtualization\.VirtualMachine'
+      pattern='com\.docker\.|Docker Desktop|docker-desktop'
       ;;
     orbstack)
-      pattern='OrbStack|orbstack|macvirt|Virtualization\.VirtualMachine'
+      pattern='OrbStack|orbstack|macvirt|\borb\b'
       ;;
     *)
       return 1
       ;;
   esac
-  # Pipe ps via stdin — putting the full process table in an env var truncates on macOS.
-  ps -axo rss,comm | PATTERN="$pattern" python3 -c '
+  # Prefer full command path — macOS `comm` truncates and misses krunkit/helpers.
+  ps -axo rss,command | PATTERN="$pattern" python3 -c '
 import os, re, sys
 pattern = re.compile(os.environ["PATTERN"], re.I)
 total_kb = 0
@@ -513,10 +702,39 @@ ensure_product_ready() {
 
   stop_other_products "$product"
   stop_product "$product"
-  start_product "$product"
-  if ! wait_for_docker_context "$product" "$BENCHMARK_TIMEOUT"; then
-    warn "$(product_label "$product") docker socket unavailable"
+  if ! start_product "$product"; then
+    warn "$(product_label "$product") failed to start"
     return 1
+  fi
+  if [[ "$product" == "calf" ]]; then
+    # start_calf_daemon may return before the guest is ready; force + wait.
+    curl -sf -X POST "${CALF_API}/v1/runtime/start" >/dev/null 2>&1 || true
+  fi
+  if ! wait_for_docker_context "$product" "$BENCHMARK_TIMEOUT"; then
+    if [[ "$product" == "calf" ]]; then
+      # One more start attempt after teardown races.
+      start_calf_daemon >/dev/null || true
+      curl -sf -X POST "${CALF_API}/v1/runtime/start" >/dev/null 2>&1 || true
+      if wait_for_docker_context "$product" 120; then
+        :
+      else
+        warn "$(product_label "$product") docker socket unavailable"
+        return 1
+      fi
+    elif [[ "$product" == "orbstack" ]]; then
+      warn "OrbStack first wait failed; full quit + relaunch"
+      stop_product orbstack
+      sleep 10
+      open -ga OrbStack
+      sleep 8
+      if ! wait_for_docker_context orbstack 180; then
+        warn "$(product_label "$product") docker socket unavailable"
+        return 1
+      fi
+    else
+      warn "$(product_label "$product") docker socket unavailable"
+      return 1
+    fi
   fi
   if ! preflight_docker "$product"; then
     warn "$(product_label "$product") docker run preflight failed"

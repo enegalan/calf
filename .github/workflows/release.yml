@@ -63,9 +63,14 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: choco install innosetup -y
 
-      - name: Install create-dmg and vfkit (macOS)
+      - name: Install create-dmg and krunkit deps (macOS)
         if: matrix.os == 'macos-latest'
-        run: brew install create-dmg vfkit
+        run: |
+          brew tap libkrun/krun
+          brew install create-dmg libkrun/krun/libkrun libkrun/krun/krunkit libkrun/krun/gvproxy
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source "$HOME/.cargo/env"
+          make krunkit-stack
 
       - name: Build and package ${{ matrix.os }}
         run: make ${{ matrix.target }}
@@ -106,8 +111,8 @@ jobs:
 
       - name: Create GitHub release
         run: |
-          # Guest disk (calf-vfkit-disk-*.raw.zst) is built on a real Mac with
-          # `make guest-vfkit` and attached manually when needed — GHA nested VZ cannot bake it.
+          # Guest disk (calf-guest-disk-*.raw.zst) is built on a real Mac with
+          # `make guest-disk` and attached manually when needed — GHA nested VZ cannot bake it.
           gh release create "v${{ steps.version.outputs.version }}" \
             --title "Calf ${{ steps.version.outputs.version }}" \
             --draft \

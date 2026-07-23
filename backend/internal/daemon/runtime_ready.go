@@ -12,7 +12,11 @@ import (
 // EnsureRuntimeRunning starts the runtime when needed and waits until it reaches the running state.
 // Start is idempotent: when the VM is already up but the host socket was torn down (keep-alive quit
 // within the same process, or a raced first Start), this restores host setup.
+// Concurrent callers share one Start via runtimeStartMu (main async boot vs HTTP).
 func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
+	s.runtimeStartMu.Lock()
+	defer s.runtimeStartMu.Unlock()
+
 	startCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 
@@ -21,7 +25,7 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 		return fmt.Errorf("Runtime.Status: %w", statusErr)
 	}
 	if status.State != runtime.State(constants.RuntimeStateRunning) {
-		s.Logger.Info("runtime not running; starting before registry login", "vm", status.VMName)
+		s.Logger.Info("runtime not running; starting", "vm", status.VMName)
 	}
 
 	if err := s.Runtime.Start(startCtx); err != nil {

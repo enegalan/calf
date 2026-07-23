@@ -12,5 +12,5 @@ func newDarwinRuntime(vmName, dockerSocket string, cpus, memoryGB, memorySwapGB,
 	_ = apiListenPort
 	_ = vmKeepAlive
 	_ = proxy
-	return NewUnsupported(dockerSocket, "vfkit runtime is only available on macOS")
+	return NewUnsupported(dockerSocket, "krunkit runtime is only available on macOS")
 }

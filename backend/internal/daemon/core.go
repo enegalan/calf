@@ -31,6 +31,7 @@ type Core struct {
 	DockerCLI             *dockercli.Manager
 	lifecycleCtx          context.Context
 	lifecycleCancel       context.CancelFunc
+	runtimeStartMu        sync.Mutex
 }
 
 // ownerContextSetter is implemented by runtimes whose background work should follow daemon shutdown.

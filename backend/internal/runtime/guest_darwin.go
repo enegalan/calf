@@ -14,22 +14,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	goruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-var vfkitLogger = slog.Default()
+var guestLogger = slog.Default()
 
-// Vfkit runs a Linux guest via vfkit and exposes Docker over virtio-vsock.
-type Vfkit struct {
+// Guest holds shared macOS guest state (disk, EFI, vsock Docker helpers) used by Krunkit.
+type Guest struct {
 	mu             sync.Mutex
 	vmName         string
 	dockerSocket   string
@@ -46,8 +44,8 @@ type Vfkit struct {
 	watcherCancel  context.CancelFunc
 }
 
-// NewVfkit constructs a vfkit-backed Runtime for macOS.
-func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Vfkit {
+// NewGuest constructs shared guest helpers for the macOS krunkit runtime.
+func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPort int, vmKeepAlive bool, proxy ProxyConfig) *Guest {
 	if vmName == "" {
 		vmName = constants.DefaultVMName
 	}
@@ -64,19 +62,20 @@ func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPo
 	if memoryGB < 1 {
 		memoryGB = 4
 	}
-	if override := os.Getenv("CALF_VFKIT_MEMORY_GB"); override != "" {
+	if override := os.Getenv("CALF_GUEST_MEMORY_GB"); override != "" {
 		if n, err := strconv.Atoi(override); err == nil && n > 0 {
 			memoryGB = n
 		}
 	}
-	v := &Vfkit{
+	dataDir := filepath.Join(home, ".config", "calf", "guest", vmName)
+	v := &Guest{
 		vmName:         vmName,
 		dockerSocket:   dockerSocket,
 		cpus:           cpus,
 		memoryGB:       memoryGB,
 		vmKeepAlive:    vmKeepAlive,
 		proxy:          proxy,
-		dataDir:        filepath.Join(home, ".config", "calf", "vfkit", vmName),
+		dataDir:        dataDir,
 		localhostProxy: newLocalhostProxies(),
 		ownerCtx:       context.Background(),
 	}
@@ -85,34 +84,14 @@ func NewVfkit(vmName, dockerSocket string, cpus, memoryGB, _, _ int, apiListenPo
 }
 
 // DockerSocket returns the host unix socket bridged to guest Docker via vsock.
-func (v *Vfkit) DockerSocket() string { return v.dockerSocket }
+func (v *Guest) DockerSocket() string { return v.dockerSocket }
 
-func (v *Vfkit) diskPath() string { return filepath.Join(v.dataDir, "disk.raw") }
-func (v *Vfkit) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
-func (v *Vfkit) pidPath() string  { return filepath.Join(v.dataDir, "vfkit.pid") }
-
-// resolveVfkitBinary returns the vfkit executable: CALF_VFKIT_BIN, next to this process, or PATH.
-func resolveVfkitBinary() string {
-	if override := strings.TrimSpace(os.Getenv("CALF_VFKIT_BIN")); override != "" {
-		if _, err := os.Stat(override); err == nil {
-			return override
-		}
-	}
-	if exe, err := os.Executable(); err == nil {
-		candidate := filepath.Join(filepath.Dir(exe), "vfkit")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-	if path, err := exec.LookPath("vfkit"); err == nil {
-		return path
-	}
-	return ""
-}
+func (v *Guest) diskPath() string { return filepath.Join(v.dataDir, "disk.raw") }
+func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
 
 // resolveSeedArchive returns a compressed guest disk path used for first-run extract.
 func resolveSeedArchive(dataDir string) string {
-	if override := strings.TrimSpace(os.Getenv("CALF_VFKIT_DISK_ZST")); override != "" {
+	if override := strings.TrimSpace(os.Getenv("CALF_GUEST_DISK_ZST")); override != "" {
 		if _, err := os.Stat(override); err == nil {
 			return override
 		}
@@ -126,7 +105,7 @@ func resolveSeedArchive(dataDir string) string {
 		candidates = append(candidates,
 			filepath.Join(dir, "disk.raw.zst"),
 			filepath.Join(dir, "..", "Resources", "disk.raw.zst"),
-			filepath.Join(dir, "..", "Resources", "vfkit-disk.raw.zst"),
+			filepath.Join(dir, "..", "Resources", "guest-disk.raw.zst"),
 		)
 	}
 	for _, path := range candidates {
@@ -138,7 +117,7 @@ func resolveSeedArchive(dataDir string) string {
 }
 
 // ensureGuestDisk ensures disk.raw exists: local file, local .zst seed, or GitHub download.
-func (v *Vfkit) ensureGuestDisk(ctx context.Context) error {
+func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 	if _, err := os.Stat(v.diskPath()); err == nil {
 		return nil
 	}
@@ -151,7 +130,7 @@ func (v *Vfkit) ensureGuestDisk(ctx context.Context) error {
 		defer cancel()
 		downloaded, err := v.downloadGuestDisk(dlCtx)
 		if err != nil {
-			return fmt.Errorf("vfkit disk missing at %s (%w); run make guest-vfkit or set CALF_VFKIT_DISK_URL", v.diskPath(), err)
+			return fmt.Errorf("guest disk missing at %s (%w); run make guest-disk or set CALF_GUEST_DISK_URL", v.diskPath(), err)
 		}
 		seed = downloaded
 	}
@@ -159,7 +138,7 @@ func (v *Vfkit) ensureGuestDisk(ctx context.Context) error {
 }
 
 // ensureHostMountSymlink makes host ~/.config/calf/mounts resolve inside the guest via /mnt/calf.
-func (v *Vfkit) ensureHostMountSymlink(ctx context.Context) {
+func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return
@@ -170,13 +149,13 @@ func (v *Vfkit) ensureHostMountSymlink(ctx context.Context) {
 }
 
 // runGuestRoot runs a shell script in the guest init mount/network namespace.
-func (v *Vfkit) runGuestRoot(ctx context.Context, script string) ([]byte, error) {
+func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error) {
 	return v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "--pid=host",
 		"alpine:3.20", "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "bash", "-lc", script)
 }
 
 // guestCommandRunner adapts guest root shells and docker CLI for shared helpers (proxy, buildx install).
-func (v *Vfkit) guestCommandRunner(ctx context.Context, command string, args ...string) ([]byte, error) {
+func (v *Guest) guestCommandRunner(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" || command == "docker" {
 		return v.runLocal(ctx, command, args...)
 	}
@@ -193,11 +172,13 @@ func (v *Vfkit) guestCommandRunner(ctx context.Context, command string, args ...
 
 // ensureHostDockerInternal maps host.docker.internal to the guest NAT gateway for containers.
 // Fast path only: never apt-get or restart Docker on Start (cold-start critical).
-func (v *Vfkit) ensureHostDockerInternal(ctx context.Context) {
+func (v *Guest) ensureHostDockerInternal(ctx context.Context) {
 	script := `
-set -eu
+set -e
 GW=$(ip -4 route show default | awk '{print $3; exit}')
-test -n "$GW"
+if [ -z "$GW" ]; then
+  exit 1
+fi
 if grep -qE "address=/host\\.docker\\.internal/${GW}$" /etc/dnsmasq.d/calf-host.conf 2>/dev/null \
   && grep -qE "^${GW}[[:space:]]+host\\.docker\\.internal$" /etc/hosts 2>/dev/null; then
   exit 0
@@ -220,12 +201,12 @@ if [ -d /etc/dnsmasq.d ]; then
 fi
 `
 	if _, err := v.runGuestRoot(ctx, script); err != nil {
-		vfkitLogger.Warn("host.docker.internal setup failed (non-fatal)", "error", err)
+		guestLogger.Warn("host.docker.internal setup failed (non-fatal)", "error", err)
 	}
 }
 
-// SetOwnerContext sets the parent context for vfkit background work (watchers, Buildx, proxy).
-func (v *Vfkit) SetOwnerContext(ctx context.Context) {
+// SetOwnerContext sets the parent context for guest background work (watchers, Buildx, proxy).
+func (v *Guest) SetOwnerContext(ctx context.Context) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -235,7 +216,7 @@ func (v *Vfkit) SetOwnerContext(ctx context.Context) {
 }
 
 // resetLifecycle cancels prior background work and returns a fresh lifecycle context.
-func (v *Vfkit) resetLifecycle() context.Context {
+func (v *Guest) resetLifecycle() context.Context {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	if v.watcherCancel != nil {
@@ -252,7 +233,7 @@ func (v *Vfkit) resetLifecycle() context.Context {
 }
 
 // ensureBuildxAsync bootstraps buildx off the Start critical path.
-func (v *Vfkit) ensureBuildxAsync(lifeCtx context.Context) {
+func (v *Guest) ensureBuildxAsync(lifeCtx context.Context) {
 	go func() {
 		buildxCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
 		defer cancel()
@@ -260,13 +241,13 @@ func (v *Vfkit) ensureBuildxAsync(lifeCtx context.Context) {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			vfkitLogger.Warn("buildx setup failed (non-fatal)", "error", err)
+			guestLogger.Warn("buildx setup failed (non-fatal)", "error", err)
 		}
 	}()
 }
 
 // watchPortProxies periodically resyncs localhost proxies with published container ports.
-func (v *Vfkit) watchPortProxies(ctx context.Context) {
+func (v *Guest) watchPortProxies(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -292,140 +273,9 @@ func (v *Vfkit) watchPortProxies(ctx context.Context) {
 	}
 }
 
-// Start launches vfkit and waits for Docker /_ping on the vsock-bridged socket.
-func (v *Vfkit) Start(ctx context.Context) error {
-	vfkitBin := resolveVfkitBinary()
-	if vfkitBin == "" {
-		return fmt.Errorf("vfkit not found: install with brew install vfkit, or place vfkit next to calf-daemon")
-	}
-	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker CLI not found: required for the vfkit runtime (install the Docker CLI and ensure it is on PATH)")
-	}
-	if err := v.ensureGuestDisk(ctx); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(v.dataDir, 0o755); err != nil {
-		return err
-	}
-	lifeCtx := v.resetLifecycle()
-	if v.dockerAPIReady(ctx) && v.processAlive() {
-		v.ensureHostMountSymlink(ctx)
-		v.ensureBuildxAsync(lifeCtx)
-		if os.Getenv("CALF_BENCHMARK") != "1" {
-			go func() {
-				setupCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
-				defer cancel()
-				v.ensureHostDockerInternal(setupCtx)
-			}()
-		}
-		if v.proxy != (ProxyConfig{}) {
-			proxy := v.proxy
-			go func() {
-				applyCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
-				defer cancel()
-				if err := v.ApplyProxy(applyCtx, proxy); err != nil {
-					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-						return
-					}
-					vfkitLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
-				}
-			}()
-		}
-		v.started.Store(true)
-		v.proxyResync.Store(true)
-		go v.watchPortProxies(lifeCtx)
-		return nil
-	}
-	_ = v.stopProcess()
-	// Wait for the previous guest to release the disk before relaunching.
-	deadline := time.Now().Add(15 * time.Second)
-	for v.processAlive() && time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-	_ = os.Remove(v.dockerSocket)
-	if err := os.MkdirAll(filepath.Dir(v.dockerSocket), 0o755); err != nil {
-		return err
-	}
-
-	bootloader := "efi,variable-store=" + v.efiPath() + ",create"
-	if _, err := os.Stat(v.efiPath()); err == nil {
-		bootloader = "efi,variable-store=" + v.efiPath()
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.TempDir()
-	}
-	mounts := filepath.Join(home, ".config", "calf", "mounts")
-	_ = os.MkdirAll(mounts, 0o755)
-	args := []string{
-		"--cpus", strconv.Itoa(v.cpus),
-		"--memory", strconv.Itoa(v.memoryGB * 1024),
-		"--bootloader", bootloader,
-		"--device", "virtio-blk,path=" + v.diskPath(),
-		"--device", "virtio-net,nat",
-		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts",
-		"--device", "virtio-vsock,port=2375,socketURL=" + v.dockerSocket + ",connect",
-	}
-	// Rosetta on by default for arm64 (match Lima); disable with CALF_VFKIT_ROSETTA=0.
-	rosettaEnv := strings.TrimSpace(os.Getenv("CALF_VFKIT_ROSETTA"))
-	enableRosetta := goruntime.GOARCH == "arm64" && rosettaEnv != "0"
-	if rosettaEnv == "1" {
-		enableRosetta = true
-	}
-	if enableRosetta {
-		args = append(args, "--device", "rosetta,mountTag=calf-rosetta,install")
-	}
-	args = append(args,
-		"--pidfile", v.pidPath(),
-		"--log-level", "info",
-	)
-	cmd := exec.Command(vfkitBin, args...)
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start vfkit: %w", err)
-	}
-	v.mu.Lock()
-	v.cmd = cmd
-	v.mu.Unlock()
-	go func() { _ = cmd.Wait(); v.started.Store(false) }()
-
-	if err := v.waitForDockerAPI(ctx); err != nil {
-		_ = v.stopProcess()
-		return err
-	}
-	v.ensureHostMountSymlink(ctx)
-	v.ensureBuildxAsync(lifeCtx)
-	if os.Getenv("CALF_BENCHMARK") != "1" {
-		go func() {
-			setupCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
-			defer cancel()
-			v.ensureHostDockerInternal(setupCtx)
-		}()
-	}
-	if v.proxy != (ProxyConfig{}) {
-		proxy := v.proxy
-		go func() {
-			applyCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
-			defer cancel()
-			if err := v.ApplyProxy(applyCtx, proxy); err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return
-				}
-				vfkitLogger.Warn("proxy application during start failed (non-fatal)", "error", err)
-			}
-		}()
-	}
-	v.started.Store(true)
-	v.proxyResync.Store(true)
-	go v.watchPortProxies(lifeCtx)
-	return nil
-}
-
-// Stop kills vfkit unless vm_keep_alive is enabled (benchmarks force a full stop).
-func (v *Vfkit) Stop(ctx context.Context) error {
+// Stop tears down guest helpers unless vm_keep_alive is enabled (benchmarks force a full stop).
+// Krunkit overrides Stop to terminate krunkit/gvproxy; this path is unused in product.
+func (v *Guest) Stop(ctx context.Context) error {
 	_ = ctx
 	v.mu.Lock()
 	if v.watcherCancel != nil {
@@ -435,49 +285,11 @@ func (v *Vfkit) Stop(ctx context.Context) error {
 	v.mu.Unlock()
 	v.localhostProxy.stopAll()
 	v.started.Store(false)
-	if v.vmKeepAlive && os.Getenv("CALF_BENCHMARK") != "1" {
-		return nil
-	}
-	_ = v.stopProcess()
-	_ = os.Remove(v.dockerSocket)
 	return nil
 }
 
-func (v *Vfkit) stopProcess() error {
-	v.mu.Lock()
-	cmd := v.cmd
-	v.cmd = nil
-	v.mu.Unlock()
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-		time.Sleep(200 * time.Millisecond)
-		_ = cmd.Process.Kill()
-	}
-	if data, err := os.ReadFile(v.pidPath()); err == nil {
-		if pid, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && pid > 1 {
-			_ = syscall.Kill(pid, syscall.SIGTERM)
-			time.Sleep(150 * time.Millisecond)
-			_ = syscall.Kill(pid, syscall.SIGKILL)
-		}
-	}
-	_ = os.Remove(v.pidPath())
-	return nil
-}
-
-func (v *Vfkit) processAlive() bool {
-	data, err := os.ReadFile(v.pidPath())
-	if err != nil {
-		return false
-	}
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil || pid < 1 {
-		return false
-	}
-	return syscall.Kill(pid, 0) == nil
-}
-
-// Status reports whether the vfkit Docker API is reachable.
-func (v *Vfkit) Status(ctx context.Context) (Status, error) {
+// Status reports whether the guest Docker API is reachable.
+func (v *Guest) Status(ctx context.Context) (Status, error) {
 	st := Status{Mode: Mode(constants.RuntimeModeVM), State: State(constants.RuntimeStateStopped), DockerSocket: v.dockerSocket, VMName: v.vmName}
 	if v.dockerAPIReady(ctx) {
 		st.State = State(constants.RuntimeStateRunning)
@@ -490,7 +302,7 @@ func (v *Vfkit) Status(ctx context.Context) (Status, error) {
 	return st, nil
 }
 
-func (v *Vfkit) waitForDockerAPI(ctx context.Context) error {
+func (v *Guest) waitForDockerAPI(ctx context.Context) error {
 	deadline := time.Now().Add(10 * time.Minute)
 	delay := 50 * time.Millisecond
 	for time.Now().Before(deadline) {
@@ -509,10 +321,10 @@ func (v *Vfkit) waitForDockerAPI(ctx context.Context) error {
 			}
 		}
 	}
-	return fmt.Errorf("docker API not ready for vfkit VM %q", v.vmName)
+	return fmt.Errorf("docker API not ready for guest VM %q", v.vmName)
 }
 
-func (v *Vfkit) dockerAPIReady(ctx context.Context) bool {
+func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -532,7 +344,7 @@ func (v *Vfkit) dockerAPIReady(ctx context.Context) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func (v *Vfkit) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
+func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -544,7 +356,7 @@ func (v *Vfkit) runLocal(ctx context.Context, command string, args ...string) ([
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, "", command, args...)
 }
 
-func (v *Vfkit) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
+func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -552,7 +364,7 @@ func (v *Vfkit) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
-func (v *Vfkit) ListContainers(ctx context.Context) ([]Container, error) {
+func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Container, error) {
 		if !v.started.Load() {
 			return []Container{}, nil
@@ -568,16 +380,16 @@ func (v *Vfkit) ListContainers(ctx context.Context) ([]Container, error) {
 		return containers, err
 	})
 }
-func (v *Vfkit) ListImages(ctx context.Context) ([]Image, error) {
+func (v *Guest) ListImages(ctx context.Context) ([]Image, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Image, error) { return listImages(ctx, v.runLocal) })
 }
-func (v *Vfkit) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error) {
+func (v *Guest) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
 	}
 	return imageHistory(ctx, v.runLocal, ref)
 }
-func (v *Vfkit) ListVolumes(ctx context.Context) ([]Volume, error) {
+func (v *Guest) ListVolumes(ctx context.Context) ([]Volume, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Volume, error) {
 		vols, err := listVolumes(ctx, v.runLocal)
 		if err != nil {
@@ -586,22 +398,22 @@ func (v *Vfkit) ListVolumes(ctx context.Context) ([]Volume, error) {
 		return enrichVolumesInUse(ctx, v.runLocal, vols)
 	})
 }
-func (v *Vfkit) ListNetworks(ctx context.Context) ([]Network, error) {
+func (v *Guest) ListNetworks(ctx context.Context) ([]Network, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Network, error) { return listNetworks(ctx, v.runLocal) })
 }
-func (v *Vfkit) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
+func (v *Guest) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return NetworkDetail{}, err
 	}
 	return inspectNetwork(ctx, v.runLocal, name)
 }
-func (v *Vfkit) RemoveNetwork(ctx context.Context, name string) error {
+func (v *Guest) RemoveNetwork(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return removeNetwork(ctx, v.runLocal, name)
 }
-func (v *Vfkit) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
+func (v *Guest) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	v.mu.Lock()
 	v.proxy = proxy
 	v.mu.Unlock()
@@ -610,7 +422,7 @@ func (v *Vfkit) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	}
 	return applyProxyInVM(ctx, v.guestCommandRunner, proxy)
 }
-func (v *Vfkit) CreateVolume(ctx context.Context, name string) error {
+func (v *Guest) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
@@ -621,32 +433,32 @@ func (v *Vfkit) CreateVolume(ctx context.Context, name string) error {
 	_, err := v.runLocal(ctx, "nerdctl", args...)
 	return err
 }
-func (v *Vfkit) CloneVolume(ctx context.Context, source, dest string) error {
+func (v *Guest) CloneVolume(ctx context.Context, source, dest string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return cloneVolume(ctx, v.runLocal, source, dest)
 }
-func (v *Vfkit) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
+func (v *Guest) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return "", err
 	}
 	return RunVolumeExport(ctx, v.runLocal, opts)
 }
-func (v *Vfkit) RemoveVolume(ctx context.Context, name string) error {
+func (v *Guest) RemoveVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "volume", "rm", name)
 	return err
 }
-func (v *Vfkit) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
+func (v *Guest) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return VolumeDetail{}, err
 	}
 	return inspectVolume(ctx, v.runLocal, name)
 }
-func (v *Vfkit) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
+func (v *Guest) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
 	}
@@ -655,71 +467,71 @@ func (v *Vfkit) ListVolumeFiles(ctx context.Context, name, path string) ([]Conta
 	}
 	return listVolumeFiles(ctx, v.runLocal, name, path)
 }
-func (v *Vfkit) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
+func (v *Guest) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
 	}
 	return volumeContainerUsages(ctx, v.runLocal, name)
 }
-func (v *Vfkit) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
+func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return BuildResult{}, err
 	}
 	result, err := runBuildx(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
 	if err != nil && isBuildxMissingError(err) {
-		vfkitLogger.Warn("buildx build failed; falling back to docker build", "error", err)
+		guestLogger.Warn("buildx build failed; falling back to docker build", "error", err)
 		return runBuild(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
 	}
 	return result, err
 }
-func (v *Vfkit) StartContainer(ctx context.Context, id string) error {
+func (v *Guest) StartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "start", id)
 	return err
 }
-func (v *Vfkit) StopContainer(ctx context.Context, id string) error {
+func (v *Guest) StopContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "stop", id)
 	return err
 }
-func (v *Vfkit) RemoveContainer(ctx context.Context, id string) error {
+func (v *Guest) RemoveContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "rm", "-f", id)
 	return err
 }
-func (v *Vfkit) RemoveImage(ctx context.Context, ref string) error {
+func (v *Guest) RemoveImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "rmi", ref)
 	return err
 }
-func (v *Vfkit) PullImage(ctx context.Context, ref string) error {
+func (v *Guest) PullImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "pull", ref)
 	return err
 }
-func (v *Vfkit) PushImage(ctx context.Context, ref string) error {
+func (v *Guest) PushImage(ctx context.Context, ref string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return pushImage(ctx, v.runLocal, ref)
 }
-func (v *Vfkit) RunImage(ctx context.Context, ref string) (string, error) {
+func (v *Guest) RunImage(ctx context.Context, ref string) (string, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return "", err
 	}
 	return runImage(ctx, v.runLocal, ref)
 }
-func (v *Vfkit) StreamLogs(ctx context.Context, id string, output func(string)) error {
+func (v *Guest) StreamLogs(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
@@ -729,31 +541,31 @@ func (v *Vfkit) StreamLogs(ctx context.Context, id string, output func(string)) 
 	}
 	return v.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
-func (v *Vfkit) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
+func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return v.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
-func (v *Vfkit) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
+func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
 	return streamCommandLogs(ctx, command, output)
 }
-func (v *Vfkit) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
+func (v *Guest) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
 	}
 	return inspectContainer(ctx, v.runLocal, id)
 }
-func (v *Vfkit) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
+func (v *Guest) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
 	inspect, err := v.InspectContainer(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return parseContainerMounts(inspect)
 }
-func (v *Vfkit) ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error) {
+func (v *Guest) ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
 	}
@@ -762,13 +574,13 @@ func (v *Vfkit) ListContainerFiles(ctx context.Context, id, path string) ([]Cont
 	}
 	return listContainerFiles(ctx, v.runLocal, id, path)
 }
-func (v *Vfkit) ExecContainer(ctx context.Context, id, command string) (string, error) {
+func (v *Guest) ExecContainer(ctx context.Context, id, command string) (string, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return "", err
 	}
 	return execInContainer(ctx, v.runLocal, id, command)
 }
-func (v *Vfkit) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
+func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
@@ -776,32 +588,32 @@ func (v *Vfkit) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
-func (v *Vfkit) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {
+func (v *Guest) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return ContainerStats{}, err
 	}
 	return containerStats(ctx, v.runLocal, id)
 }
-func (v *Vfkit) RestartContainer(ctx context.Context, id string) error {
+func (v *Guest) RestartContainer(ctx context.Context, id string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return restartContainer(ctx, v.runLocal, id)
 }
-func (v *Vfkit) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
+func (v *Guest) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
 	home, _ := os.UserHomeDir()
 	return registryStatus(ctx, v.runLocal, filepath.Join(home, ".docker", "config.json"))
 }
-func (v *Vfkit) RegistryLogin(ctx context.Context, server, username, password string) error {
+func (v *Guest) RegistryLogin(ctx context.Context, server, username, password string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return registryLogin(ctx, v.runLocal, v.runLocalWithStdin, server, username, password)
 }
-func (v *Vfkit) RegistryLogout(ctx context.Context, server string) error {
+func (v *Guest) RegistryLogout(ctx context.Context, server string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}

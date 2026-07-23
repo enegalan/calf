@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Extract a compressed vfkit guest disk into ~/.config/calf/vfkit/<vm>/.
-# Usage: ./scripts/guest-image/unpack-vfkit-disk.sh /path/to/disk.raw.zst
+# Extract a compressed guest disk into ~/.config/calf/guest/<vm>/.
+# Usage: ./scripts/guest-image/unpack-guest-disk.sh /path/to/disk.raw.zst
 set -euo pipefail
 
 ARCHIVE="${1:-}"
 VM_NAME="${CALF_VM_NAME:-calf}"
-DEST_DIR="${HOME}/.config/calf/vfkit/${VM_NAME}"
+DEST_DIR="${HOME}/.config/calf/guest/${VM_NAME}"
 DEST_DISK="${DEST_DIR}/disk.raw"
 
 if [[ -z "$ARCHIVE" || ! -f "$ARCHIVE" ]]; then
@@ -24,5 +24,5 @@ EFI_ZST="$(dirname "$ARCHIVE")/efi-store.zst"
 if [[ -f "$EFI_ZST" ]]; then
   zstd -f -d -o "${DEST_DIR}/efi-store" "$EFI_ZST"
 fi
-echo "ready: Calf will use vfkit when vfkit is on PATH or bundled"
+echo "ready: Guest disk ready (krunkit uses ~/.config/calf/guest/ on start)"
 echo "disk: $DEST_DISK"

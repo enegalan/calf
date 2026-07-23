@@ -81,7 +81,7 @@ func run() int {
 	// (handlers return 503 until the VM/containerd stack is ready).
 	go func() {
 		logger.Info("starting runtime")
-		if err := rt.Start(rtCtx); err != nil {
+		if err := gateway.Backend().EnsureRuntimeRunning(rtCtx); err != nil {
 			if rtCtx.Err() != nil {
 				return
 			}
@@ -289,8 +289,8 @@ func pidFilePath() string {
 	return filepath.Join(home, ".config", "calf", "calf.pid")
 }
 
-// ensurePath prepends Homebrew bin dirs when vfkit or docker live there. The GUI
-// subprocess often inherits a minimal PATH that omits /opt/homebrew/bin.
+// ensurePath prepends Homebrew bin dirs when krunkit, gvproxy, or docker live there.
+// The GUI subprocess often inherits a minimal PATH that omits /opt/homebrew/bin.
 func ensurePath() string {
 	existing := os.Getenv("PATH")
 	if goRuntime.GOOS == "windows" {
@@ -299,7 +299,7 @@ func ensurePath() string {
 
 	needed := false
 	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
-		for _, bin := range []string{"vfkit", "docker"} {
+		for _, bin := range []string{"krunkit", "gvproxy", "docker"} {
 			if _, err := os.Stat(filepath.Join(dir, bin)); err == nil && !inPath(dir, existing) {
 				existing = dir + ":" + existing
 				needed = true
