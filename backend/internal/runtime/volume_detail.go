@@ -3,11 +3,16 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
+
+// volumeInUseInspectWorkers caps concurrent container inspects when resolving volume usage.
+const volumeInUseInspectWorkers = 8
 
 // volumeInspectRow represents a row in the nerdctl volume inspect output.
 type volumeInspectRow struct {
@@ -251,8 +256,9 @@ func volumeContainerUsages(ctx context.Context, run commandRunner, volumeName st
 }
 
 // volumeNamesInUse collects volume names referenced by any container.
-// Inspects containers one-by-one so a single uninspectable or vanished ID
-// (docker ps can list entries that docker inspect rejects) does not fail the list.
+// Inspects containers with bounded concurrency so a single uninspectable or
+// vanished ID (docker ps can list entries that docker inspect rejects) does not
+// fail the list.
 func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct{}, error) {
 	containers, err := listContainers(ctx, run)
 	if err != nil {
@@ -260,31 +266,50 @@ func volumeNamesInUse(ctx context.Context, run commandRunner) (map[string]struct
 	}
 
 	inUse := make(map[string]struct{})
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	workers := make(chan struct{}, volumeInUseInspectWorkers)
+
 	for _, container := range containers {
-		inspect, err := inspectContainer(ctx, run, container.ID)
-		if err != nil {
-			continue
-		}
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
 
-		mounts, err := parseContainerMounts(inspect)
-		if err != nil {
-			continue
-		}
-
-		for _, mount := range mounts {
-			if mount.Type != "volume" {
-				continue
+			select {
+			case workers <- struct{}{}:
+				defer func() { <-workers }()
+			case <-ctx.Done():
+				return
 			}
 
-			name := volumeMountName(mount)
-			if name == "" {
-				continue
+			inspect, err := inspectContainer(ctx, run, id)
+			if err != nil {
+				return
 			}
 
-			inUse[name] = struct{}{}
-		}
+			mounts, err := parseContainerMounts(inspect)
+			if err != nil {
+				return
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			for _, mount := range mounts {
+				if mount.Type != "volume" {
+					continue
+				}
+
+				name := volumeMountName(mount)
+				if name == "" {
+					continue
+				}
+
+				inUse[name] = struct{}{}
+			}
+		}(container.ID)
 	}
 
+	wg.Wait()
 	return inUse, nil
 }
 
@@ -301,6 +326,7 @@ func volumeMountName(mount ContainerMount) string {
 func enrichVolumesInUse(ctx context.Context, run commandRunner, volumes []Volume) ([]Volume, error) {
 	inUse, err := volumeNamesInUse(ctx, run)
 	if err != nil {
+		slog.Warn("failed to resolve volumes in use", "error", err)
 		inUse = map[string]struct{}{}
 	}
 

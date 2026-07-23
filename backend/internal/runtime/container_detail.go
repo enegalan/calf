@@ -62,7 +62,10 @@ func inspectContainer(ctx context.Context, run commandRunner, id string) (json.R
 	}
 
 	var rows []json.RawMessage
-	if err := json.Unmarshal(output, &rows); err != nil || len(rows) == 0 {
+	if err := json.Unmarshal(output, &rows); err != nil {
+		return nil, fmt.Errorf("inspect container %s: %w", id, err)
+	}
+	if len(rows) == 0 {
 		return nil, ErrContainerNotFound
 	}
 
@@ -143,7 +146,7 @@ func listContainerFiles(ctx context.Context, run commandRunner, id, dirPath stri
 		dirPath = "/"
 	}
 
-	script := fmt.Sprintf("ls -la %q", dirPath)
+	script := fmt.Sprintf("ls -la '%s'", shellQuote(dirPath))
 	output, err := run(ctx, "nerdctl", "exec", id, "sh", "-c", script)
 	if err == nil {
 		return parseLsOutput(dirPath, output), nil
@@ -275,19 +278,21 @@ func parseTarTvOutput(dirPath string, output []byte) []ContainerFileEntry {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 6 {
+		if len(fields) < 2 {
 			continue
 		}
 
 		mode := fields[0]
 		name := fields[len(fields)-1]
 		note := ""
+		metaFields := fields
 		if arrow := strings.Index(line, " -> "); arrow >= 0 {
 			note = strings.TrimSpace(line[arrow+4:])
 			before := strings.TrimSpace(line[:arrow])
 			beforeFields := strings.Fields(before)
 			if len(beforeFields) > 0 {
 				name = beforeFields[len(beforeFields)-1]
+				metaFields = beforeFields
 			}
 		}
 
@@ -308,17 +313,7 @@ func parseTarTvOutput(dirPath string, output []byte) []ContainerFileEntry {
 			entryPath = "/" + childName
 		}
 
-		var size int64
-		if len(fields) >= 5 && !isDir {
-			fmt.Sscanf(fields[4], "%d", &size)
-		}
-
-		modified := ""
-		if len(fields) >= 8 {
-			modified = strings.Join(fields[5:8], " ")
-		} else if len(fields) >= 7 {
-			modified = strings.Join(fields[5:7], " ")
-		}
+		size, modified := tarTvSizeAndModified(metaFields, isDir)
 
 		if isLink && note == "" {
 			note = "symlink"
@@ -336,6 +331,86 @@ func parseTarTvOutput(dirPath string, output []byte) []ContainerFileEntry {
 	}
 
 	return entries
+}
+
+// tarTvSizeAndModified extracts size and mtime from BusyBox, GNU, or BSD `tar -tv` columns.
+// metaFields is mode plus owner/size/date columns and the member name (last field).
+func tarTvSizeAndModified(metaFields []string, isDir bool) (int64, string) {
+	if len(metaFields) < 3 {
+		return 0, ""
+	}
+
+	body := metaFields[1 : len(metaFields)-1]
+	dateStart := -1
+	for index, field := range body {
+		if tarTvIsMonth(field) || tarTvIsISODate(field) {
+			dateStart = index
+			break
+		}
+	}
+
+	if dateStart < 0 {
+		sizeIndex := -1
+		for index := len(body) - 1; index >= 0; index-- {
+			if tarTvAllDigits(body[index]) {
+				sizeIndex = index
+				break
+			}
+		}
+		if sizeIndex < 0 {
+			return 0, strings.Join(body, " ")
+		}
+		var size int64
+		if !isDir {
+			fmt.Sscanf(body[sizeIndex], "%d", &size)
+		}
+		return size, strings.Join(body[sizeIndex+1:], " ")
+	}
+
+	modified := strings.Join(body[dateStart:], " ")
+	var size int64
+	if !isDir {
+		for index := dateStart - 1; index >= 0; index-- {
+			if !tarTvAllDigits(body[index]) {
+				continue
+			}
+			fmt.Sscanf(body[index], "%d", &size)
+			break
+		}
+	}
+	return size, modified
+}
+
+// tarTvIsMonth reports whether field is an English month abbreviation used by tar.
+func tarTvIsMonth(field string) bool {
+	switch field {
+	case "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec":
+		return true
+	default:
+		return false
+	}
+}
+
+// tarTvIsISODate reports whether field looks like YYYY-MM-DD.
+func tarTvIsISODate(field string) bool {
+	if len(field) != 10 || field[4] != '-' || field[7] != '-' {
+		return false
+	}
+	return tarTvAllDigits(field[0:4]) && tarTvAllDigits(field[5:7]) && tarTvAllDigits(field[8:10])
+}
+
+// tarTvAllDigits reports whether value is a non-empty decimal integer field.
+func tarTvAllDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, runeValue := range value {
+		if runeValue < '0' || runeValue > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // tarImmediateChildName returns the immediate child basename under dirPath from a tar member path.
