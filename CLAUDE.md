@@ -200,7 +200,7 @@ calf/
 │   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
 │   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
-│   │       ├── calf_snack_bar.dart             Shared SnackBar helper for action feedback
+│   │       ├── calf_snack_bar.dart             Toast layer (OverlayPortal) + showCalfSnackBar
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
 │   │       ├── detail_breadcrumb.dart          Detail view back navigation header
@@ -399,7 +399,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `app_bottom_bar.dart` — engine status badge, play/pause, overflow menu (including Troubleshoot), RAM/disk used vs reserved, app version.
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
-- `calf_snack_bar.dart` — `showCalfSnackBar` helper for brief action success/error toasts.
+- `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` for stacked bottom-right action toasts.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
