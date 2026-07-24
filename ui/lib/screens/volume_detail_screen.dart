@@ -9,6 +9,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/screens/volume_quick_export_screen.dart';
 import 'package:ui/screens/volume_schedule_export_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -228,6 +229,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
         return;
       }
       setState(() => _busy = false);
+      showCalfSnackBar(context, 'Deleted volume "${widget.volumeName}"');
       await widget.onRemoved();
       widget.onBack();
     } catch (error) {
@@ -354,6 +356,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
         return;
       }
       setState(() => _downloadingExportId = null);
+      showCalfSnackBar(context, 'Export saved');
     } catch (error) {
       if (!mounted) {
         return;

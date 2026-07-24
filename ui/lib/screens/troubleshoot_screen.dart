@@ -8,6 +8,7 @@ import 'package:ui/api/client.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 
 /// Troubleshoot panel with restart, support, purge, reset, and uninstall actions.
@@ -57,26 +58,20 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       }
       setState(() => _statusMessage = successMessage);
       if (successMessage != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(successMessage)));
+        showCalfSnackBar(context, successMessage);
       }
     } on ApiException catch (error) {
       if (!mounted) {
         return;
       }
       setState(() => _statusMessage = null);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      showCalfSnackBar(context, error.message);
     } on TimeoutException {
       if (!mounted) {
         return;
       }
       setState(() => _statusMessage = null);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Action timed out')));
+      showCalfSnackBar(context, 'Action timed out');
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -100,9 +95,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       return;
     }
     if (!opened) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open support page')),
-      );
+      showCalfSnackBar(context, 'Could not open support page');
     }
   }
 

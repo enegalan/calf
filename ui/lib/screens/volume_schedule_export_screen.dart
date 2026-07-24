@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/export_name_pattern.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/volume_export_form.dart';
@@ -419,6 +420,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
         return;
       }
 
+      showCalfSnackBar(context, 'Schedule saved');
       widget.onCompleted();
     } catch (error) {
       if (!mounted) {
@@ -464,6 +466,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
       if (!mounted) {
         return;
       }
+      showCalfSnackBar(context, 'Deleted export schedule');
       widget.onCompleted();
     } catch (error) {
       if (!mounted) {

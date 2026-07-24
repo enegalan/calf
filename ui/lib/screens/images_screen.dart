@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
@@ -218,11 +219,22 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     if (!confirmed || !mounted) {
       return;
     }
-    await widget.apiClient.removeImage(image.reference);
-    if (_selectedImage?.id == image.id) {
-      _closeImage();
+    try {
+      await widget.apiClient.removeImage(image.reference);
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Deleted image "${image.reference}"');
+      if (_selectedImage?.id == image.id) {
+        _closeImage();
+      }
+      await _loadImages();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
     }
-    await _loadImages();
   }
 
   /// Runs the given async action and refreshes the list on success.

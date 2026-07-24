@@ -27,6 +27,7 @@ import 'package:ui/widgets/app_bottom_bar.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -195,14 +196,23 @@ class _AppShellState extends State<AppShell> {
         }
       });
       await _refreshDaemonStatus();
+      if (!mounted) return;
+      final successMessage = switch (pending) {
+        _EnginePendingAction.starting => 'Engine started',
+        _EnginePendingAction.stopping => 'Engine stopped',
+        _EnginePendingAction.none => null,
+      };
+      if (successMessage != null) {
+        showCalfSnackBar(context, successMessage);
+      }
     } on ApiException catch (error) {
       debugPrint('Engine action failed: ${error.message}');
       if (!mounted) return;
-      _showEngineSnackBar(error.message);
+      showCalfSnackBar(context, error.message);
     } on TimeoutException catch (error) {
       debugPrint('Engine action timed out: $error');
       if (!mounted) return;
-      _showEngineSnackBar('Engine action timed out');
+      showCalfSnackBar(context, 'Engine action timed out');
     } finally {
       if (mounted) {
         setState(() {
@@ -211,16 +221,6 @@ class _AppShellState extends State<AppShell> {
         });
       }
     }
-  }
-
-  /// Shows an engine-action error when a [Scaffold] is available.
-  void _showEngineSnackBar(String message) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) {
-      debugPrint('Engine snackbar skipped (no Scaffold): $message');
-      return;
-    }
-    messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Builds live tray menu data (running containers and registry state).
@@ -300,29 +300,36 @@ class _AppShellState extends State<AppShell> {
 
     setState(() => _updateCheckResult = result);
 
-    if (!force &&
-        !_updateDialogShown &&
-        result.hasUpdate &&
-        result.latest != null) {
-      _updateDialogShown = true;
-      await showUpdateAvailableDialog(
-        context: context,
-        update: result.latest!,
-        currentVersion: result.currentVersion,
-        onDownload: () => openExternalUrl(result.latest!.downloadUrl),
-        onSkip: () async {
-          await UpdatePreferences.saveSkippedVersion(result.latest!.version);
-          if (!mounted) {
-            return;
-          }
-          setState(
-            () => _updateCheckResult = UpdateCheckResult.upToDate(
-              currentVersion: result.currentVersion,
-              checkedAt: result.checkedAt,
-            ),
-          );
-        },
-      );
+    if (result.hasUpdate && result.latest != null) {
+      if (force || !_updateDialogShown) {
+        if (!force) {
+          _updateDialogShown = true;
+        }
+        await showUpdateAvailableDialog(
+          context: context,
+          update: result.latest!,
+          currentVersion: result.currentVersion,
+          onDownload: () => openExternalUrl(result.latest!.downloadUrl),
+          onSkip: () async {
+            await UpdatePreferences.saveSkippedVersion(result.latest!.version);
+            if (!mounted) {
+              return;
+            }
+            setState(
+              () => _updateCheckResult = UpdateCheckResult.upToDate(
+                currentVersion: result.currentVersion,
+                checkedAt: result.checkedAt,
+              ),
+            );
+          },
+        );
+      }
+    } else if (force) {
+      if (result.error != null && result.error!.isNotEmpty) {
+        showCalfSnackBar(context, result.error!);
+      } else {
+        showCalfSnackBar(context, "You're up to date.");
+      }
     }
   }
 
@@ -340,7 +347,8 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _registryLoading = false);
-      _showEngineSnackBar(
+      showCalfSnackBar(
+        context,
         error is ApiException
             ? error.message
             : 'Could not load registry status',
@@ -370,7 +378,8 @@ class _AppShellState extends State<AppShell> {
               username: username,
             );
           });
-          _showEngineSnackBar(
+          showCalfSnackBar(
+            context,
             username == null || username.isEmpty
                 ? 'Signed in to Docker Hub'
                 : 'Signed in as $username',
@@ -381,7 +390,7 @@ class _AppShellState extends State<AppShell> {
           if (!mounted) return;
           setState(() => _registryBrowserLoginPending = false);
           if (message.isNotEmpty) {
-            _showEngineSnackBar(message);
+            showCalfSnackBar(context, message);
           }
         },
       );
@@ -391,7 +400,8 @@ class _AppShellState extends State<AppShell> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _registryBrowserLoginPending = false);
-      _showEngineSnackBar(
+      showCalfSnackBar(
+        context,
         error is ApiException
             ? error.message
             : 'Could not start Docker Hub sign-in',
@@ -405,9 +415,12 @@ class _AppShellState extends State<AppShell> {
       await widget.apiClient.logoutRegistry();
       if (!mounted) return;
       await loadRegistryStatus();
+      if (!mounted) return;
+      showCalfSnackBar(context, 'Signed out of Docker Hub');
     } catch (error) {
       if (!mounted) return;
-      _showEngineSnackBar(
+      showCalfSnackBar(
+        context,
         error is ApiException
             ? error.message
             : 'Could not sign out of Docker Hub',
@@ -1072,9 +1085,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _configError = null;
         _saving = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+      showCalfSnackBar(context, 'Settings saved');
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -1138,12 +1149,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           setState(() => _migrating = false);
           if (status.phase == 'completed') {
             await loadConfig();
+            if (mounted) {
+              showCalfSnackBar(context, 'Migration completed');
+            }
           }
           return;
         }
-      } catch (_) {
+      } catch (error) {
         if (!mounted) return;
         setState(() => _migrating = false);
+        showCalfSnackBar(
+          context,
+          error is ApiException
+              ? error.message
+              : 'Could not read migration status',
+        );
         return;
       }
     }
@@ -1925,9 +1945,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (message == null) {
         return;
       }
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+      showCalfSnackBar(context, message);
     }
   }
 

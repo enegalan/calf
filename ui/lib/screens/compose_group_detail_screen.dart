@@ -7,6 +7,7 @@ import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -331,11 +332,12 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
               width: 40,
               height: 40,
               onPressed: () async {
+                final count = _containers.length;
                 final confirmed = await confirmDialog(
                   context,
                   title: 'Delete all containers',
                   description:
-                      'Delete ${_containers.length} containers in "${widget.project}"? This cannot be undone.',
+                      'Delete $count containers in "${widget.project}"? This cannot be undone.',
                   confirmLabel: 'Delete all',
                   destructive: true,
                 );
@@ -345,9 +347,11 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 final ok = await _runGroupAction(
                   widget.apiClient.removeContainer,
                 );
-                if (mounted && ok) {
-                  widget.onBack();
+                if (!ok || !context.mounted) {
+                  return;
                 }
+                showCalfSnackBar(context, 'Deleted $count containers');
+                widget.onBack();
               },
               child: Icon(
                 LucideIcons.trash2,
@@ -403,8 +407,15 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                     if (!confirmed || !mounted) {
                       return;
                     }
-                    await _runAction(
+                    final ok = await _runAction(
                       () => widget.apiClient.removeContainer(id),
+                    );
+                    if (!ok || !context.mounted) {
+                      return;
+                    }
+                    showCalfSnackBar(
+                      context,
+                      'Deleted container "${match.name}"',
                     );
                   },
                   onOpenPort: openPort,

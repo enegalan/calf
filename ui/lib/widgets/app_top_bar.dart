@@ -7,6 +7,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -573,6 +574,14 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   /// Copies the device login confirmation code to the clipboard.
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.start.userCode));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(
+      context,
+      'Copied',
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Builds the browser login waiting dialog with confirmation code.

@@ -11,6 +11,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -251,6 +252,14 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   /// Copies [value] to the system clipboard.
   Future<void> _copyText(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(
+      context,
+      'Copied',
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Opens the Docker Hub page for a dependency image reference.
@@ -277,20 +286,20 @@ class _BuildDetailViewState extends State<BuildDetailView> {
         digest,
       );
       await File(location.path).writeAsBytes(bytes);
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Download saved');
     } on ApiException catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      showCalfSnackBar(context, error.message);
     } on FileSystemException catch (error) {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      showCalfSnackBar(context, error.message);
     }
   }
 

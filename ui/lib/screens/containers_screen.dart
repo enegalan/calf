@@ -9,6 +9,7 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -132,18 +133,20 @@ class _ContainersScreenState extends State<ContainersScreen>
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<bool> _runAction(Future<void> Function() action) async {
     try {
       await action();
       if (mounted) {
         setState(() => _error = null);
       }
       await _loadContainers();
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() => _error = error.toString());
+      return false;
     }
   }
 
@@ -159,7 +162,12 @@ class _ContainersScreenState extends State<ContainersScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    await _runAction(() => widget.apiClient.removeContainer(container.id));
+    final ok = await _runAction(
+      () => widget.apiClient.removeContainer(container.id),
+    );
+    if (ok && mounted) {
+      showCalfSnackBar(context, 'Deleted container "${container.name}"');
+    }
   }
 
   /// Confirms then removes every container in [containers].
@@ -175,7 +183,16 @@ class _ContainersScreenState extends State<ContainersScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    await _runGroupAction(containers, widget.apiClient.removeContainer);
+    final ok = await _runGroupAction(
+      containers,
+      widget.apiClient.removeContainer,
+    );
+    if (ok && mounted) {
+      showCalfSnackBar(
+        context,
+        'Deleted ${containers.length} containers',
+      );
+    }
   }
 
   /// Starts the container engine when the list is empty and runtime is stopped.
@@ -195,7 +212,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   }
 
   /// Runs an action across the given containers, filtered by running state.
-  Future<void> _runGroupAction(
+  Future<bool> _runGroupAction(
     List<ContainerItem> containers,
     Future<void> Function(String id) action, {
     bool runningOnly = false,
@@ -215,11 +232,13 @@ class _ContainersScreenState extends State<ContainersScreen>
         setState(() => _error = null);
       }
       await _loadContainers();
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() => _error = error.toString());
+      return false;
     }
   }
 

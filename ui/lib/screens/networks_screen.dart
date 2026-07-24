@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
@@ -136,6 +137,10 @@ class _NetworksScreenState extends State<NetworksScreen>
     }
     try {
       await widget.apiClient.removeNetwork(network.name);
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Deleted network "${network.name}"');
       if (_selectedNetwork == network.name) {
         _closeNetwork();
       }
@@ -307,6 +312,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
       if (!mounted) {
         return;
       }
+      showCalfSnackBar(context, 'Deleted network "${widget.networkName}"');
       await widget.onRemoved();
       widget.onBack();
     } catch (error) {

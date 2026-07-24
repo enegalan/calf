@@ -12,6 +12,7 @@ import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -111,7 +112,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<bool> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -129,7 +130,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         }
       }
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _busy = false;
@@ -138,14 +139,16 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         }
       });
       _loadTabData();
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _busy = false;
         _error = error.toString();
       });
+      return false;
     }
   }
 
@@ -505,23 +508,30 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                       width: 40,
                       height: 40,
                       onPressed: () async {
+                        final name = _container.name;
                         final confirmed = await confirmDialog(
                           context,
                           title: 'Delete container',
                           description:
-                              'Delete "${_container.name}"? This cannot be undone.',
+                              'Delete "$name"? This cannot be undone.',
                           confirmLabel: 'Delete',
                           destructive: true,
                         );
                         if (!confirmed || !mounted) {
                           return;
                         }
-                        await _runAction(
-                          () => widget.apiClient.removeContainer(_container.id),
+                        final ok = await _runAction(
+                          () =>
+                              widget.apiClient.removeContainer(_container.id),
                         );
-                        if (mounted) {
-                          widget.onBack();
+                        if (!ok || !context.mounted) {
+                          return;
                         }
+                        showCalfSnackBar(
+                          context,
+                          'Deleted container "$name"',
+                        );
+                        widget.onBack();
                       },
                       child: Icon(
                         LucideIcons.trash2,
@@ -891,7 +901,17 @@ class _InspectRow extends StatelessWidget {
         CalfButton.ghost(
           width: 28,
           height: 28,
-          onPressed: () => Clipboard.setData(ClipboardData(text: value)),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (!context.mounted) {
+              return;
+            }
+            showCalfSnackBar(
+              context,
+              'Copied',
+              duration: const Duration(seconds: 2),
+            );
+          },
           child: Icon(
             LucideIcons.copy,
             size: 16,
@@ -1087,8 +1107,17 @@ class _MountRow extends StatelessWidget {
             child: CalfButton.ghost(
               width: 28,
               height: 28,
-              onPressed: () =>
-                  Clipboard.setData(ClipboardData(text: mount.source)),
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: mount.source));
+                if (!context.mounted) {
+                  return;
+                }
+                showCalfSnackBar(
+                  context,
+                  'Copied',
+                  duration: const Duration(seconds: 2),
+                );
+              },
               child: Icon(LucideIcons.copy, size: 16, color: muted),
             ),
           ),

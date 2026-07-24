@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Action feedback** — Checking for updates, Docker Desktop migration, engine start/stop, deletes, sign-out, exports/downloads, and copy-to-clipboard show brief confirmation toasts.
 - **Build logs steps** — Expandable log steps show a chevron (down when collapsed, up when expanded).
 - **Build timing charts** — Info tab timing matches Docker Desktop: titled pies in one row (2×2 when narrow), one shared legend, and a start/end/steps summary underneath.
 - **Theme switching** — light/dark transitions use one shared timing; borders and surfaces no longer lag behind the rest of the UI.

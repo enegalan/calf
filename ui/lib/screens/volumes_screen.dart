@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
@@ -217,9 +218,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Cloned volume to "$destination"')),
-      );
+      showCalfSnackBar(context, 'Cloned volume to "$destination"');
       await _loadVolumes();
     } catch (error) {
       if (!mounted) {
@@ -246,6 +245,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
       if (!mounted) {
         return;
       }
+      showCalfSnackBar(context, 'Deleted volume "${volume.name}"');
       await _loadVolumes();
     } catch (error) {
       if (!mounted) {

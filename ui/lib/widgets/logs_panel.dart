@@ -7,6 +7,7 @@ import 'package:xterm/xterm.dart';
 
 import 'package:ui/storage/logs_viewer_preferences.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class LogLine {
@@ -134,6 +135,14 @@ class _LogsPanelState extends State<LogsPanel>
   /// Copies the visible log text to the clipboard.
   Future<void> _copyToClipboard() async {
     await Clipboard.setData(ClipboardData(text: _plainText));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(
+      context,
+      'Copied',
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Builds the single-container log viewer UI.
@@ -254,6 +263,14 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
   /// Copies the visible log text to the clipboard.
   Future<void> _copyToClipboard() async {
     await Clipboard.setData(ClipboardData(text: _plainText));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(
+      context,
+      'Copied',
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Returns the global line index offset for [blockIndex].
@@ -1433,6 +1450,14 @@ class _ExecPanelState extends State<ExecPanel> {
         : widget.terminal.buffer.getText(selection);
 
     await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(
+      context,
+      'Copied',
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Returns all non-empty terminal buffer text for clipboard copy.
