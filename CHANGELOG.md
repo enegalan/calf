@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Build timing chart tooltip** — hovering the Info tab timing chart no longer crashes the UI.
 - **Build logs toolbar** — switching to plain-text view hides expand/collapse without shifting the other toolbar buttons.
 - **Build logs step bars** — per-step duration bars on the right are removed; the fixed timeline ruler covers that role.
 - **Build dependency digests** — Dependencies show the image digest when the local image is available.

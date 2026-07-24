@@ -2433,7 +2433,10 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                     enabled: true,
                     handleBuiltInTouches: true,
                     touchTooltipData: LineTouchTooltipData(
-                      getTooltipItems: (_) => const [],
+                      // Suppress built-in tooltips (custom overlay via touchCallback).
+                      // Length must match touched spots or fl_chart throws while painting.
+                      getTooltipItems: (spots) =>
+                          List<LineTooltipItem?>.filled(spots.length, null),
                     ),
                     touchCallback: (event, response) {
                       final local = event.localPosition;
