@@ -13,6 +13,7 @@ import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
+import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 enum _VolumeDetailTab { storedData, containersInUse, exports }
@@ -27,12 +28,14 @@ class VolumeDetailView extends StatefulWidget {
     required this.apiClient,
     required this.onBack,
     required this.onRemoved,
+    this.onOpenContainer,
   });
 
   final String volumeName;
   final CalfClient apiClient;
   final VoidCallback onBack;
   final Future<void> Function() onRemoved;
+  final void Function(String containerId)? onOpenContainer;
 
   /// Creates the mutable state for [VolumeDetailView].
   @override
@@ -509,6 +512,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
               loading: _containersLoading,
               error: _containersError,
               containers: _containers,
+              onOpenContainer: widget.onOpenContainer,
             ),
             _VolumeDetailTab.exports => _ExportsTab(
               theme: theme,
@@ -1192,12 +1196,14 @@ class _ContainersInUseTab extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.containers,
+    this.onOpenContainer,
   });
 
   final ThemeData theme;
   final bool loading;
   final String? error;
   final List<VolumeContainerUsage> containers;
+  final void Function(String containerId)? onOpenContainer;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1272,13 +1278,19 @@ class _ContainersInUseTab extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       flex: 3,
-                      child: Text(
-                        container.name,
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: onOpenContainer == null || container.id.isEmpty
+                          ? Text(
+                              container.name,
+                              style: theme.textTheme.bodySmall!.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : HoverTextLink(
+                              text: container.name,
+                              overflow: TextOverflow.ellipsis,
+                              onTap: () => onOpenContainer!(container.id),
+                            ),
                     ),
                     Expanded(
                       flex: 3,

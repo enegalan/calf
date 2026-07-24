@@ -54,6 +54,7 @@ class _AppShellState extends State<AppShell> {
   bool _showSettings = false;
   bool _showTroubleshoot = false;
   String? _pendingImageReference;
+  String? _pendingContainerId;
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
@@ -461,6 +462,20 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Opens the Containers screen detail for [containerId].
+  void openContainerView(String containerId) {
+    final id = containerId.trim();
+    if (id.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 0;
+      _pendingContainerId = id;
+      _showSettings = false;
+      _showTroubleshoot = false;
+    });
+  }
+
   /// Toggles sidebar collapsed state and persists the preference.
   void toggleSidebar() {
     setState(() {
@@ -616,6 +631,13 @@ class _AppShellState extends State<AppShell> {
                               0 => ContainersScreen(
                                 apiClient: widget.apiClient,
                                 onOpenImage: openImageView,
+                                initialContainerId: _pendingContainerId,
+                                onInitialContainerConsumed: () {
+                                  if (_pendingContainerId == null) {
+                                    return;
+                                  }
+                                  setState(() => _pendingContainerId = null);
+                                },
                               ),
                               1 => ImagesScreen(
                                 apiClient: widget.apiClient,
@@ -627,7 +649,10 @@ class _AppShellState extends State<AppShell> {
                                   setState(() => _pendingImageReference = null);
                                 },
                               ),
-                              2 => VolumesScreen(apiClient: widget.apiClient),
+                              2 => VolumesScreen(
+                                apiClient: widget.apiClient,
+                                onOpenContainer: openContainerView,
+                              ),
                               3 => NetworksScreen(apiClient: widget.apiClient),
                               _ => BuildsScreen(apiClient: widget.apiClient),
                             },

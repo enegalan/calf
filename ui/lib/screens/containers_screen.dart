@@ -25,10 +25,14 @@ class ContainersScreen extends StatefulWidget {
     super.key,
     required this.apiClient,
     this.onOpenImage,
+    this.initialContainerId,
+    this.onInitialContainerConsumed,
   });
 
   final CalfClient apiClient;
   final void Function(String imageReference)? onOpenImage;
+  final String? initialContainerId;
+  final VoidCallback? onInitialContainerConsumed;
 
   /// Creates the mutable state for [ContainersScreen].
   @override
@@ -111,6 +115,7 @@ class _ContainersScreenState extends State<ContainersScreen>
               .toList();
         }
       });
+      _openInitialContainerIfNeeded(containers);
     } catch (error) {
       if (!mounted) {
         return;
@@ -224,6 +229,39 @@ class _ContainersScreenState extends State<ContainersScreen>
       _detailContainer = container;
       _selectedId = container.id;
     });
+  }
+
+  /// Opens [initialContainerId] once containers are loaded, if provided.
+  void _openInitialContainerIfNeeded(List<ContainerItem> containers) {
+    final id = widget.initialContainerId?.trim() ?? '';
+    if (id.isEmpty) {
+      return;
+    }
+
+    widget.onInitialContainerConsumed?.call();
+    final match = _findContainerById(containers, id);
+    if (match == null) {
+      return;
+    }
+    setState(() {
+      _detailProject = null;
+      _detailGroupContainers = null;
+      _detailContainer = match;
+      _selectedId = match.id;
+    });
+  }
+
+  /// Finds a container matching [id] by full id, short id, or name.
+  ContainerItem? _findContainerById(List<ContainerItem> containers, String id) {
+    for (final container in containers) {
+      if (container.id == id ||
+          container.shortId == id ||
+          container.id.startsWith(id) ||
+          container.name == id) {
+        return container;
+      }
+    }
+    return null;
   }
 
   /// Opens the Images screen detail for [container]'s image.

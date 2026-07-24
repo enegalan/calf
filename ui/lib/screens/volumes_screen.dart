@@ -13,9 +13,14 @@ import 'package:ui/theme/calf_theme.dart';
 
 class VolumesScreen extends StatefulWidget {
   /// Creates a screen that lists Docker volumes and supports search and actions.
-  const VolumesScreen({super.key, required this.apiClient});
+  const VolumesScreen({
+    super.key,
+    required this.apiClient,
+    this.onOpenContainer,
+  });
 
   final CalfClient apiClient;
+  final void Function(String containerId)? onOpenContainer;
 
   /// Creates the mutable state for [VolumesScreen].
   @override
@@ -259,6 +264,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
         apiClient: widget.apiClient,
         onBack: _closeVolume,
         onRemoved: _loadVolumes,
+        onOpenContainer: widget.onOpenContainer,
       );
     }
 

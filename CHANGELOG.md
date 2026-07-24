@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Volume containers in use** — Container names in a volume's Container in-use tab open that container's detail.
 - **Build logs toolbar** — Build detail Logs tab has list / plain-text toggles, expand and collapse all steps, and copy to clipboard.
 - **Build logs timeline** — List view shows a fixed duration ruler with a marker for the build time window matching the scrolled log position (when the build lasted more than 0s).
 - **Build dependency actions** — Dependencies rows include a menu to open the image on Docker Hub.
