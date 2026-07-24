@@ -15,23 +15,25 @@ import (
 
 // configView represents the JSON payload for GET /v1/config.
 type configView struct {
-	PollIntervalMs       int    `json:"poll_interval_ms"`
-	CPUs                 int    `json:"cpus"`
-	MemoryGB             int    `json:"memory_gb"`
-	MemorySwapGB         int    `json:"memory_swap_gb"`
-	DiskGB               int    `json:"disk_gb"`
-	DiskImage            string `json:"disk_image"`
-	HostCPUs             int    `json:"host_cpus"`
-	HostMemoryGB         int    `json:"host_memory_gb"`
-	HostDiskGB           int    `json:"host_disk_gb"`
-	DockerContextManaged bool   `json:"docker_context_managed"`
-	DockerContextActive  bool   `json:"docker_context_active"`
-	DockerContextName    string `json:"docker_context_name"`
-	DockerCLIAvailable   bool   `json:"docker_cli_available"`
-	Rootless             bool   `json:"rootless"`
-	HTTPProxy            string `json:"http_proxy"`
-	HTTPSProxy           string `json:"https_proxy"`
-	NoProxy              string `json:"no_proxy"`
+	PollIntervalMs          int    `json:"poll_interval_ms"`
+	CPUs                    int    `json:"cpus"`
+	MemoryGB                int    `json:"memory_gb"`
+	MemorySwapGB            int    `json:"memory_swap_gb"`
+	DiskGB                  int    `json:"disk_gb"`
+	DiskImage               string `json:"disk_image"`
+	HostCPUs                int    `json:"host_cpus"`
+	HostMemoryGB            int    `json:"host_memory_gb"`
+	HostDiskGB              int    `json:"host_disk_gb"`
+	DockerContextManaged    bool   `json:"docker_context_managed"`
+	DockerContextActive     bool   `json:"docker_context_active"`
+	DockerContextName       string `json:"docker_context_name"`
+	DockerCLIAvailable      bool   `json:"docker_cli_available"`
+	Rootless                bool   `json:"rootless"`
+	HTTPProxy               string `json:"http_proxy"`
+	HTTPSProxy              string `json:"https_proxy"`
+	NoProxy                 string `json:"no_proxy"`
+	ResourceSaverEnabled    bool   `json:"resource_saver_enabled"`
+	ResourceSaverTimeoutSec int    `json:"resource_saver_timeout_sec"`
 }
 
 // buildConfigView builds the JSON payload for GET /v1/config including host capacity and Docker CLI status.
@@ -48,23 +50,25 @@ func (g *Gateway) buildConfigView() configView {
 	}
 
 	return configView{
-		PollIntervalMs:       cfg.PollIntervalMs,
-		CPUs:                 cfg.CPUs,
-		MemoryGB:             cfg.MemoryGB,
-		MemorySwapGB:         cfg.MemorySwapGB,
-		DiskGB:               cfg.DiskGB,
-		DiskImage:            config.EffectiveDiskImage(cfg),
-		HostCPUs:             daemon.HostCPUs(),
-		HostMemoryGB:         daemon.HostMemoryGB(),
-		HostDiskGB:           hostDiskGB,
-		DockerContextManaged: cfg.DockerContextManaged,
-		DockerContextActive:  cliStatus.CalfActive,
-		DockerContextName:    cliStatus.CurrentContext,
-		DockerCLIAvailable:   cliStatus.Available,
-		Rootless:             cfg.Rootless,
-		HTTPProxy:            cfg.HTTPProxy,
-		HTTPSProxy:           cfg.HTTPSProxy,
-		NoProxy:              cfg.NoProxy,
+		PollIntervalMs:          cfg.PollIntervalMs,
+		CPUs:                    cfg.CPUs,
+		MemoryGB:                cfg.MemoryGB,
+		MemorySwapGB:            cfg.MemorySwapGB,
+		DiskGB:                  cfg.DiskGB,
+		DiskImage:               config.EffectiveDiskImage(cfg),
+		HostCPUs:                daemon.HostCPUs(),
+		HostMemoryGB:            daemon.HostMemoryGB(),
+		HostDiskGB:              hostDiskGB,
+		DockerContextManaged:    cfg.DockerContextManaged,
+		DockerContextActive:     cliStatus.CalfActive,
+		DockerContextName:       cliStatus.CurrentContext,
+		DockerCLIAvailable:      cliStatus.Available,
+		Rootless:                cfg.Rootless,
+		HTTPProxy:               cfg.HTTPProxy,
+		HTTPSProxy:              cfg.HTTPSProxy,
+		NoProxy:                 cfg.NoProxy,
+		ResourceSaverEnabled:    cfg.ResourceSaverEnabled,
+		ResourceSaverTimeoutSec: cfg.ResourceSaverTimeoutSec,
 	}
 }
 
@@ -113,6 +117,12 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	}
 	if req.NoProxy != nil {
 		g.backend.Cfg.NoProxy = strings.TrimSpace(*req.NoProxy)
+	}
+	if req.ResourceSaverEnabled != nil {
+		g.backend.Cfg.ResourceSaverEnabled = *req.ResourceSaverEnabled
+	}
+	if req.ResourceSaverTimeoutSec != nil {
+		g.backend.Cfg.ResourceSaverTimeoutSec = *req.ResourceSaverTimeoutSec
 	}
 
 	if err := config.Save(g.backend.Cfg); err != nil {

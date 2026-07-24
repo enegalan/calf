@@ -121,8 +121,7 @@ class UpdatePreferences {
         },
       if (data.whatsNewVersion.isNotEmpty)
         'whats_new_version': data.whatsNewVersion,
-      if (data.whatsNewNotes.isNotEmpty)
-        'whats_new_notes': data.whatsNewNotes,
+      if (data.whatsNewNotes.isNotEmpty) 'whats_new_notes': data.whatsNewNotes,
     });
   }
 

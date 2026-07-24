@@ -93,6 +93,21 @@ class CalfTrayStatus {
     _appActions = null;
   }
 
+  /// Quits the app using the callback registered in [install].
+  static Future<void> quitApp() async {
+    final quit = _onQuit;
+    if (quit != null) {
+      await quit();
+      return;
+    }
+    exit(0);
+  }
+
+  /// Restarts the embedded daemon using the callback registered in [install].
+  static Future<void> restartDaemon() async {
+    await _onRestartEngine?.call();
+  }
+
   /// Installs the tray icon when supported. Safe to call more than once.
   static Future<void> show() async {
     if (!supportsTrayStatusIcon || _visible) {

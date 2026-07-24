@@ -14,6 +14,7 @@ import 'package:ui/screens/builds_screen.dart';
 import 'package:ui/screens/containers_screen.dart';
 import 'package:ui/screens/images_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
+import 'package:ui/screens/troubleshoot_screen.dart';
 import 'package:ui/screens/volumes_screen.dart';
 import 'package:ui/storage/sidebar_preferences.dart';
 import 'package:ui/storage/update_preferences.dart';
@@ -24,7 +25,6 @@ import 'package:ui/widgets/about_dialog.dart';
 import 'package:ui/widgets/app_bottom_bar.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/calf_button.dart';
-import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -50,6 +50,7 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   bool _showSettings = false;
+  bool _showTroubleshoot = false;
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
@@ -146,26 +147,23 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  /// Force-stops the container engine from the bottom bar after confirmation.
-  Future<void> _killEngine() async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Kill engine',
-      description:
-          'Force-stop the engine immediately? Running containers will stop without a clean shutdown.',
-      confirmLabel: 'Kill',
-      destructive: true,
+  /// Restarts the container engine (stop then start).
+  Future<void> _restartEngine() async {
+    if (_engineActionBusy) return;
+    await _runEngineAction(
+      _EnginePendingAction.stopping,
+      () => widget.apiClient.stopRuntime(),
     );
-    if (!confirmed || !mounted) {
+    if (!mounted || _daemonStatus?.runtime.isRunning == true) {
       return;
     }
     await _runEngineAction(
-      _EnginePendingAction.killing,
-      () => widget.apiClient.killRuntime(),
+      _EnginePendingAction.starting,
+      () => widget.apiClient.startRuntime(),
     );
   }
 
-  /// Runs a start/stop/kill action and refreshes status afterward.
+  /// Runs a start/stop action and refreshes status afterward.
   Future<void> _runEngineAction(
     _EnginePendingAction pending,
     Future<RuntimeStatus> Function() action,
@@ -188,6 +186,7 @@ class _AppShellState extends State<AppShell> {
             logLevel: current.logLevel,
             runtime: runtime,
             resources: current.resources,
+            resourceSaverActive: false,
           );
         }
       });
@@ -414,7 +413,26 @@ class _AppShellState extends State<AppShell> {
 
   /// Switches the main content area to the settings screen.
   void openSettings() {
-    setState(() => _showSettings = true);
+    setState(() {
+      _showTroubleshoot = false;
+      _showSettings = true;
+    });
+  }
+
+  /// Opens the Troubleshoot screen from the engine menu.
+  void openTroubleshoot() {
+    setState(() {
+      _showSettings = false;
+      _showTroubleshoot = true;
+    });
+  }
+
+  /// Closes settings and returns to the selected resource screen.
+  void closeSettings() {
+    setState(() {
+      _showSettings = false;
+      _showTroubleshoot = false;
+    });
   }
 
   /// Navigates to a sidebar section by index.
@@ -422,6 +440,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _selectedIndex = index;
       _showSettings = false;
+      _showTroubleshoot = false;
     });
   }
 
@@ -526,11 +545,14 @@ class _AppShellState extends State<AppShell> {
                                   label: navItems[index].label,
                                   icon: navItems[index].icon,
                                   selected:
-                                      !_showSettings && _selectedIndex == index,
+                                      !_showSettings &&
+                                      !_showTroubleshoot &&
+                                      _selectedIndex == index,
                                   collapsed: isCurrentlyCollapsed,
                                   onTap: () => setState(() {
                                     _selectedIndex = index;
                                     _showSettings = false;
+                                    _showTroubleshoot = false;
                                   }),
                                 ),
                               ],
@@ -543,14 +565,20 @@ class _AppShellState extends State<AppShell> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: _showSettings
+                      child: _showTroubleshoot
+                          ? TroubleshootScreen(
+                              apiClient: widget.apiClient,
+                              onClose: closeSettings,
+                              onRestart: _restartEngine,
+                              onQuit: CalfTrayStatus.quitApp,
+                            )
+                          : _showSettings
                           ? SettingsScreen(
                               apiClient: widget.apiClient,
                               appVersion: _appVersion,
                               themeMode: widget.themeMode,
                               onThemeModeChanged: widget.onThemeModeChanged,
-                              onClose: () =>
-                                  setState(() => _showSettings = false),
+                              onClose: closeSettings,
                               initialUpdateCheckResult: _updateCheckResult,
                               onCheckForUpdates: () =>
                                   checkForUpdates(force: true),
@@ -632,12 +660,28 @@ class _AppShellState extends State<AppShell> {
           appVersion: _appVersion,
           busy: _engineActionBusy,
           pendingAction: _enginePending.label,
+          loggedIn: _registryStatus?.loggedIn == true,
+          signInPending: _registryBrowserLoginPending,
+          updateAvailable: _updateCheckResult?.hasUpdate == true,
           onStart: () => unawaited(_startEngine()),
           onStop: () => unawaited(_stopEngine()),
-          onKill: () => unawaited(_killEngine()),
           onOpenSettings: openSettings,
           onOpenAbout: () =>
               showAboutCalfDialog(context, appVersion: _appVersion),
+          onSignIn: () => unawaited(startRegistryBrowserLogin()),
+          onSignOut: () => unawaited(logoutRegistry()),
+          onTroubleshoot: openTroubleshoot,
+          onOpenDockerHub: () => unawaited(openExternalUrl(dockerHubUrl)),
+          onDownloadUpdate: () {
+            final latest = _updateCheckResult?.latest;
+            if (_updateCheckResult?.hasUpdate == true && latest != null) {
+              unawaited(openExternalUrl(latest.downloadUrl));
+              return;
+            }
+            unawaited(checkForUpdates(force: true));
+          },
+          onRestart: () => unawaited(_restartEngine()),
+          onQuit: () => unawaited(CalfTrayStatus.quitApp()),
         ),
       ],
     );
@@ -763,6 +807,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   double _draftMemory = 4;
   double _draftSwap = 1;
   double _draftDisk = 100;
+  bool _draftResourceSaverEnabled = true;
+  int _draftResourceSaverTimeoutSec = 300;
   final _diskImageController = TextEditingController();
   final _httpProxyController = TextEditingController();
   final _httpsProxyController = TextEditingController();
@@ -791,7 +837,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _diskImageController.text.trim() != _config!.diskImage ||
           _httpProxyController.text.trim() != _config!.httpProxy ||
           _httpsProxyController.text.trim() != _config!.httpsProxy ||
-          _noProxyEntries.join(',') != _config!.noProxy);
+          _noProxyEntries.join(',') != _config!.noProxy ||
+          _draftResourceSaverEnabled != _config!.resourceSaverEnabled ||
+          _draftResourceSaverTimeoutSec != _config!.resourceSaverTimeoutSec);
 
   /// Releases resources when the widget is removed.
   @override
@@ -882,6 +930,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftMemory = config.memoryGB.toDouble();
         _draftSwap = config.memorySwapGB.toDouble();
         _draftDisk = config.diskGB.toDouble();
+        _draftResourceSaverEnabled = config.resourceSaverEnabled;
+        _draftResourceSaverTimeoutSec = config.resourceSaverTimeoutSec;
         _diskImageController.text = config.diskImage;
         _httpProxyController.text = config.httpProxy;
         _httpsProxyController.text = config.httpsProxy;
@@ -922,6 +972,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           httpProxy: _httpProxyController.text.trim(),
           httpsProxy: _httpsProxyController.text.trim(),
           noProxy: _noProxyEntries.join(','),
+          resourceSaverEnabled: _draftResourceSaverEnabled,
+          resourceSaverTimeoutSec: _draftResourceSaverTimeoutSec,
         ),
       );
       if (!mounted) return;
@@ -931,6 +983,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftMemory = updated.memoryGB.toDouble();
         _draftSwap = updated.memorySwapGB.toDouble();
         _draftDisk = updated.diskGB.toDouble();
+        _draftResourceSaverEnabled = updated.resourceSaverEnabled;
+        _draftResourceSaverTimeoutSec = updated.resourceSaverTimeoutSec;
         _diskImageController.text = updated.diskImage;
         _httpProxyController.text = updated.httpProxy;
         _httpsProxyController.text = updated.httpsProxy;
@@ -1392,6 +1446,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 16),
             _diskImageField(theme),
             const SizedBox(height: 24),
+            _resourceSaverSection(theme),
+            const SizedBox(height: 24),
             CalfButton(
               onPressed:
                   _dirty &&
@@ -1407,6 +1463,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  /// Builds the Resource Saver toggle and idle-timeout slider.
+  Widget _resourceSaverSection(ThemeData theme) {
+    final timeoutIndex = CalfResourceSaver.indexForSeconds(
+      _draftResourceSaverTimeoutSec,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Resource Saver',
+          style: theme.textTheme.titleMedium!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _settingRow(
+          'Enable Resource Saver',
+          Switch(
+            value: _draftResourceSaverEnabled,
+            onChanged: (value) =>
+                setState(() => _draftResourceSaverEnabled = value),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Reduces CPU and memory utilization when no containers are running. '
+          'Exit from Resource Saver mode happens automatically when containers are started.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Use the slider to set the duration of time between no containers '
+          'running and Calf entering Resource Saver mode.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        IgnorePointer(
+          ignoring: !_draftResourceSaverEnabled,
+          child: Opacity(
+            opacity: _draftResourceSaverEnabled ? 1 : 0.45,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Slider(
+                  value: timeoutIndex.toDouble(),
+                  min: 0,
+                  max: (CalfResourceSaver.timeoutSeconds.length - 1).toDouble(),
+                  divisions: CalfResourceSaver.timeoutSeconds.length - 1,
+                  label: CalfResourceSaver.labelForSeconds(
+                    CalfResourceSaver.timeoutSeconds[timeoutIndex],
+                  ),
+                  onChanged: (value) {
+                    setState(() {
+                      _draftResourceSaverTimeoutSec =
+                          CalfResourceSaver.timeoutSeconds[value.round()];
+                    });
+                  },
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    children: [
+                      for (final seconds in CalfResourceSaver.timeoutSeconds)
+                        Expanded(
+                          child: Text(
+                            CalfResourceSaver.showTickLabel(seconds)
+                                ? CalfResourceSaver.labelForSeconds(seconds)
+                                : '',
+                            textAlign: TextAlign.center,
+                            style: CalfTheme.muted(
+                              theme,
+                            ).copyWith(fontSize: 10),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1558,33 +1700,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final preview = switch (mode) {
       ThemeMode.light => half(
-          background: lightBg,
-          panel: lightPanel,
-          line: lightLine,
-        ),
+        background: lightBg,
+        panel: lightPanel,
+        line: lightLine,
+      ),
       ThemeMode.dark => half(
-          background: darkBg,
-          panel: darkPanel,
-          line: darkLine,
-        ),
+        background: darkBg,
+        panel: darkPanel,
+        line: darkLine,
+      ),
       ThemeMode.system => Row(
-          children: [
-            Expanded(
-              child: half(
-                background: lightBg,
-                panel: lightPanel,
-                line: lightLine,
-              ),
+        children: [
+          Expanded(
+            child: half(
+              background: lightBg,
+              panel: lightPanel,
+              line: lightLine,
             ),
-            Expanded(
-              child: half(
-                background: darkBg,
-                panel: darkPanel,
-                line: darkLine,
-              ),
-            ),
-          ],
-        ),
+          ),
+          Expanded(
+            child: half(background: darkBg, panel: darkPanel, line: darkLine),
+          ),
+        ],
+      ),
     };
 
     return ClipRRect(
@@ -1953,13 +2091,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-/// Pending bottom-bar engine action shown while Start/Stop/Kill is in flight.
-enum _EnginePendingAction {
-  none,
-  starting,
-  stopping,
-  killing,
-}
+/// Pending bottom-bar engine action shown while Start/Stop is in flight.
+enum _EnginePendingAction { none, starting, stopping }
 
 extension on _EnginePendingAction {
   /// User-visible label for the badge, or empty when idle.
@@ -1967,6 +2100,5 @@ extension on _EnginePendingAction {
     _EnginePendingAction.none => '',
     _EnginePendingAction.starting => 'Engine starting…',
     _EnginePendingAction.stopping => 'Engine stopping…',
-    _EnginePendingAction.killing => 'Engine killing…',
   };
 }

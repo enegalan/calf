@@ -35,6 +35,7 @@ type Core struct {
 	lifecycleCancel       context.CancelFunc
 	runtimeStartMu        sync.Mutex
 	runtimeStartInflight  *runtimeStartResult
+	resourceSaver         *resourceSaver
 }
 
 // runtimeStartResult is the shared completion of one in-flight EnsureRuntimeRunning start.
@@ -67,6 +68,8 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 	}
 	srv.exportScheduler = newExportScheduler(srv, logger)
 	srv.exportScheduler.Start()
+	srv.resourceSaver = newResourceSaver(srv)
+	srv.resourceSaver.Start()
 	srv.DockerCLI = dockercli.NewManager(logger, srv.dockerContextManaged, rt)
 	srv.loadBuilds()
 	return srv
@@ -85,6 +88,9 @@ func (s *Core) Shutdown(ctx context.Context) error {
 	s.stopRegistryLoginSessions()
 	if s.exportScheduler != nil {
 		s.exportScheduler.Stop()
+	}
+	if s.resourceSaver != nil {
+		s.resourceSaver.Stop()
 	}
 	return nil
 }

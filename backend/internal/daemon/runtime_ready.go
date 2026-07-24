@@ -72,6 +72,7 @@ func (s *Core) startRuntimeUntilRunning() error {
 			return fmt.Errorf("Runtime.Status: %w", err)
 		}
 		if status.State == runtime.State(constants.RuntimeStateRunning) {
+			s.ClearResourceSaver()
 			return nil
 		}
 		select {

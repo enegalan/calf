@@ -112,6 +112,7 @@ class DaemonStatus {
     required this.logLevel,
     required this.runtime,
     this.resources = const EngineResources(),
+    this.resourceSaverActive = false,
   });
 
   final String version;
@@ -120,6 +121,7 @@ class DaemonStatus {
   final String logLevel;
   final RuntimeStatus runtime;
   final EngineResources resources;
+  final bool resourceSaverActive;
 
   /// Creates a [DaemonStatus] from a JSON map.
   factory DaemonStatus.fromJson(Map<String, dynamic> json) {
@@ -162,6 +164,7 @@ class DaemonStatus {
       logLevel: logLevel,
       runtime: RuntimeStatus.fromJson(runtimeJson),
       resources: resources,
+      resourceSaverActive: json['resource_saver_active'] as bool? ?? false,
     );
   }
 }
@@ -1472,6 +1475,12 @@ abstract class CalfClient implements StatusClient {
 
   /// Force-stops the container engine.
   Future<RuntimeStatus> killRuntime();
+
+  /// Stops the engine and deletes guest/runtime data while keeping settings.
+  Future<void> purgeEngineData();
+
+  /// Stops the engine, wipes Calf data, and restores default settings.
+  Future<void> factoryReset();
 }
 
 class ApiClient implements CalfClient {
@@ -1521,6 +1530,24 @@ class ApiClient implements CalfClient {
       timeout: CalfDefaults.runtimeActionTimeout,
     );
     return RuntimeStatus.fromJson(json);
+  }
+
+  /// Stops the engine and deletes guest/runtime data while keeping settings.
+  @override
+  Future<void> purgeEngineData() async {
+    await _postEmptyJson(
+      '/v1/troubleshoot/purge',
+      timeout: CalfDefaults.troubleshootActionTimeout,
+    );
+  }
+
+  /// Stops the engine, wipes Calf data, and restores default settings.
+  @override
+  Future<void> factoryReset() async {
+    await _postEmptyJson(
+      '/v1/troubleshoot/factory-reset',
+      timeout: CalfDefaults.troubleshootActionTimeout,
+    );
   }
 
   /// Fetches the list of containers.
@@ -2565,6 +2592,8 @@ class Config {
     this.httpProxy = '',
     this.httpsProxy = '',
     this.noProxy = '',
+    this.resourceSaverEnabled = true,
+    this.resourceSaverTimeoutSec = 300,
   });
 
   final int pollIntervalMs;
@@ -2584,6 +2613,8 @@ class Config {
   final String httpProxy;
   final String httpsProxy;
   final String noProxy;
+  final bool resourceSaverEnabled;
+  final int resourceSaverTimeoutSec;
 
   /// Serializes this [Config] to a JSON map.
   Map<String, dynamic> toJson() => {
@@ -2597,6 +2628,8 @@ class Config {
     'http_proxy': httpProxy,
     'https_proxy': httpsProxy,
     'no_proxy': noProxy,
+    'resource_saver_enabled': resourceSaverEnabled,
+    'resource_saver_timeout_sec': resourceSaverTimeoutSec,
   };
 
   /// Creates a [Config] from a JSON map.
@@ -2621,6 +2654,9 @@ class Config {
       httpProxy: json['http_proxy'] as String? ?? '',
       httpsProxy: json['https_proxy'] as String? ?? '',
       noProxy: json['no_proxy'] as String? ?? '',
+      resourceSaverEnabled: json['resource_saver_enabled'] as bool? ?? true,
+      resourceSaverTimeoutSec:
+          (json['resource_saver_timeout_sec'] as num?)?.toInt() ?? 300,
     );
   }
 
@@ -2643,6 +2679,8 @@ class Config {
     String? httpProxy,
     String? httpsProxy,
     String? noProxy,
+    bool? resourceSaverEnabled,
+    int? resourceSaverTimeoutSec,
   }) {
     return Config(
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
@@ -2662,6 +2700,9 @@ class Config {
       httpProxy: httpProxy ?? this.httpProxy,
       httpsProxy: httpsProxy ?? this.httpsProxy,
       noProxy: noProxy ?? this.noProxy,
+      resourceSaverEnabled: resourceSaverEnabled ?? this.resourceSaverEnabled,
+      resourceSaverTimeoutSec:
+          resourceSaverTimeoutSec ?? this.resourceSaverTimeoutSec,
     );
   }
 }

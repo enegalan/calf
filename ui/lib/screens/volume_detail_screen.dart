@@ -208,8 +208,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     final confirmed = await confirmDialog(
       context,
       title: 'Remove volume',
-      description:
-          'Remove "${widget.volumeName}"? This cannot be undone.',
+      description: 'Remove "${widget.volumeName}"? This cannot be undone.',
       confirmLabel: 'Remove',
       destructive: true,
     );

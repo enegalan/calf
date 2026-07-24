@@ -475,8 +475,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           tooltip: 'Stop',
                           enabled: !_busy && _container.isRunning,
                           onPressed: () => _runAction(
-                            () =>
-                                widget.apiClient.stopContainer(_container.id),
+                            () => widget.apiClient.stopContainer(_container.id),
                           ),
                         ),
                         CalfGroupAction(
@@ -484,9 +483,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           tooltip: 'Start',
                           enabled: !_busy && !_container.isRunning,
                           onPressed: () => _runAction(
-                            () => widget.apiClient.startContainer(
-                              _container.id,
-                            ),
+                            () =>
+                                widget.apiClient.startContainer(_container.id),
                           ),
                         ),
                         CalfGroupAction(
@@ -494,8 +492,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           tooltip: 'Restart',
                           enabled: !_busy,
                           onPressed: () => _runAction(
-                            () =>
-                                widget.apiClient.restartContainer(_container.id),
+                            () => widget.apiClient.restartContainer(
+                              _container.id,
+                            ),
                           ),
                         ),
                       ],
@@ -518,8 +517,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           return;
                         }
                         await _runAction(
-                          () =>
-                              widget.apiClient.removeContainer(_container.id),
+                          () => widget.apiClient.removeContainer(_container.id),
                         );
                         if (mounted) {
                           widget.onBack();
@@ -552,14 +550,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         const SizedBox(height: 16),
         CalfTabBar(
           theme: theme,
-          labels: const [
-            'Logs',
-            'Inspect',
-            'Mounts',
-            'Exec',
-            'Files',
-            'Stats',
-          ],
+          labels: const ['Logs', 'Inspect', 'Mounts', 'Exec', 'Files', 'Stats'],
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
         ),
@@ -1001,9 +992,7 @@ class _MountRow extends StatelessWidget {
         context: context,
         builder: (errorContext) => AlertDialog(
           title: const Text('Could not open path'),
-          content: Text(
-            'Your system could not open:\n${mount.source}',
-          ),
+          content: Text('Your system could not open:\n${mount.source}'),
           actions: [
             CalfButton(
               onPressed: () => Navigator.of(errorContext).pop(),
@@ -1048,8 +1037,9 @@ class _MountRow extends StatelessWidget {
                       ? SystemMouseCursors.click
                       : SystemMouseCursors.basic,
                   child: GestureDetector(
-                    onTap:
-                        _canOpenHostPath ? () => _openHostPath(context) : null,
+                    onTap: _canOpenHostPath
+                        ? () => _openHostPath(context)
+                        : null,
                     child: Text(
                       mount.source,
                       style: theme.textTheme.bodySmall!.copyWith(
@@ -1594,12 +1584,7 @@ class _StatsHistory {
       return;
     }
 
-    _appendSample(
-      stats.cpuPercent,
-      stats.memUsage,
-      stats.blockIo,
-      stats.netIo,
-    );
+    _appendSample(stats.cpuPercent, stats.memUsage, stats.blockIo, stats.netIo);
   }
 
   /// Appends one parsed sample into the chart series buffers.

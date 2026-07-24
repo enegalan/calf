@@ -100,7 +100,9 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
       context: context,
       builder: (errorContext) => AlertDialog(
         title: const Text('Could not open link'),
-        content: const Text('Your system could not open the URL in the browser.'),
+        content: const Text(
+          'Your system could not open the URL in the browser.',
+        ),
         actions: [
           CalfButton(
             onPressed: () => Navigator.of(errorContext).pop(),

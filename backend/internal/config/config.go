@@ -16,22 +16,24 @@ var defaultConfigYAML []byte
 
 // Config represents the configuration for the application.
 type Config struct {
-	ListenAddr           string `yaml:"listen_addr"`
-	LogLevel             string `yaml:"log_level"`
-	VMName               string `yaml:"vm_name"`
-	DockerSocket         string `yaml:"docker_socket"`
-	PollIntervalMs       int    `yaml:"poll_interval_ms"`
-	DockerContextManaged bool   `yaml:"docker_context_managed"`
-	CPUs                 int    `yaml:"cpus"`
-	MemoryGB             int    `yaml:"memory_gb"`
-	MemorySwapGB         int    `yaml:"memory_swap_gb"`
-	DiskGB               int    `yaml:"disk_gb"`
-	DiskImage            string `yaml:"disk_image"`
-	HTTPProxy            string `yaml:"http_proxy"`
-	HTTPSProxy           string `yaml:"https_proxy"`
-	NoProxy              string `yaml:"no_proxy"`
-	VMKeepAlive          bool   `yaml:"vm_keep_alive"`
-	Rootless             bool   `yaml:"rootless"`
+	ListenAddr              string `yaml:"listen_addr"`
+	LogLevel                string `yaml:"log_level"`
+	VMName                  string `yaml:"vm_name"`
+	DockerSocket            string `yaml:"docker_socket"`
+	PollIntervalMs          int    `yaml:"poll_interval_ms"`
+	DockerContextManaged    bool   `yaml:"docker_context_managed"`
+	CPUs                    int    `yaml:"cpus"`
+	MemoryGB                int    `yaml:"memory_gb"`
+	MemorySwapGB            int    `yaml:"memory_swap_gb"`
+	DiskGB                  int    `yaml:"disk_gb"`
+	DiskImage               string `yaml:"disk_image"`
+	HTTPProxy               string `yaml:"http_proxy"`
+	HTTPSProxy              string `yaml:"https_proxy"`
+	NoProxy                 string `yaml:"no_proxy"`
+	VMKeepAlive             bool   `yaml:"vm_keep_alive"`
+	Rootless                bool   `yaml:"rootless"`
+	ResourceSaverEnabled    bool   `yaml:"resource_saver_enabled"`
+	ResourceSaverTimeoutSec int    `yaml:"resource_saver_timeout_sec"`
 }
 
 // Default returns the embedded config.yaml values without reading disk.
@@ -93,6 +95,12 @@ func Load() (Config, error) {
 	if _, ok := raw["rootless"]; !ok {
 		cfg.Rootless = defaultFromYAML().Rootless
 	}
+	if _, ok := raw["resource_saver_enabled"]; !ok {
+		cfg.ResourceSaverEnabled = defaultFromYAML().ResourceSaverEnabled
+	}
+	if _, ok := raw["resource_saver_timeout_sec"]; !ok {
+		cfg.ResourceSaverTimeoutSec = defaultFromYAML().ResourceSaverTimeoutSec
+	}
 
 	cfg = withDefaults(cfg)
 	return cfg, nil
@@ -153,6 +161,16 @@ func withDefaults(cfg Config) Config {
 
 	if cfg.DiskGB <= 0 {
 		cfg.DiskGB = defaults.DiskGB
+	}
+
+	if cfg.ResourceSaverTimeoutSec <= 0 {
+		cfg.ResourceSaverTimeoutSec = defaults.ResourceSaverTimeoutSec
+	}
+	if cfg.ResourceSaverTimeoutSec < constants.ResourceSaverTimeoutMinSec {
+		cfg.ResourceSaverTimeoutSec = constants.ResourceSaverTimeoutMinSec
+	}
+	if cfg.ResourceSaverTimeoutSec > constants.ResourceSaverTimeoutMaxSec {
+		cfg.ResourceSaverTimeoutSec = constants.ResourceSaverTimeoutMaxSec
 	}
 
 	return cfg

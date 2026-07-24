@@ -32,6 +32,7 @@ func (g *Gateway) handleRuntimeStop(w http.ResponseWriter, r *http.Request) {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	g.backend.ClearResourceSaver()
 	status, err := g.backend.Runtime.Status(ctx)
 	if err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
@@ -49,6 +50,7 @@ func (g *Gateway) handleRuntimeKill(w http.ResponseWriter, r *http.Request) {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	g.backend.ClearResourceSaver()
 	status, err := g.backend.Runtime.Status(ctx)
 	if err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())

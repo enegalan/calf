@@ -141,8 +141,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     final confirmed = await confirmDialog(
       context,
       title: 'Delete container',
-      description:
-          'Delete "${container.name}"? This cannot be undone.',
+      description: 'Delete "${container.name}"? This cannot be undone.',
       confirmLabel: 'Delete',
       destructive: true,
     );
@@ -442,8 +441,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     textAlign: TextAlign.center,
                     style: CalfTheme.muted(theme),
                   ),
-                  if (_runtime?.state == 'stopped' &&
-                      _searchQuery.isEmpty) ...[
+                  if (_runtime?.state == 'stopped' && _searchQuery.isEmpty) ...[
                     const SizedBox(height: 16),
                     CalfButton(
                       onPressed: _startEngine,

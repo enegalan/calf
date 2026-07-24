@@ -72,7 +72,9 @@ class AppTopBar extends StatelessWidget {
           _BrandMark(theme: theme),
           const Spacer(),
           Tooltip(
-            message: updateAvailable ? 'Update available — Settings' : 'Settings',
+            message: updateAvailable
+                ? 'Update available — Settings'
+                : 'Settings',
             child: CalfButton.ghost(
               width: 36,
               height: 36,

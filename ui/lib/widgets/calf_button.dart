@@ -211,11 +211,7 @@ class CalfGroupAction {
 /// Joined icon-action strip (e.g. stop / start / restart).
 class CalfButtonGroup extends StatelessWidget {
   /// Creates a segmented control from [actions].
-  const CalfButtonGroup({
-    super.key,
-    required this.actions,
-    this.size = 40,
-  });
+  const CalfButtonGroup({super.key, required this.actions, this.size = 40});
 
   final List<CalfGroupAction> actions;
   final double size;

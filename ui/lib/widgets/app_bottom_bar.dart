@@ -15,24 +15,42 @@ class AppBottomBar extends StatelessWidget {
     required this.appVersion,
     required this.busy,
     required this.pendingAction,
+    required this.loggedIn,
+    required this.signInPending,
+    required this.updateAvailable,
     required this.onStart,
     required this.onStop,
-    required this.onKill,
     required this.onOpenSettings,
     required this.onOpenAbout,
+    required this.onSignIn,
+    required this.onSignOut,
+    required this.onTroubleshoot,
+    required this.onOpenDockerHub,
+    required this.onDownloadUpdate,
+    required this.onRestart,
+    required this.onQuit,
   });
 
   final DaemonStatus? status;
   final String appVersion;
   final bool busy;
 
-  /// Non-empty while Start/Stop/Kill is in flight (e.g. `Engine starting…`).
+  /// Non-empty while Start/Stop is in flight (e.g. `Engine starting…`).
   final String pendingAction;
+  final bool loggedIn;
+  final bool signInPending;
+  final bool updateAvailable;
   final VoidCallback onStart;
   final VoidCallback onStop;
-  final VoidCallback onKill;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenAbout;
+  final VoidCallback onSignIn;
+  final VoidCallback onSignOut;
+  final VoidCallback onTroubleshoot;
+  final VoidCallback onOpenDockerHub;
+  final VoidCallback onDownloadUpdate;
+  final VoidCallback onRestart;
+  final VoidCallback onQuit;
 
   /// Builds the slim status strip with a corner-anchored engine block.
   @override
@@ -41,10 +59,13 @@ class AppBottomBar extends StatelessWidget {
     const barHeight = 32.0;
     final runtime = status?.runtime;
     final running = runtime?.isRunning == true;
+    final resourceSaver = status?.resourceSaverActive == true;
     final resources = status?.resources ?? const EngineResources();
     final pending = pendingAction.isNotEmpty;
-    final label = pending ? pendingAction : _engineLabel(runtime);
-    final activeBadge = pending || running;
+    final label = pending
+        ? pendingAction
+        : _engineLabel(runtime, resourceSaver: resourceSaver);
+    final activeBadge = pending || running || resourceSaver;
     final badgeColor = activeBadge
         ? CalfColors.primary
         : theme.colorScheme.surfaceContainerHighest;
@@ -99,27 +120,22 @@ class AppBottomBar extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      _EngineAction(
-                        icon: LucideIcons.play,
-                        tooltip: 'Start engine',
-                        color: badgeForeground,
-                        enabled: !busy && !running,
-                        onPressed: onStart,
-                      ),
-                      _EngineAction(
-                        icon: LucideIcons.square,
-                        tooltip: 'Stop engine',
-                        color: badgeForeground,
-                        enabled: !busy && running,
-                        onPressed: onStop,
-                      ),
-                      _EngineAction(
-                        icon: LucideIcons.power,
-                        tooltip: 'Kill engine',
-                        color: badgeForeground,
-                        enabled: !busy && running,
-                        onPressed: onKill,
-                      ),
+                      if (running)
+                        _EngineAction(
+                          icon: LucideIcons.pause,
+                          tooltip: 'Stop engine',
+                          color: badgeForeground,
+                          enabled: !busy,
+                          onPressed: onStop,
+                        )
+                      else
+                        _EngineAction(
+                          icon: LucideIcons.play,
+                          tooltip: 'Start engine',
+                          color: badgeForeground,
+                          enabled: !busy,
+                          onPressed: onStart,
+                        ),
                       PopupMenuButton<String>(
                         tooltip: 'Engine menu',
                         enabled: !busy,
@@ -136,15 +152,105 @@ class AppBottomBar extends StatelessWidget {
                           size: 14,
                           color: badgeForeground,
                         ),
-                        onSelected: (value) {
-                          if (value == 'settings') {
-                            onOpenSettings();
-                          }
-                        },
-                        itemBuilder: (context) => const [
+                        onSelected: (value) => _handleMenu(value),
+                        itemBuilder: (context) => [
                           PopupMenuItem(
+                            enabled: false,
+                            height: 36,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: activeBadge
+                                        ? CalfColors.success
+                                        : theme.colorScheme.onSurfaceVariant,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _menuStatusLabel(
+                                      runtime,
+                                      resourceSaver: resourceSaver,
+                                    ),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: loggedIn ? 'sign_out' : 'sign_in',
+                            enabled: loggedIn || !signInPending,
+                            child: _MenuRow(
+                              icon: LucideIcons.user,
+                              label: loggedIn
+                                  ? 'Sign out'
+                                  : (signInPending
+                                        ? 'Signing in…'
+                                        : 'Sign in / Sign up'),
+                            ),
+                          ),
+                          const PopupMenuItem(
                             value: 'settings',
-                            child: Text('Open Settings'),
+                            child: _MenuRow(
+                              icon: LucideIcons.settings,
+                              label: 'Settings…',
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'troubleshoot',
+                            child: _MenuRow(
+                              icon: LucideIcons.wrench,
+                              label: 'Troubleshoot',
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'about',
+                            child: _MenuRow(
+                              icon: LucideIcons.info,
+                              label: 'About Calf',
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          const PopupMenuItem(
+                            value: 'docker_hub',
+                            child: _MenuRow(
+                              icon: LucideIcons.box,
+                              label: 'Docker Hub',
+                            ),
+                          ),
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: 'download_update',
+                            child: _MenuRow(
+                              icon: updateAvailable
+                                  ? LucideIcons.circleAlert
+                                  : LucideIcons.download,
+                              label: updateAvailable
+                                  ? 'Download update'
+                                  : 'Check for updates',
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'restart',
+                            child: _MenuRow(
+                              icon: LucideIcons.refreshCw,
+                              label: 'Restart',
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'quit',
+                            child: _MenuRow(
+                              icon: LucideIcons.power,
+                              label: 'Quit Calf',
+                            ),
                           ),
                         ],
                       ),
@@ -212,8 +318,38 @@ class AppBottomBar extends StatelessWidget {
     );
   }
 
+  /// Dispatches a bottom-bar overflow menu selection.
+  void _handleMenu(String value) {
+    switch (value) {
+      case 'sign_in':
+        onSignIn();
+      case 'sign_out':
+        onSignOut();
+      case 'settings':
+        onOpenSettings();
+      case 'troubleshoot':
+        onTroubleshoot();
+      case 'about':
+        onOpenAbout();
+      case 'docker_hub':
+        onOpenDockerHub();
+      case 'download_update':
+        onDownloadUpdate();
+      case 'restart':
+        onRestart();
+      case 'quit':
+        onQuit();
+    }
+  }
+
   /// Returns the engine status label for the badge.
-  static String _engineLabel(RuntimeStatus? runtime) {
+  static String _engineLabel(
+    RuntimeStatus? runtime, {
+    required bool resourceSaver,
+  }) {
+    if (resourceSaver) {
+      return 'Resource Saver';
+    }
     if (runtime == null) {
       return 'Engine unknown';
     }
@@ -226,12 +362,30 @@ class AppBottomBar extends StatelessWidget {
     return 'Engine ${runtime.state}';
   }
 
+  /// Returns the overflow-menu status line.
+  static String _menuStatusLabel(
+    RuntimeStatus? runtime, {
+    required bool resourceSaver,
+  }) {
+    if (resourceSaver) {
+      return 'Running in Resource Saver mode';
+    }
+    if (runtime?.isRunning == true) {
+      return 'Engine running';
+    }
+    if (runtime?.state == 'stopped') {
+      return 'Engine stopped';
+    }
+    if (runtime == null) {
+      return 'Engine unknown';
+    }
+    return 'Engine ${runtime.state}';
+  }
+
   /// Returns a display version label, falling back to `dev` when empty.
   static String _versionLabel(String version) {
     final label = CalfVersion.displayLabel(version);
-    if (label == 'dev' ||
-        label.startsWith('v') ||
-        label == 'unavailable') {
+    if (label == 'dev' || label.startsWith('v') || label == 'unavailable') {
       return label;
     }
     return 'v$label';
@@ -254,7 +408,7 @@ class AppBottomBar extends StatelessWidget {
   }
 }
 
-/// Flat icon control for start/stop/kill on the engine corner block.
+/// Flat icon control for start/stop on the engine corner block.
 class _EngineAction extends StatelessWidget {
   /// Creates a compact engine control icon button.
   const _EngineAction({
@@ -286,6 +440,28 @@ class _EngineAction extends StatelessWidget {
           child: Icon(icon, size: 14, color: foreground),
         ),
       ),
+    );
+  }
+}
+
+/// Icon + label row used inside the engine overflow menu.
+class _MenuRow extends StatelessWidget {
+  /// Creates a menu row with a leading [icon] and [label].
+  const _MenuRow({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  /// Builds the icon and label spaced like a native menu item.
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label)),
+      ],
     );
   }
 }

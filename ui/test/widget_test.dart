@@ -791,26 +791,23 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> logoutRegistry({String server = 'docker.io'}) async {}
 
   @override
-  Future<RuntimeStatus> startRuntime() async =>
-      const RuntimeStatus(
-        mode: 'vm',
-        state: 'stopped',
-        dockerSocket: '/tmp/calf.sock',
-      );
+  Future<RuntimeStatus> startRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
 
   @override
-  Future<RuntimeStatus> stopRuntime() async =>
-      const RuntimeStatus(
-        mode: 'vm',
-        state: 'stopped',
-        dockerSocket: '/tmp/calf.sock',
-      );
+  Future<RuntimeStatus> stopRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
 
   @override
-  Future<RuntimeStatus> killRuntime() async =>
-      const RuntimeStatus(
-        mode: 'vm',
-        state: 'stopped',
-        dockerSocket: '/tmp/calf.sock',
-      );
+  Future<RuntimeStatus> killRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
 }

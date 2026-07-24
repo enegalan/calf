@@ -161,8 +161,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     final confirmed = await confirmDialog(
       context,
       title: 'Remove image',
-      description:
-          'Remove "${image.reference}"? This cannot be undone.',
+      description: 'Remove "${image.reference}"? This cannot be undone.',
       confirmLabel: 'Remove',
       destructive: true,
     );

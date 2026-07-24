@@ -46,10 +46,9 @@ class StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final resolved = state ??
-        (hollow || !active
-            ? StatusDotState.inactive
-            : StatusDotState.active);
+    final resolved =
+        state ??
+        (hollow || !active ? StatusDotState.inactive : StatusDotState.active);
 
     final Widget dot;
     switch (resolved) {
@@ -91,7 +90,8 @@ class StatusDot extends StatelessWidget {
     }
 
     final labeled = Semantics(
-      label: tooltip ??
+      label:
+          tooltip ??
           switch (resolved) {
             StatusDotState.active => 'Active',
             StatusDotState.inactive => 'Inactive',

@@ -78,6 +78,23 @@ func TestValidateResourceUpdateDiskOutOfRange(t *testing.T) {
 	}
 }
 
+func TestValidateResourceUpdateResourceSaverTimeoutOutOfRange(t *testing.T) {
+	sec := 10
+	req := config.UpdateRequest{ResourceSaverTimeoutSec: &sec}
+	err := config.ValidateResourceUpdate(req, 8, 16, 500)
+	if err == nil {
+		t.Fatal("ValidateResourceUpdate() expected error for timeout below minimum")
+	}
+}
+
+func TestValidateResourceUpdateResourceSaverTimeoutOK(t *testing.T) {
+	sec := 600
+	req := config.UpdateRequest{ResourceSaverTimeoutSec: &sec}
+	if err := config.ValidateResourceUpdate(req, 8, 16, 500); err != nil {
+		t.Fatalf("ValidateResourceUpdate() error: %v", err)
+	}
+}
+
 func TestValidateResourceUpdateDiskImageRelative(t *testing.T) {
 	path := "relative/disk.raw"
 	req := config.UpdateRequest{DiskImage: &path}

@@ -127,8 +127,7 @@ class _NetworksScreenState extends State<NetworksScreen>
     final confirmed = await confirmDialog(
       context,
       title: 'Remove network',
-      description:
-          'Remove "${network.name}"? This cannot be undone.',
+      description: 'Remove "${network.name}"? This cannot be undone.',
       confirmLabel: 'Remove',
       destructive: true,
     );
@@ -296,8 +295,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     final confirmed = await confirmDialog(
       context,
       title: 'Remove network',
-      description:
-          'Remove "${widget.networkName}"? This cannot be undone.',
+      description: 'Remove "${widget.networkName}"? This cannot be undone.',
       confirmLabel: 'Remove',
       destructive: true,
     );

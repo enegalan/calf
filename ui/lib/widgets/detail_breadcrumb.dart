@@ -61,9 +61,9 @@ class DetailBreadcrumb extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Text(
                     '/',
-                    style: CalfTheme.muted(theme).copyWith(
-                      fontWeight: FontWeight.w400,
-                    ),
+                    style: CalfTheme.muted(
+                      theme,
+                    ).copyWith(fontWeight: FontWeight.w400),
                   ),
                 ),
               ),
@@ -138,9 +138,9 @@ class _BreadcrumbSegment extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             child: Text(
               label,
-              style: CalfTheme.muted(theme).copyWith(
-                fontWeight: FontWeight.w500,
-              ),
+              style: CalfTheme.muted(
+                theme,
+              ).copyWith(fontWeight: FontWeight.w500),
             ),
           ),
         ),

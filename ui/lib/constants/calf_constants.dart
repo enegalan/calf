@@ -14,6 +14,7 @@ abstract final class CalfDefaults {
   static const Duration imageActionTimeout = Duration(minutes: 10);
   static const Duration volumeActionTimeout = Duration(seconds: 30);
   static const Duration volumeExportTimeout = Duration(minutes: 30);
+  static const Duration troubleshootActionTimeout = Duration(minutes: 5);
 }
 
 abstract final class CalfStorageFiles {
@@ -31,4 +32,54 @@ abstract final class CalfVersion {
   /// Returns a user-facing version label; empty versions show as `dev`.
   static String displayLabel(String version) =>
       version.trim().isEmpty ? 'dev' : version.trim();
+}
+
+/// Discrete Resource Saver idle timeouts (seconds): 30s, then every 5 minutes to 60m.
+abstract final class CalfResourceSaver {
+  static const List<int> timeoutSeconds = [
+    30,
+    300,
+    600,
+    900,
+    1200,
+    1500,
+    1800,
+    2100,
+    2400,
+    2700,
+    3000,
+    3300,
+    3600,
+  ];
+
+  /// Returns the nearest discrete timeout index for [seconds].
+  static int indexForSeconds(int seconds) {
+    var best = 0;
+    var bestDelta = (timeoutSeconds[0] - seconds).abs();
+    for (var i = 1; i < timeoutSeconds.length; i++) {
+      final delta = (timeoutSeconds[i] - seconds).abs();
+      if (delta < bestDelta) {
+        best = i;
+        bestDelta = delta;
+      }
+    }
+    return best;
+  }
+
+  /// Formats a timeout for slider labels (`30 sec`, `5 min`, …).
+  static String labelForSeconds(int seconds) {
+    if (seconds < 60) {
+      return '$seconds sec';
+    }
+    return '${seconds ~/ 60} min';
+  }
+
+  /// Whether the axis under the slider should show a tick label for [seconds].
+  static bool showTickLabel(int seconds) {
+    if (seconds < 60) {
+      return true;
+    }
+    final minutes = seconds ~/ 60;
+    return minutes == 5 || minutes % 10 == 0;
+  }
 }

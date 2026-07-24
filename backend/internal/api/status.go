@@ -21,12 +21,13 @@ type statusResources struct {
 
 // statusResponse represents the JSON payload for GET /v1/status.
 type statusResponse struct {
-	Version       string          `json:"version"`
-	UptimeSeconds int64           `json:"uptime_seconds"`
-	ListenAddr    string          `json:"listen_addr"`
-	LogLevel      string          `json:"log_level"`
-	Runtime       runtime.Status  `json:"runtime"`
-	Resources     statusResources `json:"resources"`
+	Version             string          `json:"version"`
+	UptimeSeconds       int64           `json:"uptime_seconds"`
+	ListenAddr          string          `json:"listen_addr"`
+	LogLevel            string          `json:"log_level"`
+	Runtime             runtime.Status  `json:"runtime"`
+	Resources           statusResources `json:"resources"`
+	ResourceSaverActive bool            `json:"resource_saver_active"`
 }
 
 // handleStatus serves GET /v1/status with version, uptime, runtime state, and resources.
@@ -52,11 +53,12 @@ func (g *Gateway) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpkit.WriteJSON(w, http.StatusOK, statusResponse{
-		Version:       version.Version,
-		UptimeSeconds: int64(time.Since(g.backend.StartTime).Seconds()),
-		ListenAddr:    cfg.ListenAddr,
-		LogLevel:      cfg.LogLevel,
-		Runtime:       runtimeStatus,
-		Resources:     resources,
+		Version:             version.Version,
+		UptimeSeconds:       int64(time.Since(g.backend.StartTime).Seconds()),
+		ListenAddr:          cfg.ListenAddr,
+		LogLevel:            cfg.LogLevel,
+		Runtime:             runtimeStatus,
+		Resources:           resources,
+		ResourceSaverActive: g.backend.ResourceSaverActive(),
 	})
 }

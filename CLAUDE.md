@@ -70,7 +70,8 @@ calf/
 │   │   │   ├── networks.go                    Network HTTP handlers
 │   │   │   ├── migrate.go                     Migration HTTP handlers
 │   │   │   ├── registry.go                    Registry HTTP handlers
-│   │   │   └── registry_login.go              Docker Hub login HTTP handlers
+│   │   │   ├── registry_login.go              Docker Hub login HTTP handlers
+│   │   │   └── troubleshoot.go                Purge and factory-reset HTTP handlers
 │   │   ├── httpkit/
 │   │   │   ├── response.go                    JSON response helpers
 │   │   │   ├── json.go                        Request JSON decode helper
@@ -94,9 +95,11 @@ calf/
 │   │   │   ├── log_broadcaster.go             Fan-out of one nerdctl log stream to N subscribers
 │   │   │   ├── migrate.go                     Docker Desktop migration runner
 │   │   │   ├── registry_login.go              Docker Hub device-flow session manager
+│   │   │   ├── resource_saver.go              Idle engine shutdown when no containers are running
 │   │   │   ├── runtime_ready.go               Start/wait for runtime (non-HTTP)
 │   │   │   ├── stats_history.go               In-memory rolling container stats ring buffer
-│   │   │   └── stats_sampler.go               Background sampler for running container stats
+│   │   │   ├── stats_sampler.go               Background sampler for running container stats
+│   │   │   └── troubleshoot.go                Purge guest data and factory reset
 │   │   ├── config/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
 │   │   │   └── logger.go                       slog.TextHandler setup with level parsing
@@ -189,7 +192,8 @@ calf/
 │   │   │   ├── networks_screen.dart            Network list and detail screens
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
-│   │   │   └── volume_schedule_export_screen.dart  Schedule export configuration
+│   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
+│   │   │   └── troubleshoot_screen.dart            Restart, support, purge, factory reset, uninstall
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About Calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
@@ -248,6 +252,7 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `runtime.go` — `POST /v1/runtime/start|stop|kill` (boot, graceful stop, force stop).
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
+- `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
 
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
@@ -280,9 +285,11 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `log_broadcaster.go` — multiplexes one `nerdctl` log stream to N subscribers.
 - `migrate.go` — Docker Desktop migration runner.
 - `registry_login.go` — Docker Hub device-flow session manager.
+- `resource_saver.go` — stops the engine after an idle period with no running containers when enabled in config.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
 - `stats_history.go` — in-memory rolling stats samples per container (15m retention).
 - `stats_sampler.go` — background sampler that appends stats for running containers.
+- `troubleshoot.go` — `PurgeData` / `FactoryReset` for Troubleshoot destructive actions.
 
 ### `internal/dockercli/`
 Docker CLI context management for pointing `docker` at the Calf socket.
@@ -381,11 +388,12 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
+- `troubleshoot_screen.dart` — restart, support, purge engine data, factory reset, and uninstall.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
-- `app_bottom_bar.dart` — engine status badge, Start/Stop/Kill, RAM/disk used vs reserved, app version.
+- `app_bottom_bar.dart` — engine status badge, play/pause, overflow menu (including Troubleshoot), RAM/disk used vs reserved, app version.
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.

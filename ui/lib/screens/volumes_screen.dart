@@ -229,8 +229,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
     final confirmed = await confirmDialog(
       context,
       title: 'Remove volume',
-      description:
-          'Remove "${volume.name}"? This cannot be undone.',
+      description: 'Remove "${volume.name}"? This cannot be undone.',
       confirmLabel: 'Remove',
       destructive: true,
     );

@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Resource Saver** — Settings → System can enable idle engine shutdown after no containers have been running (30 seconds, then every 5 minutes up to 60 minutes; default on at 5 minutes); the status bar shows Resource Saver mode while the engine is paused.
+- **Troubleshoot** — the engine menu opens a Troubleshoot view to restart Calf, get support, purge engine data, reset to factory defaults, or uninstall.
 - **Disk image settings** — Settings → System includes a disk image size slider and a disk image location field (default `~/.config/calf/guest/<vm>/disk.raw`).
-- **Engine status bar** — a bottom bar shows whether the engine is running, Start/Stop/Kill controls, RAM and disk used versus reserved, and the app version; the menu opens Settings.
+- **Engine status bar** — Start/Stop are a single play/pause control; the overflow menu covers sign-in, Settings, Troubleshoot, About, Docker Hub, updates, Restart, and Quit.
 - **Container Stats history** — Stats keep a rolling ~15 minute resource history while the engine is running, so charts survive leaving and reopening a container; history is cleared when the container is removed.
 - **Destructive action confirms** — deleting containers, images, volumes, or networks, and Kill engine, ask for confirmation first.
 - **Start engine from empty lists** — when the runtime is stopped, empty resource lists offer a Start engine button.

@@ -6,20 +6,24 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // UpdateRequest is the subset of config fields accepted by PUT /v1/config.
 type UpdateRequest struct {
-	CPUs                 *int    `json:"cpus,omitempty"`
-	MemoryGB             *int    `json:"memory_gb,omitempty"`
-	MemorySwapGB         *int    `json:"memory_swap_gb,omitempty"`
-	DiskGB               *int    `json:"disk_gb,omitempty"`
-	DiskImage            *string `json:"disk_image,omitempty"`
-	DockerContextManaged *bool   `json:"docker_context_managed,omitempty"`
-	Rootless             *bool   `json:"rootless,omitempty"`
-	HTTPProxy            *string `json:"http_proxy,omitempty"`
-	HTTPSProxy           *string `json:"https_proxy,omitempty"`
-	NoProxy              *string `json:"no_proxy,omitempty"`
+	CPUs                    *int    `json:"cpus,omitempty"`
+	MemoryGB                *int    `json:"memory_gb,omitempty"`
+	MemorySwapGB            *int    `json:"memory_swap_gb,omitempty"`
+	DiskGB                  *int    `json:"disk_gb,omitempty"`
+	DiskImage               *string `json:"disk_image,omitempty"`
+	DockerContextManaged    *bool   `json:"docker_context_managed,omitempty"`
+	Rootless                *bool   `json:"rootless,omitempty"`
+	HTTPProxy               *string `json:"http_proxy,omitempty"`
+	HTTPSProxy              *string `json:"https_proxy,omitempty"`
+	NoProxy                 *string `json:"no_proxy,omitempty"`
+	ResourceSaverEnabled    *bool   `json:"resource_saver_enabled,omitempty"`
+	ResourceSaverTimeoutSec *int    `json:"resource_saver_timeout_sec,omitempty"`
 }
 
 // ValidateResourceUpdate checks CPU, memory, and disk fields in a config update against host capacity.
@@ -65,6 +69,16 @@ func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB, hostDiskG
 			if !filepath.IsAbs(expanded) {
 				return fmt.Errorf("disk_image: must be an absolute path")
 			}
+		}
+	}
+	if req.ResourceSaverTimeoutSec != nil {
+		sec := *req.ResourceSaverTimeoutSec
+		if sec < constants.ResourceSaverTimeoutMinSec || sec > constants.ResourceSaverTimeoutMaxSec {
+			return fmt.Errorf(
+				"resource_saver_timeout_sec: must be between %d and %d",
+				constants.ResourceSaverTimeoutMinSec,
+				constants.ResourceSaverTimeoutMaxSec,
+			)
 		}
 	}
 

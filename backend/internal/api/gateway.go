@@ -103,6 +103,12 @@ func (g *Gateway) Handler() http.Handler {
 		http.MethodGet:  g.handleDockerDesktopMigrationStatus,
 		http.MethodPost: g.handleDockerDesktopMigrationStart,
 	}))
+	mux.HandleFunc("/v1/troubleshoot/purge", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleTroubleshootPurge,
+	}))
+	mux.HandleFunc("/v1/troubleshoot/factory-reset", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleTroubleshootFactoryReset,
+	}))
 
 	return middleware.Chain(mux, g.middlewares...)
 }

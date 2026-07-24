@@ -30,6 +30,19 @@ const (
 	StatsHistoryRetention = 15 * time.Minute
 )
 
+// Resource Saver defaults control idle engine shutdown when no containers run.
+const (
+	ResourceSaverPollInterval   = 5 * time.Second
+	ResourceSaverTimeoutMinSec  = 30
+	ResourceSaverTimeoutMaxSec  = 3600
+	DefaultResourceSaverTimeout = 300
+)
+
+// Troubleshoot defaults bound destructive cleanup (guest disk delete can be slow).
+const (
+	TroubleshootActionTimeout = 5 * time.Minute
+)
+
 // Command defaults apply to shell-outs and other retried runtime operations.
 const (
 	DefaultActionTimeout     = 30 * time.Second

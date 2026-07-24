@@ -13,8 +13,10 @@ String get calfRepositoryUrl => 'https://github.com/${CalfGitHub.repo}';
 String get calfReadmeUrl => 'https://github.com/${CalfGitHub.repo}#readme';
 
 /// URL for Calf GitHub Releases.
-String get calfReleasesUrl =>
-    'https://github.com/${CalfGitHub.repo}/releases';
+String get calfReleasesUrl => 'https://github.com/${CalfGitHub.repo}/releases';
+
+/// URL for Docker Hub.
+String get dockerHubUrl => 'https://hub.docker.com/';
 
 /// Opens [port] in the system browser via `http://localhost`.
 void openPort(int port) {
