@@ -134,6 +134,11 @@ func withDefaults(cfg Config) Config {
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = constants.DefaultListenAddr
 	}
+	// Migrate the historical all-interfaces default to loopback so existing
+	// installs pick up the local-only bind without a manual config edit.
+	if cfg.ListenAddr == ":8765" || cfg.ListenAddr == "0.0.0.0:8765" {
+		cfg.ListenAddr = constants.DefaultListenAddr
+	}
 
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = defaults.LogLevel

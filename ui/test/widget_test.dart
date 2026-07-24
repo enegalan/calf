@@ -399,6 +399,9 @@ class FakeCalfClient implements CalfClient {
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
 
   @override
+  Future<void> cancelRegistryBrowserLogin(String sessionId) async {}
+
+  @override
   Future<void> loginRegistry({
     required String username,
     required String password,
@@ -796,6 +799,9 @@ class _ErrorCalfClient implements CalfClient {
     String sessionId,
   ) async =>
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
+
+  @override
+  Future<void> cancelRegistryBrowserLogin(String sessionId) async {}
 
   @override
   Future<void> loginRegistry({

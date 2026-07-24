@@ -47,6 +47,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   String? _selectedId;
   ContainerItem? _detailContainer;
   String? _detailProject;
@@ -68,6 +69,16 @@ class _ContainersScreenState extends State<ContainersScreen>
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link and retries opening it when it changes.
+  @override
+  void didUpdateWidget(covariant ContainersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialContainerId != oldWidget.initialContainerId &&
+        widget.initialContainerId != null) {
+      _openInitialContainerIfNeeded(_containers);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -98,10 +109,12 @@ class _ContainersScreenState extends State<ContainersScreen>
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _containers = containers;
         _loading = false;
+        _error = null;
         if (_detailContainer != null) {
           for (final container in containers) {
             if (container.id == _detailContainer!.id) {
@@ -111,9 +124,15 @@ class _ContainersScreenState extends State<ContainersScreen>
           }
         }
         if (_detailProject != null) {
-          _detailGroupContainers = containers
+          final groupContainers = containers
               .where((container) => container.composeProject == _detailProject)
               .toList();
+          if (groupContainers.isEmpty) {
+            _detailProject = null;
+            _detailGroupContainers = null;
+          } else {
+            _detailGroupContainers = groupContainers;
+          }
         }
       });
       _openInitialContainerIfNeeded(containers);
@@ -126,6 +145,11 @@ class _ContainersScreenState extends State<ContainersScreen>
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;
@@ -251,17 +275,20 @@ class _ContainersScreenState extends State<ContainersScreen>
   }
 
   /// Opens [initialContainerId] once containers are loaded, if provided.
+  ///
+  /// The pending id is only consumed once a match is actually found and
+  /// opened; otherwise it stays armed so the next poll can retry.
   void _openInitialContainerIfNeeded(List<ContainerItem> containers) {
     final id = widget.initialContainerId?.trim() ?? '';
     if (id.isEmpty) {
       return;
     }
 
-    widget.onInitialContainerConsumed?.call();
     final match = _findContainerById(containers, id);
     if (match == null) {
       return;
     }
+    widget.onInitialContainerConsumed?.call();
     setState(() {
       _detailProject = null;
       _detailGroupContainers = null;

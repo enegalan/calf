@@ -177,7 +177,9 @@ func (p *localhostProxies) serve(listener net.Listener, port int) {
 	}
 }
 
-// proxyTCPConnection bidirectionally copies bytes between client and target.
+// proxyTCPConnection bidirectionally copies bytes between client and target. Each direction
+// half-closes its destination on EOF instead of fully closing both connections immediately,
+// so a client that has finished sending can still read a pending response (and vice versa).
 func proxyTCPConnection(client net.Conn, target string) {
 	server, err := net.Dial("tcp", target)
 	if err != nil {
@@ -185,14 +187,32 @@ func proxyTCPConnection(client net.Conn, target string) {
 		return
 	}
 
+	done := make(chan struct{}, 2)
+
 	go func() {
 		_, _ = io.Copy(server, client)
-		_ = server.Close()
+		closeWrite(server)
+		done <- struct{}{}
 	}()
 
-	_, _ = io.Copy(client, server)
+	go func() {
+		_, _ = io.Copy(client, server)
+		closeWrite(client)
+		done <- struct{}{}
+	}()
+
+	<-done
+	<-done
 	_ = client.Close()
 	_ = server.Close()
+}
+
+// closeWrite half-closes the write side of a TCP connection so the peer observes EOF on
+// its read side while the opposite direction of the proxy keeps flowing.
+func closeWrite(conn net.Conn) {
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		_ = tcpConn.CloseWrite()
+	}
 }
 
 // publishedTCPPorts collects host TCP ports published by running containers.

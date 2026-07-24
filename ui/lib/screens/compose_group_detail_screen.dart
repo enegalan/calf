@@ -210,6 +210,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
       if (_logsScrollController.hasClients) {
         _logsScrollController.jumpTo(
           _logsScrollController.position.maxScrollExtent,

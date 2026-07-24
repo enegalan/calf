@@ -214,6 +214,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               }
             });
             WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
               if (_logsScrollController.hasClients) {
                 _logsScrollController.jumpTo(
                   _logsScrollController.position.maxScrollExtent,
@@ -393,6 +396,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final port = _container.primaryHostPort;
+    final portMapping = _container.primaryPortMapping;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -440,7 +444,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         GestureDetector(
                           onTap: () => openPort(port),
                           child: Text(
-                            '$port:$port',
+                            portMapping ?? '$port:$port',
                             style: theme.textTheme.bodySmall!.copyWith(
                               color: theme.colorScheme.primary,
                             ),

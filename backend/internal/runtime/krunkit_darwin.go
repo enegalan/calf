@@ -248,11 +248,15 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if libDir := libkrunDirFor(krunkitBin); libDir != "" {
 		cmd.Env = append(os.Environ(), "DYLD_LIBRARY_PATH="+libDir)
 	}
-	if logFile, err := os.OpenFile(filepath.Join(k.dataDir, "krunkit.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
+	logFile, logErr := os.OpenFile(filepath.Join(k.dataDir, "krunkit.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if logErr == nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 	}
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		_ = k.stopKrunkitStack()
 		return fmt.Errorf("start krunkit: %w", err)
 	}
@@ -356,11 +360,15 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 		"-mtu", "1500",
 	}
 	cmd := exec.Command(gvproxyBin, args...)
-	if logFile, err := os.OpenFile(filepath.Join(k.dataDir, "gvproxy.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644); err == nil {
+	logFile, logErr := os.OpenFile(filepath.Join(k.dataDir, "gvproxy.log"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if logErr == nil {
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 	}
 	if err := cmd.Start(); err != nil {
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return fmt.Errorf("start gvproxy: %w", err)
 	}
 	k.mu.Lock()

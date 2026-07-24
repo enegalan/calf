@@ -238,6 +238,15 @@ class ContainerItem {
     return ports.isEmpty ? null : ports.first;
   }
 
+  /// Returns the first "host:container" published port mapping, if any.
+  String? get primaryPortMapping {
+    final match = RegExp(r':(\d+)->(\d+)/').firstMatch(ports);
+    if (match == null) {
+      return null;
+    }
+    return '${match.group(1)}:${match.group(2)}';
+  }
+
   /// Returns the image reference with docker.io prefixes stripped.
   String get displayImage {
     var value = image;
@@ -1471,6 +1480,9 @@ abstract class CalfClient implements StatusClient {
     String sessionId,
   );
 
+  /// Cancels a pending browser login session.
+  Future<void> cancelRegistryBrowserLogin(String sessionId);
+
   /// Logs in to a container registry with username and password.
   Future<void> loginRegistry({
     required String username,
@@ -2027,6 +2039,12 @@ class ApiClient implements CalfClient {
     return RegistryBrowserLoginStatus.fromJson(json);
   }
 
+  /// Cancels a pending browser login session.
+  @override
+  Future<void> cancelRegistryBrowserLogin(String sessionId) async {
+    await _delete('/v1/registry/login/$sessionId');
+  }
+
   /// Logs in to a container registry with username and password.
   @override
   Future<void> loginRegistry({
@@ -2467,7 +2485,15 @@ class ApiClient implements CalfClient {
       );
     }
 
-    return json.map((item) => mapper(item as Map<String, dynamic>)).toList();
+    return json.map((item) {
+      if (item is! Map) {
+        throw ApiException(
+          'Invalid response: expected JSON object in array',
+          statusCode: response.statusCode,
+        );
+      }
+      return mapper(Map<String, dynamic>.from(item));
+    }).toList();
   }
 
   /// Decodes a JSON object response.
@@ -2501,7 +2527,13 @@ class ApiClient implements CalfClient {
     try {
       final body = jsonDecode(response.body);
       if (body is Map<String, dynamic> && body.containsKey('error')) {
-        return body['error'] as String;
+        final error = body['error'];
+        if (error is String && error.isNotEmpty) {
+          return error;
+        }
+        if (error != null) {
+          return error.toString();
+        }
       }
     } catch (_) {}
     return 'Error: ${response.statusCode}';

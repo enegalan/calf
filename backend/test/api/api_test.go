@@ -887,6 +887,7 @@ func TestHealthOptionsReturnsNoContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest() error: %v", err)
 	}
+	request.Header.Set("Origin", "http://localhost:54321")
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -898,8 +899,33 @@ func TestHealthOptionsReturnsNoContent(t *testing.T) {
 		t.Fatalf("expected status 204, got %d", response.StatusCode)
 	}
 
-	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "*" {
-		t.Fatalf("expected CORS origin *, got %q", origin)
+	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "http://localhost:54321" {
+		t.Fatalf("expected CORS origin reflected for localhost, got %q", origin)
+	}
+}
+
+func TestHealthOptionsOmitsCORSHeaderForRemoteOrigin(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodOptions, server.URL+"/v1/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+	request.Header.Set("Origin", "http://example.com")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", response.StatusCode)
+	}
+
+	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "" {
+		t.Fatalf("expected no CORS origin for remote origin, got %q", origin)
 	}
 }
 

@@ -179,6 +179,12 @@ class UpdateChecker {
     bool force = false,
   }) async {
     final normalizedCurrent = normalizeTagName(currentVersion);
+    if (normalizedCurrent.isEmpty ||
+        normalizedCurrent == 'dev' ||
+        normalizedCurrent == 'unavailable') {
+      return UpdateCheckResult.upToDate(currentVersion: normalizedCurrent);
+    }
+
     final preferences = await UpdatePreferences.load();
 
     if (!force &&

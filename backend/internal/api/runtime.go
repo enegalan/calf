@@ -11,7 +11,8 @@ import (
 // handleRuntimeStart serves POST /v1/runtime/start and boots the container runtime.
 func (g *Gateway) handleRuntimeStart(w http.ResponseWriter, r *http.Request) {
 	if err := g.backend.EnsureRuntimeRunning(r.Context()); err != nil {
-		httpkit.WriteError(w, http.StatusServiceUnavailable, err.Error())
+		g.logger.Error("runtime start failed", "error", err)
+		httpkit.WriteError(w, http.StatusServiceUnavailable, "failed to start the container runtime")
 		return
 	}
 	status, err := g.backend.Runtime.Status(r.Context())

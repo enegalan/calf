@@ -36,6 +36,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   ImageItem? _selectedImage;
@@ -54,6 +55,16 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link and retries opening it when it changes.
+  @override
+  void didUpdateWidget(covariant ImagesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialImageReference != oldWidget.initialImageReference &&
+        widget.initialImageReference != null) {
+      _openInitialImageIfNeeded(_images);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -84,10 +95,12 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _images = images;
         _loading = false;
+        _error = null;
         _syncSelectedImage(images);
       });
       _openInitialImageIfNeeded(images);
@@ -100,6 +113,11 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;
@@ -127,17 +145,20 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   }
 
   /// Opens [initialImageReference] once images are loaded, if provided.
+  ///
+  /// The pending reference is only consumed once a match is actually found
+  /// and opened; otherwise it stays armed so the next poll can retry.
   void _openInitialImageIfNeeded(List<ImageItem> images) {
     final reference = widget.initialImageReference?.trim() ?? '';
     if (reference.isEmpty) {
       return;
     }
 
-    widget.onInitialImageConsumed?.call();
     final match = _findImageByReference(images, reference);
     if (match == null) {
       return;
     }
+    widget.onInitialImageConsumed?.call();
     unawaited(_openImage(match));
   }
 

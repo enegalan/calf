@@ -43,6 +43,7 @@ class CalfTrayAppActions {
     required this.onSignIn,
     required this.onSignOut,
     required this.onCheckForUpdates,
+    required this.onRestartEngine,
     required this.snapshot,
   });
 
@@ -50,6 +51,7 @@ class CalfTrayAppActions {
   final Future<void> Function() onSignIn;
   final Future<void> Function() onSignOut;
   final Future<void> Function() onCheckForUpdates;
+  final Future<void> Function() onRestartEngine;
   final CalfTrayMenuSnapshotCallback snapshot;
 }
 
@@ -61,7 +63,6 @@ class CalfTrayStatus {
   static bool _visible = false;
   static CalfTrayOpenCallback? _onOpen;
   static CalfTrayQuitCallback? _onQuit;
-  static CalfTrayOpenCallback? _onRestartEngine;
   static CalfTrayUrlCallback? _onOpenUrl;
   static CalfTrayAppActions? _appActions;
   static final _TrayHandler _handler = _TrayHandler();
@@ -70,12 +71,10 @@ class CalfTrayStatus {
   static void install({
     required CalfTrayOpenCallback onOpen,
     required CalfTrayQuitCallback onQuit,
-    CalfTrayOpenCallback? onRestartEngine,
     CalfTrayUrlCallback? onOpenUrl,
   }) {
     _onOpen = onOpen;
     _onQuit = onQuit;
-    _onRestartEngine = onRestartEngine;
     _onOpenUrl = onOpenUrl;
     if (!_installed) {
       trayManager.addListener(_handler);
@@ -101,11 +100,6 @@ class CalfTrayStatus {
       return;
     }
     exit(0);
-  }
-
-  /// Restarts the embedded daemon using the callback registered in [install].
-  static Future<void> restartDaemon() async {
-    await _onRestartEngine?.call();
   }
 
   /// Installs the tray icon when supported. Safe to call more than once.
@@ -161,7 +155,6 @@ class CalfTrayStatus {
     }
     _onOpen = null;
     _onQuit = null;
-    _onRestartEngine = null;
     _onOpenUrl = null;
     _appActions = null;
   }
@@ -289,7 +282,9 @@ class CalfTrayStatus {
         await _onOpenUrl?.call('https://github.com/enegalan/calf/issues/new');
         break;
       case 'help_restart':
-        await _onRestartEngine?.call();
+        if (app != null) {
+          await _openWindowAnd(app.onRestartEngine);
+        }
         break;
       case 'help_sign_out':
         if (app != null) {

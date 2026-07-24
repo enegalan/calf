@@ -37,6 +37,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   bool _runningOnly = false;
@@ -113,13 +114,18 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
         return;
       }
 
+      final hadSilentFailure = _consecutiveSilentFailures > 0;
+      _consecutiveSilentFailures = 0;
+
       if (!silent ||
           _volumesChanged(_volumes, volumes) ||
-          _runtime?.state != status.runtime.state) {
+          _runtime?.state != status.runtime.state ||
+          hadSilentFailure) {
         setState(() {
           _runtime = status.runtime;
           _volumes = volumes;
           _loading = false;
+          _error = null;
         });
       }
     } catch (error) {
@@ -131,6 +137,11 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;
@@ -265,6 +276,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   Widget build(BuildContext context) {
     if (_selectedVolume != null) {
       return VolumeDetailView(
+        key: ValueKey(_selectedVolume!),
         volumeName: _selectedVolume!,
         apiClient: widget.apiClient,
         onBack: _closeVolume,

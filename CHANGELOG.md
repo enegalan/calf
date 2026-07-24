@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-07-24
+
+### Security
+
+- **Local API bind** — the daemon listens on `127.0.0.1:8765` by default (not all interfaces); CORS and WebSocket origins accept only localhost. Existing configs that still used `:8765` or `0.0.0.0:8765` are migrated to loopback on load.
+- **Volume export paths** — local-file exports reject absolute or `..` file names and require an absolute destination folder under the chosen path.
+- **Volume file browser** — paths with `.` or `..` segments are rejected so browsing cannot leave the volume.
+
 ### Added
 
 - **Volume containers in use** — Container names in a volume's Container in-use tab open that container's detail.
@@ -30,9 +38,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Build logs steps** — Expandable log steps show a chevron (down when collapsed, up when expanded).
 - **Build timing charts** — Info tab timing matches Docker Desktop: titled pies in one row (2×2 when narrow), one shared legend, and a start/end/steps summary underneath.
 - **Theme switching** — light/dark transitions use one shared timing; borders and surfaces no longer lag behind the rest of the UI.
+- **Theme settings** — Light, Dark, and System use preview cards instead of plain radios.
+- **Mounts tab** — mount rows open bind paths in the system file manager and copy the host path.
+- **UI toolkit** — the app uses Material Design 3 for theme and controls; the previous shadcn-based UI kit is gone. Icons use Lucide.
+- **Settings** — Close control to leave Settings; clearer selected sidebar color; sidebar collapse control stays lightly visible.
+- **Resource lists** — shared search, loading spinner, centered empty states, and consistent Remove actions across Images, Volumes, Networks, and Builds.
+- **What's New** — shows GitHub release notes for the installed version as rendered markdown; notes are cached so the dialog opens quickly after the first load (with a link to Releases when offline).
+- **About** — logo-first layout with GitHub, Docs, and Report issue links.
+- **Status bar** — tapping RAM/CPU/Disk opens Settings.
 
 ### Fixed
 
+- **Troubleshoot Restart Calf** — in development mode (external daemon), Restart explains that the backend must be restarted manually instead of claiming the app restarted.
+- **Deep links** — opening a container or image from another screen waits until the list has a match instead of dropping the pending target.
+- **Daemon crash loop** — restart attempts only reset after the daemon stays up for 30 seconds, so a crashing binary hits the restart limit.
+- **Docker Hub Sign in** — brief network errors during browser sign-in keep polling instead of closing the dialog; Cancel ends the server session.
+- **Restart labels** — Troubleshoot Restart Calf restarts the daemon; tray Restart Engine only restarts the container engine.
+- **Status when daemon dies** — silent list polls and the status bar show an error after repeated failures instead of a stale “running” snapshot.
+- **Published port label** — container detail shows the real host:container mapping.
+- **Update check** — skipped when the app version is unavailable so it does not report a fake update.
+- **Compose group detail** — closes when every container in the group is gone.
+- **Build history memory** — in-memory build history is capped like on-disk history.
+- **Builds on quit** — in-flight builds cancel when the daemon shuts down.
+- **Docker Hub login hang** — OAuth HTTP calls use a timeout; missing `expires_in` defaults to 15 minutes.
+- **Engine start errors** — failed Start returns a clear message without leaking internal paths.
 - **Build timing chart tooltip** — hovering the Info tab timing chart no longer crashes the UI.
 - **Build logs toolbar** — switching to plain-text view hides expand/collapse without shifting the other toolbar buttons.
 - **Build logs step bars** — per-step duration bars on the right are removed; the fixed timeline ruler covers that role.
@@ -57,20 +86,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Registry sign-in errors** — Docker Hub status, sign-in, and sign-out failures show a message in the UI.
 - **Dark theme errors** — error text is readable on dark backgrounds.
 - **Dialog borders** — confirmation and other modals use the same outlined edge as About, so they stay visible on light and dark surfaces.
-
-### Changed
-
-- **Theme settings** — Light, Dark, and System use preview cards instead of plain radios.
-- **Mounts tab** — mount rows open bind paths in the system file manager and copy the host path.
-- **UI toolkit** — the app uses Material Design 3 for theme and controls; the previous shadcn-based UI kit is gone. Icons use Lucide.
-- **Settings** — Close control to leave Settings; clearer selected sidebar color; sidebar collapse control stays lightly visible.
-- **Resource lists** — shared search, loading spinner, centered empty states, and consistent Remove actions across Images, Volumes, Networks, and Builds.
-- **What's New** — shows GitHub release notes for the installed version as rendered markdown; notes are cached so the dialog opens quickly after the first load (with a link to Releases when offline).
-- **About** — logo-first layout with GitHub, Docs, and Report issue links.
-- **Status bar** — tapping RAM/CPU/Disk opens Settings.
-
-### Fixed
-
 - **Bind mounts** — the same mount no longer appears twice when the engine reports it in both Mounts and HostConfig.Binds.
 
 ## [0.9.8] - 2026-07-23

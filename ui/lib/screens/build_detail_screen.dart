@@ -1667,6 +1667,9 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
 
   /// Maps the current scroll window onto the build timeline as 0–1 fractions.
   void _syncViewport() {
+    if (!mounted) {
+      return;
+    }
     if (!_scrollController.hasClients) {
       return;
     }

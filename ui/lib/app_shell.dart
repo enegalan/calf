@@ -39,11 +39,22 @@ class AppShell extends StatefulWidget {
     CalfClient? apiClient,
     this.themeMode = ThemeMode.system,
     this.onThemeModeChanged,
+    this.onRestartDaemon,
+    this.usesExternalDaemon = false,
   }) : apiClient = apiClient ?? ApiClient();
 
   final CalfClient apiClient;
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
+
+  /// Restarts the embedded calf-daemon process itself (full Calf restart),
+  /// as opposed to [_AppShellState._restartEngine] which only stops/starts
+  /// the container engine inside an already-running daemon.
+  final Future<void> Function()? onRestartDaemon;
+
+  /// True when the UI connects to a separately started daemon (`make
+  /// dev-backend`) instead of spawning `calf-daemon` itself.
+  final bool usesExternalDaemon;
 
   /// Creates the state object for [AppShell].
   @override
@@ -61,6 +72,7 @@ class _AppShellState extends State<AppShell> {
   bool _registryBrowserLoginPending = false;
   String _appVersion = '';
   DaemonStatus? _daemonStatus;
+  int _daemonStatusFailureCount = 0;
   bool _engineActionBusy = false;
   _EnginePendingAction _enginePending = _EnginePendingAction.none;
   Timer? _statusPollTimer;
@@ -100,6 +112,7 @@ class _AppShellState extends State<AppShell> {
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onCheckForUpdates: () => checkForUpdates(force: true),
+          onRestartEngine: _restartEngine,
           snapshot: _trayMenuSnapshot,
         ),
       );
@@ -121,6 +134,7 @@ class _AppShellState extends State<AppShell> {
     try {
       final status = await widget.apiClient.fetchStatus();
       if (!mounted) return;
+      _daemonStatusFailureCount = 0;
       setState(() {
         _daemonStatus = status;
         if (status.version.isNotEmpty) {
@@ -129,10 +143,22 @@ class _AppShellState extends State<AppShell> {
       });
     } on ApiException catch (error) {
       debugPrint('Failed to poll daemon status: ${error.message}');
+      _markDaemonStatusFailure();
     } on TimeoutException catch (error) {
       debugPrint('Timed out polling daemon status: $error');
+      _markDaemonStatusFailure();
     } on FormatException catch (error) {
       debugPrint('Failed to parse daemon status: $error');
+      _markDaemonStatusFailure();
+    }
+  }
+
+  /// Clears the stale daemon status after repeated consecutive polling
+  /// failures, so the bottom bar stops showing an outdated "running" state.
+  void _markDaemonStatusFailure() {
+    _daemonStatusFailureCount++;
+    if (_daemonStatusFailureCount >= 3 && mounted && _daemonStatus != null) {
+      setState(() => _daemonStatus = null);
     }
   }
 
@@ -623,8 +649,9 @@ class _AppShellState extends State<AppShell> {
                           ? TroubleshootScreen(
                               apiClient: widget.apiClient,
                               onClose: closeSettings,
-                              onRestart: _restartEngine,
+                              onRestart: widget.onRestartDaemon ?? _restartEngine,
                               onQuit: CalfTrayStatus.quitApp,
+                              usesExternalDaemon: widget.usesExternalDaemon,
                             )
                           : _showSettings
                           ? SettingsScreen(

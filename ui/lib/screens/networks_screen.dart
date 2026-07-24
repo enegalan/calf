@@ -30,6 +30,7 @@ class _NetworksScreenState extends State<NetworksScreen>
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedNetwork;
@@ -77,10 +78,12 @@ class _NetworksScreenState extends State<NetworksScreen>
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _networks = networks;
         _loading = false;
+        _error = null;
       });
     } catch (error) {
       if (!mounted) {
@@ -91,6 +94,11 @@ class _NetworksScreenState extends State<NetworksScreen>
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;

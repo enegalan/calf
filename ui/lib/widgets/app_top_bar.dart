@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -516,7 +520,11 @@ class _RegistryLoginDialog extends StatefulWidget {
 }
 
 class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
+  /// Consecutive transient polling failures allowed before giving up.
+  static const _maxConsecutiveFailures = 5;
+
   String? _error;
+  int _consecutiveFailures = 0;
 
   /// Starts polling for login completion; the browser opens only via the button.
   @override
@@ -525,10 +533,17 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     _poll();
   }
 
-  /// Polls the backend until browser login succeeds or fails.
+  /// Polls the backend until browser login succeeds, fails, or is cancelled.
+  ///
+  /// Transient network/timeout errors are shown inline and do not stop
+  /// polling; only an explicit failed status, a user cancellation, or
+  /// [_maxConsecutiveFailures] consecutive transient errors end the dialog.
   Future<void> _poll() async {
     while (mounted) {
       await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) {
+        return;
+      }
 
       try {
         final status = await widget.apiClient.fetchRegistryBrowserLogin(
@@ -537,6 +552,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         if (!mounted) {
           return;
         }
+        _consecutiveFailures = 0;
 
         if (status.isComplete) {
           widget.onComplete(status.username);
@@ -554,21 +570,65 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
           }
           return;
         }
-      } catch (error) {
-        if (!mounted) {
+
+        if (_error != null) {
+          setState(() => _error = null);
+        }
+      } on TimeoutException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
           return;
         }
-        setState(() => _error = error.toString());
-        widget.onFailed(error.toString());
-        Navigator.of(context).pop();
-        return;
+      } on SocketException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
+          return;
+        }
+      } on http.ClientException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
+          return;
+        }
+      } on ApiException catch (error) {
+        if (!_recordTransientFailure(error.message)) {
+          return;
+        }
       }
     }
+  }
+
+  /// Records a transient polling failure as an inline, non-blocking error.
+  ///
+  /// Returns false once [_maxConsecutiveFailures] is reached, in which case
+  /// the dialog reports failure and closes; otherwise polling continues.
+  bool _recordTransientFailure(String message) {
+    if (!mounted) {
+      return false;
+    }
+
+    _consecutiveFailures++;
+    if (_consecutiveFailures >= _maxConsecutiveFailures) {
+      widget.onFailed('Could not reach Calf: $message');
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    setState(() => _error = 'Connection issue, retrying… ($message)');
+    return true;
   }
 
   /// Reopens the Docker Hub verification page in the browser.
   Future<void> _openLoginPage() async {
     await openExternalUrl(widget.start.verificationUrl);
+  }
+
+  /// Cancels the pending login session on the backend and closes the dialog.
+  Future<void> _cancel() async {
+    try {
+      await widget.apiClient.cancelRegistryBrowserLogin(widget.start.sessionId);
+    } on ApiException catch (_) {
+      // Best-effort cancellation; the dialog closes regardless.
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
 
   /// Copies the device login confirmation code to the clipboard.
@@ -702,7 +762,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
       ),
       actions: [
         CalfButton.ghost(
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _cancel,
           child: const Text('Cancel'),
         ),
       ],

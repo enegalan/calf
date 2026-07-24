@@ -56,15 +56,16 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 		setter.SetOwnerContext(lifecycleCtx)
 	}
 	srv := &Core{
-		Cfg:             cfg,
-		Logger:          logger,
-		Runtime:         rt,
-		StartTime:       time.Now(),
-		migrateStatus:   migration.IdleStatus(),
-		logBroadcaster:  newLogBroadcaster(logger),
-		statsHistory:    newStatsHistory(constants.StatsHistoryRetention),
-		lifecycleCtx:    lifecycleCtx,
-		lifecycleCancel: lifecycleCancel,
+		Cfg:                   cfg,
+		Logger:                logger,
+		Runtime:               rt,
+		StartTime:             time.Now(),
+		migrateStatus:         migration.IdleStatus(),
+		registryLoginSessions: &sync.Map{},
+		logBroadcaster:        newLogBroadcaster(logger),
+		statsHistory:          newStatsHistory(constants.StatsHistoryRetention),
+		lifecycleCtx:          lifecycleCtx,
+		lifecycleCancel:       lifecycleCancel,
 	}
 	srv.exportScheduler = newExportScheduler(srv, logger)
 	srv.exportScheduler.Start()

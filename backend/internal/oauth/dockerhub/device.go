@@ -20,6 +20,14 @@ import (
 // ErrDeviceLoginTimeout is returned when the device login times out.
 var ErrDeviceLoginTimeout = errors.New("timed out waiting for browser login")
 
+// defaultHTTPTimeout bounds each individual OAuth HTTP request so a stalled connection
+// cannot hang a device-login session indefinitely; long-running waits use request contexts instead.
+const defaultHTTPTimeout = 30 * time.Second
+
+// defaultExpiresInSeconds is used when the device-code response omits (or returns a
+// non-positive) expires_in, matching the fallback pattern used for Interval.
+const defaultExpiresInSeconds = 900
+
 // Client represents a Docker Hub OAuth device-flow client.
 type Client struct {
 	HTTP      *http.Client
@@ -29,9 +37,11 @@ type Client struct {
 }
 
 // NewClient returns a Docker Hub OAuth device-flow client with default endpoints and user agent.
+// It uses a dedicated HTTP client with a bounded timeout rather than http.DefaultClient, which
+// has no timeout and could hang a request forever on a stalled connection.
 func NewClient() *Client {
 	return &Client{
-		HTTP:      http.DefaultClient,
+		HTTP:      &http.Client{Timeout: defaultHTTPTimeout},
 		UserAgent: fmt.Sprintf("calf:%s:%s-%s", version.Version, runtime.GOOS, runtime.GOARCH),
 		TenantURL: constants.DockerHubOAuthTenantURL,
 		HubURL:    constants.DockerHubOAuthAudience,
@@ -126,7 +136,12 @@ func (c *Client) WaitForDeviceToken(ctx context.Context, state DeviceCode) (stri
 		interval = 5 * time.Second
 	}
 
-	timeout := time.NewTimer(time.Duration(state.ExpiresIn) * time.Second)
+	expiresIn := state.ExpiresIn
+	if expiresIn <= 0 {
+		expiresIn = defaultExpiresInSeconds
+	}
+
+	timeout := time.NewTimer(time.Duration(expiresIn) * time.Second)
 	defer timeout.Stop()
 
 	ticker := time.NewTimer(interval)

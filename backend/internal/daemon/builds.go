@@ -69,7 +69,7 @@ func (s *Core) UpdateBuildSourcePaths(buildID, contextPath, dockerfile string) {
 // RunBuildJob executes a build in the background and updates the in-memory build record on completion.
 func (s *Core) RunBuildJob(buildID, contextPath, tag, dockerfile, platform string) {
 	started := time.Now()
-	ctx, cancel := context.WithTimeout(context.Background(), constants.BuildJobTimeout)
+	ctx, cancel := context.WithTimeout(s.Lifecycle(), constants.BuildJobTimeout)
 	defer cancel()
 
 	result, err := s.Runtime.RunBuild(ctx, contextPath, tag, dockerfile, platform)
@@ -368,9 +368,15 @@ func (s *Core) GetBuild(id string) (runtime.Build, bool) {
 	return runtime.Build{}, false
 }
 
-// persistBuildsLocked saves the current build list and sequence counter; caller must hold buildsMu.
+// persistBuildsLocked saves the current build list and sequence counter, then trims the
+// in-memory slice to MaxBuilds so it does not grow unbounded beyond what is kept on disk.
+// Caller must hold BuildsMu.
 func (s *Core) persistBuildsLocked() error {
-	return buildstore.Save(s.Builds, s.BuildSeq)
+	err := buildstore.Save(s.Builds, s.BuildSeq)
+	if len(s.Builds) > constants.MaxBuilds {
+		s.Builds = s.Builds[:constants.MaxBuilds]
+	}
+	return err
 }
 
 // loadBuilds restores build history from disk into the server on startup.

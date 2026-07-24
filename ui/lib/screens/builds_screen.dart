@@ -29,6 +29,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   String? _selectedBuildId;
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -74,10 +75,12 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _builds = builds;
         _loading = false;
+        _error = null;
       });
     } catch (error) {
       if (!mounted) {
@@ -88,6 +91,11 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;

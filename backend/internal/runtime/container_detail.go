@@ -542,6 +542,8 @@ func InspectSection(raw json.RawMessage, section string) (json.RawMessage, error
 }
 
 // isValidContainerPath reports whether a container filesystem path is safe to use.
+// Rejects "." and ".." path segments so callers cannot escape the intended root
+// (container filesystem root for exec/tar listing, or a volume's mountpoint).
 func isValidContainerPath(value string) bool {
 	if value == "" {
 		return true
@@ -553,6 +555,12 @@ func isValidContainerPath(value string) bool {
 
 	for _, r := range value {
 		if unicode.IsControl(r) {
+			return false
+		}
+	}
+
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "." || segment == ".." {
 			return false
 		}
 	}

@@ -4,7 +4,7 @@ import "time"
 
 // Server defaults control the HTTP API listen address and polling behavior.
 const (
-	DefaultListenAddr     = ":8765"
+	DefaultListenAddr     = "127.0.0.1:8765"
 	DefaultPollIntervalMS = 3000
 	LogTailLineCount      = 500
 )

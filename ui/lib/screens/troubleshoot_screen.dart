@@ -21,6 +21,7 @@ class TroubleshootScreen extends StatefulWidget {
     required this.onRestart,
     required this.onQuit,
     this.onGiveFeedback,
+    this.usesExternalDaemon = false,
   });
 
   final CalfClient apiClient;
@@ -28,6 +29,10 @@ class TroubleshootScreen extends StatefulWidget {
   final Future<void> Function() onRestart;
   final Future<void> Function() onQuit;
   final VoidCallback? onGiveFeedback;
+
+  /// True when Restart Calf cannot restart the daemon because it runs outside
+  /// this process (`make dev-backend` / `CALF_EXTERNAL_DAEMON`).
+  final bool usesExternalDaemon;
 
   /// Creates the state object for [TroubleshootScreen].
   @override
@@ -72,6 +77,12 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       }
       setState(() => _statusMessage = null);
       showCalfSnackBar(context, 'Action timed out');
+    } on StateError catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _statusMessage = error.message);
+      showCalfSnackBar(context, error.message);
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -80,7 +91,17 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
   }
 
   /// Restarts Calf while preserving containers and settings.
+  ///
+  /// In external-daemon dev mode the UI does not own the daemon process, so
+  /// this explains how to restart it instead of claiming success.
   Future<void> _restart() async {
+    if (widget.usesExternalDaemon) {
+      const message =
+          'Development mode is active. Restart the backend manually.';
+      setState(() => _statusMessage = message);
+      showCalfSnackBar(context, message);
+      return;
+    }
     await _runAction(
       'Restarting Calf…',
       widget.onRestart,

@@ -75,6 +75,7 @@ calf/
 │   │   ├── httpkit/
 │   │   │   ├── response.go                    JSON response helpers
 │   │   │   ├── json.go                        Request JSON decode helper
+│   │   │   ├── origin.go                      Localhost Origin/host checks for CORS and WebSocket
 │   │   │   ├── route.go                       HTTP method and path routing helpers
 │   │   │   ├── runtime_errors.go              Runtime error to HTTP status mapping
 │   │   │   ├── ws_writer.go                   Mutex-guarded WebSocket writer
@@ -261,18 +262,19 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
 
 - `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`.
-- `json.go` — `JSONDecode`.
+- `json.go` — `JSONDecode` with a max request body size.
+- `origin.go` — `IsLocalOrigin` / `IsLocalHost` for CORS and WebSocket origin checks.
 - `route.go` — `ServeMethods`, `ServeRoutes`, `ServePrefix`, `PathParts`.
 - `runtime_errors.go` — maps runtime errors to HTTP status codes.
 - `ws_writer.go` — mutex-guarded WebSocket writer.
-- `websocket.go` — WebSocket upgrader for log/exec streams.
+- `websocket.go` — WebSocket upgrader for log/exec streams (local Origin only).
 - `runtime_ready.go` — `EnsureRuntimeOrFail` HTTP guard before registry operations.
 
 ### `internal/middleware/`
 HTTP middleware stack; one file per middleware, registered from `main` via `Gateway.WithMiddleware`.
 
 - `middleware.go` — `Middleware` type and `Chain`.
-- `cors.go` — `CORS`.
+- `cors.go` — `CORS` (reflects localhost Origins only).
 - `logging.go` — `Logging`.
 - `recovery.go` — `Recovery`.
 
