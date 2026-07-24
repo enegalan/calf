@@ -138,11 +138,7 @@ class _LogsPanelState extends State<LogsPanel>
     if (!mounted) {
       return;
     }
-    showCalfSnackBar(
-      context,
-      'Copied',
-      duration: const Duration(seconds: 2),
-    );
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Builds the single-container log viewer UI.
@@ -266,11 +262,7 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
     if (!mounted) {
       return;
     }
-    showCalfSnackBar(
-      context,
-      'Copied',
-      duration: const Duration(seconds: 2),
-    );
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Returns the global line index offset for [blockIndex].
@@ -1453,11 +1445,7 @@ class _ExecPanelState extends State<ExecPanel> {
     if (!mounted) {
       return;
     }
-    showCalfSnackBar(
-      context,
-      'Copied',
-      duration: const Duration(seconds: 2),
-    );
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Returns all non-empty terminal buffer text for clipboard copy.

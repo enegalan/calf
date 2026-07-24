@@ -637,11 +637,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     if (!mounted) {
       return;
     }
-    showCalfSnackBar(
-      context,
-      'Copied',
-      duration: const Duration(seconds: 2),
-    );
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Builds the browser login waiting dialog with confirmation code.
@@ -761,10 +757,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         ),
       ),
       actions: [
-        CalfButton.ghost(
-          onPressed: _cancel,
-          child: const Text('Cancel'),
-        ),
+        CalfButton.ghost(onPressed: _cancel, child: const Text('Cancel')),
       ],
     );
   }

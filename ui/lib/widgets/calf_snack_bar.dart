@@ -357,8 +357,9 @@ class _CalfToastCardState extends State<_CalfToastCard>
                       minWidth: 36,
                       minHeight: 36,
                     ),
-                    onPressed:
-                        widget.dismissing ? null : widget.onRequestDismiss,
+                    onPressed: widget.dismissing
+                        ? null
+                        : widget.onRequestDismiss,
                     icon: Icon(
                       LucideIcons.x,
                       size: 16,

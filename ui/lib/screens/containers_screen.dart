@@ -212,10 +212,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       widget.apiClient.removeContainer,
     );
     if (ok && mounted) {
-      showCalfSnackBar(
-        context,
-        'Deleted ${containers.length} containers',
-      );
+      showCalfSnackBar(context, 'Deleted ${containers.length} containers');
     }
   }
 

@@ -252,11 +252,7 @@ class CalfButtonGroup extends StatelessWidget {
           children: [
             for (var index = 0; index < actions.length; index++) ...[
               if (index > 0)
-                Container(
-                  width: 1,
-                  height: size,
-                  color: borderColor,
-                ),
+                Container(width: 1, height: size, color: borderColor),
               _CalfButtonGroupSegment(
                 action: actions[index],
                 width: segmentWidth,

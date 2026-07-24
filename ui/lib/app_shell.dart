@@ -540,11 +540,7 @@ class _AppShellState extends State<AppShell> {
     final theme = Theme.of(context);
     const navItems = [
       (label: 'Containers', icon: LucideIcons.box, svgAsset: null),
-      (
-        label: 'Images',
-        icon: null,
-        svgAsset: buildPlaceholderIconAsset,
-      ),
+      (label: 'Images', icon: null, svgAsset: buildPlaceholderIconAsset),
       (label: 'Volumes', icon: LucideIcons.hardDrive, svgAsset: null),
       (label: 'Networks', icon: LucideIcons.network, svgAsset: null),
       (label: 'Builds', icon: LucideIcons.wrench, svgAsset: null),
@@ -649,7 +645,8 @@ class _AppShellState extends State<AppShell> {
                           ? TroubleshootScreen(
                               apiClient: widget.apiClient,
                               onClose: closeSettings,
-                              onRestart: widget.onRestartDaemon ?? _restartEngine,
+                              onRestart:
+                                  widget.onRestartDaemon ?? _restartEngine,
                               onQuit: CalfTrayStatus.quitApp,
                               usesExternalDaemon: widget.usesExternalDaemon,
                             )
@@ -804,9 +801,7 @@ class _AppShellState extends State<AppShell> {
       onToggleSidebar: toggleSidebar,
       onReportIssue: () => openExternalUrl(calfReportIssueUrl),
       onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
-      child: Scaffold(
-        body: CalfToastLayer(child: shell),
-      ),
+      child: Scaffold(body: CalfToastLayer(child: shell)),
     );
   }
 }

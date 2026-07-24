@@ -255,11 +255,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     if (!mounted) {
       return;
     }
-    showCalfSnackBar(
-      context,
-      'Copied',
-      duration: const Duration(seconds: 2),
-    );
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Opens the Docker Hub page for a dependency image reference.
@@ -845,9 +841,7 @@ class _TimingCharts extends StatelessWidget {
             if (wide) {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final chart in charts) Expanded(child: chart),
-                ],
+                children: [for (final chart in charts) Expanded(child: chart)],
               );
             }
             return Column(
@@ -909,16 +903,8 @@ class _TimingCharts extends StatelessWidget {
         timing.localTransfersMs.toDouble(),
         _localTransfers,
       ),
-      _TimingSlice(
-        'Image pulls',
-        timing.imagePullsMs.toDouble(),
-        _imagePulls,
-      ),
-      _TimingSlice(
-        'Executions',
-        timing.executionsMs.toDouble(),
-        _executions,
-      ),
+      _TimingSlice('Image pulls', timing.imagePullsMs.toDouble(), _imagePulls),
+      _TimingSlice('Executions', timing.executionsMs.toDouble(), _executions),
       _TimingSlice(
         'File operations',
         timing.fileOperationsMs.toDouble(),
@@ -1545,11 +1531,9 @@ class _LogsTab extends StatelessWidget {
     final hasExpandableSteps = expandableIndexes.isNotEmpty;
     final showExpandControls = !plainLogs && hasExpandableSteps;
     final allExpanded =
-        showExpandControls &&
-        expandableIndexes.every(expandedSteps.contains);
+        showExpandControls && expandableIndexes.every(expandedSteps.contains);
     final anyExpanded =
-        showExpandControls &&
-        expandableIndexes.any(expandedSteps.contains);
+        showExpandControls && expandableIndexes.any(expandedSteps.contains);
 
     return Column(
       children: [
@@ -1588,9 +1572,7 @@ class _LogsTab extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.2,
-        ),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
@@ -1774,8 +1756,8 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                                 'CACHED',
                                 style: widget.theme.textTheme.bodySmall!
                                     .copyWith(
-                                  color: widget.theme.colorScheme.primary,
-                                ),
+                                      color: widget.theme.colorScheme.primary,
+                                    ),
                               ),
                             ),
                           const SizedBox(width: 8),
@@ -1792,7 +1774,10 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: widget.theme.colorScheme.surfaceContainerHighest
+                          color: widget
+                              .theme
+                              .colorScheme
+                              .surfaceContainerHighest
                               .withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
@@ -1836,7 +1821,9 @@ class _BuildLogsRuler extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalSeconds = totalMs / 1000.0;
     final interval = _rulerTickIntervalSeconds(totalSeconds);
-    final tickColor = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.45);
+    final tickColor = theme.colorScheme.onSurfaceVariant.withValues(
+      alpha: 0.45,
+    );
     final labelStyle = theme.textTheme.bodySmall!.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
       fontSize: 11,
@@ -1858,7 +1845,11 @@ class _BuildLogsRuler extends StatelessWidget {
           final markerWidth = (markerRight - markerLeft).clamp(4.0, width);
 
           final ticks = <Widget>[];
-          for (var t = interval; t < totalSeconds - interval * 0.25; t += interval) {
+          for (
+            var t = interval;
+            t < totalSeconds - interval * 0.25;
+            t += interval
+          ) {
             final x = (t / totalSeconds) * width;
             ticks.add(
               Positioned(

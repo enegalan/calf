@@ -516,8 +516,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         final confirmed = await confirmDialog(
                           context,
                           title: 'Delete container',
-                          description:
-                              'Delete "$name"? This cannot be undone.',
+                          description: 'Delete "$name"? This cannot be undone.',
                           confirmLabel: 'Delete',
                           destructive: true,
                         );
@@ -525,16 +524,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           return;
                         }
                         final ok = await _runAction(
-                          () =>
-                              widget.apiClient.removeContainer(_container.id),
+                          () => widget.apiClient.removeContainer(_container.id),
                         );
                         if (!ok || !context.mounted) {
                           return;
                         }
-                        showCalfSnackBar(
-                          context,
-                          'Deleted container "$name"',
-                        );
+                        showCalfSnackBar(context, 'Deleted container "$name"');
                         widget.onBack();
                       },
                       child: Icon(
