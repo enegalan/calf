@@ -514,9 +514,6 @@ class _InfoTab extends StatelessWidget {
           link: true,
         ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
-        _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
-
-        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
 

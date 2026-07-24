@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Build source details** — the Info tab no longer repeats the Dockerfile path under both File name and Dockerfile.
 - **Compose group containers** — each container shows a status dot (with tooltip), links to its image detail, and opens published ports in the browser when clicked.
 - **Containers list** — each container links to its image detail; published ports show as `localhost` links (one plus a `(N)` expand control when there are several), each opening in the browser.
 - **Docker Hub Sign in** — Sign in no longer fails with "method not allowed".
