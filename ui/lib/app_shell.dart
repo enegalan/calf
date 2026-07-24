@@ -515,50 +515,54 @@ class _AppShellState extends State<AppShell> {
                     onEnter: (_) => setState(() => _isHoveringSidebar = true),
                     onExit: (_) => setState(() => _isHoveringSidebar = false),
                     child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeInOut,
+                      duration: CalfTheme.animationDuration,
+                      curve: CalfTheme.animationCurve,
                       width: _isCollapsed ? 72 : 220,
-                      decoration: BoxDecoration(
-                        border: Border(
-                          right: BorderSide(
-                            color: theme.colorScheme.outlineVariant,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
                           ),
                         ),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isCurrentlyCollapsed =
-                              constraints.maxWidth < 150;
-                          return Column(
-                            crossAxisAlignment: isCurrentlyCollapsed
-                                ? CrossAxisAlignment.center
-                                : CrossAxisAlignment.start,
-                            children: [
-                              for (
-                                var index = 0;
-                                index < navItems.length;
-                                index++
-                              ) ...[
-                                if (index > 0) const SizedBox(height: 8),
-                                _NavItem(
-                                  label: navItems[index].label,
-                                  icon: navItems[index].icon,
-                                  selected:
-                                      !_showSettings &&
-                                      !_showTroubleshoot &&
-                                      _selectedIndex == index,
-                                  collapsed: isCurrentlyCollapsed,
-                                  onTap: () => setState(() {
-                                    _selectedIndex = index;
-                                    _showSettings = false;
-                                    _showTroubleshoot = false;
-                                  }),
-                                ),
-                              ],
-                            ],
-                          );
-                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isCurrentlyCollapsed =
+                                  constraints.maxWidth < 150;
+                              return Column(
+                                crossAxisAlignment: isCurrentlyCollapsed
+                                    ? CrossAxisAlignment.center
+                                    : CrossAxisAlignment.start,
+                                children: [
+                                  for (
+                                    var index = 0;
+                                    index < navItems.length;
+                                    index++
+                                  ) ...[
+                                    if (index > 0) const SizedBox(height: 8),
+                                    _NavItem(
+                                      label: navItems[index].label,
+                                      icon: navItems[index].icon,
+                                      selected:
+                                          !_showSettings &&
+                                          !_showTroubleshoot &&
+                                          _selectedIndex == index,
+                                      collapsed: isCurrentlyCollapsed,
+                                      onTap: () => setState(() {
+                                        _selectedIndex = index;
+                                        _showSettings = false;
+                                        _showTroubleshoot = false;
+                                      }),
+                                    ),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -600,8 +604,8 @@ class _AppShellState extends State<AppShell> {
                 ],
               ),
               AnimatedPositioned(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
+                duration: CalfTheme.animationDuration,
+                curve: CalfTheme.animationCurve,
                 top: 16,
                 left: (_isCollapsed ? 72 : 220) - 18,
                 child: MouseRegion(
@@ -615,7 +619,8 @@ class _AppShellState extends State<AppShell> {
                       opacity: (_isHoveringSidebar || _isHoveringToggle)
                           ? 1.0
                           : 0.35,
-                      duration: const Duration(milliseconds: 200),
+                      duration: CalfTheme.animationDuration,
+                      curve: CalfTheme.animationCurve,
                       child: IconButton(
                         tooltip: _isCollapsed
                             ? 'Expand sidebar'
@@ -632,6 +637,8 @@ class _AppShellState extends State<AppShell> {
                           color: theme.colorScheme.onSurface,
                         ),
                         style: IconButton.styleFrom(
+                          animationDuration:
+                              CalfTheme.materialAnimationDuration,
                           backgroundColor: theme.colorScheme.surface,
                           foregroundColor: theme.colorScheme.onSurface,
                           side: BorderSide(
@@ -1603,6 +1610,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         : theme.colorScheme.onSurface;
 
     return Material(
+      animationDuration: CalfTheme.materialAnimationDuration,
       color: selected
           ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.45)
           : theme.colorScheme.surface,
@@ -1610,9 +1618,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: InkWell(
         onTap: enabled ? () => widget.onThemeModeChanged!(mode) : null,
         borderRadius: CalfTheme.radius,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
+        child: Container(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
           decoration: BoxDecoration(
             borderRadius: CalfTheme.radius,

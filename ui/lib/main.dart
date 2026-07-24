@@ -313,9 +313,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       themeMode: _themeMode,
       theme: CalfTheme.light,
       darkTheme: CalfTheme.dark,
+      themeAnimationDuration: CalfTheme.animationDuration,
+      themeAnimationCurve: CalfTheme.animationCurve,
       builder: (context, child) {
         final theme = Theme.of(context);
         return Material(
+          animationDuration: CalfTheme.materialAnimationDuration,
           color: theme.colorScheme.surface,
           child: DefaultTextStyle(
             style: theme.textTheme.bodyMedium!.copyWith(

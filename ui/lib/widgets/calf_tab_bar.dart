@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:ui/theme/calf_theme.dart';
+
 class CalfTabBar extends StatelessWidget {
   /// Creates a horizontal tab bar for [labels] with [selectedIndex].
   const CalfTabBar({
@@ -71,6 +73,7 @@ class _CalfTabButton extends StatelessWidget {
       selected: selected,
       label: label,
       child: Material(
+        animationDuration: CalfTheme.materialAnimationDuration,
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,

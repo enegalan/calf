@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:ui/theme/calf_theme.dart';
+
 enum _CalfButtonVariant { primary, outline, ghost, destructive }
 
 class CalfButton extends StatelessWidget {
@@ -127,6 +129,7 @@ class CalfButton extends StatelessWidget {
     switch (_variant) {
       case _CalfButtonVariant.primary:
         return FilledButton.styleFrom(
+          animationDuration: CalfTheme.materialAnimationDuration,
           minimumSize: minSize,
           maximumSize: circular ? minSize : null,
           padding: basePadding,
@@ -145,6 +148,7 @@ class CalfButton extends StatelessWidget {
         );
       case _CalfButtonVariant.outline:
         return OutlinedButton.styleFrom(
+          animationDuration: CalfTheme.materialAnimationDuration,
           minimumSize: minSize,
           maximumSize: circular ? minSize : null,
           padding: basePadding,
@@ -159,6 +163,7 @@ class CalfButton extends StatelessWidget {
         );
       case _CalfButtonVariant.ghost:
         return TextButton.styleFrom(
+          animationDuration: CalfTheme.materialAnimationDuration,
           minimumSize: minSize,
           maximumSize: circular ? minSize : null,
           padding: basePadding,
@@ -172,6 +177,7 @@ class CalfButton extends StatelessWidget {
         );
       case _CalfButtonVariant.destructive:
         return FilledButton.styleFrom(
+          animationDuration: CalfTheme.materialAnimationDuration,
           minimumSize: minSize,
           maximumSize: circular ? minSize : null,
           padding: basePadding,
@@ -227,6 +233,7 @@ class CalfButtonGroup extends StatelessWidget {
     final segmentWidth = size + _segmentPad;
 
     return Material(
+      animationDuration: CalfTheme.materialAnimationDuration,
       color: Colors.transparent,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -287,6 +294,7 @@ class _CalfButtonGroupSegment extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
 
     Widget segment = Material(
+      animationDuration: CalfTheme.materialAnimationDuration,
       color: background,
       child: InkWell(
         onTap: enabled ? action.onPressed : null,

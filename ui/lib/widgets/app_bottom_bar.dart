@@ -85,6 +85,7 @@ class AppBottomBar extends StatelessWidget {
         child: Row(
           children: [
             Material(
+              animationDuration: CalfTheme.materialAnimationDuration,
               color: badgeColor,
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(6),
@@ -141,6 +142,8 @@ class AppBottomBar extends StatelessWidget {
                         enabled: !busy,
                         padding: EdgeInsets.zero,
                         style: IconButton.styleFrom(
+                          animationDuration:
+                              CalfTheme.materialAnimationDuration,
                           foregroundColor: badgeForeground,
                           minimumSize: const Size(28, 28),
                           fixedSize: const Size(28, 28),

@@ -345,6 +345,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         waitDuration: const Duration(milliseconds: 400),
         child: Material(
           key: _buttonKey,
+          animationDuration: CalfTheme.materialAnimationDuration,
           color: theme.colorScheme.surfaceContainerHighest.withValues(
             alpha: 0.7,
           ),

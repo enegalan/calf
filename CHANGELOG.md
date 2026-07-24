@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Start engine from empty lists** — when the runtime is stopped, empty resource lists offer a Start engine button.
 - **Volumes refresh** — the Volumes screen includes a refresh control (lists still load on demand without polling).
 
+### Changed
+
+- **Theme switching** — light/dark transitions use one shared timing; borders and surfaces no longer lag behind the rest of the UI.
+
 ### Fixed
 
 - **Docker Hub Sign in** — Sign in no longer fails with "method not allowed".

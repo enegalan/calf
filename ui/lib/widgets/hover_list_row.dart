@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:ui/theme/calf_theme.dart';
+
 class HoverListRow extends StatefulWidget {
   /// Creates a list row that highlights on hover and optional selection.
   const HoverListRow({
@@ -37,8 +39,7 @@ class _HoverListRowState extends State<HoverListRow> {
       );
     }
 
-    final content = AnimatedContainer(
-      duration: const Duration(milliseconds: 100),
+    final content = Container(
       color: background,
       padding: widget.padding,
       child: widget.child,
@@ -50,6 +51,7 @@ class _HoverListRowState extends State<HoverListRow> {
       child: widget.onTap == null
           ? content
           : Material(
+              animationDuration: CalfTheme.materialAnimationDuration,
               color: Colors.transparent,
               child: InkWell(
                 onTap: widget.onTap,

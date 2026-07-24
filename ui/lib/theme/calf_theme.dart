@@ -7,6 +7,16 @@ abstract final class CalfTheme {
   /// Default corner radius used across panels and inputs.
   static const BorderRadius radius = BorderRadius.all(Radius.circular(8));
 
+  /// Shared duration for theme switches and layout animations (sidebar width).
+  static const Duration animationDuration = Duration(milliseconds: 200);
+
+  /// Shared curve for theme switches and layout animations.
+  static const Curve animationCurve = Curves.easeInOut;
+
+  /// Materials and buttons must use this so color/border follow [AnimatedTheme]
+  /// without a second, lagged interpolation on top of the theme lerp.
+  static const Duration materialAnimationDuration = Duration.zero;
+
   /// Light Material 3 theme with Calf brand primary.
   static ThemeData get light => _build(Brightness.light);
 
