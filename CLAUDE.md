@@ -211,6 +211,7 @@ calf/
 │   │       ├── resource_list_scaffold.dart     List screen layout helper
 │   │       ├── running_filter_switch.dart      "Show only running" filter switch
 │   │       ├── status_dot.dart                 Running/in-use status indicator dot
+│   │       ├── host_port_links.dart            Collapsible published host-port links
 │   │       └── volume_export_form.dart         Shared volume export form widgets
 │   ├── test/widget_test.dart                  Flutter widget test
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
@@ -404,7 +405,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `poll_interval_mixin.dart` — shared list-screen polling lifecycle.
 - `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
 - `confirm_dialog.dart` — confirm dialog helper.
-- `status_dot.dart`, `volume_export_form.dart` — status indicator and volume export shared UI.
+- `status_dot.dart`, `host_port_links.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, and volume export shared UI.
 
 ## Testing Conventions
 

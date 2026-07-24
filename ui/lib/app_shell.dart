@@ -51,6 +51,7 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   bool _showSettings = false;
   bool _showTroubleshoot = false;
+  String? _pendingImageReference;
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
@@ -444,6 +445,20 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Opens the Images screen detail for [imageReference].
+  void openImageView(String imageReference) {
+    final reference = imageReference.trim();
+    if (reference.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 1;
+      _pendingImageReference = reference;
+      _showSettings = false;
+      _showTroubleshoot = false;
+    });
+  }
+
   /// Toggles sidebar collapsed state and persists the preference.
   void toggleSidebar() {
     setState(() {
@@ -593,8 +608,18 @@ class _AppShellState extends State<AppShell> {
                           : switch (_selectedIndex) {
                               0 => ContainersScreen(
                                 apiClient: widget.apiClient,
+                                onOpenImage: openImageView,
                               ),
-                              1 => ImagesScreen(apiClient: widget.apiClient),
+                              1 => ImagesScreen(
+                                apiClient: widget.apiClient,
+                                initialImageReference: _pendingImageReference,
+                                onInitialImageConsumed: () {
+                                  if (_pendingImageReference == null) {
+                                    return;
+                                  }
+                                  setState(() => _pendingImageReference = null);
+                                },
+                              ),
                               2 => VolumesScreen(apiClient: widget.apiClient),
                               3 => NetworksScreen(apiClient: widget.apiClient),
                               _ => BuildsScreen(apiClient: widget.apiClient),
@@ -618,7 +643,7 @@ class _AppShellState extends State<AppShell> {
                     child: AnimatedOpacity(
                       opacity: (_isHoveringSidebar || _isHoveringToggle)
                           ? 1.0
-                          : 0.35,
+                          : 0.0,
                       duration: CalfTheme.animationDuration,
                       curve: CalfTheme.animationCurve,
                       child: IconButton(

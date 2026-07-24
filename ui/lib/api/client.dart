@@ -218,13 +218,24 @@ class ContainerItem {
     return image.isNotEmpty ? image : name;
   }
 
+  /// Returns published host ports mapped by this container.
+  List<int> get hostPorts {
+    final seen = <int>{};
+    final result = <int>[];
+    for (final match in RegExp(r':(\d+)->').allMatches(ports)) {
+      final port = int.tryParse(match.group(1)!);
+      if (port == null || !seen.add(port)) {
+        continue;
+      }
+      result.add(port);
+    }
+    return result;
+  }
+
   /// Returns the first host port mapped by this container, if any.
   int? get primaryHostPort {
-    final match = RegExp(r':(\d+)->').firstMatch(ports);
-    if (match == null) {
-      return null;
-    }
-    return int.tryParse(match.group(1)!);
+    final ports = hostPorts;
+    return ports.isEmpty ? null : ports.first;
   }
 
   /// Returns the image reference with docker.io prefixes stripped.

@@ -13,9 +13,16 @@ import 'package:ui/theme/calf_theme.dart';
 
 class ImagesScreen extends StatefulWidget {
   /// Creates a [ImagesScreen] widget.
-  const ImagesScreen({super.key, required this.apiClient});
+  const ImagesScreen({
+    super.key,
+    required this.apiClient,
+    this.initialImageReference,
+    this.onInitialImageConsumed,
+  });
 
   final CalfClient apiClient;
+  final String? initialImageReference;
+  final VoidCallback? onInitialImageConsumed;
 
   /// Creates the mutable state for [ImagesScreen].
   @override
@@ -82,6 +89,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
         _loading = false;
         _syncSelectedImage(images);
       });
+      _openInitialImageIfNeeded(images);
     } catch (error) {
       if (!mounted) {
         return;
@@ -115,6 +123,48 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     _layers = null;
     _layersError = null;
     _layersLoading = false;
+  }
+
+  /// Opens [initialImageReference] once images are loaded, if provided.
+  void _openInitialImageIfNeeded(List<ImageItem> images) {
+    final reference = widget.initialImageReference?.trim() ?? '';
+    if (reference.isEmpty) {
+      return;
+    }
+
+    widget.onInitialImageConsumed?.call();
+    final match = _findImageByReference(images, reference);
+    if (match == null) {
+      return;
+    }
+    unawaited(_openImage(match));
+  }
+
+  /// Finds an image matching [reference] by repository:tag, repository, or id.
+  ImageItem? _findImageByReference(List<ImageItem> images, String reference) {
+    final normalized = reference
+        .replaceFirst(RegExp(r'^docker\.io/library/'), '')
+        .replaceFirst(RegExp(r'^docker\.io/'), '');
+
+    for (final image in images) {
+      if (image.reference == reference ||
+          image.reference == normalized ||
+          image.repository == normalized ||
+          image.id == reference ||
+          image.id.startsWith(normalized) ||
+          normalized.startsWith(image.shortId)) {
+        return image;
+      }
+      if (normalized.contains(':')) {
+        final separator = normalized.lastIndexOf(':');
+        final repository = normalized.substring(0, separator);
+        final tag = normalized.substring(separator + 1);
+        if (image.repository == repository && image.tag == tag) {
+          return image;
+        }
+      }
+    }
+    return null;
   }
 
   /// Navigates to or opens the selected image.

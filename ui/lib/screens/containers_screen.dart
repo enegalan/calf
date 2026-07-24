@@ -15,14 +15,20 @@ import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/widgets/status_dot.dart';
+import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/storage/container_groups.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class ContainersScreen extends StatefulWidget {
   /// Creates a [ContainersScreen] widget.
-  const ContainersScreen({super.key, required this.apiClient});
+  const ContainersScreen({
+    super.key,
+    required this.apiClient,
+    this.onOpenImage,
+  });
 
   final CalfClient apiClient;
+  final void Function(String imageReference)? onOpenImage;
 
   /// Creates the mutable state for [ContainersScreen].
   @override
@@ -220,6 +226,17 @@ class _ContainersScreenState extends State<ContainersScreen>
     });
   }
 
+  /// Opens the Images screen detail for [container]'s image.
+  void _openImage(ContainerItem container) {
+    final reference = container.image.isNotEmpty
+        ? container.image
+        : container.subtitle;
+    if (reference.isEmpty) {
+      return;
+    }
+    widget.onOpenImage?.call(reference);
+  }
+
   /// Opens the compose project group detail view.
   void _openComposeGroup(String project, List<ContainerItem> containers) {
     setState(() {
@@ -342,6 +359,8 @@ class _ContainersScreenState extends State<ContainersScreen>
         onBack: _closeComposeGroup,
         onChanged: _loadContainers,
         onOpenContainer: _openContainer,
+        onOpenImage: (imageReference) =>
+            widget.onOpenImage?.call(imageReference),
       );
     }
 
@@ -486,6 +505,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onRemoveAll: () =>
                         unawaited(_confirmRemoveAll(group.value)),
                     onOpen: _openContainer,
+                    onOpenImage: _openImage,
                     onOpenPort: openPort,
                   ),
                 for (final container in layout.standalone)
@@ -502,6 +522,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onRemove: () =>
                         unawaited(_confirmRemoveContainer(container)),
                     onOpen: () => _openContainer(container),
+                    onOpenImage: () => _openImage(container),
                     onOpenPort: openPort,
                   ),
               ],
@@ -536,6 +557,7 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.onStopAll,
     required this.onRemoveAll,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onOpenPort,
   });
 
@@ -552,6 +574,7 @@ class _ComposeGroupTile extends StatelessWidget {
   final VoidCallback onStopAll;
   final VoidCallback onRemoveAll;
   final void Function(ContainerItem container) onOpen;
+  final void Function(ContainerItem container) onOpenImage;
   final void Function(int port) onOpenPort;
 
   /// Builds the widget tree for the current screen state.
@@ -633,6 +656,7 @@ class _ComposeGroupTile extends StatelessWidget {
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
               onOpen: () => onOpen(container),
+              onOpenImage: () => onOpenImage(container),
               onOpenPort: onOpenPort,
             ),
       ],
@@ -650,6 +674,7 @@ class _ContainerTile extends StatelessWidget {
     required this.onStop,
     required this.onRemove,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onOpenPort,
     this.indented = false,
   });
@@ -662,53 +687,56 @@ class _ContainerTile extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onRemove;
   final VoidCallback onOpen;
+  final VoidCallback onOpenImage;
   final void Function(int port) onOpenPort;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final port = container.primaryHostPort;
+    final ports = container.hostPorts;
+    final linkStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.primary,
+    );
 
     return HoverListRow(
       theme: theme,
       selected: selected,
       padding: EdgeInsets.fromLTRB(indented ? 52 : 8, 10, 8, 10),
+      onTap: onOpen,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ContainerStatusIcon(container: container, theme: theme),
           SizedBox(width: indented ? 16 : 12),
           Expanded(
-            child: GestureDetector(
-              onTap: onOpen,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: EdgeInsets.only(left: indented ? 12 : 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      container.displayName,
-                      style: theme.textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      container.subtitle,
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: EdgeInsets.only(left: indented ? 12 : 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    container.displayName,
+                    style: theme.textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  HoverTextLink(
+                    text: container.subtitle,
+                    onTap: onOpenImage,
+                    style: linkStyle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (ports.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    HostPortLinks(
+                      ports: ports,
+                      onOpenPort: onOpenPort,
+                      style: linkStyle,
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          if (port != null)
-            _ActionIcon(
-              icon: LucideIcons.externalLink,
-              tooltip: 'Open localhost:$port',
-              onPressed: () => onOpenPort(port),
-            ),
           if (container.isRunning)
             _ActionIcon(
               icon: LucideIcons.square,

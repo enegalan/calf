@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Compose group containers** — each container shows a status dot (with tooltip), links to its image detail, and opens published ports in the browser when clicked.
+- **Containers list** — each container links to its image detail; published ports show as `localhost` links (one plus a `(N)` expand control when there are several), each opening in the browser.
 - **Docker Hub Sign in** — Sign in no longer fails with "method not allowed".
 - **Docker Hub account** — after browser sign-in, the UI shows your username instead of staying on Sign in (credentials stored in the macOS keychain are detected).
 - **Docker Hub Sign in dialog** — the login page opens only when you click Open login page, not when the dialog appears.

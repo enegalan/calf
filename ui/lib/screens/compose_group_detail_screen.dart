@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
+import 'package:ui/widgets/status_dot.dart';
+import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 const _maxLogLines = 2000;
@@ -33,6 +36,7 @@ class ComposeGroupDetailView extends StatefulWidget {
     required this.onBack,
     required this.onChanged,
     required this.onOpenContainer,
+    required this.onOpenImage,
   });
 
   final String project;
@@ -41,6 +45,7 @@ class ComposeGroupDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onChanged;
   final void Function(ContainerItem container) onOpenContainer;
+  final void Function(String imageReference) onOpenImage;
 
   /// Creates the mutable state for [ComposeGroupDetailView].
   @override
@@ -374,8 +379,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 child: _ComposeContainerList(
                   theme: theme,
                   containers: _containers,
-                  colors: _containerColors,
                   onOpen: widget.onOpenContainer,
+                  onOpenImage: widget.onOpenImage,
                   onStart: (id) =>
                       _runAction(() => widget.apiClient.startContainer(id)),
                   onStop: (id) =>
@@ -430,8 +435,8 @@ class _ComposeContainerList extends StatelessWidget {
   const _ComposeContainerList({
     required this.theme,
     required this.containers,
-    required this.colors,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onStart,
     required this.onStop,
     required this.onRemove,
@@ -441,8 +446,8 @@ class _ComposeContainerList extends StatelessWidget {
 
   final ThemeData theme;
   final List<ContainerItem> containers;
-  final Map<String, Color> colors;
   final void Function(ContainerItem container) onOpen;
+  final void Function(String imageReference) onOpenImage;
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
@@ -465,8 +470,15 @@ class _ComposeContainerList extends StatelessWidget {
             _ComposeContainerRow(
               theme: theme,
               container: container,
-              accentColor: colors[container.id] ?? theme.colorScheme.primary,
               onOpen: () => onOpen(container),
+              onOpenImage: () {
+                final reference = container.image.isNotEmpty
+                    ? container.image
+                    : container.subtitle;
+                if (reference.isNotEmpty) {
+                  onOpenImage(reference);
+                }
+              },
               onStart: () => onStart(container.id),
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
@@ -484,8 +496,8 @@ class _ComposeContainerRow extends StatelessWidget {
   const _ComposeContainerRow({
     required this.theme,
     required this.container,
-    required this.accentColor,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onStart,
     required this.onStop,
     required this.onRemove,
@@ -495,8 +507,8 @@ class _ComposeContainerRow extends StatelessWidget {
 
   final ThemeData theme;
   final ContainerItem container;
-  final Color accentColor;
   final VoidCallback onOpen;
+  final VoidCallback onOpenImage;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onRemove;
@@ -506,73 +518,73 @@ class _ComposeContainerRow extends StatelessWidget {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final port = container.primaryHostPort;
+    final ports = container.hostPorts;
+    final linkStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.primary,
+    );
+    final statusColor = _composeContainerStatusColor(container);
+    final statusTooltip = container.isRunning
+        ? 'Running'
+        : container.state == 'created'
+        ? 'Created'
+        : 'Stopped';
 
     return HoverListRow(
       theme: theme,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      onTap: onOpen,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: 6),
-            decoration: BoxDecoration(
-              color: container.isRunning
-                  ? accentColor
-                  : theme.colorScheme.onSurfaceVariant,
-              shape: BoxShape.circle,
-              border: container.isRunning
-                  ? null
-                  : Border.all(color: theme.colorScheme.onSurfaceVariant),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  LucideIcons.box,
+                  size: 22,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: StatusDot(
+                    active: statusColor != null,
+                    hollow: statusColor == null,
+                    activeColor: statusColor,
+                    tooltip: statusTooltip,
+                  ),
+                ),
+              ],
             ),
           ),
-
-          /// Creates a [_ComposeContainerRow] widget.
-          const SizedBox(width: 10),
-          Icon(
-            LucideIcons.box,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-
-          /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Expanded(
-            child: GestureDetector(
-              onTap: onOpen,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    container.displayName,
-                    style: theme.textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  container.displayName,
+                  style: theme.textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                HoverTextLink(
+                  text: container.subtitle,
+                  onTap: onOpenImage,
+                  style: linkStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (ports.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  HostPortLinks(
+                    ports: ports,
+                    onOpenPort: onOpenPort,
+                    style: linkStyle,
                   ),
-                  Text(
-                    container.subtitle,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (port != null) ...[
-                    /// Creates a [_ComposeContainerRow] widget.
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () => onOpenPort(port),
-                      child: Text(
-                        'localhost:$port',
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
           if (container.isRunning)
@@ -599,6 +611,17 @@ class _ComposeContainerRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Returns the status color for a compose-group container row.
+Color? _composeContainerStatusColor(ContainerItem container) {
+  if (container.isRunning) {
+    return CalfColors.success;
+  }
+  if (container.state == 'created') {
+    return CalfColors.warning;
+  }
+  return null;
 }
 
 class _ComposeActionIcon extends StatelessWidget {
