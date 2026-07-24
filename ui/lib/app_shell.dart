@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path/path.dart' as p;
 
@@ -24,6 +25,7 @@ import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/about_dialog.dart';
 import 'package:ui/widgets/app_bottom_bar.dart';
 import 'package:ui/widgets/app_top_bar.dart';
+import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -483,11 +485,15 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     const navItems = [
-      (label: 'Containers', icon: LucideIcons.box),
-      (label: 'Images', icon: LucideIcons.layers),
-      (label: 'Volumes', icon: LucideIcons.hardDrive),
-      (label: 'Networks', icon: LucideIcons.network),
-      (label: 'Builds', icon: LucideIcons.wrench),
+      (label: 'Containers', icon: LucideIcons.box, svgAsset: null),
+      (
+        label: 'Images',
+        icon: null,
+        svgAsset: buildPlaceholderIconAsset,
+      ),
+      (label: 'Volumes', icon: LucideIcons.hardDrive, svgAsset: null),
+      (label: 'Networks', icon: LucideIcons.network, svgAsset: null),
+      (label: 'Builds', icon: LucideIcons.wrench, svgAsset: null),
     ];
 
     final screenWidth = MediaQuery.of(context).size.width;
@@ -561,6 +567,7 @@ class _AppShellState extends State<AppShell> {
                                     _NavItem(
                                       label: navItems[index].label,
                                       icon: navItems[index].icon,
+                                      svgAsset: navItems[index].svgAsset,
                                       selected:
                                           !_showSettings &&
                                           !_showTroubleshoot &&
@@ -741,14 +748,16 @@ class _NavItem extends StatelessWidget {
   /// Creates a sidebar navigation row.
   const _NavItem({
     required this.label,
-    required this.icon,
     required this.selected,
     required this.onTap,
+    this.icon,
+    this.svgAsset,
     this.collapsed = false,
-  });
+  }) : assert(icon != null || svgAsset != null);
 
   final String label;
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAsset;
   final bool selected;
   final VoidCallback onTap;
   final bool collapsed;
@@ -763,6 +772,14 @@ class _NavItem extends StatelessWidget {
     final effectivePadding = collapsed
         ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
+    final leading = svgAsset != null
+        ? SvgPicture.asset(
+            svgAsset!,
+            width: 18,
+            height: 18,
+            colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+          )
+        : Icon(icon, size: 18, color: color);
 
     final button = CalfButton.ghost(
       width: double.infinity,
@@ -777,7 +794,7 @@ class _NavItem extends StatelessWidget {
               : MainAxisAlignment.start,
           mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
           children: [
-            Icon(icon, size: 18, color: color),
+            leading,
             if (!collapsed) ...[
               const SizedBox(width: 10),
               Expanded(

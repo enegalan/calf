@@ -229,6 +229,10 @@ class FakeCalfClient implements CalfClient {
   );
 
   @override
+  Future<List<int>> downloadBuildArtifact(String id, String digest) async =>
+      const [123, 125];
+
+  @override
   Future<void> startContainer(String id) async {}
 
   @override
@@ -650,6 +654,11 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<BuildLogs> fetchBuildLogs(String id) async {
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
+  Future<List<int>> downloadBuildArtifact(String id, String digest) async {
     throw ApiException('daemon unavailable', statusCode: 503);
   }
 

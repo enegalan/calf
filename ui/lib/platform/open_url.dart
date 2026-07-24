@@ -18,6 +18,46 @@ String get calfReleasesUrl => 'https://github.com/${CalfGitHub.repo}/releases';
 /// URL for Docker Hub.
 String get dockerHubUrl => 'https://hub.docker.com/';
 
+/// Builds a Docker Hub URL for [imageRef] (e.g. `ubuntu:22.04` or `user/app:tag`).
+String dockerHubImageUrl(String imageRef) {
+  var ref = imageRef.trim();
+  if (ref.isEmpty) {
+    return dockerHubUrl;
+  }
+
+  ref = ref.split('@').first;
+  final slash = ref.indexOf('/');
+  final hostEnd = slash >= 0 ? slash : -1;
+  if (hostEnd > 0 && ref.substring(0, hostEnd).contains('.')) {
+    ref = ref.substring(hostEnd + 1);
+  }
+  if (ref.startsWith('library/')) {
+    ref = ref.substring('library/'.length);
+  }
+
+  final tagSep = ref.lastIndexOf(':');
+  var repository = ref;
+  var tag = '';
+  if (tagSep > 0) {
+    repository = ref.substring(0, tagSep);
+    tag = ref.substring(tagSep + 1);
+  }
+
+  if (!repository.contains('/')) {
+    final base = 'https://hub.docker.com/_/$repository';
+    if (tag.isEmpty) {
+      return base;
+    }
+    return '$base/tags?name=${Uri.encodeQueryComponent(tag)}';
+  }
+
+  final base = 'https://hub.docker.com/r/$repository';
+  if (tag.isEmpty) {
+    return base;
+  }
+  return '$base/tags?name=${Uri.encodeQueryComponent(tag)}';
+}
+
 /// Opens [port] in the system browser via `http://localhost`.
 void openPort(int port) {
   openExternalUrl('http://localhost:$port');

@@ -1374,6 +1374,9 @@ abstract class CalfClient implements StatusClient {
   /// Fetches build logs and step breakdown.
   Future<BuildLogs> fetchBuildLogs(String id);
 
+  /// Downloads a build result artifact JSON by digest.
+  Future<List<int>> downloadBuildArtifact(String id, String digest);
+
   /// Starts a stopped container.
   Future<void> startContainer(String id);
 
@@ -1892,6 +1895,27 @@ class ApiClient implements CalfClient {
   Future<BuildLogs> fetchBuildLogs(String id) async {
     final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}/logs');
     return BuildLogs.fromJson(json);
+  }
+
+  /// Downloads a build result artifact JSON by digest.
+  @override
+  Future<List<int>> downloadBuildArtifact(String id, String digest) async {
+    final response = await httpClient
+        .get(
+          Uri.parse(
+            '$baseUrl/v1/builds/${Uri.encodeComponent(id)}/artifacts/download',
+          ).replace(queryParameters: {'digest': digest}),
+        )
+        .timeout(CalfDefaults.volumeActionTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+
+    return response.bodyBytes;
   }
 
   /// Fetches the current daemon configuration.

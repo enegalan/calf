@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -5,6 +8,8 @@ import 'package:flutter/services.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/platform/open_url.dart';
+import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -248,6 +253,47 @@ class _BuildDetailViewState extends State<BuildDetailView> {
     await Clipboard.setData(ClipboardData(text: value));
   }
 
+  /// Opens the Docker Hub page for a dependency image reference.
+  Future<void> _openDependencyInDockerHub(String source) async {
+    await openExternalUrl(dockerHubImageUrl(source));
+  }
+
+  /// Downloads a build result artifact as `sha256_<hash>.json`.
+  Future<void> _downloadBuildResult(String digest) async {
+    if (digest.isEmpty) {
+      return;
+    }
+
+    final hash = digest.startsWith('sha256:') ? digest.substring(7) : digest;
+    final suggestedName = 'sha256_$hash.json';
+    final location = await getSaveLocation(suggestedName: suggestedName);
+    if (location == null || !mounted) {
+      return;
+    }
+
+    try {
+      final bytes = await widget.apiClient.downloadBuildArtifact(
+        widget.buildId,
+        digest,
+      );
+      await File(location.path).writeAsBytes(bytes);
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } on FileSystemException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
@@ -360,6 +406,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
           platformFilter: _platformFilter,
           onPlatformChanged: (value) => setState(() => _platformFilter = value),
           onCopy: _copyText,
+          onOpenDependency: _openDependencyInDockerHub,
+          onDownloadResult: _downloadBuildResult,
         );
       case _BuildDetailTab.source:
         return _SourceTab(
@@ -457,6 +505,8 @@ class _InfoTab extends StatelessWidget {
     required this.platformFilter,
     required this.onPlatformChanged,
     required this.onCopy,
+    required this.onOpenDependency,
+    required this.onDownloadResult,
   });
 
   final ThemeData theme;
@@ -464,6 +514,8 @@ class _InfoTab extends StatelessWidget {
   final String platformFilter;
   final ValueChanged<String> onPlatformChanged;
   final Future<void> Function(String value) onCopy;
+  final Future<void> Function(String source) onOpenDependency;
+  final Future<void> Function(String digest) onDownloadResult;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -538,7 +590,19 @@ class _InfoTab extends StatelessWidget {
           rows: dependencies
               .map((item) => [item.source, item.platform, item.digest])
               .toList(),
+          leadingIcons: [
+            for (final item in dependencies)
+              buildDependencyIconKind(item.source),
+          ],
           onCopy: onCopy,
+          menuBuilder: (row) => const [
+            PopupMenuItem(value: 'open', child: Text('Open in new window')),
+          ],
+          onMenuSelected: (action, row) async {
+            if (action == 'open' && row.isNotEmpty) {
+              await onOpenDependency(row[0]);
+            }
+          },
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -551,7 +615,22 @@ class _InfoTab extends StatelessWidget {
           rows: results
               .map((item) => [item.name, item.platform, item.digest, item.size])
               .toList(),
+          leadingIcons: [
+            for (final item in results) buildResultIconKind(item.name),
+          ],
           onCopy: onCopy,
+          menuBuilder: (row) => [
+            PopupMenuItem(
+              value: 'download',
+              enabled: row.length > 2 && row[2].isNotEmpty,
+              child: const Text('Download'),
+            ),
+          ],
+          onMenuSelected: (action, row) async {
+            if (action == 'download' && row.length > 2 && row[2].isNotEmpty) {
+              await onDownloadResult(row[2]);
+            }
+          },
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -1180,6 +1259,9 @@ class _DataTable extends StatelessWidget {
     required this.rows,
     required this.onCopy,
     this.copyColumnIndex,
+    this.leadingIcons,
+    this.menuBuilder,
+    this.onMenuSelected,
   });
 
   final ThemeData theme;
@@ -1187,6 +1269,9 @@ class _DataTable extends StatelessWidget {
   final List<List<String>> rows;
   final Future<void> Function(String value) onCopy;
   final int? copyColumnIndex;
+  final List<BuildRowIconKind>? leadingIcons;
+  final List<PopupMenuEntry<String>> Function(List<String> row)? menuBuilder;
+  final Future<void> Function(String action, List<String> row)? onMenuSelected;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1195,10 +1280,15 @@ class _DataTable extends StatelessWidget {
       return Text('No data found', style: CalfTheme.muted(theme));
     }
 
+    final showMenu = menuBuilder != null && onMenuSelected != null;
+    final showIcons =
+        leadingIcons != null && leadingIcons!.length == rows.length;
+
     return Column(
       children: [
         Row(
           children: [
+            if (showIcons) const SizedBox(width: 34),
             for (final column in columns) ...[
               Expanded(
                 child: Text(
@@ -1209,36 +1299,62 @@ class _DataTable extends StatelessWidget {
                 ),
               ),
             ],
-
-            /// Creates a [_DataTable] widget.
-            const SizedBox(width: 32),
+            SizedBox(width: showMenu ? 40 : 32),
           ],
         ),
-
-        /// Creates a [_DataTable] widget.
         const SizedBox(height: 8),
-        for (final row in rows)
+        for (var rowIndex = 0; rowIndex < rows.length; rowIndex++)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
+                if (showIcons) ...[
+                  BuildRowIcon(kind: leadingIcons![rowIndex]),
+                  const SizedBox(width: 12),
+                ],
                 for (var index = 0; index < columns.length; index++) ...[
                   Expanded(
                     child: Text(
-                      row.length > index ? row[index] : '',
+                      rows[rowIndex].length > index
+                          ? rows[rowIndex][index]
+                          : '',
                       style: theme.textTheme.titleMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-                if (row.isNotEmpty) ...[
+                if (showMenu)
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    color: theme.colorScheme.surface,
+                    surfaceTintColor: const Color(0x00000000),
+                    icon: Icon(
+                      LucideIcons.ellipsisVertical,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    onSelected: (action) =>
+                        onMenuSelected!(action, rows[rowIndex]),
+                    itemBuilder: (context) => menuBuilder!(rows[rowIndex]),
+                  )
+                else if (rows[rowIndex].isNotEmpty)
                   Builder(
                     builder: (context) {
+                      final row = rows[rowIndex];
                       final copyIndex = copyColumnIndex ?? row.length - 1;
                       if (copyIndex < 0 ||
                           copyIndex >= row.length ||
                           row[copyIndex].isEmpty) {
-                        return const SizedBox.shrink();
+                        return const SizedBox(width: 32);
                       }
 
                       return CalfButton.ghost(
@@ -1253,7 +1369,6 @@ class _DataTable extends StatelessWidget {
                       );
                     },
                   ),
-                ],
               ],
             ),
           ),

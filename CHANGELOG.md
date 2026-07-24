@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Build dependency actions** — Dependencies rows include a menu to open the image on Docker Hub.
+- **Build result download** — Build results rows include a menu to download the artifact as `sha256_<digest>.json`.
+- **Build row icons** — Dependencies and Build results show custom icons (chain / provenance telescope), with a generic placeholder when the type is unknown.
 - **Resource Saver** — Settings → System can enable idle engine shutdown after no containers have been running (30 seconds, then every 5 minutes up to 60 minutes; default on at 5 minutes); the status bar shows Resource Saver mode while the engine is paused.
 - **Troubleshoot** — the engine menu opens a Troubleshoot view to restart Calf, get support, purge engine data, reset to factory defaults, or uninstall.
 - **Disk image settings** — Settings → System includes a disk image size slider and a disk image location field (default `~/.config/calf/guest/<vm>/disk.raw`).
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Build dependency digests** — Dependencies show the image digest when the local image is available.
 - **Build source details** — the Info tab no longer repeats the Dockerfile path under both File name and Dockerfile.
 - **Compose group containers** — each container shows a status dot (with tooltip), links to its image detail, and opens published ports in the browser when clicked.
 - **Containers list** — each container links to its image detail; published ports show as `localhost` links (one plus a `(N)` expand control when there are several), each opening in the browser.

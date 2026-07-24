@@ -20,6 +20,7 @@ dependencies:
   tray_manager: ^0.5.3
   window_manager: ^0.5.0
   flutter_markdown_plus: ^1.0.12
+  flutter_svg: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -30,3 +31,4 @@ flutter:
   assets:
     - assets/brand/
     - assets/tray/
+    - assets/icons/build/
