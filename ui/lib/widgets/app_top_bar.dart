@@ -233,14 +233,16 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
       items: [
         PopupMenuItem<String>(
           enabled: false,
-          height: 56,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          height: 64,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Row(
             children: [
-              _UserAvatar(
-                initial: widget.initial,
-                size: 32,
-                theme: widget.theme,
+              ExcludeSemantics(
+                child: _UserAvatar(
+                  initial: widget.initial,
+                  size: 36,
+                  theme: widget.theme,
+                ),
               ),
               const SizedBox(width: 10),
               Flexible(
@@ -249,10 +251,22 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      widget.username,
-                      style: theme.textTheme.titleMedium!.copyWith(
+                      widget.username.trim().isEmpty
+                          ? 'Signed in'
+                          : widget.username.trim(),
+                      style: theme.textTheme.titleSmall!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Docker Hub',
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -315,26 +329,68 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     }
   }
 
-  /// Builds the avatar button that opens the account menu.
+  /// Builds the account chip that opens the account menu.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final displayName = widget.username.trim().isEmpty
+        ? 'Signed in'
+        : widget.username.trim();
 
-    return CalfButton.ghost(
-      key: _buttonKey,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      onPressed: _openMenu,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _UserAvatar(initial: widget.initial, size: 28, theme: widget.theme),
-          const SizedBox(width: 4),
-          Icon(
-            LucideIcons.chevronDown,
-            size: 14,
-            color: theme.colorScheme.onSurface,
+    return Semantics(
+      button: true,
+      label: 'Account menu, signed in as $displayName',
+      child: Tooltip(
+        message: displayName,
+        waitDuration: const Duration(milliseconds: 400),
+        child: Material(
+          key: _buttonKey,
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.7,
           ),
-        ],
+          shape: StadiumBorder(
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _openMenu,
+            customBorder: const StadiumBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: _UserAvatar(
+                      initial: widget.initial,
+                      size: 28,
+                      theme: widget.theme,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    LucideIcons.chevronDown,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -410,7 +466,8 @@ class _UserAvatar extends StatelessWidget {
                     : theme.textTheme.bodySmall!)
                 .copyWith(
                   color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
                 ),
       ),
     );

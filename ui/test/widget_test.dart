@@ -412,6 +412,12 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<RuntimeStatus> killRuntime() async => status.runtime;
+
+  @override
+  Future<void> purgeEngineData() async {}
+
+  @override
+  Future<void> factoryReset() async {}
 }
 
 class _LoggedInCalfClient extends FakeCalfClient {
@@ -471,12 +477,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign in'), findsNothing);
+    expect(find.text('demo'), findsOneWidget);
     await tester.tap(find.byIcon(LucideIcons.chevronDown));
     await tester.pumpAndSettle();
 
     expect(find.text("What's new"), findsOneWidget);
     expect(find.text('Account Settings'), findsOneWidget);
     expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('Docker Hub'), findsOneWidget);
   });
 
   testWidgets('shows error when containers fetch fails', (tester) async {
@@ -810,4 +818,10 @@ class _ErrorCalfClient implements CalfClient {
     state: 'stopped',
     dockerSocket: '/tmp/calf.sock',
   );
+
+  @override
+  Future<void> purgeEngineData() async {}
+
+  @override
+  Future<void> factoryReset() async {}
 }
