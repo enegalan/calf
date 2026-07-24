@@ -525,6 +525,8 @@ class _InfoTab extends StatelessWidget {
           totalMs: detail.durationMs,
           cachedSteps: detail.cachedSteps,
           totalSteps: detail.totalSteps,
+          startedAt: detail.createdAt,
+          finishedAt: detail.finishedAt,
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -647,6 +649,8 @@ class _TimingCharts extends StatelessWidget {
     required this.totalMs,
     required this.cachedSteps,
     required this.totalSteps,
+    required this.startedAt,
+    required this.finishedAt,
   });
 
   final ThemeData theme;
@@ -654,11 +658,23 @@ class _TimingCharts extends StatelessWidget {
   final int totalMs;
   final int cachedSteps;
   final int totalSteps;
+  final String startedAt;
+  final String finishedAt;
+
+  /// Minimum width that fits all four timing charts in one row.
+  static const double _wideBreakpoint = 720;
+
+  static const Color _localTransfers = Color(0xFF166534);
+  static const Color _imagePulls = Color(0xFF4ADE80);
+  static const Color _executions = Color(0xFF3B82F6);
+  static const Color _fileOperations = Color(0xFFEF4444);
+  static const Color _resultExports = Color(0xFFA855F7);
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final realTime = _timingSlices(timing);
+    final idleColor = theme.colorScheme.onSurfaceVariant;
+    final realTime = _timingSlices(timing, idleColor);
     final accumulatedTotal =
         timing.localTransfersMs +
         timing.imagePullsMs +
@@ -666,117 +682,247 @@ class _TimingCharts extends StatelessWidget {
         timing.fileOperationsMs +
         timing.resultExportsMs +
         timing.idleMs;
-    final accumulatedSlices = realTime;
     final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
       _TimingSlice('Cached steps', cachedSteps.toDouble(), CalfColors.success),
-      _TimingSlice(
-        'Other steps',
-        uncachedSteps.toDouble(),
-        theme.colorScheme.onSurfaceVariant,
-      ),
-    ];
+      _TimingSlice('Non-cached steps', uncachedSteps.toDouble(), idleColor),
+    ].where((slice) => slice.value > 0).toList();
     final idleMs = timing.idleMs.clamp(0, totalMs);
     final activeMs = (totalMs - idleMs).clamp(0, totalMs);
+    final parallelSlices = [
+      _TimingSlice(
+        'Active',
+        activeMs > 0 ? activeMs.toDouble() : 1,
+        _executions,
+      ),
+      _TimingSlice('Idle', idleMs.toDouble(), idleColor),
+    ].where((slice) => slice.value > 0).toList();
+    final legendSlices = [
+      const _TimingSlice('Local file transfers', 0, _localTransfers),
+      const _TimingSlice('Image pulls', 0, _imagePulls),
+      const _TimingSlice('Executions', 0, _executions),
+      const _TimingSlice('File operations', 0, _fileOperations),
+      const _TimingSlice('Result exports', 0, _resultExports),
+      _TimingSlice('Idle', 0, idleColor),
+    ];
+    final charts = [
+      _TimingChartCard(
+        theme: theme,
+        title: 'Real time',
+        value: _formatDuration(totalMs),
+        slices: realTime,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Accumulated time',
+        value: _formatDuration(accumulatedTotal),
+        slices: realTime,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Cache usage',
+        value: '$cachedSteps/$totalSteps',
+        slices: cacheSlices.isEmpty
+            ? [_TimingSlice('None', 1, idleColor)]
+            : cacheSlices,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Parallel execution',
+        value: '',
+        slices: parallelSlices,
+      ),
+    ];
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.4,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TimingChartCard(
-          theme: theme,
-          title: 'Real time (${_formatDuration(totalMs)})',
-          slices: realTime,
-          formatValue: (value) => _formatDuration(value.toInt()),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= _wideBreakpoint;
+            if (wide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final chart in charts) Expanded(child: chart),
+                ],
+              );
+            }
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: charts[0]),
+                    Expanded(child: charts[1]),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: charts[2]),
+                    Expanded(child: charts[3]),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
-        _TimingChartCard(
-          theme: theme,
-          title: 'Accumulated time (${_formatDuration(accumulatedTotal)})',
-          slices: accumulatedSlices,
-          formatValue: (value) => _formatDuration(value.toInt()),
+        const SizedBox(height: 20),
+        Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              for (final slice in legendSlices)
+                _ChartLegendSwatch(
+                  theme: theme,
+                  color: slice.color,
+                  label: slice.label,
+                ),
+            ],
+          ),
         ),
-        _TimingChartCard(
+        const SizedBox(height: 24),
+        _TimingSummary(
           theme: theme,
-          title: 'Cache usage ($cachedSteps/$totalSteps)',
-          slices: cacheSlices,
-          formatValue: (value) => '${value.toInt()}',
-        ),
-        _TimingChartCard(
-          theme: theme,
-          title: 'Parallel execution',
-          slices: [
-            _TimingSlice(
-              'Active',
-              activeMs > 0 ? activeMs.toDouble() : 1,
-
-              /// Creates a [_TimingCharts] widget.
-              const Color(0xFF3B82F6),
-            ),
-            _TimingSlice(
-              'Idle',
-              idleMs > 0 ? idleMs.toDouble() : 0,
-              theme.colorScheme.onSurfaceVariant,
-            ),
-          ].where((slice) => slice.value > 0).toList(),
-          formatValue: (value) => _formatDuration(value.toInt()),
+          startedAt: startedAt,
+          finishedAt: finishedAt,
+          totalMs: totalMs,
+          cachedSteps: cachedSteps,
+          uncachedSteps: uncachedSteps,
+          totalSteps: totalSteps,
         ),
       ],
     );
   }
 
   /// Builds timing slices for the build-duration chart.
-  List<_TimingSlice> _timingSlices(BuildTiming timing) {
+  List<_TimingSlice> _timingSlices(BuildTiming timing, Color idleColor) {
     return [
       _TimingSlice(
         'Local file transfers',
         timing.localTransfersMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF166534),
+        _localTransfers,
       ),
       _TimingSlice(
         'Image pulls',
         timing.imagePullsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF4ADE80),
+        _imagePulls,
       ),
       _TimingSlice(
         'Executions',
         timing.executionsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF3B82F6),
+        _executions,
       ),
       _TimingSlice(
         'File operations',
         timing.fileOperationsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFFEF4444),
+        _fileOperations,
       ),
       _TimingSlice(
         'Result exports',
         timing.resultExportsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFFA855F7),
+        _resultExports,
       ),
-      _TimingSlice(
-        'Idle',
-        timing.idleMs.toDouble(),
-        theme.colorScheme.onSurfaceVariant,
-      ),
+      _TimingSlice('Idle', timing.idleMs.toDouble(), idleColor),
     ].where((slice) => slice.value > 0).toList();
   }
 }
 
+/// Two-column build timing summary under the shared legend.
+class _TimingSummary extends StatelessWidget {
+  /// Creates a [_TimingSummary] widget.
+  const _TimingSummary({
+    required this.theme,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.totalMs,
+    required this.cachedSteps,
+    required this.uncachedSteps,
+    required this.totalSteps,
+  });
+
+  final ThemeData theme;
+  final String startedAt;
+  final String finishedAt;
+  final int totalMs;
+  final int cachedSteps;
+  final int uncachedSteps;
+  final int totalSteps;
+
+  /// Builds the summary columns.
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _summaryLine(
+                label: 'Build start time',
+                value: _formatBuildTimestamp(startedAt),
+              ),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Build end time',
+                value: _formatBuildTimestamp(finishedAt),
+              ),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Total build time',
+                value: _formatDuration(totalMs),
+                emphasize: true,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _summaryLine(label: 'Cached steps', value: '$cachedSteps'),
+              const SizedBox(height: 6),
+              _summaryLine(label: 'Non-cached steps', value: '$uncachedSteps'),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Total steps',
+                value: '$totalSteps',
+                emphasize: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds one label/value summary row.
+  Widget _summaryLine({
+    required String label,
+    required String value,
+    bool emphasize = false,
+  }) {
+    final style = emphasize
+        ? theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w700)
+        : CalfTheme.muted(theme);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$label  ', style: CalfTheme.muted(theme)),
+          TextSpan(text: value, style: style),
+        ],
+      ),
+    );
+  }
+}
+
 class _TimingSlice {
-  /// Creates a [_TimingSlice] widget.
+  /// Creates a [_TimingSlice] instance.
   const _TimingSlice(this.label, this.value, this.color);
 
   final String label;
@@ -789,14 +935,14 @@ class _TimingChartCard extends StatefulWidget {
   const _TimingChartCard({
     required this.theme,
     required this.title,
+    required this.value,
     required this.slices,
-    required this.formatValue,
   });
 
   final ThemeData theme;
   final String title;
+  final String value;
   final List<_TimingSlice> slices;
-  final String Function(double value) formatValue;
 
   /// Creates the mutable state for [_TimingChartCard].
   @override
@@ -805,6 +951,8 @@ class _TimingChartCard extends StatefulWidget {
 
 class _TimingChartCardState extends State<_TimingChartCard> {
   int? _touchedIndex;
+
+  static const double _chartSize = 220;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -823,29 +971,38 @@ class _TimingChartCardState extends State<_TimingChartCard> {
         ? (touchedSlice.value / total * 100).toStringAsFixed(1)
         : null;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: widget.theme.colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.title,
-            style: widget.theme.textTheme.bodySmall!.copyWith(
-              fontWeight: FontWeight.w600,
+          SizedBox(
+            height: 48,
+            child: Column(
+              children: [
+                Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: CalfTheme.muted(widget.theme),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.value,
+                  textAlign: TextAlign.center,
+                  style: widget.theme.textTheme.titleMedium!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-
-          /// Creates a [_TimingChartCardState] widget.
-          const SizedBox(height: 8),
-          Expanded(
+          const SizedBox(height: 12),
+          SizedBox(
+            width: _chartSize,
+            height: _chartSize,
             child: total <= 0
                 ? Center(
                     child: Text(
-                      'No timing data',
+                      'No data',
                       style: CalfTheme.muted(widget.theme),
                     ),
                   )
@@ -854,8 +1011,8 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                     children: [
                       PieChart(
                         PieChartData(
-                          sectionsSpace: 1,
-                          centerSpaceRadius: 28,
+                          sectionsSpace: 0,
+                          centerSpaceRadius: 0,
                           pieTouchData: PieTouchData(
                             enabled: true,
                             touchCallback: (event, response) {
@@ -881,7 +1038,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               PieChartSectionData(
                                 value: widget.slices[index].value,
                                 color: widget.slices[index].color,
-                                radius: _touchedIndex == index ? 42 : 36,
+                                radius: _touchedIndex == index ? 102 : 94,
                                 title: '',
                               ),
                           ],
@@ -892,8 +1049,8 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                         IgnorePointer(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
+                              horizontal: 8,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: widget.theme.colorScheme.surface,
@@ -915,14 +1072,13 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
+                                  textAlign: TextAlign.center,
                                   style: widget.theme.textTheme.bodySmall!
                                       .copyWith(fontWeight: FontWeight.w600),
                                 ),
-
-                                /// Creates a [_TimingChartCardState] widget.
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${widget.formatValue(touchedSlice.value)} ($touchedPercent%)',
+                                  '$touchedPercent%',
                                   style: CalfTheme.muted(widget.theme),
                                 ),
                               ],
@@ -1587,6 +1743,43 @@ String _formatDuration(int durationMs) {
   final minutes = seconds ~/ 60;
   final remainder = seconds % 60;
   return '${minutes}m ${remainder.toStringAsFixed(0)}s';
+}
+
+/// Formats a build start/end timestamp as local `YYYY-MM-DD HH:MM:SS`.
+String _formatBuildTimestamp(String raw) {
+  if (raw.isEmpty) {
+    return '—';
+  }
+
+  final parsed = _parseBuildTimestamp(raw);
+  if (parsed == null) {
+    return raw;
+  }
+
+  final local = parsed.toLocal();
+
+  /// Pads a number to two digits for timestamp formatting.
+  String two(int value) => value.toString().padLeft(2, '0');
+
+  return '${local.year}-${two(local.month)}-${two(local.day)} '
+      '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+}
+
+/// Parses an API build timestamp, truncating nanoseconds when needed.
+DateTime? _parseBuildTimestamp(String raw) {
+  try {
+    return DateTime.parse(raw);
+  } on FormatException {
+    final truncated = raw.replaceFirstMapped(
+      RegExp(r'\.(\d{6})\d+'),
+      (match) => '.${match[1]}',
+    );
+    try {
+      return DateTime.parse(truncated);
+    } on FormatException {
+      return null;
+    }
+  }
 }
 
 /// Extracts the architecture portion from a platform string.
