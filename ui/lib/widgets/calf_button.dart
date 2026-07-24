@@ -200,18 +200,22 @@ class CalfButton extends StatelessWidget {
 
 /// One icon action inside a [CalfButtonGroup].
 class CalfGroupAction {
-  /// Creates a grouped icon action with optional [tooltip].
+  /// Creates a grouped icon action with optional [tooltip] and [selected] state.
   const CalfGroupAction({
     required this.icon,
     this.onPressed,
     this.enabled = true,
     this.tooltip,
+    this.selected,
   });
 
   final IconData icon;
   final VoidCallback? onPressed;
   final bool enabled;
   final String? tooltip;
+
+  /// When set, drives the highlighted segment look; when null, enabled segments stay highlighted.
+  final bool? selected;
 }
 
 /// Joined icon-action strip (e.g. stop / start / restart).
@@ -231,38 +235,35 @@ class CalfButtonGroup extends StatelessWidget {
     final theme = Theme.of(context);
     final radius = BorderRadius.circular(size / 2);
     final segmentWidth = size + _segmentPad;
+    final borderColor = theme.colorScheme.outline;
 
     return Material(
       animationDuration: CalfTheme.materialAnimationDuration,
-      color: Colors.transparent,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: radius,
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-        ),
-        child: ClipRRect(
-          borderRadius: radius,
-          child: SizedBox(
-            height: size,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < actions.length; index++) ...[
-                  if (index > 0)
-                    Container(
-                      width: 1,
-                      height: size,
-                      color: theme.colorScheme.outlineVariant,
-                    ),
-                  _CalfButtonGroupSegment(
-                    action: actions[index],
-                    width: segmentWidth,
-                    height: size,
-                  ),
-                ],
-              ],
-            ),
-          ),
+      color: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: BorderSide(color: borderColor),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SizedBox(
+        height: size,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < actions.length; index++) ...[
+              if (index > 0)
+                Container(
+                  width: 1,
+                  height: size,
+                  color: borderColor,
+                ),
+              _CalfButtonGroupSegment(
+                action: actions[index],
+                width: segmentWidth,
+                height: size,
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -286,12 +287,19 @@ class _CalfButtonGroupSegment extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final enabled = action.enabled && action.onPressed != null;
-    final background = enabled
-        ? theme.colorScheme.secondaryContainer
-        : theme.colorScheme.surfaceContainerHighest;
-    final foreground = enabled
-        ? theme.colorScheme.onSecondaryContainer
-        : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
+    final highlighted = action.selected ?? enabled;
+    final Color background;
+    final Color foreground;
+    if (!enabled) {
+      background = theme.colorScheme.surfaceContainerHighest;
+      foreground = theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5);
+    } else if (highlighted) {
+      background = theme.colorScheme.secondaryContainer;
+      foreground = theme.colorScheme.onSecondaryContainer;
+    } else {
+      background = Colors.transparent;
+      foreground = theme.colorScheme.onSurfaceVariant;
+    }
 
     Widget segment = Material(
       animationDuration: CalfTheme.materialAnimationDuration,

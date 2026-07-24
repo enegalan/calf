@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Build logs toolbar** — Build detail Logs tab has list / plain-text toggles, expand and collapse all steps, and copy to clipboard.
+- **Build logs timeline** — List view shows a fixed duration ruler with a marker for the build time window matching the scrolled log position (when the build lasted more than 0s).
 - **Build dependency actions** — Dependencies rows include a menu to open the image on Docker Hub.
 - **Build result download** — Build results rows include a menu to download the artifact as `sha256_<digest>.json`.
 - **Build row icons** — Dependencies and Build results show custom icons (chain / provenance telescope), with a generic placeholder when the type is unknown.
@@ -23,11 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Build logs steps** — Expandable log steps show a chevron (down when collapsed, up when expanded).
 - **Build timing charts** — Info tab timing matches Docker Desktop: titled pies in one row (2×2 when narrow), one shared legend, and a start/end/steps summary underneath.
 - **Theme switching** — light/dark transitions use one shared timing; borders and surfaces no longer lag behind the rest of the UI.
 
 ### Fixed
 
+- **Build logs toolbar** — switching to plain-text view hides expand/collapse without shifting the other toolbar buttons.
+- **Build logs step bars** — per-step duration bars on the right are removed; the fixed timeline ruler covers that role.
 - **Build dependency digests** — Dependencies show the image digest when the local image is available.
 - **Build source details** — the Info tab no longer repeats the Dockerfile path under both File name and Dockerfile.
 - **Compose group containers** — each container shows a status dot (with tooltip), links to its image detail, and opens published ports in the browser when clicked.
