@@ -191,7 +191,7 @@ calf/
 │   │   │   ├── container_detail_screen.dart    Tabs: logs/inspect/mounts/exec/files/stats (fl_chart, xterm)
 │   │   │   ├── compose_group_detail_screen.dart Mixed-color log view per compose project
 │   │   │   ├── images_screen.dart              Image list and detail
-│   │   │   ├── volumes_screen.dart             Volume list (on-demand refresh)
+│   │   │   ├── volumes_screen.dart             Volume list and polling
 │   │   │   ├── builds_screen.dart              Build list and polling
 │   │   │   ├── build_detail_screen.dart        Build detail tabs
 │   │   │   ├── networks_screen.dart            Network list and detail screens
@@ -389,7 +389,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
 - `images_screen.dart` — image list, detail, polling.
-- `volumes_screen.dart` — volume list with on-demand refresh (no polling).
+- `volumes_screen.dart` — volume list with polling.
 - `builds_screen.dart` — build list with polling.
 - `build_detail_screen.dart` — build detail tabs (info, source, logs, history).
 - `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options).

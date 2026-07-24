@@ -22,10 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Container Stats history** — Stats keep a rolling ~15 minute resource history while the engine is running, so charts survive leaving and reopening a container; history is cleared when the container is removed.
 - **Destructive action confirms** — deleting containers, images, volumes, or networks, and Kill engine, ask for confirmation first.
 - **Start engine from empty lists** — when the runtime is stopped, empty resource lists offer a Start engine button.
-- **Volumes refresh** — the Volumes screen includes a refresh control (lists still load on demand without polling).
 
 ### Changed
 
+- **Volumes list** — Volumes updates on the same poll interval as Containers, Images, Networks, and Builds (no manual refresh control).
 - **Action feedback** — Checking for updates, Docker Desktop migration, engine start/stop, deletes, sign-out, exports/downloads, and copy-to-clipboard show Calf-styled confirmation toasts (stacked bottom-right) with a close button.
 - **Build logs steps** — Expandable log steps show a chevron (down when collapsed, up when expanded).
 - **Build timing charts** — Info tab timing matches Docker Desktop: titled pies in one row (2×2 when narrow), one shared legend, and a start/end/steps summary underneath.

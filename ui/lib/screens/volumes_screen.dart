@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -7,6 +9,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
+import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
 import 'package:ui/widgets/status_dot.dart';
@@ -28,7 +31,7 @@ class VolumesScreen extends StatefulWidget {
   State<VolumesScreen> createState() => _VolumesScreenState();
 }
 
-class _VolumesScreenState extends State<VolumesScreen> {
+class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   List<VolumeItem> _volumes = [];
   RuntimeStatus? _runtime;
   String? _error;
@@ -45,6 +48,7 @@ class _VolumesScreenState extends State<VolumesScreen> {
   void initState() {
     super.initState();
     _loadVolumes();
+    startPollInterval(widget.apiClient, _loadVolumes);
     _searchController.addListener(() {
       setState(
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
@@ -52,10 +56,11 @@ class _VolumesScreenState extends State<VolumesScreen> {
     });
   }
 
-  /// Disposes the search controller.
+  /// Disposes the search controller and poll timer.
   /// Releases controllers, timers, and stream subscriptions.
   @override
   void dispose() {
+    disposePollInterval();
     _searchController.dispose();
     super.dispose();
   }
@@ -294,20 +299,6 @@ class _VolumesScreenState extends State<VolumesScreen> {
       filter: RunningFilterSwitch(
         value: _runningOnly,
         onChanged: (value) => setState(() => _runningOnly = value),
-      ),
-      headerActions: Tooltip(
-        message: 'Refresh',
-        child: CalfButton.ghost(
-          width: 36,
-          height: 36,
-          enabled: !_loading && !_refreshInFlight,
-          onPressed: _loadVolumes,
-          child: Icon(
-            LucideIcons.refreshCw,
-            size: 16,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
       ),
       itemCount: filtered.length,
       itemBuilder: (context, index) {
