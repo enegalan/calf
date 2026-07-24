@@ -112,3 +112,28 @@ func TestMatchSegmentsSupportsWildcard(t *testing.T) {
 		t.Fatal("expected different segment lengths not to match")
 	}
 }
+
+func TestPathPartsExactPrefixReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	exact := httptest.NewRequest(http.MethodPost, "/v1/registry/login", nil)
+	if parts := httpkit.PathParts(exact, "/v1/registry/login/"); parts != nil {
+		t.Fatalf("exact path parts = %v, want nil", parts)
+	}
+
+	trailing := httptest.NewRequest(http.MethodPost, "/v1/registry/login/", nil)
+	if parts := httpkit.PathParts(trailing, "/v1/registry/login/"); parts != nil {
+		t.Fatalf("trailing-slash path parts = %v, want nil", parts)
+	}
+
+	session := httptest.NewRequest(http.MethodGet, "/v1/registry/login/abc", nil)
+	parts := httpkit.PathParts(session, "/v1/registry/login/")
+	if len(parts) != 1 || parts[0] != "abc" {
+		t.Fatalf("session path parts = %v, want [abc]", parts)
+	}
+
+	unrelated := httptest.NewRequest(http.MethodGet, "/v1/registry", nil)
+	if parts := httpkit.PathParts(unrelated, "/v1/registry/login/"); parts != nil {
+		t.Fatalf("unrelated path parts = %v, want nil", parts)
+	}
+}

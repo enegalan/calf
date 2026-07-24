@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Docker Hub Sign in** — Sign in no longer fails with "method not allowed".
+- **Docker Hub account** — after browser sign-in, the UI shows your username instead of staying on Sign in (credentials stored in the macOS keychain are detected).
+- **Docker Hub Sign in dialog** — the login page opens only when you click Open login page, not when the dialog appears.
 - **Guest disk arch on Apple Silicon** — when the Go toolchain runs under Rosetta, Calf still selects the arm64 guest disk instead of looking for an amd64 asset.
 - **Engine start** — starting gvproxy no longer fails when its pid file is written a moment after the process starts.
 - **Status polling** — engine RAM/disk stats use fast host probes so `/v1/status` stays responsive for the UI.

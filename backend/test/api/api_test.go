@@ -486,6 +486,21 @@ func TestRegistryLoginSessionNotFound(t *testing.T) {
 	}
 }
 
+func TestRegistryLoginStartAcceptsPost(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/registry/login", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/registry/login error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusMethodNotAllowed {
+		t.Fatalf("POST /v1/registry/login returned 405 method not allowed")
+	}
+}
+
 func TestVolumesReturnsList(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()

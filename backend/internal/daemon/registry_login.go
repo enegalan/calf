@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enegalan/calf/backend/internal/browser"
 	"github.com/enegalan/calf/backend/internal/oauth/dockerhub"
 )
 
@@ -59,10 +58,6 @@ func (s *Core) StartRegistryDeviceLogin(ctx context.Context) (RegistryDeviceLogi
 
 	s.loginSessions().Store(sessionID, session)
 	go s.completeRegistryDeviceLogin(flowCtx, client, session, state)
-
-	if err := browser.OpenURL(state.VerificationURI); err != nil {
-		s.Logger.Warn("failed to open browser for docker login", "error", err, "url", state.VerificationURI)
-	}
 
 	return RegistryDeviceLoginStart{
 		SessionID:       sessionID,

@@ -477,11 +477,8 @@ func (n *Native) registryConfigPaths() []string {
 
 // RegistryStatus reports whether the user is logged in to the default registry.
 func (n *Native) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
-	if err := requireRunning(ctx, n.Status); err != nil {
-		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
-	}
-
-	return registryStatus(ctx, n.runLocal, n.registryConfigPaths()...)
+	// Host Docker credentials; readable whether or not the engine is running.
+	return registryStatus(ctx, n.runLocal, n.runLocalWithStdin, n.registryConfigPaths()...)
 }
 
 // RegistryLogin authenticates to a container registry with username and password.

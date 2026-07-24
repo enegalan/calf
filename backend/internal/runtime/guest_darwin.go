@@ -616,11 +616,12 @@ func (v *Guest) RestartContainer(ctx context.Context, id string) error {
 	return restartContainer(ctx, v.runLocal, id)
 }
 func (v *Guest) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
+	home, err := os.UserHomeDir()
+	if err != nil {
 		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
-	home, _ := os.UserHomeDir()
-	return registryStatus(ctx, v.runLocal, filepath.Join(home, ".docker", "config.json"))
+	// Host Docker credentials; readable whether or not the guest engine is running.
+	return registryStatus(ctx, v.runLocal, v.runLocalWithStdin, filepath.Join(home, ".docker", "config.json"))
 }
 func (v *Guest) RegistryLogin(ctx context.Context, server, username, password string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {

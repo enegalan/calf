@@ -459,11 +459,10 @@ class _RegistryLoginDialog extends StatefulWidget {
 class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   String? _error;
 
-  /// Opens the verification URL and starts polling for login completion.
+  /// Starts polling for login completion; the browser opens only via the button.
   @override
   void initState() {
     super.initState();
-    openExternalUrl(widget.start.verificationUrl);
     _poll();
   }
 

@@ -19,9 +19,19 @@ type Route struct {
 }
 
 // PathParts returns non-empty path segments after the given prefix.
+// Prefix may end with a slash. Returns nil when the request path equals the
+// prefix (with or without a trailing slash) or does not start with it.
 func PathParts(r *http.Request, prefix string) []string {
-	path := strings.TrimPrefix(r.URL.Path, prefix)
-	path = strings.Trim(path, "/")
+	base := strings.TrimSuffix(prefix, "/")
+	path := r.URL.Path
+	if path != base && !strings.HasPrefix(path, base+"/") {
+		return nil
+	}
+	if path == base || path == base+"/" {
+		return nil
+	}
+
+	path = strings.Trim(strings.TrimPrefix(path, base+"/"), "/")
 	if path == "" {
 		return nil
 	}
