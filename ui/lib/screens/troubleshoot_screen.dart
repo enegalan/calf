@@ -30,7 +30,7 @@ class TroubleshootScreen extends StatefulWidget {
   final Future<void> Function() onQuit;
   final VoidCallback? onGiveFeedback;
 
-  /// True when Restart Calf cannot restart the daemon because it runs outside
+  /// True when Restart calf cannot restart the daemon because it runs outside
   /// this process (`make dev-backend` / `CALF_EXTERNAL_DAEMON`).
   final bool usesExternalDaemon;
 
@@ -90,7 +90,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     }
   }
 
-  /// Restarts Calf while preserving containers and settings.
+  /// Restarts calf while preserving containers and settings.
   ///
   /// In external-daemon dev mode the UI does not own the daemon process, so
   /// this explains how to restart it instead of claiming success.
@@ -103,9 +103,9 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       return;
     }
     await _runAction(
-      'Restarting Calf…',
+      'Restarting calf…',
       widget.onRestart,
-      successMessage: 'Calf restarted',
+      successMessage: 'calf restarted',
     );
   }
 
@@ -141,7 +141,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     );
   }
 
-  /// Resets Calf to factory defaults after confirmation.
+  /// Resets calf to factory defaults after confirmation.
   Future<void> _factoryReset() async {
     final confirmed = await confirmDialog(
       context,
@@ -162,13 +162,13 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     );
   }
 
-  /// Uninstalls Calf data and quits after confirmation.
+  /// Uninstalls calf data and quits after confirmation.
   Future<void> _uninstall() async {
     final confirmed = await confirmDialog(
       context,
-      title: 'Uninstall Calf',
+      title: 'Uninstall calf',
       description:
-          'Calf will wipe local data, then quit. Remove the app with your '
+          'calf will wipe local data, then quit. Remove the app with your '
           'installer afterward'
           '${Platform.isMacOS ? ' (for example: brew uninstall --cask calf)' : ''}.',
       confirmLabel: 'Uninstall',
@@ -249,7 +249,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
           child: ListView(
             children: [
               _TroubleshootRow(
-                title: 'Restart Calf',
+                title: 'Restart calf',
                 description: 'All containers and settings are preserved.',
                 actionLabel: 'Restart',
                 destructive: false,
@@ -258,7 +258,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
               ),
               _TroubleshootRow(
                 title: 'Support',
-                description: 'Get help with Calf.',
+                description: 'Get help with calf.',
                 actionLabel: 'Get support',
                 destructive: false,
                 enabled: !_busy,
@@ -282,9 +282,9 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
                 onPressed: () => unawaited(_factoryReset()),
               ),
               _TroubleshootRow(
-                title: 'Uninstall Calf',
+                title: 'Uninstall calf',
                 description:
-                    'We\'re sorry to see you go. This completely uninstalls Calf data and quits the app.',
+                    'We\'re sorry to see you go. This completely uninstalls calf data and quits the app.',
                 actionLabel: 'Uninstall',
                 destructive: true,
                 enabled: !_busy,

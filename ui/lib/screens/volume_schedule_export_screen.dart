@@ -509,7 +509,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
         /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 8),
         Text(
-          'Choose which days and times Calf should export this volume automatically.',
+          'Choose which days and times calf should export this volume automatically.',
           style: CalfTheme.muted(theme),
         ),
 

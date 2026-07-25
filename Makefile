@@ -5,7 +5,7 @@
         homebrew-cask benchmarks
 
 help:
-	@echo "Calf — common commands"
+	@echo "calf — common commands"
 	@echo ""
 	@echo "  make dev-backend        API daemon on :8765 (terminal 1)"
 
@@ -34,7 +34,7 @@ help:
 	@echo "  make format-check       verify Go + Dart formatting (CI)"
 	@echo ""
 	@echo "  make clean              remove build artifacts"
-	@echo "  make verify-docker-cli  smoke-test docker CLI against Calf"
+	@echo "  make verify-docker-cli  smoke-test docker CLI against calf"
 	@echo "  make benchmarks         run macOS performance benchmarks (see BENCHMARKS.md)"
 	@echo ""
 	@echo "Full guide: DEVELOPMENT.md"
@@ -72,12 +72,12 @@ release-macos:
 	lipo -create -output backend/calf-daemon backend/calf-daemon-amd64 backend/calf-daemon-arm64
 	rm backend/calf-daemon-amd64 backend/calf-daemon-arm64
 	cd ui && flutter build macos
-	cp backend/calf-daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
+	cp backend/calf-daemon ui/build/macos/Build/Products/Release/calf.app/Contents/MacOS/calf-daemon
 	rm backend/calf-daemon
-	codesign --force --sign - --identifier com.enegalan.calf.daemon ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon
-	./scripts/bundle-krunkit-macos.sh ui/build/macos/Build/Products/Release/Calf.app
-	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/Calf.app
-	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/Calf.app
+	codesign --force --sign - --identifier com.enegalan.calf.daemon ui/build/macos/Build/Products/Release/calf.app/Contents/MacOS/calf-daemon
+	./scripts/bundle-krunkit-macos.sh ui/build/macos/Build/Products/Release/calf.app
+	codesign --force --sign - --entitlements ui/macos/Runner/Release.entitlements ui/build/macos/Build/Products/Release/calf.app
+	codesign --verify --deep --strict ui/build/macos/Build/Products/Release/calf.app
 
 release-linux: ui-linux
 	cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o calf-daemon ./cmd/calf

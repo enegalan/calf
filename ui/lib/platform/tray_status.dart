@@ -55,7 +55,7 @@ class CalfTrayAppActions {
   final CalfTrayMenuSnapshotCallback snapshot;
 }
 
-/// Shows or hides the Calf tray icon on macOS (menu bar) and Windows (system tray).
+/// Shows or hides the calf tray icon on macOS (menu bar) and Windows (system tray).
 class CalfTrayStatus {
   CalfTrayStatus._();
 
@@ -114,7 +114,7 @@ class CalfTrayStatus {
         isTemplate: false,
         iconSize: 28,
       );
-      await trayManager.setToolTip('Calf');
+      await trayManager.setToolTip('calf');
       await _applyContextMenu(const CalfTrayMenuSnapshot());
       _visible = true;
     } on PlatformException catch (e, stack) {
@@ -191,7 +191,7 @@ class CalfTrayStatus {
     final signInPending = snapshot.signInPending;
 
     return [
-      MenuItem(key: 'open_calf', label: 'Open Calf'),
+      MenuItem(key: 'open_calf', label: 'Open calf'),
       MenuItem.separator(),
       MenuItem(key: 'containers_header', label: 'Containers', disabled: true),
       MenuItem(

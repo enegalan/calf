@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$APP_NAME_TITLE = "Calf"
+$APP_NAME_TITLE = "calf"
 $DIST_DIR = "dist"
 
 function Get-ProjectVersion {
@@ -94,7 +94,7 @@ New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
 
 $sourceAbsolute = (Resolve-Path $SOURCE).Path
 $distAbsolute = (Resolve-Path $DIST_DIR).Path
-$issPath = "$distAbsolute\Calf.iss"
+$issPath = "$distAbsolute\calf.iss"
 
 Write-InnoSetupScript -Version $VERSION -Source $sourceAbsolute -Dist $distAbsolute -Output $OUTPUT | Out-File -FilePath $issPath -Encoding UTF8
 

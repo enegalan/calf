@@ -47,7 +47,7 @@ class AppShell extends StatefulWidget {
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeModeChanged;
 
-  /// Restarts the embedded calf-daemon process itself (full Calf restart),
+  /// Restarts the embedded calf-daemon process itself (full calf restart),
   /// as opposed to [_AppShellState._restartEngine] which only stops/starts
   /// the container engine inside an already-running daemon.
   final Future<void> Function()? onRestartDaemon;
@@ -1259,7 +1259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Toggles whether Calf manages the Docker CLI context.
+  /// Toggles whether calf manages the Docker CLI context.
   Future<void> setDockerContextManaged(bool value) async {
     final current = _config;
     if (current == null) return;
@@ -1317,7 +1317,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           _settingRow(
-            'Use Calf for Docker CLI',
+            'Use calf for Docker CLI',
             Switch(
               value: _dockerContextManaged,
               onChanged: _dockerContextSaving ? null : setDockerContextManaged,
@@ -1617,7 +1617,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 8),
         Text(
           'Use the slider to set the duration of time between no containers '
-          'running and Calf entering Resource Saver mode.',
+          'running and calf entering Resource Saver mode.',
           style: CalfTheme.muted(theme),
         ),
         const SizedBox(height: 12),

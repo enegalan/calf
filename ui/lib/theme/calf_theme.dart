@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:ui/constants/calf_constants.dart';
 
-/// Shared Material 3 theme helpers for the Calf UI.
+/// Shared Material 3 theme helpers for the calf UI.
 abstract final class CalfTheme {
   /// Default corner radius used across panels and inputs.
   static const BorderRadius radius = BorderRadius.all(Radius.circular(8));
@@ -17,10 +17,10 @@ abstract final class CalfTheme {
   /// without a second, lagged interpolation on top of the theme lerp.
   static const Duration materialAnimationDuration = Duration.zero;
 
-  /// Light Material 3 theme with Calf brand primary.
+  /// Light Material 3 theme with calf brand primary.
   static ThemeData get light => _build(Brightness.light);
 
-  /// Dark Material 3 theme with Calf brand primary.
+  /// Dark Material 3 theme with calf brand primary.
   static ThemeData get dark => _build(Brightness.dark);
 
   /// Returns a muted body text style for secondary labels.

@@ -180,7 +180,7 @@ Future<void> _restartDaemon() async {
   await _startDaemon();
 }
 
-/// Brings the Calf window to the foreground (tray menu action).
+/// Brings the calf window to the foreground (tray menu action).
 Future<void> _openCalfWindow() async {
   if (!supportsTrayStatusIcon) {
     return;
@@ -189,7 +189,7 @@ Future<void> _openCalfWindow() async {
   await windowManager.focus();
 }
 
-/// Quits the app from the tray menu (same as Calf → Quit).
+/// Quits the app from the tray menu (same as calf → Quit).
 Future<void> _quitCalfApp() async {
   await _stopDaemon();
   CalfTrayStatus.dispose();
@@ -307,7 +307,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       setState(() {
         _error =
             _error ??
-            'Daemon did not become ready in time. Try restarting Calf.';
+            'Daemon did not become ready in time. Try restarting calf.';
       });
     }
   }

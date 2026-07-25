@@ -2,17 +2,17 @@ import 'dart:io';
 
 import 'package:ui/constants/calf_constants.dart';
 
-/// URL for opening a new GitHub issue in the Calf repository.
+/// URL for opening a new GitHub issue in the calf repository.
 String get calfReportIssueUrl =>
     'https://github.com/${CalfGitHub.repo}/issues/new';
 
-/// URL for the Calf GitHub repository home page.
+/// URL for the calf GitHub repository home page.
 String get calfRepositoryUrl => 'https://github.com/${CalfGitHub.repo}';
 
-/// URL for the Calf README on GitHub.
+/// URL for the calf README on GitHub.
 String get calfReadmeUrl => 'https://github.com/${CalfGitHub.repo}#readme';
 
-/// URL for Calf GitHub Releases.
+/// URL for calf GitHub Releases.
 String get calfReleasesUrl => 'https://github.com/${CalfGitHub.repo}/releases';
 
 /// URL for Docker Hub.

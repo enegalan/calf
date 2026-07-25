@@ -245,7 +245,7 @@ func containerIsRunning(container Container) bool {
 // localhostPortConflict builds a PortConflict for a port that cannot be proxied.
 func localhostPortConflict(port int) PortConflict {
 	process := findLocalhostPortBlocker(port)
-	hint := fmt.Sprintf("localhost:%d is used by %s; stop that process or container so Calf can forward the port.", port, process)
+	hint := fmt.Sprintf("localhost:%d is used by %s; stop that process or container so calf can forward the port.", port, process)
 
 	return PortConflict{
 		Port:    port,

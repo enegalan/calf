@@ -61,7 +61,7 @@ const (
 	DockerAPIReadyPollMax = 2 * time.Second
 )
 
-// RuntimeMode values identify whether Calf runs containers in a VM guest or on the host.
+// RuntimeMode values identify whether calf runs containers in a VM guest or on the host.
 const (
 	RuntimeModeVM     = "vm"
 	RuntimeModeNative = "native"
@@ -106,7 +106,7 @@ const DefaultNetworkScope = "local"
 // AlpineSmokeImage is the reference image used for lightweight runtime smoke checks.
 const AlpineSmokeImage = "alpine:3.20"
 
-// GitHubRepo is the canonical Calf repository used for releases and guest-disk downloads.
+// GitHubRepo is the canonical calf repository used for releases and guest-disk downloads.
 const GitHubRepo = "enegalan/calf"
 
 // Guest disk release asset name prefixes (arch suffix added at runtime).

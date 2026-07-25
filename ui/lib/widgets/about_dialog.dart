@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
@@ -31,7 +32,16 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
                 fit: BoxFit.contain,
               ),
               const SizedBox(height: 16),
-              Text('Calf', style: dialogTheme.textTheme.headlineSmall),
+              SvgPicture.asset(
+                'assets/brand/calf_logo_text_art.svg',
+                height: 28,
+                fit: BoxFit.contain,
+                colorFilter: ColorFilter.mode(
+                  dialogTheme.colorScheme.onSurface,
+                  BlendMode.srcIn,
+                ),
+                excludeFromSemantics: true,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Version $versionLabel',

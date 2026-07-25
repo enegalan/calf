@@ -1,10 +1,10 @@
 # Benchmarks
 
-Calf vs Docker Desktop vs OrbStack on macOS (Apple M3 Pro, 18 GB, arm64).
+calf vs Docker Desktop vs OrbStack on macOS (Apple M3 Pro, 18 GB, arm64).
 
 Values are **medians** from repeated runs. Only one engine runs at a time.
 
-| Metric                       | Calf            | Docker Desktop | OrbStack   |
+| Metric                       | calf            | Docker Desktop | OrbStack   |
 |------------------------------|----------------:|---------------:|-----------:|
 | Engine boot                  | **7.1 s**       | 87.8 s         | 31.8 s     |
 | Cold start → first container | **8.0 s**       | 88.7 s         | 13.6 s     |
@@ -12,7 +12,7 @@ Values are **medians** from repeated runs. Only one engine runs at a time.
 | Bind mount read (256 MiB)    | **2965 MiB/s**  | 2063 MiB/s     | 2814 MiB/s |
 | Idle RAM                     | **0.07 GB**     | 0.32 GB        | 0.53 GB    |
 
-macOS Calf uses **krunkit** (bundled in release builds; for local builds run `make krunkit-stack`).
+macOS calf uses **krunkit** (bundled in release builds; for local builds run `make krunkit-stack`).
 
 ## What we measure
 

@@ -25,7 +25,7 @@ Future<void> showUpdateAvailableDialog({
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('You are running Calf $currentVersion.'),
+              Text('You are running calf $currentVersion.'),
               const SizedBox(height: 12),
               if (update.releaseNotes.isNotEmpty)
                 ReleaseNotesMarkdown(data: update.releaseNotes)

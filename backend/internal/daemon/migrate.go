@@ -52,7 +52,7 @@ func (s *Core) RunDockerDesktopMigration() {
 	status := migration.RunFromDockerDesktop(ctx, migration.Options{
 		CalfSocket: s.Runtime.DockerSocket(),
 		VMName:     vmName,
-		// Prefer host docker CLI against the Calf socket (krunkit / native); no limactl shell.
+		// Prefer host docker CLI against the calf socket (krunkit / native); no limactl shell.
 		RunNerdctl: nil,
 		Logger:     s.Logger,
 		OnStatus: func(update migration.Status) {

@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/_common.sh"
 
 VERSION=$(extract_version)
-DMG_FILE="$DIST_DIR/Calf-${VERSION}.dmg"
+DMG_FILE="$DIST_DIR/calf-${VERSION}.dmg"
 
 if [[ ! -f "$DMG_FILE" ]]; then
     echo "error: DMG file not found: $DMG_FILE" >&2
@@ -22,17 +22,17 @@ cask "calf" do
   version "${VERSION}"
   sha256 "${SHA256}"
 
-  url "https://github.com/enegalan/calf/releases/download/v#{version}/Calf-#{version}.dmg"
-  name "Calf"
+  url "https://github.com/enegalan/calf/releases/download/v#{version}/calf-#{version}.dmg"
+  name "calf"
   desc "Lightweight, open-source alternative to Docker Desktop"
   homepage "https://github.com/enegalan/calf"
 
-  app "Calf.app"
+  app "calf.app"
 
   postflight do
     if OS.mac?
       system_command "/usr/bin/xattr",
-                    args: ["-dr", "com.apple.quarantine", "#{appdir}/Calf.app"],
+                    args: ["-dr", "com.apple.quarantine", "#{appdir}/calf.app"],
                     sudo: false
     end
   end

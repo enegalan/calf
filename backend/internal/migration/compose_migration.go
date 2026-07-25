@@ -121,7 +121,7 @@ func composeServiceImages(containers []containerInspect) map[string]string {
 	return images
 }
 
-// stageComposeProject copies a compose project into the mounts tree and patches it for Calf import.
+// stageComposeProject copies a compose project into the mounts tree and patches it for calf import.
 func stageComposeProject(group composeProjectGroup, mountsRoot string) (string, string, error) {
 	if group.WorkingDir == "" {
 		return "", "", fmt.Errorf("compose project %s has no working dir", group.Name)
@@ -201,7 +201,7 @@ func resolveComposeFile(group composeProjectGroup, destDir string) (string, erro
 }
 
 // patchComposeForMigration rewrites build: to image: using the image that was
-// already built in Docker Desktop. Calf cannot replay the original build context
+// already built in Docker Desktop. calf cannot replay the original build context
 // from the staged compose directory alone.
 func patchComposeForMigration(composePath string, serviceImages map[string]string) error {
 	if len(serviceImages) == 0 {

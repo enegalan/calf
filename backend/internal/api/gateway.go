@@ -13,7 +13,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-// Gateway exposes the Calf REST and WebSocket API over HTTP.
+// Gateway exposes the calf REST and WebSocket API over HTTP.
 type Gateway struct {
 	cfg         config.Config
 	logger      *slog.Logger

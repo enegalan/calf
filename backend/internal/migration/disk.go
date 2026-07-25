@@ -11,7 +11,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
-// checkMigrationDiskSpace verifies the Calf engine has enough free space for the estimated migration size.
+// checkMigrationDiskSpace verifies the calf engine has enough free space for the estimated migration size.
 func checkMigrationDiskSpace(ctx context.Context, calfSocket, ddSocket string) error {
 	required, err := estimateMigrationBytes(ctx, ddSocket)
 	if err != nil {
@@ -63,7 +63,7 @@ func estimateMigrationBytes(ctx context.Context, ddSocket string) (int64, error)
 	return total + constants.MigrationHeadroomBytes, nil
 }
 
-// engineFreeBytes reads available root filesystem bytes inside the Calf engine (via a one-shot container).
+// engineFreeBytes reads available root filesystem bytes inside the calf engine (via a one-shot container).
 func engineFreeBytes(ctx context.Context, calfSocket string) (int64, error) {
 	output, err := dockerexec.Run(ctx, calfSocket, "run", "--rm", "--privileged", constants.AlpineSmokeImage,
 		"sh", "-c", "df -B1 / | awk 'NR==2 {print $4}'")

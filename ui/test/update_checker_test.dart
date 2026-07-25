@@ -23,8 +23,8 @@ void main() {
       'body': 'Bug fixes',
       'assets': [
         {
-          'name': 'Calf-1.2.3.dmg',
-          'browser_download_url': 'https://example.com/Calf-1.2.3.dmg',
+          'name': 'calf-1.2.3.dmg',
+          'browser_download_url': 'https://example.com/calf-1.2.3.dmg',
         },
       ],
     });
@@ -32,19 +32,19 @@ void main() {
     expect(release, isNotNull);
     expect(release!.version, '1.2.3');
     expect(release.releaseNotes, 'Bug fixes');
-    expect(release.downloadUrl, 'https://example.com/Calf-1.2.3.dmg');
+    expect(release.downloadUrl, 'https://example.com/calf-1.2.3.dmg');
   });
 
   test('preferredAssetNames matches current platform', () {
     final assetNames = UpdateChecker.preferredAssetNames('1.2.3');
 
     if (Platform.isMacOS) {
-      expect(assetNames, contains('Calf-1.2.3.dmg'));
-      expect(assetNames, contains('Calf-1.2.3.pkg'));
+      expect(assetNames, contains('calf-1.2.3.dmg'));
+      expect(assetNames, contains('calf-1.2.3.pkg'));
     } else if (Platform.isWindows) {
-      expect(assetNames, contains('Calf-1.2.3.exe'));
+      expect(assetNames, contains('calf-1.2.3.exe'));
     } else if (Platform.isLinux) {
-      expect(assetNames, contains('Calf-1.2.3-x86_64.AppImage'));
+      expect(assetNames, contains('calf-1.2.3-x86_64.AppImage'));
     } else {
       expect(assetNames, isEmpty);
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for Calf benchmark scripts.
+# Shared helpers for calf benchmark scripts.
 set -euo pipefail
 
 # Spike LIMA_HOME overrides must not leak into fair product benches.
@@ -23,7 +23,7 @@ ORBSTACK_HOST="unix://${HOME}/.orbstack/run/docker.sock"
 CALF_VM_NAME="${CALF_VM_NAME:-calf}"
 CALF_API="${CALF_API:-http://127.0.0.1:8765}"
 BENCHMARK_MOUNT_DIR="${BENCHMARK_MOUNT_DIR:-${HOME}/.config/calf/mounts/benchmarks}"
-# Guest path for Calf virtiofs share of ~/.config/calf/mounts (see ensureHostMountSymlink).
+# Guest path for calf virtiofs share of ~/.config/calf/mounts (see ensureHostMountSymlink).
 CALF_GUEST_MOUNT_ROOT="${CALF_GUEST_MOUNT_ROOT:-/mnt/calf}"
 
 log() {
@@ -37,7 +37,7 @@ bench_host_dir() {
 }
 
 # bench_volume_src is the path passed to docker -v for a real host bind mount.
-# Calf must use the guest virtiofs mount (/mnt/calf/...); a macOS $HOME path is
+# calf must use the guest virtiofs mount (/mnt/calf/...); a macOS $HOME path is
 # created as a plain directory on the guest root disk and is not a bind mount.
 bench_volume_src() {
   local product=$1
@@ -177,7 +177,7 @@ docker_cmd() {
 product_label() {
   local product=$1
   case "$product" in
-    calf) echo "Calf" ;;
+    calf) echo "calf" ;;
     docker_desktop) echo "Docker Desktop" ;;
     orbstack) echo "OrbStack" ;;
     *) echo "$product" ;;
@@ -259,7 +259,7 @@ else:
 drop_guest_page_cache() {
   local product=$1
   # Detached run: krunkit vsock attach/stdout is unreliable for --rm foreground.
-  # Use the same privileged container drop for every product so Calf is not colder
+  # Use the same privileged container drop for every product so calf is not colder
   # than OrbStack/Docker (nsenter-to-init was over-dropping virtiofs vs competitors).
   local cid
   cid=$(docker_cmd "$product" run -d --privileged alpine:3.20 \
@@ -423,7 +423,7 @@ wait_for_krunkit_gone() {
   return 1
 }
 
-# disable_lima_autostart_calf unloads the Lima start-at-login agent for the Calf VM.
+# disable_lima_autostart_calf unloads the Lima start-at-login agent for the calf VM.
 disable_lima_autostart_calf() {
   local plist="${HOME}/Library/LaunchAgents/io.lima-vm.autostart.${CALF_VM_NAME}.plist"
   if [[ -f "$plist" ]]; then
@@ -490,7 +490,7 @@ resolve_calf_daemon_bin() {
   fi
   local candidates=(
     "${ROOT_DIR}/backend/calf-daemon"
-    "${ROOT_DIR}/ui/build/macos/Build/Products/Release/Calf.app/Contents/MacOS/calf-daemon"
+    "${ROOT_DIR}/ui/build/macos/Build/Products/Release/calf.app/Contents/MacOS/calf-daemon"
   )
   local candidate
   for candidate in "${candidates[@]}"; do
@@ -513,17 +513,17 @@ start_calf_daemon() {
     # Respect CALF_KRUN_DAX=0 (plain virtiofs); default on for the stack.
     if [[ "${CALF_KRUN_DAX:-1}" == "0" ]]; then
       runtime_env+=(CALF_KRUN_DAX=0)
-      log "Calf benchmarks: krunkit stack (DAX off)"
+      log "calf benchmarks: krunkit stack (DAX off)"
     else
       runtime_env+=(CALF_KRUN_DAX_MODE="${CALF_KRUN_DAX_MODE:-inode}")
-      log "Calf benchmarks: krunkit stack (DAX_MODE=${CALF_KRUN_DAX_MODE:-inode})"
+      log "calf benchmarks: krunkit stack (DAX_MODE=${CALF_KRUN_DAX_MODE:-inode})"
     fi
     mem_gb="${CALF_GUEST_MEMORY_GB:-4}"
   else
     warn "krunkit stack or gvproxy missing; macOS engine will fail until make krunkit-stack"
   fi
   if daemon_bin=$(resolve_calf_daemon_bin); then
-    log "starting Calf daemon for benchmarks (${daemon_bin})"
+    log "starting calf daemon for benchmarks (${daemon_bin})"
     # CALF_BENCHMARK disables watchParent so orphaned/detached launches stay up.
     env CALF_GUEST_MEMORY_GB="${mem_gb}" CALF_BENCHMARK=1 ${runtime_env[@]+"${runtime_env[@]}"} \
       "$daemon_bin" >>"${RESULTS_DIR}/calf-daemon.log" 2>&1 &

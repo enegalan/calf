@@ -18,7 +18,7 @@ const double _calfSnackBarStackGap = 8;
 /// Enter/exit motion for each toast.
 const Duration _calfSnackBarMotion = Duration(milliseconds: 220);
 
-/// Shows a Calf-styled floating toast stacked at the bottom-right.
+/// Shows a calf-styled floating toast stacked at the bottom-right.
 ///
 /// Requires [CalfToastLayer] above the app shell content.
 void showCalfSnackBar(
@@ -32,7 +32,7 @@ void showCalfSnackBar(
   );
 }
 
-/// Shared controller for stacked Calf toasts.
+/// Shared controller for stacked calf toasts.
 class CalfToastController extends ChangeNotifier {
   /// App-wide toast controller used by [showCalfSnackBar] and [CalfToastLayer].
   static final CalfToastController instance = CalfToastController._();

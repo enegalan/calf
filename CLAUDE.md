@@ -4,14 +4,14 @@ This file provides guidance to AI assistants when working with code in this repo
 
 ## Project Overview
 
-**Calf** is a lightweight, open-source alternative to Docker Desktop. It consists of:
+**calf** is a lightweight, open-source alternative to Docker Desktop. It consists of:
 
 - A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **krunkit** guest on macOS, or talking directly to the host runtime on Linux (Windows engine pending).
 - A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
 The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
 
-The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at Calf via `DOCKER_HOST`.
+The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at calf via `DOCKER_HOST`.
 
 Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features.
 
@@ -196,7 +196,7 @@ calf/
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   │   └── troubleshoot_screen.dart            Restart, support, purge, factory reset, uninstall
 │   │   └── widgets/
-│   │       ├── about_dialog.dart               Branded About Calf dialog
+│   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
 │   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
@@ -223,7 +223,7 @@ calf/
 │   ├── Dockerfile                             FROM alpine:3.20, trivial CMD
 │   ├── compose.yaml                            build: . + sleep 300
 │   └── .dockerignore
-├── scripts/verify-docker-cli.sh             Verifies `docker` CLI works against Calf's socket
+├── scripts/verify-docker-cli.sh             Verifies `docker` CLI works against calf's socket
 ├── scripts/_common.sh                       Shared packaging constants and helpers sourced by the bash packaging scripts
 ├── scripts/package-macos.sh                 Creates macOS .dmg and .pkg installers from the release app bundle
 ├── scripts/package-windows.ps1              Creates Windows .exe installer via Inno Setup
@@ -297,7 +297,7 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `troubleshoot.go` — `PurgeData` / `FactoryReset` for Troubleshoot destructive actions.
 
 ### `internal/dockercli/`
-Docker CLI context management for pointing `docker` at the Calf socket.
+Docker CLI context management for pointing `docker` at the calf socket.
 
 - `context.go` — context create/update/activate and status probes.
 - `manager.go` — `Manager` background loop; `Status` and `Activate`.
@@ -313,8 +313,8 @@ Docker CLI context management for pointing `docker` at the Calf socket.
 Cross-platform URL opener (`open` / `xdg-open` / `rundll32`).
 
 ### `internal/migration/`
-Docker Desktop → Calf migration engine.
-- `docker_desktop.go` — orchestrator (`RunFromDockerDesktop`): preflight → config → images → volumes → containers → builds, each step reporting a `Status` via callback. Uses the `docker` CLI against the Docker Desktop socket, and either `nerdctl` (via an injected `RunNerdctl` func) or a raw docker-CLI-against-Calf-socket fallback.
+Docker Desktop → calf migration engine.
+- `docker_desktop.go` — orchestrator (`RunFromDockerDesktop`): preflight → config → images → volumes → containers → builds, each step reporting a `Status` via callback. Uses the `docker` CLI against the Docker Desktop socket, and either `nerdctl` (via an injected `RunNerdctl` func) or a raw docker-CLI-against-calf-socket fallback.
 - `compose_migration.go` — groups migrated containers by compose project label, stages/copies compose project directories into `~/.config/calf/mounts/compose/...`, and patches compose YAML (rewrites `build:` to `image:`, injects captured env) via `yaml.v3` node manipulation.
 - `disk.go` — checks free VM disk space against the estimated migration size before starting.
 - `status.go` — `Phase` / `Status` / `Summary` types shared across the migration engine.
@@ -364,7 +364,7 @@ Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
-- `tray_status.dart` — shows a Calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
+- `tray_status.dart` — shows a calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
 - `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
 - `open_url.dart` — platform-specific "open URL" / "open path in file manager" helpers (Docker Hub sign-in, bind mount host paths).
 
@@ -396,7 +396,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `troubleshoot_screen.dart` — restart, support, purge engine data, factory reset, and uninstall.
 
 ### `widgets/`
-- `about_dialog.dart` — branded About Calf dialog (logo, version, highlights, links).
+- `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
 - `app_top_bar.dart` — registry auth UI.
 - `app_bottom_bar.dart` — engine status badge, play/pause, overflow menu (including Troubleshoot), RAM/disk used vs reserved, app version.
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.

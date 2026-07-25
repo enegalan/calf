@@ -1,5 +1,5 @@
 name: ui
-description: "Calf UI App."
+description: "calf UI App."
 publish_to: 'none'
 version: 0.9.9+1
 

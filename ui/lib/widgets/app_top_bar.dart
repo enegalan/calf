@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -146,7 +147,7 @@ class AppTopBar extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
-  /// Renders the Calf logo and wordmark.
+  /// Renders the calf logo and wordmark.
   const _BrandMark({required this.theme});
 
   final ThemeData theme;
@@ -158,24 +159,37 @@ class _BrandMark extends StatelessWidget {
         ? 'assets/brand/calf_logo_white.png'
         : 'assets/brand/calf_logo_black.png';
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Image.asset(
-          logoAsset,
-          width: 36,
-          height: 36,
-          fit: BoxFit.contain,
-          excludeFromSemantics: true,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          'calf',
-          style: theme.textTheme.titleMedium!.copyWith(
-            fontWeight: FontWeight.w600,
+    return Semantics(
+      label: 'calf',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Image.asset(
+            logoAsset,
+            width: 36,
+            height: 36,
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
           ),
-        ),
-      ],
+          const SizedBox(width: 5),
+          // Wordmark viewBox includes the "f" ascender, so its geometric
+          // center sits above the optical center of the letterforms.
+          Transform.translate(
+            offset: const Offset(0, -2.5),
+            child: SvgPicture.asset(
+              'assets/brand/calf_logo_text_art.svg',
+              height: 18,
+              fit: BoxFit.contain,
+              colorFilter: ColorFilter.mode(
+                theme.colorScheme.onSurface,
+                BlendMode.srcIn,
+              ),
+              excludeFromSemantics: true,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -605,7 +619,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
 
     _consecutiveFailures++;
     if (_consecutiveFailures >= _maxConsecutiveFailures) {
-      widget.onFailed('Could not reach Calf: $message');
+      widget.onFailed('Could not reach calf: $message');
       Navigator.of(context).pop();
       return false;
     }
@@ -841,7 +855,7 @@ class _WhatsNewDialogState extends State<_WhatsNewDialog> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Calf $versionLabel'),
+                  Text('calf $versionLabel'),
                   const SizedBox(height: 12),
                   if (_notes != null)
                     ConstrainedBox(

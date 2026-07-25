@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Bundle the Calf krunkit stack + gvproxy into a macOS .app for release/dev.
+# Bundle the calf krunkit stack + gvproxy into a macOS .app for release/dev.
 # Requires: make krunkit-stack (or CALF_KRUNKIT_PREFIX) and gvproxy on PATH.
 #
 # Usage:
-#   ./scripts/bundle-krunkit-macos.sh path/to/Calf.app
+#   ./scripts/bundle-krunkit-macos.sh path/to/calf.app
 set -euo pipefail
 
 APP="${1:-}"
 if [[ -z "$APP" || ! -d "$APP/Contents" ]]; then
-  echo "usage: $0 path/to/Calf.app" >&2
+  echo "usage: $0 path/to/calf.app" >&2
   exit 1
 fi
 

@@ -218,7 +218,7 @@ class AppBottomBar extends StatelessWidget {
                             value: 'about',
                             child: _MenuRow(
                               icon: LucideIcons.info,
-                              label: 'About Calf',
+                              label: 'About calf',
                             ),
                           ),
                           const PopupMenuDivider(),
@@ -252,7 +252,7 @@ class AppBottomBar extends StatelessWidget {
                             value: 'quit',
                             child: _MenuRow(
                               icon: LucideIcons.power,
-                              label: 'Quit Calf',
+                              label: 'Quit calf',
                             ),
                           ),
                         ],
@@ -297,7 +297,7 @@ class AppBottomBar extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: Tooltip(
-                message: 'About Calf',
+                message: 'About calf',
                 child: InkWell(
                   onTap: onOpenAbout,
                   borderRadius: BorderRadius.circular(4),

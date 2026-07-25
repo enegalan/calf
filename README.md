@@ -1,4 +1,8 @@
-# Calf
+<p align="center">
+  <img src="ui/assets/brand/calf_logo_art.png" width="360" alt="calf" />
+</p>
+
+# calf
 
 A fast, lightweight alternative to Docker Desktop for running and managing containers on your machine, without the overhead of a full desktop stack.
 
@@ -14,13 +18,13 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for configuration and migration from Docker
 
 ## Performance
 
-Public macOS benchmarks comparing Calf with Docker Desktop and OrbStack (VM boot, Compose startup, bind-mount I/O, idle RAM) are in **[BENCHMARKS.md](BENCHMARKS.md)**. Reproduce them with `make benchmarks`.
+Public macOS benchmarks comparing calf with Docker Desktop and OrbStack (VM boot, Compose startup, bind-mount I/O, idle RAM) are in **[BENCHMARKS.md](BENCHMARKS.md)**. Reproduce them with `make benchmarks`.
 
 ## Installation
 
 ### macOS
 
-The `.dmg` and `.pkg` installers are unsigned during the development phase. To install Calf on macOS, run this single command to install the application:
+The `.dmg` and `.pkg` installers are unsigned during the development phase. To install calf on macOS, run this single command to install the application:
 
 ```bash
 brew install --cask enegalan/calf-homebrew/calf
@@ -45,8 +49,8 @@ Download the package for your distribution from the [Releases](https://github.co
 - **AppImage**:
   Make the file executable and run it:
   ```bash
-  chmod +x Calf-<version>-x86_64.AppImage
-  ./Calf-<version>-x86_64.AppImage
+  chmod +x calf-<version>-x86_64.AppImage
+  ./calf-<version>-x86_64.AppImage
   ```
 
 ## License

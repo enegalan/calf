@@ -12,7 +12,7 @@ const _checkInterval = Duration(hours: 24);
 const _requestTimeout = Duration(seconds: 15);
 
 class UpdateChecker {
-  /// Creates a checker that queries GitHub for the latest Calf release.
+  /// Creates a checker that queries GitHub for the latest calf release.
   UpdateChecker({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
@@ -67,7 +67,7 @@ class UpdateChecker {
             ),
             headers: const {
               'Accept': 'application/vnd.github+json',
-              'User-Agent': 'Calf',
+              'User-Agent': 'calf',
             },
           )
           .timeout(_requestTimeout);
@@ -123,16 +123,16 @@ class UpdateChecker {
   /// Returns platform-specific installer asset filenames for [version].
   static List<String> preferredAssetNames(String version) {
     if (Platform.isMacOS) {
-      return ['Calf-$version.dmg', 'Calf-$version.pkg'];
+      return ['calf-$version.dmg', 'calf-$version.pkg'];
     }
 
     if (Platform.isWindows) {
-      return ['Calf-$version.exe'];
+      return ['calf-$version.exe'];
     }
 
     if (Platform.isLinux) {
       return [
-        'Calf-$version-x86_64.AppImage',
+        'calf-$version-x86_64.AppImage',
         'calf_${version}_amd64.deb',
         'calf-$version-1.x86_64.rpm',
       ];
@@ -207,7 +207,7 @@ class UpdateChecker {
             ),
             headers: const {
               'Accept': 'application/vnd.github+json',
-              'User-Agent': 'Calf',
+              'User-Agent': 'calf',
             },
           )
           .timeout(_requestTimeout);

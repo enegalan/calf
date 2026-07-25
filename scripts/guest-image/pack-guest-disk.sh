@@ -46,4 +46,4 @@ if [[ -n "$EFI_OUT" ]]; then
   cp "$EFI_OUT" "$RELEASE_EFI"
   echo "release asset: $RELEASE_EFI"
 fi
-echo "users extract with scripts/guest-image/unpack-guest-disk.sh or Calf first-run download"
+echo "users extract with scripts/guest-image/unpack-guest-disk.sh or calf first-run download"

@@ -1505,7 +1505,7 @@ abstract class CalfClient implements StatusClient {
   /// Stops the engine and deletes guest/runtime data while keeping settings.
   Future<void> purgeEngineData();
 
-  /// Stops the engine, wipes Calf data, and restores default settings.
+  /// Stops the engine, wipes calf data, and restores default settings.
   Future<void> factoryReset();
 }
 
@@ -1567,7 +1567,7 @@ class ApiClient implements CalfClient {
     );
   }
 
-  /// Stops the engine, wipes Calf data, and restores default settings.
+  /// Stops the engine, wipes calf data, and restores default settings.
   @override
   Future<void> factoryReset() async {
     await _postEmptyJson(
@@ -2514,7 +2514,7 @@ class ApiClient implements CalfClient {
     final body = response.body.trimLeft();
     if (body.startsWith('<!DOCTYPE') || body.startsWith('<html')) {
       throw ApiException(
-        'Calf API returned HTML instead of JSON. Check that the backend is running on $baseUrl and that no container is using the same port.',
+        'calf API returned HTML instead of JSON. Check that the backend is running on $baseUrl and that no container is using the same port.',
         statusCode: response.statusCode,
       );
     }

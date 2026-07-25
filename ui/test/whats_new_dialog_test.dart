@@ -60,7 +60,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text("What's new"), findsOneWidget);
-    expect(find.text('Calf 0.9.8'), findsOneWidget);
+    expect(find.text('calf 0.9.8'), findsOneWidget);
     expect(
       find.text('Release notes are not available offline.'),
       findsOneWidget,

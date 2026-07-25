@@ -158,13 +158,13 @@ func ensurePort(addr string) error {
 
 	pid, err := findPidOnPort(port)
 	if err != nil || pid == 0 {
-		return fmt.Errorf("port %s is in use; close the Calf app or stop the other process", addr)
+		return fmt.Errorf("port %s is in use; close the calf app or stop the other process", addr)
 	}
 
 	calfPID, pidErr := readPidFile()
 	canReclaim := pidErr == nil && calfPID == pid
 	if !canReclaim && !isCalfListener(pid) {
-		return fmt.Errorf("port %s is in use by pid %d; close the Calf app or stop that process", addr, pid)
+		return fmt.Errorf("port %s is in use by pid %d; close the calf app or stop that process", addr, pid)
 	}
 
 	proc, err := os.FindProcess(pid)
@@ -185,7 +185,7 @@ func ensurePort(addr string) error {
 		}
 	}
 
-	return fmt.Errorf("port %s is still in use after cleanup; close the Calf app and retry", addr)
+	return fmt.Errorf("port %s is still in use after cleanup; close the calf app and retry", addr)
 }
 
 // portAvailable reports whether the TCP listen address can be bound right now.

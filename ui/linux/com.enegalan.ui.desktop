@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Calf
-Comment=Calf UI App
+Name=calf
+Comment=calf UI App
 Exec=@EXECUTABLE@
 Icon=com.enegalan.ui
 Terminal=false

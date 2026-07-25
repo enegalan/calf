@@ -167,7 +167,7 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		g.backend.CfgMu.RUnlock()
 		if *req.Rootless != currentRootless {
 			if _, isNative := g.backend.Runtime.(*runtime.Native); isNative {
-				httpkit.WriteError(w, http.StatusConflict, "changing rootless requires restarting the Calf daemon")
+				httpkit.WriteError(w, http.StatusConflict, "changing rootless requires restarting the calf daemon")
 				return
 			}
 		}

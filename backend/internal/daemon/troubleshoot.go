@@ -45,7 +45,7 @@ func (s *Core) PurgeData(ctx context.Context) error {
 	return nil
 }
 
-// FactoryReset stops the engine, wipes Calf config data, and restores defaults.
+// FactoryReset stops the engine, wipes calf config data, and restores defaults.
 func (s *Core) FactoryReset(ctx context.Context) error {
 	if err := s.stopRuntimeForTroubleshoot(ctx); err != nil {
 		return err

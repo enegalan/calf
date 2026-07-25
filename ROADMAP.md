@@ -1,6 +1,6 @@
-# Roadmap — Calf as a Docker Desktop Replacement
+# Roadmap — calf as a Docker Desktop Replacement
 
-Calf is a lightweight alternative for running and managing containers on your local machine. This roadmap defines the phases required to cover the workflows that today depend on Docker Desktop, without prematurely replicating every feature.
+calf is a lightweight alternative for running and managing containers on your local machine. This roadmap defines the phases required to cover the workflows that today depend on Docker Desktop, without prematurely replicating every feature.
 
 ## Goal
 
@@ -60,7 +60,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ## Phase 1 — Container engine *(complete — v0.3.0+)*
 
-**Goal:** `docker run hello-world` works with Calf as the backend.
+**Goal:** `docker run hello-world` works with calf as the backend.
 
 ### 1.1 Runtime
 
@@ -106,7 +106,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ### 2.1 Engine and CLI
 
-- [x] `docker compose` v2 support (plugin pointing at Calf socket)
+- [x] `docker compose` v2 support (plugin pointing at calf socket)
 - [x] Bridge networks between services (engine-level; validated on real stacks)
 - [x] Named volumes and bind mounts with acceptable performance (virtiofs in Lima)
 - [x] `host.docker.internal` on macOS
@@ -164,13 +164,13 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Collapsible sidebar with persisted state and auto-collapse on narrow windows
 - [x] macOS native menu bar actions (Settings, navigation, Docker Hub, updates, help)
 
-**Exit criteria:** a new developer installs Calf in < 5 minutes and works a full day without Docker Desktop.
+**Exit criteria:** a new developer installs calf in < 5 minutes and works a full day without Docker Desktop.
 
 ---
 
 ## Phase 4 — Performance, reliability, and ecosystem
 
-**Goal:** Calf is preferable to Docker Desktop for speed and resource usage.
+**Goal:** calf is preferable to Docker Desktop for speed and resource usage.
 
 - [x] Public benchmarks vs Docker Desktop and OrbStack (VM boot, cold start, bind mount I/O, idle RAM)
 - [x] Warm start optimization (< 2 s when the guest VM is kept alive via `vm_keep_alive`)
@@ -193,7 +193,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Keep `vm_keep_alive` as the default UX for quit/reopen; do not use it as the cold-start benchmark
 - [x] Beat OrbStack on bind-mount write **and** cold bind-read — krunkit `dax=inode` (see `BENCHMARKS.md`)
   - Release bundles patched krunkit + libkrun + gvproxy; local: `make krunkit-stack`
-  - Fair suite reads Calf `dd` logs from the host share (`docker cp` over vsock is unreliable)
+  - Fair suite reads calf `dd` logs from the host share (`docker cp` over vsock is unreliable)
 - [x] macOS always uses krunkit; guest disk download on first start (`~/.config/calf/guest/`)
 - [x] Reproducible guest build (`make guest-disk` / `scripts/guest-image/build-guest.sh`) + first-run `.zst` extract; host bind-mount symlink via `/mnt/calf`
 - [x] Guest disk release asset (`calf-guest-disk-<arch>.raw.zst`) + first-run download/extract (pure Go zstd); bake on a real Mac (not GHA nested VZ)
@@ -214,7 +214,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 | **Colima**          | VM simplicity                       | No GUI; fragmented experience       |
 | **Podman Desktop**  | Rootless, modular                   | Inconsistent compose compatibility  |
 
-**Calf differentiator:** minimal Go daemon + native cross-platform Flutter UI, 100% local development focus, no commercial license or cloud bundling.
+**calf differentiator:** minimal Go daemon + native cross-platform Flutter UI, 100% local development focus, no commercial license or cloud bundling.
 
 ---
 

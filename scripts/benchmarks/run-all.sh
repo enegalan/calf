@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run Calf public benchmarks against Docker Desktop and OrbStack on macOS.
+# Run calf public benchmarks against Docker Desktop and OrbStack on macOS.
 set -euo pipefail
 
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_common.sh"
@@ -237,7 +237,7 @@ pause_other_vms() {
     fi
   done
   resume_product_vm "$keep"
-  # Belt-and-suspenders: never leave the active Calf VM stopped.
+  # Belt-and-suspenders: never leave the active calf VM stopped.
   if [[ "$keep" == "calf" ]]; then
     pkill -CONT -x krunkit >/dev/null 2>&1 || true
   fi
@@ -500,7 +500,7 @@ _bind_mount_io_once() {
   fi
 
   local tmp_log="${RESULTS_DIR}/dd-${product}-${direction}-$$-${RANDOM}.log"
-  # Prefer host-side log for Calf: krunkit vsock breaks `docker cp` (unexpected EOF).
+  # Prefer host-side log for calf: krunkit vsock breaks `docker cp` (unexpected EOF).
   if [[ "$product" == "calf" && -f "${bench_dir}/dd.log" ]]; then
     cp "${bench_dir}/dd.log" "$tmp_log"
   elif ! docker_cmd "$product" cp "${container_id}:/bench/dd.log" "$tmp_log" >/dev/null 2>&1; then
