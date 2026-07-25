@@ -13,7 +13,6 @@ import (
 // ErrPruneCategoryRequired is returned when Prune is called with no categories selected.
 var ErrPruneCategoryRequired = errors.New("select at least one prune category")
 
-
 // PruneOptions selects which unused resource categories to remove.
 type PruneOptions struct {
 	Containers bool `json:"containers"`
@@ -33,9 +32,9 @@ type PruneItem struct {
 
 // PruneCategoryPreview lists reclaimable items for one prune category.
 type PruneCategoryPreview struct {
-	Items             []PruneItem `json:"items"`
-	ReclaimableBytes  int64       `json:"reclaimable_bytes"`
-	ReclaimableSize   string      `json:"reclaimable_size"`
+	Items            []PruneItem `json:"items"`
+	ReclaimableBytes int64       `json:"reclaimable_bytes"`
+	ReclaimableSize  string      `json:"reclaimable_size"`
 }
 
 // PrunePreview is the clean-disk preview for all prune categories.
@@ -52,11 +51,11 @@ type PrunePreview struct {
 
 // PruneResult reports which categories were pruned and estimated reclaimed bytes.
 type PruneResult struct {
-	Containers bool  `json:"containers"`
-	Images     bool  `json:"images"`
-	Volumes    bool  `json:"volumes"`
-	Networks   bool  `json:"networks"`
-	BuildCache bool  `json:"build_cache"`
+	Containers     bool   `json:"containers"`
+	Images         bool   `json:"images"`
+	Volumes        bool   `json:"volumes"`
+	Networks       bool   `json:"networks"`
+	BuildCache     bool   `json:"build_cache"`
 	ReclaimedBytes int64  `json:"reclaimed_bytes"`
 	ReclaimedSize  string `json:"reclaimed_size"`
 }

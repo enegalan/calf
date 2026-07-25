@@ -102,10 +102,7 @@ class MacosMenuScope extends StatelessWidget {
     final viewMenuItems = <PlatformMenuItem>[
       PlatformMenuItem(
         label: 'Search…',
-        shortcut: const SingleActivator(
-          LogicalKeyboardKey.keyK,
-          meta: true,
-        ),
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyK, meta: true),
         onSelected: onOpenGlobalSearch,
       ),
       PlatformMenuItemGroup(

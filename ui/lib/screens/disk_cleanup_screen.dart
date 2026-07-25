@@ -221,7 +221,9 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
           onBack: _busy ? null : widget.onClose,
           trailing: CalfButton.ghost(
             height: 32,
-            onPressed: _busy || _loading ? null : () => unawaited(_loadPreview()),
+            onPressed: _busy || _loading
+                ? null
+                : () => unawaited(_loadPreview()),
             child: const Icon(LucideIcons.refreshCw, size: 16),
           ),
         ),
@@ -240,10 +242,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Runtime is stopped.',
-                    style: CalfTheme.muted(theme),
-                  ),
+                  Text('Runtime is stopped.', style: CalfTheme.muted(theme)),
                   const SizedBox(height: 12),
                   CalfButton(
                     onPressed: _busy ? null : () => unawaited(_startEngine()),
@@ -337,10 +336,9 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
 
   /// Compact system-df style Size / Reclaimable table for engine disk usage.
   Widget _diskUsageTable(ThemeData theme, SystemDiskUsage usage) {
-    final headerStyle = CalfTheme.muted(theme).copyWith(
-      fontWeight: FontWeight.w600,
-      fontSize: 12,
-    );
+    final headerStyle = CalfTheme.muted(
+      theme,
+    ).copyWith(fontWeight: FontWeight.w600, fontSize: 12);
     final cellStyle = theme.textTheme.bodySmall;
 
     Widget cell(String text, {int flex = 1, TextAlign align = TextAlign.left}) {
@@ -360,12 +358,13 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
       children: [
         Row(
           children: [
+            Expanded(flex: 2, child: Text('Type', style: headerStyle)),
             Expanded(
-              flex: 2,
-              child: Text('Type', style: headerStyle),
-            ),
-            Expanded(
-              child: Text('Size', style: headerStyle, textAlign: TextAlign.right),
+              child: Text(
+                'Size',
+                style: headerStyle,
+                textAlign: TextAlign.right,
+              ),
             ),
             Expanded(
               child: Text(
@@ -438,7 +437,6 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
   /// Formats selected reclaimable bytes for the current checkbox selection.
   String _formatSelectedBytes() => formatFileSize(_selectedBytes);
 
-
   /// Builds one selectable prune category with an expandable item list.
   Widget _categorySection({
     required String keyName,
@@ -471,12 +469,12 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
                 onTap: count == 0
                     ? null
                     : () => setState(() {
-                          if (expanded) {
-                            _expanded.remove(keyName);
-                          } else {
-                            _expanded.add(keyName);
-                          }
-                        }),
+                        if (expanded) {
+                          _expanded.remove(keyName);
+                        } else {
+                          _expanded.add(keyName);
+                        }
+                      }),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Row(
@@ -489,15 +487,10 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          title,
-                          style: theme.textTheme.titleSmall,
-                        ),
+                        child: Text(title, style: theme.textTheme.titleSmall),
                       ),
                       Text(
-                        count == 0
-                            ? 'None'
-                            : '$count · $sizeLabel',
+                        count == 0 ? 'None' : '$count · $sizeLabel',
                         style: CalfTheme.muted(theme),
                       ),
                       if (count > 0) ...[

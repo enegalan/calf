@@ -10,11 +10,11 @@ import (
 
 // DiskUsageRow is one TYPE row from docker/nerdctl system df.
 type DiskUsageRow struct {
-	Type              string `json:"type"`
-	Size              string `json:"size"`
-	SizeBytes         int64  `json:"size_bytes"`
-	Reclaimable       string `json:"reclaimable"`
-	ReclaimableBytes  int64  `json:"reclaimable_bytes"`
+	Type             string `json:"type"`
+	Size             string `json:"size"`
+	SizeBytes        int64  `json:"size_bytes"`
+	Reclaimable      string `json:"reclaimable"`
+	ReclaimableBytes int64  `json:"reclaimable_bytes"`
 }
 
 // SystemDiskUsage is the engine disk breakdown from system df.

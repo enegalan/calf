@@ -998,7 +998,9 @@ class _LogTextView extends StatelessWidget {
 
   /// Builds one highlighted log line row at [index].
   Widget _buildLineRow(int index) {
-    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: CalfFonts.mono);
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(
+      fontFamily: CalfFonts.mono,
+    );
     final timestampStyle = baseStyle.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -1056,7 +1058,9 @@ class _LogTextView extends StatelessWidget {
       );
     }
 
-    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: CalfFonts.mono);
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(
+      fontFamily: CalfFonts.mono,
+    );
     final timestampStyle = baseStyle.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );

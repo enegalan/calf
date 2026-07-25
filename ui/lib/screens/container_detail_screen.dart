@@ -1675,7 +1675,6 @@ double _parseDataSize(String value) {
   }
 }
 
-
 /// Returns the themed background color for detail panels.
 Color _panelBackgroundColor(ThemeData theme) {
   return Color.alphaBlend(

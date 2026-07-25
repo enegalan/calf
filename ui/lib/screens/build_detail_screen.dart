@@ -2205,7 +2205,6 @@ Color _statusColor(String status, ThemeData theme) {
   }
 }
 
-
 /// Formats a build start/end timestamp as local `YYYY-MM-DD HH:MM:SS`.
 String _formatBuildTimestamp(String raw) {
   if (raw.isEmpty) {

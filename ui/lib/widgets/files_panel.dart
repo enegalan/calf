@@ -372,4 +372,3 @@ Color filesPanelBackgroundColor(ThemeData theme) {
     theme.colorScheme.surface,
   );
 }
-

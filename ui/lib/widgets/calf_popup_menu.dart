@@ -19,9 +19,7 @@ Future<T?> showCalfMenu<T>({
     color: theme.colorScheme.surface,
     surfaceTintColor: const Color(0x00000000),
     shape: CalfTheme.popupMenuShape(theme.colorScheme),
-    constraints: minWidth == null
-        ? null
-        : BoxConstraints(minWidth: minWidth),
+    constraints: minWidth == null ? null : BoxConstraints(minWidth: minWidth),
     useRootNavigator: useRootNavigator,
   );
 }
@@ -96,9 +94,15 @@ class CalfPopupMenuRow extends StatelessWidget {
     final foreground = color ?? theme.colorScheme.onSurface;
     return Row(
       children: [
-        Icon(icon, size: 16, color: color ?? theme.colorScheme.onSurfaceVariant),
+        Icon(
+          icon,
+          size: 16,
+          color: color ?? theme.colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 10),
-        Expanded(child: Text(label, style: TextStyle(color: foreground))),
+        Expanded(
+          child: Text(label, style: TextStyle(color: foreground)),
+        ),
         if (trailing != null) ...[const SizedBox(width: 8), trailing!],
       ],
     );

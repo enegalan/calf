@@ -998,4 +998,3 @@ func (m *Mock) systemDiskUsageLocked() SystemDiskUsage {
 		},
 	}
 }
-

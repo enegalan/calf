@@ -109,7 +109,9 @@ class _ContainersScreenState extends State<ContainersScreen>
           }
           if (_detailProject != null) {
             final groupContainers = containers
-                .where((container) => container.composeProject == _detailProject)
+                .where(
+                  (container) => container.composeProject == _detailProject,
+                )
                 .toList();
             if (groupContainers.isEmpty) {
               _detailProject = null;
@@ -509,7 +511,8 @@ class _ContainersScreenState extends State<ContainersScreen>
                     textAlign: TextAlign.center,
                     style: CalfTheme.muted(theme),
                   ),
-                  if (_runtime?.state == 'stopped' && listSearchQuery.isEmpty) ...[
+                  if (_runtime?.state == 'stopped' &&
+                      listSearchQuery.isEmpty) ...[
                     const SizedBox(height: 16),
                     CalfButton(
                       onPressed: _startEngine,

@@ -150,9 +150,10 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
             kind: GlobalSearchKind.build,
             id: build.id,
             title: build.tag.isNotEmpty ? build.tag : build.id,
-            subtitle: [build.status, build.id]
-                .where((part) => part.isNotEmpty)
-                .join(' · '),
+            subtitle: [
+              build.status,
+              build.id,
+            ].where((part) => part.isNotEmpty).join(' · '),
           ),
       ];
 
@@ -206,7 +207,9 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
           }).toList();
     setState(() {
       _filtered = filtered;
-      _selectedIndex = filtered.isEmpty ? 0 : _selectedIndex.clamp(0, filtered.length - 1);
+      _selectedIndex = filtered.isEmpty
+          ? 0
+          : _selectedIndex.clamp(0, filtered.length - 1);
     });
   }
 
@@ -358,8 +361,8 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
                                               overflow: TextOverflow.ellipsis,
                                               style: theme.textTheme.bodyMedium
                                                   ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
                                             ),
                                             if (hit.subtitle.isNotEmpty)
                                               Text(
@@ -387,7 +390,10 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
               ),
               Divider(height: 1, color: theme.colorScheme.outlineVariant),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Text(
                   '↑↓ navigate · Enter open · Esc close',
                   style: CalfTheme.muted(theme).copyWith(fontSize: 12),
@@ -415,19 +421,32 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   Widget _kindIcon(ThemeData theme, GlobalSearchKind kind) {
     final color = theme.colorScheme.onSurfaceVariant;
     return switch (kind) {
-      GlobalSearchKind.container => Icon(LucideIcons.box, size: 16, color: color),
+      GlobalSearchKind.container => Icon(
+        LucideIcons.box,
+        size: 16,
+        color: color,
+      ),
       GlobalSearchKind.image => SvgPicture.asset(
-          buildPlaceholderIconAsset,
-          width: 16,
-          height: 16,
-          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-        ),
-      GlobalSearchKind.volume =>
-        Icon(LucideIcons.hardDrive, size: 16, color: color),
-      GlobalSearchKind.network =>
-        Icon(LucideIcons.network, size: 16, color: color),
-      GlobalSearchKind.build =>
-        Icon(LucideIcons.wrench, size: 16, color: color),
+        buildPlaceholderIconAsset,
+        width: 16,
+        height: 16,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
+      GlobalSearchKind.volume => Icon(
+        LucideIcons.hardDrive,
+        size: 16,
+        color: color,
+      ),
+      GlobalSearchKind.network => Icon(
+        LucideIcons.network,
+        size: 16,
+        color: color,
+      ),
+      GlobalSearchKind.build => Icon(
+        LucideIcons.wrench,
+        size: 16,
+        color: color,
+      ),
     };
   }
 }
