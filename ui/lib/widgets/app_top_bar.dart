@@ -74,6 +74,7 @@ class AppTopBar extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _BrandMark(theme: theme),
           const Spacer(),
@@ -173,20 +174,15 @@ class _BrandMark extends StatelessWidget {
             excludeFromSemantics: true,
           ),
           const SizedBox(width: 5),
-          // Wordmark viewBox includes the "f" ascender, so its geometric
-          // center sits above the optical center of the letterforms.
-          Transform.translate(
-            offset: const Offset(0, -2.5),
-            child: SvgPicture.asset(
-              'assets/brand/calf_logo_text_art.svg',
-              height: 18,
-              fit: BoxFit.contain,
-              colorFilter: ColorFilter.mode(
-                theme.colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-              excludeFromSemantics: true,
+          SvgPicture.asset(
+            'assets/brand/calf_logo_text_art.svg',
+            height: 18,
+            fit: BoxFit.contain,
+            colorFilter: ColorFilter.mode(
+              theme.colorScheme.onSurface,
+              BlendMode.srcIn,
             ),
+            excludeFromSemantics: true,
           ),
         ],
       ),
