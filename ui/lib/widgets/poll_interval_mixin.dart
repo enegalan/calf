@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/widgets/error_text.dart';
 
 mixin PollIntervalMixin<T extends StatefulWidget> on State<T> {
   Timer? pollTimer;
@@ -39,5 +40,84 @@ mixin PollIntervalMixin<T extends StatefulWidget> on State<T> {
       Duration(milliseconds: pollIntervalMs),
       (_) => reload(silent: true),
     );
+  }
+}
+
+/// Shared in-flight / silent-failure handling for resource list screens.
+mixin ResourceListPollMixin<T extends StatefulWidget> on State<T> {
+  static const _silentFailureThreshold = 3;
+
+  bool refreshInFlight = false;
+  int consecutiveSilentFailures = 0;
+  bool listLoading = true;
+  String? listError;
+  final listSearchController = TextEditingController();
+  String listSearchQuery = '';
+
+  /// Wires [listSearchController] to update [listSearchQuery] on each change.
+  void initListSearchListener() {
+    listSearchController.addListener(() {
+      setState(
+        () => listSearchQuery = listSearchController.text.trim().toLowerCase(),
+      );
+    });
+  }
+
+  /// Disposes the list search controller.
+  void disposeListSearch() {
+    listSearchController.dispose();
+  }
+
+  /// Marks a non-silent load as in progress and clears [listError].
+  void beginListLoad({required bool silent}) {
+    if (!silent) {
+      setState(() {
+        listLoading = true;
+        listError = null;
+      });
+    }
+  }
+
+  /// Runs [body] with in-flight guarding and the 3-failure silent-error rule.
+  ///
+  /// [body] should fetch data and call [setState] on success (including clearing
+  /// [listError] and setting [listLoading] to false). Callers may skip setState
+  /// when a silent poll finds no visible changes.
+  Future<void> runListLoad({
+    required bool silent,
+    required Future<void> Function() body,
+  }) async {
+    if (refreshInFlight) {
+      return;
+    }
+
+    refreshInFlight = true;
+    beginListLoad(silent: silent);
+
+    try {
+      await body();
+      if (!mounted) {
+        return;
+      }
+      consecutiveSilentFailures = 0;
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = formatAsyncError(error);
+      if (!silent) {
+        setState(() {
+          listError = message;
+          listLoading = false;
+        });
+      } else {
+        consecutiveSilentFailures++;
+        if (consecutiveSilentFailures >= _silentFailureThreshold) {
+          setState(() => listError = message);
+        }
+      }
+    } finally {
+      refreshInFlight = false;
+    }
   }
 }

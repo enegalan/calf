@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/utils/format.dart';
 
 /// Loads directory entries for a path in the container file browser.
 typedef LoadDirectoryCallback =
@@ -372,16 +373,3 @@ Color filesPanelBackgroundColor(ThemeData theme) {
   );
 }
 
-/// Formats a byte count as a human-readable size string.
-String formatFileSize(int bytes) {
-  if (bytes < 1024) {
-    return '$bytes B';
-  }
-  if (bytes < 1024 * 1024) {
-    return '${(bytes / 1024).toStringAsFixed(bytes < 10 * 1024 ? 1 : 0)} kB';
-  }
-  if (bytes < 1024 * 1024 * 1024) {
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
-  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
-}

@@ -4,7 +4,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,8 +25,11 @@ import (
 
 var guestLogger = slog.Default()
 
-// Guest holds shared macOS guest state (disk, EFI, vsock Docker helpers) used by Krunkit.
+// Guest holds shared macOS guest state (disk, EFI, vsock Docker helpers) used by Krunkit. It
+// embeds cliOps for the operations shared with Native (see cli_ops.go); methods with
+// guest-specific behavior are defined below.
 type Guest struct {
+	cliOps
 	mu             sync.Mutex
 	vmName         string
 	dockerSocket   string
@@ -91,6 +93,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 		ownerCtx:       context.Background(),
 	}
 	v.localhostProxy.setReservedPorts(apiListenPort)
+	v.cliOps = cliOps{status: v.Status, runLocal: v.runLocal, runLocalWithStdin: v.runLocalWithStdin}
 	return v
 }
 
@@ -260,33 +263,6 @@ func (v *Guest) ensureBuildxAsync(lifeCtx context.Context) {
 	}()
 }
 
-// watchPortProxies periodically resyncs localhost proxies with published container ports.
-func (v *Guest) watchPortProxies(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			status, err := v.Status(ctx)
-			if err != nil || status.State != State(constants.RuntimeStateRunning) || !v.started.Load() {
-				continue
-			}
-			containers, err := listContainers(ctx, v.runLocal)
-			if err != nil {
-				v.proxyResync.Store(true)
-				continue
-			}
-			force := v.proxyResync.Load()
-			v.localhostProxy.sync(publishedTCPPorts(containers), force)
-			if force {
-				v.proxyResync.Store(false)
-			}
-		}
-	}
-}
-
 // Stop tears down guest helpers unless vm_keep_alive is enabled (benchmarks force a full stop).
 // Krunkit overrides Stop to terminate krunkit/gvproxy; this path is unused in product.
 func (v *Guest) Stop(ctx context.Context) error {
@@ -358,6 +334,8 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
+// runLocal executes a command against the guest's Docker socket, retrying transient nerdctl
+// failures. nerdctl is remapped to docker since the guest exposes a Docker-API socket.
 func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		command = "docker"
@@ -370,6 +348,8 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, "", command, args...)
 }
 
+// runLocalWithStdin executes a command against the guest's Docker socket with stdin, retrying
+// nerdctl on transient errors.
 func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" {
 		command = "docker"
@@ -378,6 +358,8 @@ func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
+// ListContainers returns all containers, or none when the runtime is stopped. Unlike Native, it
+// also resyncs the localhost port-forwarding proxies from the container list.
 func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Container, error) {
 		if !v.started.Load() {
@@ -394,39 +376,9 @@ func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 		return containers, err
 	})
 }
-func (v *Guest) ListImages(ctx context.Context) ([]Image, error) {
-	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Image, error) { return listImages(ctx, v.runLocal) })
-}
-func (v *Guest) ImageHistory(ctx context.Context, ref string) ([]ImageLayer, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return nil, err
-	}
-	return imageHistory(ctx, v.runLocal, ref)
-}
-func (v *Guest) ListVolumes(ctx context.Context) ([]Volume, error) {
-	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Volume, error) {
-		vols, err := listVolumes(ctx, v.runLocal)
-		if err != nil {
-			return nil, err
-		}
-		return enrichVolumesInUse(ctx, v.runLocal, vols)
-	})
-}
-func (v *Guest) ListNetworks(ctx context.Context) ([]Network, error) {
-	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Network, error) { return listNetworks(ctx, v.runLocal) })
-}
-func (v *Guest) InspectNetwork(ctx context.Context, name string) (NetworkDetail, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return NetworkDetail{}, err
-	}
-	return inspectNetwork(ctx, v.runLocal, name)
-}
-func (v *Guest) RemoveNetwork(ctx context.Context, name string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return removeNetwork(ctx, v.runLocal, name)
-}
+
+// ApplyProxy stores proxy settings and applies them inside the guest when running. Unlike
+// Native, the guest always needs an in-VM apply since there is no host-level env inheritance.
 func (v *Guest) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	v.mu.Lock()
 	v.proxy = proxy
@@ -437,65 +389,8 @@ func (v *Guest) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	return applyProxyInVM(ctx, v.guestCommandRunner, proxy)
 }
 
-// PrunePreview returns unused resources reclaimable by system prune.
-func (v *Guest) PrunePreview(ctx context.Context) (PrunePreview, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return PrunePreview{}, err
-	}
-	return prunePreview(ctx, v.runLocal)
-}
-
-// Prune removes unused resources for the selected categories.
-func (v *Guest) Prune(ctx context.Context, opts PruneOptions) (PruneResult, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return PruneResult{}, err
-	}
-	return prune(ctx, v.runLocal, opts)
-}
-
-// SystemDiskUsage returns Images/Containers/Volumes/Build Cache size from system df.
-func (v *Guest) SystemDiskUsage(ctx context.Context) (SystemDiskUsage, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return SystemDiskUsage{}, err
-	}
-	return systemDiskUsage(ctx, v.runLocal)
-}
-func (v *Guest) CreateVolume(ctx context.Context, name string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	args := []string{"volume", "create"}
-	if name != "" {
-		args = append(args, name)
-	}
-	_, err := v.runLocal(ctx, "nerdctl", args...)
-	return err
-}
-func (v *Guest) CloneVolume(ctx context.Context, source, dest string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return cloneVolume(ctx, v.runLocal, source, dest)
-}
-func (v *Guest) ExportVolume(ctx context.Context, opts VolumeExportOptions) (string, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return "", err
-	}
-	return RunVolumeExport(ctx, v.runLocal, opts)
-}
-func (v *Guest) RemoveVolume(ctx context.Context, name string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "volume", "rm", name)
-	return err
-}
-func (v *Guest) InspectVolume(ctx context.Context, name string) (VolumeDetail, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return VolumeDetail{}, err
-	}
-	return inspectVolume(ctx, v.runLocal, name)
-}
+// ListVolumeFiles lists directory entries inside a volume at path. Unlike Native, it runs
+// through guestCommandRunner because volume mountpoints live inside the guest, not the host.
 func (v *Guest) ListVolumeFiles(ctx context.Context, name, path string) ([]ContainerFileEntry, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return nil, err
@@ -503,15 +398,11 @@ func (v *Guest) ListVolumeFiles(ctx context.Context, name, path string) ([]Conta
 	if !isValidContainerPath(path) {
 		return nil, fmt.Errorf("invalid path")
 	}
-	// Volume mountpoints live inside the guest; runLocal would ls the macOS host.
 	return listVolumeFiles(ctx, v.guestCommandRunner, name, path)
 }
-func (v *Guest) VolumeContainers(ctx context.Context, name string) ([]VolumeContainerUsage, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return nil, err
-	}
-	return volumeContainerUsages(ctx, v.runLocal, name)
-}
+
+// RunBuild builds an image from contextPath and returns parsed build output, preferring buildx
+// and falling back to a plain docker build when buildx is unavailable in the guest.
 func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, platform string) (BuildResult, error) {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return BuildResult{}, err
@@ -523,53 +414,8 @@ func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, plat
 	}
 	return result, err
 }
-func (v *Guest) StartContainer(ctx context.Context, id string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "start", id)
-	return err
-}
-func (v *Guest) StopContainer(ctx context.Context, id string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "stop", id)
-	return err
-}
-func (v *Guest) RemoveContainer(ctx context.Context, id string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "rm", "-f", id)
-	return err
-}
-func (v *Guest) RemoveImage(ctx context.Context, ref string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "rmi", ref)
-	return err
-}
-func (v *Guest) PullImage(ctx context.Context, ref string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	_, err := v.runLocal(ctx, "nerdctl", "pull", ref)
-	return err
-}
-func (v *Guest) PushImage(ctx context.Context, ref string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return pushImage(ctx, v.runLocal, ref)
-}
-func (v *Guest) RunImage(ctx context.Context, ref string) (string, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return "", err
-	}
-	return runImage(ctx, v.runLocal, ref)
-}
+
+// StreamLogs tails recent history then follows new log lines for a container.
 func (v *Guest) StreamLogs(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
@@ -580,45 +426,23 @@ func (v *Guest) StreamLogs(ctx context.Context, id string, output func(string)) 
 	}
 	return v.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
+
+// StreamLogsFollow streams only new log lines from the current time onward.
 func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
 	return v.streamLogsFollow(ctx, id, logsFollowSince(), output)
 }
+
+// streamLogsFollow runs docker logs -f and pipes lines to output.
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
 	return streamCommandLogs(ctx, command, output)
 }
-func (v *Guest) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return nil, err
-	}
-	return inspectContainer(ctx, v.runLocal, id)
-}
-func (v *Guest) ContainerMounts(ctx context.Context, id string) ([]ContainerMount, error) {
-	inspect, err := v.InspectContainer(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return parseContainerMounts(inspect)
-}
-func (v *Guest) ListContainerFiles(ctx context.Context, id, path string) ([]ContainerFileEntry, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return nil, err
-	}
-	if !isValidContainerPath(path) {
-		return nil, fmt.Errorf("invalid path")
-	}
-	return listContainerFiles(ctx, v.runLocal, id, path)
-}
-func (v *Guest) ExecContainer(ctx context.Context, id, command string) (string, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return "", err
-	}
-	return execInContainer(ctx, v.runLocal, id, command)
-}
+
+// AttachExec opens an interactive PTY session inside a container.
 func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOutput func([]byte), resizeCh <-chan ExecResize) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
@@ -627,35 +451,13 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
-func (v *Guest) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return ContainerStats{}, err
-	}
-	return containerStats(ctx, v.runLocal, id)
-}
-func (v *Guest) RestartContainer(ctx context.Context, id string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return restartContainer(ctx, v.runLocal, id)
-}
+
+// RegistryStatus reports whether the user is logged in to the default registry, reading Docker
+// credentials from the host's ~/.docker/config.json regardless of whether the guest is running.
 func (v *Guest) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
 	}
-	// Host Docker credentials; readable whether or not the guest engine is running.
 	return registryStatus(ctx, v.runLocal, v.runLocalWithStdin, filepath.Join(home, ".docker", "config.json"))
-}
-func (v *Guest) RegistryLogin(ctx context.Context, server, username, password string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return registryLogin(ctx, v.runLocal, v.runLocalWithStdin, server, username, password)
-}
-func (v *Guest) RegistryLogout(ctx context.Context, server string) error {
-	if err := requireRunning(ctx, v.Status); err != nil {
-		return err
-	}
-	return registryLogout(ctx, v.runLocal, server)
 }

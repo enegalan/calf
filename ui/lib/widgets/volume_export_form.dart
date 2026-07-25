@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/export_name_pattern.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 enum VolumeQuickExportType { localFile, localImage, newImage, registry }
@@ -216,6 +217,165 @@ class VolumeExportRegistryNotice extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class VolumeExportNamePatternField extends StatelessWidget {
+  /// Renders an export name pattern field with token chips and preview.
+  const VolumeExportNamePatternField({
+    super.key,
+    required this.theme,
+    required this.controller,
+    required this.label,
+    required this.placeholder,
+    required this.helperText,
+    required this.previewLabel,
+    required this.preview,
+    required this.onChanged,
+    required this.onInsertToken,
+  });
+
+  final ThemeData theme;
+  final TextEditingController controller;
+  final String label;
+  final String placeholder;
+  final String helperText;
+  final String previewLabel;
+  final String preview;
+  final VoidCallback onChanged;
+  final ValueChanged<String> onInsertToken;
+
+  static const _tokens = ['{volume}', '{timestamp}', '{date}', '{time}'];
+
+  /// Builds the name pattern field with token chips and preview.
+  @override
+  Widget build(BuildContext context) {
+    final pattern = controller.text.trim();
+    final isStaticName =
+        pattern.isNotEmpty && !exportNamePatternHasUniqueToken(pattern);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.bodySmall!.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(hintText: placeholder),
+          onChanged: (_) => onChanged(),
+        ),
+        const SizedBox(height: 8),
+        Text(helperText, style: CalfTheme.muted(theme)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final token in _tokens)
+              _VolumeExportPatternTokenChip(
+                theme: theme,
+                label: token,
+                onTap: () => onInsertToken(token),
+              ),
+          ],
+        ),
+        if (pattern.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  previewLabel,
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(preview, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+        if (isStaticName) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Static name: each scheduled run will overwrite the previous export at this destination.',
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _VolumeExportPatternTokenChip extends StatefulWidget {
+  /// Creates a hoverable chip that inserts a name-pattern token.
+  const _VolumeExportPatternTokenChip({
+    required this.theme,
+    required this.label,
+    required this.onTap,
+  });
+
+  final ThemeData theme;
+  final String label;
+  final VoidCallback onTap;
+
+  /// Creates the mutable state for [_VolumeExportPatternTokenChip].
+  @override
+  State<_VolumeExportPatternTokenChip> createState() =>
+      _VolumeExportPatternTokenChipState();
+}
+
+class _VolumeExportPatternTokenChipState
+    extends State<_VolumeExportPatternTokenChip> {
+  bool _hovered = false;
+
+  /// Builds the hoverable token chip.
+  @override
+  Widget build(BuildContext context) {
+    final borderColor = _hovered
+        ? widget.theme.colorScheme.primary
+        : widget.theme.colorScheme.outlineVariant;
+    final backgroundColor = _hovered
+        ? widget.theme.colorScheme.primary.withValues(alpha: 0.12)
+        : null;
+    final textColor = _hovered
+        ? widget.theme.colorScheme.primary
+        : widget.theme.colorScheme.onSurface;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            border: Border.all(color: borderColor),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            widget.label,
+            style: widget.theme.textTheme.bodySmall!.copyWith(color: textColor),
+          ),
+        ),
       ),
     );
   }

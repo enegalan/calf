@@ -9,6 +9,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:xterm/xterm.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/utils/format.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -1327,7 +1328,7 @@ class _StatsTab extends StatelessWidget {
               values: history.memUsed,
             ),
           ],
-          formatY: _formatBytes,
+          formatY: formatFileSizeCompact,
         ),
         _StatsChartCard(
           theme: theme,
@@ -1344,7 +1345,7 @@ class _StatsTab extends StatelessWidget {
               values: history.diskWrite,
             ),
           ],
-          formatY: _formatBytes,
+          formatY: formatFileSizeCompact,
         ),
         _StatsChartCard(
           theme: theme,
@@ -1361,7 +1362,7 @@ class _StatsTab extends StatelessWidget {
               values: history.netTx,
             ),
           ],
-          formatY: _formatBytes,
+          formatY: formatFileSizeCompact,
         ),
       ],
     );
@@ -1674,19 +1675,6 @@ double _parseDataSize(String value) {
   }
 }
 
-/// Formats the value for display.
-String _formatBytes(double value) {
-  if (value >= 1024 * 1024 * 1024) {
-    return '${(value / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
-  }
-  if (value >= 1024 * 1024) {
-    return '${(value / (1024 * 1024)).toStringAsFixed(1)}MB';
-  }
-  if (value >= 1024) {
-    return '${(value / 1024).toStringAsFixed(1)}KB';
-  }
-  return '${value.toStringAsFixed(0)}B';
-}
 
 /// Returns the themed background color for detail panels.
 Color _panelBackgroundColor(ThemeData theme) {

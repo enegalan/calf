@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/daemon"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -13,6 +14,9 @@ import (
 
 // handleContainers serves GET /v1/containers with the list of containers.
 func (g *Gateway) handleContainers(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	containers, err := g.backend.Runtime.ListContainers(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -97,6 +101,9 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 		},
 	}, map[string]httpkit.PartsHandler{
 		http.MethodDelete: func(w http.ResponseWriter, r *http.Request, parts []string) {
+			r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+			defer cancel()
+
 			id := parts[0]
 			if err := g.backend.Runtime.RemoveContainer(r.Context(), id); err != nil {
 				httpkit.WriteRuntimeOrFail(w, err)
@@ -111,6 +118,9 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 
 // handleContainerLifecycle runs a container lifecycle action and writes the HTTP response.
 func (g *Gateway) handleContainerLifecycle(w http.ResponseWriter, r *http.Request, id string, action func(context.Context, string) error) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	if err := action(r.Context(), id); err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return
@@ -121,6 +131,9 @@ func (g *Gateway) handleContainerLifecycle(w http.ResponseWriter, r *http.Reques
 
 // handleContainerInspect serves GET /v1/containers/{id}/inspect, optionally filtered by section query param.
 func (g *Gateway) handleContainerInspect(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	inspect, err := g.backend.Runtime.InspectContainer(r.Context(), id)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -143,6 +156,9 @@ func (g *Gateway) handleContainerInspect(w http.ResponseWriter, r *http.Request,
 
 // handleContainerMounts serves GET /v1/containers/{id}/mounts.
 func (g *Gateway) handleContainerMounts(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	mounts, err := g.backend.Runtime.ContainerMounts(r.Context(), id)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -154,6 +170,9 @@ func (g *Gateway) handleContainerMounts(w http.ResponseWriter, r *http.Request, 
 
 // handleContainerFiles serves GET /v1/containers/{id}/files for directory listing inside the container.
 func (g *Gateway) handleContainerFiles(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
 	files, err := g.backend.Runtime.ListContainerFiles(r.Context(), id, path)
 	if err != nil {
@@ -171,9 +190,11 @@ type containerExecRequest struct {
 
 // handleContainerExecOnce serves POST /v1/containers/{id}/exec for a one-shot non-interactive command.
 func (g *Gateway) handleContainerExecOnce(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	var request containerExecRequest
-	if err := httpkit.JSONDecode(r, &request); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &request) {
 		return
 	}
 
@@ -207,6 +228,9 @@ type containerStatsResponse struct {
 
 // handleContainerStats serves GET /v1/containers/{id}/stats with live usage and retained samples.
 func (g *Gateway) handleContainerStats(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	stats, err := g.backend.Runtime.ContainerStats(r.Context(), id)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)

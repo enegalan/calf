@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/utils/format.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -393,7 +394,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
 
   /// Live summary of space that will be freed for the current checkbox selection.
   Widget _selectedSpaceSummary(ThemeData theme, PrunePreview preview) {
-    final selectedLabel = _formatBytes(_selectedBytes);
+    final selectedLabel = formatFileSize(_selectedBytes);
     final hasSelection = _canPrune;
     final sizeLabel = hasSelection ? selectedLabel : '0 B';
 
@@ -435,29 +436,8 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
   }
 
   /// Formats selected reclaimable bytes for the current checkbox selection.
-  String _formatSelectedBytes() => _formatBytes(_selectedBytes);
+  String _formatSelectedBytes() => formatFileSize(_selectedBytes);
 
-  /// Formats a byte count as a human-readable size string.
-  String _formatBytes(int bytes) {
-    if (bytes <= 0) {
-      return '0 B';
-    }
-    const unit = 1024;
-    if (bytes < unit) {
-      return '$bytes B';
-    }
-    final values = <(int, String)>[
-      (unit * unit * unit, 'GB'),
-      (unit * unit, 'MB'),
-      (unit, 'KB'),
-    ];
-    for (final (divisor, suffix) in values) {
-      if (bytes >= divisor) {
-        return '${(bytes / divisor).toStringAsFixed(1)} $suffix';
-      }
-    }
-    return '$bytes B';
-  }
 
   /// Builds one selectable prune category with an expandable item list.
   Widget _categorySection({

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
@@ -31,15 +32,10 @@ class ImagesScreen extends StatefulWidget {
   State<ImagesScreen> createState() => _ImagesScreenState();
 }
 
-class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
+class _ImagesScreenState extends State<ImagesScreen>
+    with PollIntervalMixin, ResourceListPollMixin {
   List<ImageItem> _images = [];
   RuntimeStatus? _runtime;
-  String? _error;
-  bool _loading = true;
-  bool _refreshInFlight = false;
-  int _consecutiveSilentFailures = 0;
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
   ImageItem? _selectedImage;
   List<ImageLayer>? _layers;
   bool _layersLoading = false;
@@ -49,13 +45,9 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   @override
   void initState() {
     super.initState();
+    initListSearchListener();
     _loadImages();
     startPollInterval(widget.apiClient, _loadImages);
-    _searchController.addListener(() {
-      setState(
-        () => _searchQuery = _searchController.text.trim().toLowerCase(),
-      );
-    });
   }
 
   /// Re-arms the pending deep link and retries opening it when it changes.
@@ -64,7 +56,12 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     super.didUpdateWidget(oldWidget);
     if (widget.initialImageReference != oldWidget.initialImageReference &&
         widget.initialImageReference != null) {
-      _openInitialImageIfNeeded(_images);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _openInitialImageIfNeeded(_images);
+      });
     }
   }
 
@@ -72,57 +69,30 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   @override
   void dispose() {
     disposePollInterval();
-    _searchController.dispose();
+    disposeListSearch();
     super.dispose();
   }
 
   /// Fetches images from the API, optionally skipping the loading indicator.
   Future<void> _loadImages({bool silent = false}) async {
-    if (_refreshInFlight) {
-      return;
-    }
-
-    _refreshInFlight = true;
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      final images = await widget.apiClient.fetchImages();
-      if (!mounted) {
-        return;
-      }
-      _consecutiveSilentFailures = 0;
-      setState(() {
-        _runtime = status.runtime;
-        _images = images;
-        _loading = false;
-        _error = null;
-        _syncSelectedImage(images);
-      });
-      _openInitialImageIfNeeded(images);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (!silent) {
-        setState(() {
-          _error = error.toString();
-          _loading = false;
-        });
-      } else {
-        _consecutiveSilentFailures++;
-        if (_consecutiveSilentFailures >= 3) {
-          setState(() => _error = error.toString());
+    await runListLoad(
+      silent: silent,
+      body: () async {
+        final status = await widget.apiClient.fetchStatus();
+        final images = await widget.apiClient.fetchImages();
+        if (!mounted) {
+          return;
         }
-      }
-    } finally {
-      _refreshInFlight = false;
-    }
+        setState(() {
+          _runtime = status.runtime;
+          _images = images;
+          listLoading = false;
+          listError = null;
+          _syncSelectedImage(images);
+        });
+        _openInitialImageIfNeeded(images);
+      },
+    );
   }
 
   /// Updates [_selectedImage] from a fresh poll when detail view is open.
@@ -213,7 +183,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
         return;
       }
       setState(() {
-        _layersError = error.toString();
+        _layersError = formatAsyncError(error);
         _layersLoading = false;
       });
     }
@@ -255,7 +225,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -291,7 +261,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -313,30 +283,30 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     }
 
     final theme = Theme.of(context);
-    final filtered = _searchQuery.isEmpty
+    final filtered = listSearchQuery.isEmpty
         ? _images
         : _images
               .where(
                 (img) =>
-                    img.repository.toLowerCase().contains(_searchQuery) ||
-                    img.tag.toLowerCase().contains(_searchQuery) ||
-                    img.id.toLowerCase().contains(_searchQuery),
+                    img.repository.toLowerCase().contains(listSearchQuery) ||
+                    img.tag.toLowerCase().contains(listSearchQuery) ||
+                    img.id.toLowerCase().contains(listSearchQuery),
               )
               .toList();
     final runtimeStopped = _runtime?.state == 'stopped';
 
     return ResourceListScaffold(
       title: 'Images',
-      searchController: _searchController,
-      loading: _loading,
-      error: _error,
+      searchController: listSearchController,
+      loading: listLoading,
+      error: listError,
       empty: filtered.isEmpty,
-      emptyMessage: _searchQuery.isNotEmpty
-          ? 'No images match "$_searchQuery".'
+      emptyMessage: listSearchQuery.isNotEmpty
+          ? 'No images match "$listSearchQuery".'
           : runtimeStopped
           ? 'No images. Runtime is stopped.'
           : 'No local images.',
-      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+      emptyAction: filtered.isEmpty && runtimeStopped && listSearchQuery.isEmpty
           ? CalfButton(
               onPressed: _startEngine,
               child: const Text('Start engine'),
@@ -476,7 +446,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
       }
       setState(() {
         _busy = false;
-        _actionError = error.toString();
+        _actionError = formatAsyncError(error);
       });
     }
   }

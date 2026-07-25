@@ -74,8 +74,9 @@ calf/
 │   │   │   ├── troubleshoot.go                Purge and factory-reset HTTP handlers
 │   │   │   └── prune.go                       System prune preview and execute HTTP handlers
 │   │   ├── httpkit/
-│   │   │   ├── response.go                    JSON response helpers
-│   │   │   ├── json.go                        Request JSON decode helper
+│   │   │   ├── response.go                    JSON response and logged-error helpers
+│   │   │   ├── json.go                        Request JSON decode helpers
+│   │   │   ├── context.go                     Per-request context timeout helper
 │   │   │   ├── origin.go                      Localhost Origin/host checks for CORS and WebSocket
 │   │   │   ├── route.go                       HTTP method and path routing helpers
 │   │   │   ├── runtime_errors.go              Runtime error to HTTP status mapping
@@ -111,6 +112,7 @@ calf/
 │   │   │   ├── krunkit_darwin.go              macOS krunkit + gvproxy runtime
 │   │   │   ├── process_resources_darwin.go    Host CPU/RAM probe for status bar (proc_info, ps fallback)
 │   │   │   ├── select_other.go                Non-darwin stub for selection helper
+│   │   │   ├── cli_ops.go                      Shared container/image/volume/network/registry ops embedded by Native and Guest
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── guest_darwin.go                 Shared guest disk/EFI/vsock helpers (embedded by Krunkit)
 │   │   │   ├── guest_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
@@ -163,9 +165,12 @@ calf/
 ├── ui/                                      Flutter application
 │   ├── lib/
 │   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
-│   │   ├── app_shell.dart                     Sidebar nav, top/bottom bars, SettingsScreen (resources, migration, theme)
+│   │   ├── app_shell.dart                     Sidebar nav, top/bottom bars, screen switching
 │   │   ├── api/
-│   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
+│   │   │   ├── client.dart                    Barrel file re-exporting models.dart/calf_client.dart/api_client.dart
+│   │   │   ├── models.dart                    DTO/response model classes with fromJson/toJson
+│   │   │   ├── calf_client.dart                Abstract CalfClient interface
+│   │   │   └── api_client.dart                 Concrete ApiClient + ApiException (http + WebSocket)
 │   │   ├── constants/
 │   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── theme/
@@ -198,7 +203,8 @@ calf/
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   │   ├── disk_cleanup_screen.dart            Clean unused data (prune preview + execute)
-│   │   │   └── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
+│   │   │   ├── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
+│   │   │   └── settings_screen.dart                SettingsScreen (resources, proxy, migration, theme, updates)
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
@@ -215,13 +221,15 @@ calf/
 │   │       ├── global_search_dialog.dart       ⌘K command palette for resources
 │   │       ├── hover_list_row.dart             Hover-state row wrapper
 │   │       ├── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
-│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic polling mixin
+│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic + ResourceListPollMixin
 │   │       ├── resource_list_scaffold.dart     List screen layout helper
 │   │       ├── running_filter_switch.dart      "Show only running" filter switch
 │   │       ├── status_dot.dart                 Running/in-use status indicator dot
 │   │       ├── host_port_links.dart            Collapsible published host-port links
 │   │       ├── build_row_icons.dart            Build dependency/result leading icons (chain, provenance, placeholder)
 │   │       └── volume_export_form.dart         Shared volume export form widgets
+│   │   ├── utils/
+│   │   │   └── format.dart                     Duration and file-size formatters
 │   ├── test/widget_test.dart                  Flutter widget test
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
 │   └── analysis_options.yaml                  flutter_lints, no custom overrides
@@ -268,8 +276,9 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
 
-- `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`.
-- `json.go` — `JSONDecode` with a max request body size.
+- `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`, `WriteLoggedError` (logs err, writes a fixed public message), `RequireNonEmpty` (400 on blank required fields).
+- `json.go` — `JSONDecode` with a max request body size, plus `JSONDecodeOrFail` which writes a 400 "invalid json body" response on failure.
+- `context.go` — `WithTimeout` wraps a request's context with a timeout, for handlers that call the runtime layer with a bounded deadline.
 - `origin.go` — `IsLocalOrigin` / `IsLocalHost` for CORS and WebSocket origin checks.
 - `route.go` — `ServeMethods`, `ServeRoutes`, `ServePrefix`, `PathParts`.
 - `runtime_errors.go` — maps runtime errors to HTTP status codes.
@@ -334,6 +343,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
 - `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; DAX remount `dax=inode` by default).
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
+- `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
@@ -360,10 +370,19 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds light/dark Material 3 `ThemeData` via `CalfTheme` with brand primary color from `CalfColors.primary`.
 
 ### `app_shell.dart`
-Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, a top bar showing Docker Hub registry sign-in status, and a bottom engine status bar (Start/Stop/Kill, RAM/disk used vs reserved, app version). `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
+Sidebar navigation (Containers / Images / Volumes / Builds) plus screen switching between resource screens and `SettingsScreen`/`TroubleshootScreen`/`DiskCleanupScreen`, a top bar showing Docker Hub registry sign-in status, and a bottom engine status bar (Start/Stop/Kill, RAM/disk used vs reserved, app version).
 
 ### `api/client.dart`
-Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
+Barrel file that re-exports `models.dart`, `calf_client.dart`, and `api_client.dart`, so existing `import 'package:ui/api/client.dart'` call sites keep working without changes.
+
+### `api/models.dart`
+DTO/response model classes (`DaemonStatus`, `ContainerItem`, `ImageItem`, `VolumeItem`, `BuildDetail`, `Config`, etc.) as plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation.
+
+### `api/calf_client.dart`
+Abstract `CalfClient` interface declaring every daemon operation (containers, images, volumes, builds, networks, registry, runtime, config, migration, prune) used by the UI.
+
+### `api/api_client.dart`
+Concrete `ApiClient` implementation of `CalfClient` over `package:http`, plus the `ApiException` error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
 
 ### `constants/calf_constants.dart`
 Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (base URL, poll interval, HTTP timeouts), `CalfStorageFiles` (JSON preference filenames), `CalfGitHub` (repository slug).
@@ -404,6 +423,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 - `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
 - `troubleshoot_screen.dart` — restart, support, clean unused data, purge engine data, factory reset, and uninstall.
+- `settings_screen.dart` — `SettingsScreen`: resource limits (CPU/memory/swap/disk sliders bounded by host capacity from `/v1/config`), disk image location, Docker CLI context toggle, open-at-login, theme mode picker, update check/download, Docker Desktop migration trigger + polling, and HTTP/HTTPS/no-proxy configuration.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
@@ -419,10 +439,13 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
 - `error_text.dart` — formatted API error text.
 - `detail_breadcrumb.dart`, `calf_tab_bar.dart` — shared detail view chrome.
-- `poll_interval_mixin.dart` — shared list-screen polling lifecycle.
+- `poll_interval_mixin.dart` — shared list-screen polling lifecycle (`PollIntervalMixin`) plus in-flight / silent-failure load helpers (`ResourceListPollMixin`).
 - `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
 - `confirm_dialog.dart` — confirm dialog helper.
-- `status_dot.dart`, `host_port_links.dart`, `build_row_icons.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, build dependency/result row icons, and volume export shared UI.
+- `status_dot.dart`, `host_port_links.dart`, `build_row_icons.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, build dependency/result row icons, and volume export shared UI (including name-pattern field and registry notice).
+
+### `utils/`
+- `format.dart` — shared `formatDurationMs`, `formatFileSize`, and `formatFileSizeCompact` helpers used by list screens, charts, and the status bar.
 
 ## Testing Conventions
 

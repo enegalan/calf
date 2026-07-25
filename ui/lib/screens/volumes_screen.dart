@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
@@ -35,15 +36,10 @@ class VolumesScreen extends StatefulWidget {
   State<VolumesScreen> createState() => _VolumesScreenState();
 }
 
-class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
+class _VolumesScreenState extends State<VolumesScreen>
+    with PollIntervalMixin, ResourceListPollMixin {
   List<VolumeItem> _volumes = [];
   RuntimeStatus? _runtime;
-  String? _error;
-  bool _loading = true;
-  bool _refreshInFlight = false;
-  int _consecutiveSilentFailures = 0;
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
   bool _runningOnly = false;
   String? _selectedVolume;
 
@@ -52,13 +48,9 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   @override
   void initState() {
     super.initState();
+    initListSearchListener();
     _loadVolumes();
     startPollInterval(widget.apiClient, _loadVolumes);
-    _searchController.addListener(() {
-      setState(
-        () => _searchQuery = _searchController.text.trim().toLowerCase(),
-      );
-    });
   }
 
   /// Re-arms the pending deep link when [initialVolumeName] changes.
@@ -67,7 +59,12 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
     super.didUpdateWidget(oldWidget);
     if (widget.initialVolumeName != oldWidget.initialVolumeName &&
         widget.initialVolumeName != null) {
-      _openInitialVolumeIfNeeded(_volumes);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _openInitialVolumeIfNeeded(_volumes);
+      });
     }
   }
 
@@ -76,7 +73,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   @override
   void dispose() {
     disposePollInterval();
-    _searchController.dispose();
+    disposeListSearch();
     super.dispose();
   }
 
@@ -109,58 +106,30 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
 
   /// Fetches runtime status and volumes, optionally skipping the loading indicator.
   Future<void> _loadVolumes({bool silent = false}) async {
-    if (_refreshInFlight) {
-      return;
-    }
-
-    _refreshInFlight = true;
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      final volumes = _sortedVolumes(await widget.apiClient.fetchVolumes());
-      if (!mounted) {
-        return;
-      }
-
-      final hadSilentFailure = _consecutiveSilentFailures > 0;
-      _consecutiveSilentFailures = 0;
-
-      if (!silent ||
-          _volumesChanged(_volumes, volumes) ||
-          _runtime?.state != status.runtime.state ||
-          hadSilentFailure) {
-        setState(() {
-          _runtime = status.runtime;
-          _volumes = volumes;
-          _loading = false;
-          _error = null;
-        });
-      }
-      _openInitialVolumeIfNeeded(volumes);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (!silent) {
-        setState(() {
-          _error = error.toString();
-          _loading = false;
-        });
-      } else {
-        _consecutiveSilentFailures++;
-        if (_consecutiveSilentFailures >= 3) {
-          setState(() => _error = error.toString());
+    await runListLoad(
+      silent: silent,
+      body: () async {
+        final status = await widget.apiClient.fetchStatus();
+        final volumes = _sortedVolumes(await widget.apiClient.fetchVolumes());
+        if (!mounted) {
+          return;
         }
-      }
-    } finally {
-      _refreshInFlight = false;
-    }
+
+        final hadSilentFailure = consecutiveSilentFailures > 0;
+        if (!silent ||
+            _volumesChanged(_volumes, volumes) ||
+            _runtime?.state != status.runtime.state ||
+            hadSilentFailure) {
+          setState(() {
+            _runtime = status.runtime;
+            _volumes = volumes;
+            listLoading = false;
+            listError = null;
+          });
+        }
+        _openInitialVolumeIfNeeded(volumes);
+      },
+    );
   }
 
   /// Navigates to the detail view for [volume].
@@ -196,15 +165,15 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
       items = items.where((volume) => volume.inUse).toList();
     }
 
-    if (_searchQuery.isEmpty) {
+    if (listSearchQuery.isEmpty) {
       return items;
     }
 
     return items
         .where(
           (volume) =>
-              volume.name.toLowerCase().contains(_searchQuery) ||
-              volume.driver.toLowerCase().contains(_searchQuery),
+              volume.name.toLowerCase().contains(listSearchQuery) ||
+              volume.driver.toLowerCase().contains(listSearchQuery),
         )
         .toList();
   }
@@ -270,7 +239,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -297,7 +266,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -321,18 +290,18 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
 
     return ResourceListScaffold(
       title: 'Volumes',
-      searchController: _searchController,
-      loading: _loading,
-      error: _error,
+      searchController: listSearchController,
+      loading: listLoading,
+      error: listError,
       empty: filtered.isEmpty,
-      emptyMessage: _searchQuery.isNotEmpty
-          ? 'No volumes match "$_searchQuery".'
+      emptyMessage: listSearchQuery.isNotEmpty
+          ? 'No volumes match "$listSearchQuery".'
           : runtimeStopped
           ? 'No volumes. Runtime is stopped.'
           : _runningOnly
           ? 'No volumes in use.'
           : 'No volumes.',
-      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+      emptyAction: filtered.isEmpty && runtimeStopped && listSearchQuery.isEmpty
           ? CalfButton(
               onPressed: _startEngine,
               child: const Text('Start engine'),
@@ -405,7 +374,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 }

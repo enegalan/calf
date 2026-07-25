@@ -4,8 +4,8 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/utils/format.dart';
 import 'package:ui/widgets/calf_popup_menu.dart';
-import 'package:ui/widgets/files_panel.dart';
 
 /// Bottom status bar for engine state, resource usage, and app version.
 class AppBottomBar extends StatelessWidget {

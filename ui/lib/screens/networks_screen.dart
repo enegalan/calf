@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
@@ -31,28 +32,18 @@ class NetworksScreen extends StatefulWidget {
 }
 
 class _NetworksScreenState extends State<NetworksScreen>
-    with PollIntervalMixin {
+    with PollIntervalMixin, ResourceListPollMixin {
   List<NetworkItem> _networks = [];
   RuntimeStatus? _runtime;
-  String? _error;
-  bool _loading = true;
-  bool _refreshInFlight = false;
-  int _consecutiveSilentFailures = 0;
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
   String? _selectedNetwork;
 
   /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
+    initListSearchListener();
     _loadNetworks();
     startPollInterval(widget.apiClient, _loadNetworks);
-    _searchController.addListener(() {
-      setState(
-        () => _searchQuery = _searchController.text.trim().toLowerCase(),
-      );
-    });
   }
 
   /// Re-arms the pending deep link when [initialNetworkName] changes.
@@ -61,7 +52,12 @@ class _NetworksScreenState extends State<NetworksScreen>
     super.didUpdateWidget(oldWidget);
     if (widget.initialNetworkName != oldWidget.initialNetworkName &&
         widget.initialNetworkName != null) {
-      _openInitialNetworkIfNeeded(_networks);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _openInitialNetworkIfNeeded(_networks);
+      });
     }
   }
 
@@ -69,58 +65,31 @@ class _NetworksScreenState extends State<NetworksScreen>
   @override
   void dispose() {
     disposePollInterval();
-    _searchController.dispose();
+    disposeListSearch();
     super.dispose();
   }
 
   /// Fetches networks from the API, optionally skipping the loading indicator.
   Future<void> _loadNetworks({bool silent = false}) async {
-    if (_refreshInFlight) {
-      return;
-    }
-
-    _refreshInFlight = true;
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      final networks = List<NetworkItem>.from(
-        await widget.apiClient.fetchNetworks(),
-      )..sort((a, b) => a.name.compareTo(b.name));
-      if (!mounted) {
-        return;
-      }
-      _consecutiveSilentFailures = 0;
-      setState(() {
-        _runtime = status.runtime;
-        _networks = networks;
-        _loading = false;
-        _error = null;
-      });
-      _openInitialNetworkIfNeeded(networks);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (!silent) {
-        setState(() {
-          _error = error.toString();
-          _loading = false;
-        });
-      } else {
-        _consecutiveSilentFailures++;
-        if (_consecutiveSilentFailures >= 3) {
-          setState(() => _error = error.toString());
+    await runListLoad(
+      silent: silent,
+      body: () async {
+        final status = await widget.apiClient.fetchStatus();
+        final networks = List<NetworkItem>.from(
+          await widget.apiClient.fetchNetworks(),
+        )..sort((a, b) => a.name.compareTo(b.name));
+        if (!mounted) {
+          return;
         }
-      }
-    } finally {
-      _refreshInFlight = false;
-    }
+        setState(() {
+          _runtime = status.runtime;
+          _networks = networks;
+          listLoading = false;
+          listError = null;
+        });
+        _openInitialNetworkIfNeeded(networks);
+      },
+    );
   }
 
   /// Navigates to or opens the selected network.
@@ -150,16 +119,16 @@ class _NetworksScreenState extends State<NetworksScreen>
 
   /// Returns items matching the active search and filter criteria.
   List<NetworkItem> _filteredNetworks() {
-    if (_searchQuery.isEmpty) {
+    if (listSearchQuery.isEmpty) {
       return _networks;
     }
 
     return _networks
         .where(
           (network) =>
-              network.name.toLowerCase().contains(_searchQuery) ||
-              network.subnet.toLowerCase().contains(_searchQuery) ||
-              network.driver.toLowerCase().contains(_searchQuery),
+              network.name.toLowerCase().contains(listSearchQuery) ||
+              network.subnet.toLowerCase().contains(listSearchQuery) ||
+              network.driver.toLowerCase().contains(listSearchQuery),
         )
         .toList();
   }
@@ -190,7 +159,7 @@ class _NetworksScreenState extends State<NetworksScreen>
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -212,16 +181,16 @@ class _NetworksScreenState extends State<NetworksScreen>
 
     return ResourceListScaffold(
       title: 'Networks',
-      searchController: _searchController,
-      loading: _loading,
-      error: _error,
+      searchController: listSearchController,
+      loading: listLoading,
+      error: listError,
       empty: filtered.isEmpty,
-      emptyMessage: _searchQuery.isNotEmpty
-          ? 'No networks match "$_searchQuery".'
+      emptyMessage: listSearchQuery.isNotEmpty
+          ? 'No networks match "$listSearchQuery".'
           : runtimeStopped
           ? 'No networks. Runtime is stopped.'
           : 'No networks.',
-      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+      emptyAction: filtered.isEmpty && runtimeStopped && listSearchQuery.isEmpty
           ? CalfButton(
               onPressed: _startEngine,
               child: const Text('Start engine'),
@@ -270,7 +239,7 @@ class _NetworksScreenState extends State<NetworksScreen>
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 }
@@ -330,7 +299,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
         return;
       }
       setState(() {
-        _error = error.toString();
+        _error = formatAsyncError(error);
         _loading = false;
       });
     }
@@ -360,7 +329,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => _error = formatAsyncError(error));
     }
   }
 

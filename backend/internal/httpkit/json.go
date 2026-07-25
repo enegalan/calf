@@ -23,3 +23,14 @@ func JSONDecode(r *http.Request, payload any) error {
 
 	return json.Unmarshal(body, payload)
 }
+
+// JSONDecodeOrFail decodes the request body into dest, writing a 400 "invalid json body" response
+// and reporting false on failure so the caller can return immediately without leaking parse details.
+func JSONDecodeOrFail(w http.ResponseWriter, r *http.Request, dest any) bool {
+	if err := JSONDecode(r, dest); err != nil {
+		WriteError(w, http.StatusBadRequest, "invalid json body")
+		return false
+	}
+
+	return true
+}

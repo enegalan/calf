@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/utils/format.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/screens/build_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -30,28 +32,19 @@ class BuildsScreen extends StatefulWidget {
   State<BuildsScreen> createState() => _BuildsScreenState();
 }
 
-class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
+class _BuildsScreenState extends State<BuildsScreen>
+    with PollIntervalMixin, ResourceListPollMixin {
   List<BuildItem> _builds = [];
   RuntimeStatus? _runtime;
-  String? _error;
-  bool _loading = true;
-  bool _refreshInFlight = false;
-  int _consecutiveSilentFailures = 0;
   String? _selectedBuildId;
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
 
   /// Initializes state and starts loading or subscriptions.
   @override
   void initState() {
     super.initState();
+    initListSearchListener();
     _loadBuilds();
     startPollInterval(widget.apiClient, _loadBuilds);
-    _searchController.addListener(() {
-      setState(
-        () => _searchQuery = _searchController.text.trim().toLowerCase(),
-      );
-    });
   }
 
   /// Re-arms the pending deep link when [initialBuildId] changes.
@@ -60,7 +53,12 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     super.didUpdateWidget(oldWidget);
     if (widget.initialBuildId != oldWidget.initialBuildId &&
         widget.initialBuildId != null) {
-      _openInitialBuildIfNeeded(_builds);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _openInitialBuildIfNeeded(_builds);
+      });
     }
   }
 
@@ -68,56 +66,29 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   @override
   void dispose() {
     disposePollInterval();
-    _searchController.dispose();
+    disposeListSearch();
     super.dispose();
   }
 
   /// Fetches builds from the API, optionally skipping the loading indicator.
   Future<void> _loadBuilds({bool silent = false}) async {
-    if (_refreshInFlight) {
-      return;
-    }
-
-    _refreshInFlight = true;
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      final builds = await widget.apiClient.fetchBuilds();
-      if (!mounted) {
-        return;
-      }
-      _consecutiveSilentFailures = 0;
-      setState(() {
-        _runtime = status.runtime;
-        _builds = builds;
-        _loading = false;
-        _error = null;
-      });
-      _openInitialBuildIfNeeded(builds);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (!silent) {
-        setState(() {
-          _error = error.toString();
-          _loading = false;
-        });
-      } else {
-        _consecutiveSilentFailures++;
-        if (_consecutiveSilentFailures >= 3) {
-          setState(() => _error = error.toString());
+    await runListLoad(
+      silent: silent,
+      body: () async {
+        final status = await widget.apiClient.fetchStatus();
+        final builds = await widget.apiClient.fetchBuilds();
+        if (!mounted) {
+          return;
         }
-      }
-    } finally {
-      _refreshInFlight = false;
-    }
+        setState(() {
+          _runtime = status.runtime;
+          _builds = builds;
+          listLoading = false;
+          listError = null;
+        });
+        _openInitialBuildIfNeeded(builds);
+      },
+    );
   }
 
   /// Navigates to or opens the selected build.
@@ -159,30 +130,30 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
     }
 
     final theme = Theme.of(context);
-    final filtered = _searchQuery.isEmpty
+    final filtered = listSearchQuery.isEmpty
         ? _builds
         : _builds
               .where(
                 (b) =>
-                    b.tag.toLowerCase().contains(_searchQuery) ||
-                    b.id.toLowerCase().contains(_searchQuery) ||
-                    b.status.toLowerCase().contains(_searchQuery),
+                    b.tag.toLowerCase().contains(listSearchQuery) ||
+                    b.id.toLowerCase().contains(listSearchQuery) ||
+                    b.status.toLowerCase().contains(listSearchQuery),
               )
               .toList();
     final runtimeStopped = _runtime?.state == 'stopped';
 
     return ResourceListScaffold(
       title: 'Builds',
-      searchController: _searchController,
-      loading: _loading,
-      error: _error,
+      searchController: listSearchController,
+      loading: listLoading,
+      error: listError,
       empty: filtered.isEmpty,
-      emptyMessage: _searchQuery.isNotEmpty
-          ? 'No builds match "$_searchQuery".'
+      emptyMessage: listSearchQuery.isNotEmpty
+          ? 'No builds match "$listSearchQuery".'
           : runtimeStopped
           ? 'No builds yet. Runtime is stopped.'
           : 'No builds yet.',
-      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+      emptyAction: filtered.isEmpty && runtimeStopped && listSearchQuery.isEmpty
           ? CalfButton(
               onPressed: _startEngine,
               child: const Text('Start engine'),
@@ -219,7 +190,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
                     Text(
                       [
                         if (build.durationMs > 0)
-                          _formatBuildDuration(build.durationMs),
+                          formatDurationMs(build.durationMs, emptyIfZero: true),
                         build.createdAt,
                       ].where((item) => item.isNotEmpty).join(' · '),
                       style: CalfTheme.muted(theme),
@@ -246,7 +217,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 }
@@ -263,20 +234,4 @@ Color _buildStatusColor(String status, ThemeData theme) {
     default:
       return theme.colorScheme.onSurfaceVariant;
   }
-}
-
-/// Formats the value for display.
-String _formatBuildDuration(int durationMs) {
-  if (durationMs <= 0) {
-    return '';
-  }
-
-  final seconds = durationMs / 1000;
-  if (seconds < 60) {
-    return '${seconds.toStringAsFixed(1)}s';
-  }
-
-  final minutes = seconds ~/ 60;
-  final remainder = seconds % 60;
-  return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }

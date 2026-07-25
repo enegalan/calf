@@ -3,12 +3,16 @@ package api
 import (
 	"net/http"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // handleImagesList serves GET /v1/images.
 func (g *Gateway) handleImagesList(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	images, err := g.backend.Runtime.ListImages(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -20,17 +24,18 @@ func (g *Gateway) handleImagesList(w http.ResponseWriter, r *http.Request) {
 
 // handleImagesPull serves POST /v1/images.
 func (g *Gateway) handleImagesPull(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.ImageActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Reference string `json:"reference"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
-	if payload.Reference == "" {
-		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
+	if !httpkit.RequireNonEmpty(w, "reference", payload.Reference) {
 		return
 	}
 
@@ -68,6 +73,9 @@ func (g *Gateway) handleImageSubpath() http.HandlerFunc {
 
 // handleImageDelete serves DELETE /v1/images/{ref} to remove an image.
 func (g *Gateway) handleImageDelete(w http.ResponseWriter, r *http.Request, ref string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	if err := g.backend.Runtime.RemoveImage(r.Context(), ref); err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return
@@ -78,9 +86,11 @@ func (g *Gateway) handleImageDelete(w http.ResponseWriter, r *http.Request, ref 
 
 // handleImageLayers serves GET /v1/images/layers with build history for a reference query param.
 func (g *Gateway) handleImageLayers(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	ref := r.URL.Query().Get("reference")
-	if ref == "" {
-		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
+	if !httpkit.RequireNonEmpty(w, "reference", ref) {
 		return
 	}
 
@@ -95,17 +105,18 @@ func (g *Gateway) handleImageLayers(w http.ResponseWriter, r *http.Request) {
 
 // handleImageRun serves POST /v1/images/run to create and start a container from an image.
 func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.ImageActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Reference string `json:"reference"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
-	if payload.Reference == "" {
-		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
+	if !httpkit.RequireNonEmpty(w, "reference", payload.Reference) {
 		return
 	}
 
@@ -123,17 +134,18 @@ func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
 
 // handleImagePush serves POST /v1/images/push to push an image to a registry.
 func (g *Gateway) handleImagePush(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.ImageActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Reference string `json:"reference"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
-	if payload.Reference == "" {
-		httpkit.WriteError(w, http.StatusBadRequest, "reference is required")
+	if !httpkit.RequireNonEmpty(w, "reference", payload.Reference) {
 		return
 	}
 

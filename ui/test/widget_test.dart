@@ -425,6 +425,24 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<void> factoryReset() async {}
+
+  @override
+  Future<PrunePreview> fetchPrunePreview() async => const PrunePreview(
+    containers: PruneCategoryPreview(items: []),
+    images: PruneCategoryPreview(items: []),
+    volumes: PruneCategoryPreview(items: []),
+    networks: PruneCategoryPreview(items: []),
+    buildCache: PruneCategoryPreview(items: []),
+  );
+
+  @override
+  Future<PruneResult> prune({
+    bool containers = true,
+    bool images = true,
+    bool volumes = true,
+    bool networks = true,
+    bool buildCache = true,
+  }) async => const PruneResult();
 }
 
 class _LoggedInCalfClient extends FakeCalfClient {
@@ -839,4 +857,22 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<void> factoryReset() async {}
+
+  @override
+  Future<PrunePreview> fetchPrunePreview() async => const PrunePreview(
+    containers: PruneCategoryPreview(items: []),
+    images: PruneCategoryPreview(items: []),
+    volumes: PruneCategoryPreview(items: []),
+    networks: PruneCategoryPreview(items: []),
+    buildCache: PruneCategoryPreview(items: []),
+  );
+
+  @override
+  Future<PruneResult> prune({
+    bool containers = true,
+    bool images = true,
+    bool volumes = true,
+    bool networks = true,
+    bool buildCache = true,
+  }) async => const PruneResult();
 }

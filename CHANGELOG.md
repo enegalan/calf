@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Overflow menus** — three-dot and contextual menus use a shared bordered surface matching dialogs and panels.
 - **Typography** — UI uses Geist; logs and code use Geist Mono.
 
+### Fixed
+
+- **Engine stop/kill, status, purge, and factory reset errors** — these now show a clear message instead of raw internal error text when the operation fails.
+- **Deep links from search** — opening a container, image, volume, network, or build from global search no longer crashes with a build-phase `setState` error.
+
 ## [0.9.9] - 2026-07-24
 
 ### Security
