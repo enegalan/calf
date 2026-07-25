@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/daemon"
@@ -79,6 +80,13 @@ func (g *Gateway) handleBuildAction() http.HandlerFunc {
 				g.handleBuildLogs(w, r, parts[0])
 			},
 		},
+		{
+			Segments: []string{"artifacts", "download"},
+			Method:   http.MethodGet,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleBuildArtifactDownload(w, r, parts[0])
+			},
+		},
 	}, map[string]httpkit.PartsHandler{
 		http.MethodGet: func(w http.ResponseWriter, r *http.Request, parts []string) {
 			build, ok := g.backend.GetBuild(parts[0])
@@ -139,4 +147,38 @@ func (g *Gateway) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildI
 		"raw_log": build.RawLog,
 		"steps":   steps,
 	})
+}
+
+// handleBuildArtifactDownload serves GET /v1/builds/{id}/artifacts/download?digest=...
+func (g *Gateway) handleBuildArtifactDownload(w http.ResponseWriter, r *http.Request, buildID string) {
+	digest := strings.TrimSpace(r.URL.Query().Get("digest"))
+	if digest == "" {
+		httpkit.WriteError(w, http.StatusBadRequest, "digest is required")
+		return
+	}
+
+	body, fileName, err := g.backend.DownloadBuildArtifact(r.Context(), buildID, digest)
+	if err != nil {
+		message := err.Error()
+		switch {
+		case strings.Contains(message, "build not found"):
+			httpkit.WriteError(w, http.StatusNotFound, "build not found")
+		case strings.Contains(message, "build result not found"):
+			httpkit.WriteError(w, http.StatusNotFound, "build result not found")
+		case strings.Contains(message, "digest is required"):
+			httpkit.WriteError(w, http.StatusBadRequest, "digest is required")
+		default:
+			g.logger.Error("build artifact download failed", "build", buildID, "digest", digest, "error", err)
+			httpkit.WriteError(w, http.StatusInternalServerError, "failed to download build artifact")
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+fileName+"\"")
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(body); err != nil {
+		g.logger.Error("build artifact download write failed", "build", buildID, "digest", digest, "error", err)
+	}
 }

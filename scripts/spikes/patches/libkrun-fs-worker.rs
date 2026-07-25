@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Calf patch: poll every virtqueue and run one host thread per queue so guest
+// calf patch: poll every virtqueue and run one host thread per queue so guest
 // multi-queue FUSE READs (readahead) are not serialized on a single worker.
 
 #[cfg(target_os = "macos")]

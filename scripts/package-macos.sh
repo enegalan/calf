@@ -5,7 +5,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "$SCRIPT_DIR/_common.sh"
 
 VERSION=$(extract_version)
-APP_BUNDLE="ui/build/macos/Build/Products/Release/Calf.app"
+APP_BUNDLE="ui/build/macos/Build/Products/Release/calf.app"
 
 require_directory "$APP_BUNDLE" "run 'make release-macos' first"
 require_command hdiutil

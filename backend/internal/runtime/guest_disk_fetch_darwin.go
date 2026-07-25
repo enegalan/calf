@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -20,7 +21,17 @@ import (
 )
 
 // guestDiskArch returns the release asset arch suffix (arm64 or amd64).
+// Uses the host machine arch (uname), not runtime.GOARCH, so a Rosetta
+// (x86_64) Go toolchain on Apple Silicon still fetches arm64 guest disks.
 func guestDiskArch() string {
+	if out, err := exec.Command("uname", "-m").Output(); err == nil {
+		switch strings.TrimSpace(string(out)) {
+		case "arm64", "aarch64":
+			return "arm64"
+		case "x86_64", "amd64":
+			return "amd64"
+		}
+	}
 	switch runtime.GOARCH {
 	case "arm64":
 		return "arm64"

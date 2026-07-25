@@ -229,6 +229,10 @@ class FakeCalfClient implements CalfClient {
   );
 
   @override
+  Future<List<int>> downloadBuildArtifact(String id, String digest) async =>
+      const [123, 125];
+
+  @override
   Future<void> startContainer(String id) async {}
 
   @override
@@ -395,6 +399,9 @@ class FakeCalfClient implements CalfClient {
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
 
   @override
+  Future<void> cancelRegistryBrowserLogin(String sessionId) async {}
+
+  @override
   Future<void> loginRegistry({
     required String username,
     required String password,
@@ -403,6 +410,21 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<void> logoutRegistry({String server = 'docker.io'}) async {}
+
+  @override
+  Future<RuntimeStatus> startRuntime() async => status.runtime;
+
+  @override
+  Future<RuntimeStatus> stopRuntime() async => status.runtime;
+
+  @override
+  Future<RuntimeStatus> killRuntime() async => status.runtime;
+
+  @override
+  Future<void> purgeEngineData() async {}
+
+  @override
+  Future<void> factoryReset() async {}
 }
 
 class _LoggedInCalfClient extends FakeCalfClient {
@@ -462,12 +484,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign in'), findsNothing);
+    expect(find.text('demo'), findsOneWidget);
     await tester.tap(find.byIcon(LucideIcons.chevronDown));
     await tester.pumpAndSettle();
 
     expect(find.text("What's new"), findsOneWidget);
     expect(find.text('Account Settings'), findsOneWidget);
     expect(find.text('Sign out'), findsOneWidget);
+    expect(find.text('Docker Hub'), findsOneWidget);
   });
 
   testWidgets('shows error when containers fetch fails', (tester) async {
@@ -637,6 +661,11 @@ class _ErrorCalfClient implements CalfClient {
   }
 
   @override
+  Future<List<int>> downloadBuildArtifact(String id, String digest) async {
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
   Future<void> startContainer(String id) async {}
 
   @override
@@ -772,6 +801,9 @@ class _ErrorCalfClient implements CalfClient {
       const RegistryBrowserLoginStatus(status: 'complete', username: 'demo');
 
   @override
+  Future<void> cancelRegistryBrowserLogin(String sessionId) async {}
+
+  @override
   Future<void> loginRegistry({
     required String username,
     required String password,
@@ -780,4 +812,31 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<void> logoutRegistry({String server = 'docker.io'}) async {}
+
+  @override
+  Future<RuntimeStatus> startRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
+
+  @override
+  Future<RuntimeStatus> stopRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
+
+  @override
+  Future<RuntimeStatus> killRuntime() async => const RuntimeStatus(
+    mode: 'vm',
+    state: 'stopped',
+    dockerSocket: '/tmp/calf.sock',
+  );
+
+  @override
+  Future<void> purgeEngineData() async {}
+
+  @override
+  Future<void> factoryReset() async {}
 }

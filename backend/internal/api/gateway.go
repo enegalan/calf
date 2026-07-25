@@ -13,7 +13,7 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-// Gateway exposes the Calf REST and WebSocket API over HTTP.
+// Gateway exposes the calf REST and WebSocket API over HTTP.
 type Gateway struct {
 	cfg         config.Config
 	logger      *slog.Logger
@@ -59,6 +59,12 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("/v1/runtime/start", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodPost: g.handleRuntimeStart,
 	}))
+	mux.HandleFunc("/v1/runtime/stop", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleRuntimeStop,
+	}))
+	mux.HandleFunc("/v1/runtime/kill", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleRuntimeKill,
+	}))
 	mux.HandleFunc("/v1/containers", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handleContainers,
 	}))
@@ -96,6 +102,12 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("/v1/migrate/docker-desktop", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet:  g.handleDockerDesktopMigrationStatus,
 		http.MethodPost: g.handleDockerDesktopMigrationStart,
+	}))
+	mux.HandleFunc("/v1/troubleshoot/purge", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleTroubleshootPurge,
+	}))
+	mux.HandleFunc("/v1/troubleshoot/factory-reset", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleTroubleshootFactoryReset,
 	}))
 
 	return middleware.Chain(mux, g.middlewares...)

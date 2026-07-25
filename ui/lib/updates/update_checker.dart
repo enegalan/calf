@@ -12,10 +12,13 @@ const _checkInterval = Duration(hours: 24);
 const _requestTimeout = Duration(seconds: 15);
 
 class UpdateChecker {
-  /// Creates a checker that queries GitHub for the latest Calf release.
+  /// Creates a checker that queries GitHub for the latest calf release.
   UpdateChecker({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  /// In-memory What's New notes keyed by normalized version.
+  static final Map<String, String> _whatsNewMemoryCache = {};
 
   /// Compares two semantic version strings; returns negative if [left] is older.
   static int compareVersions(String left, String right) {
@@ -33,6 +36,81 @@ class UpdateChecker {
     return 0;
   }
 
+  /// Fetches GitHub release notes for [version] (tag `vX.Y.Z`).
+  ///
+  /// Returns cached notes for that version when available (memory, then disk).
+  Future<String?> fetchReleaseNotes(String version) async {
+    final normalized = normalizeTagName(version);
+    if (normalized.isEmpty ||
+        normalized == 'dev' ||
+        normalized == 'unavailable') {
+      return null;
+    }
+
+    final memory = _whatsNewMemoryCache[normalized];
+    if (memory != null && memory.isNotEmpty) {
+      return memory;
+    }
+
+    final preferences = await UpdatePreferences.load();
+    if (preferences.whatsNewVersion == normalized &&
+        preferences.whatsNewNotes.isNotEmpty) {
+      _whatsNewMemoryCache[normalized] = preferences.whatsNewNotes;
+      return preferences.whatsNewNotes;
+    }
+
+    try {
+      final response = await _client
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/${CalfGitHub.repo}/releases/tags/v$normalized',
+            ),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'calf',
+            },
+          )
+          .timeout(_requestTimeout);
+
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final body = decoded['body'];
+      if (body is! String) {
+        return null;
+      }
+      final trimmed = body.trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+
+      _whatsNewMemoryCache[normalized] = trimmed;
+      await UpdatePreferences.saveWhatsNewNotes(
+        version: normalized,
+        notes: trimmed,
+      );
+      return trimmed;
+    } on TimeoutException {
+      return null;
+    } on FormatException {
+      return null;
+    } on http.ClientException {
+      return null;
+    } on SocketException {
+      return null;
+    } on HandshakeException {
+      return null;
+    } on OSError {
+      return null;
+    }
+  }
+
   /// Strips a leading "v" from a Git tag name.
   static String normalizeTagName(String tagName) {
     final trimmed = tagName.trim();
@@ -45,16 +123,16 @@ class UpdateChecker {
   /// Returns platform-specific installer asset filenames for [version].
   static List<String> preferredAssetNames(String version) {
     if (Platform.isMacOS) {
-      return ['Calf-$version.dmg', 'Calf-$version.pkg'];
+      return ['calf-$version.dmg', 'calf-$version.pkg'];
     }
 
     if (Platform.isWindows) {
-      return ['Calf-$version.exe'];
+      return ['calf-$version.exe'];
     }
 
     if (Platform.isLinux) {
       return [
-        'Calf-$version-x86_64.AppImage',
+        'calf-$version-x86_64.AppImage',
         'calf_${version}_amd64.deb',
         'calf-$version-1.x86_64.rpm',
       ];
@@ -101,6 +179,12 @@ class UpdateChecker {
     bool force = false,
   }) async {
     final normalizedCurrent = normalizeTagName(currentVersion);
+    if (normalizedCurrent.isEmpty ||
+        normalizedCurrent == 'dev' ||
+        normalizedCurrent == 'unavailable') {
+      return UpdateCheckResult.upToDate(currentVersion: normalizedCurrent);
+    }
+
     final preferences = await UpdatePreferences.load();
 
     if (!force &&
@@ -123,7 +207,7 @@ class UpdateChecker {
             ),
             headers: const {
               'Accept': 'application/vnd.github+json',
-              'User-Agent': 'Calf',
+              'User-Agent': 'calf',
             },
           )
           .timeout(_requestTimeout);

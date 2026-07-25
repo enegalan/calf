@@ -15,20 +15,25 @@ import (
 
 // configView represents the JSON payload for GET /v1/config.
 type configView struct {
-	PollIntervalMs       int    `json:"poll_interval_ms"`
-	CPUs                 int    `json:"cpus"`
-	MemoryGB             int    `json:"memory_gb"`
-	MemorySwapGB         int    `json:"memory_swap_gb"`
-	HostCPUs             int    `json:"host_cpus"`
-	HostMemoryGB         int    `json:"host_memory_gb"`
-	DockerContextManaged bool   `json:"docker_context_managed"`
-	DockerContextActive  bool   `json:"docker_context_active"`
-	DockerContextName    string `json:"docker_context_name"`
-	DockerCLIAvailable   bool   `json:"docker_cli_available"`
-	Rootless             bool   `json:"rootless"`
-	HTTPProxy            string `json:"http_proxy"`
-	HTTPSProxy           string `json:"https_proxy"`
-	NoProxy              string `json:"no_proxy"`
+	PollIntervalMs          int    `json:"poll_interval_ms"`
+	CPUs                    int    `json:"cpus"`
+	MemoryGB                int    `json:"memory_gb"`
+	MemorySwapGB            int    `json:"memory_swap_gb"`
+	DiskGB                  int    `json:"disk_gb"`
+	DiskImage               string `json:"disk_image"`
+	HostCPUs                int    `json:"host_cpus"`
+	HostMemoryGB            int    `json:"host_memory_gb"`
+	HostDiskGB              int    `json:"host_disk_gb"`
+	DockerContextManaged    bool   `json:"docker_context_managed"`
+	DockerContextActive     bool   `json:"docker_context_active"`
+	DockerContextName       string `json:"docker_context_name"`
+	DockerCLIAvailable      bool   `json:"docker_cli_available"`
+	Rootless                bool   `json:"rootless"`
+	HTTPProxy               string `json:"http_proxy"`
+	HTTPSProxy              string `json:"https_proxy"`
+	NoProxy                 string `json:"no_proxy"`
+	ResourceSaverEnabled    bool   `json:"resource_saver_enabled"`
+	ResourceSaverTimeoutSec int    `json:"resource_saver_timeout_sec"`
 }
 
 // buildConfigView builds the JSON payload for GET /v1/config including host capacity and Docker CLI status.
@@ -39,21 +44,31 @@ func (g *Gateway) buildConfigView() configView {
 	cfg := g.backend.Cfg
 	g.backend.CfgMu.RUnlock()
 
+	hostDiskGB := daemon.HostDiskGB()
+	if cfg.DiskGB > hostDiskGB {
+		hostDiskGB = cfg.DiskGB
+	}
+
 	return configView{
-		PollIntervalMs:       cfg.PollIntervalMs,
-		CPUs:                 cfg.CPUs,
-		MemoryGB:             cfg.MemoryGB,
-		MemorySwapGB:         cfg.MemorySwapGB,
-		HostCPUs:             daemon.HostCPUs(),
-		HostMemoryGB:         daemon.HostMemoryGB(),
-		DockerContextManaged: cfg.DockerContextManaged,
-		DockerContextActive:  cliStatus.CalfActive,
-		DockerContextName:    cliStatus.CurrentContext,
-		DockerCLIAvailable:   cliStatus.Available,
-		Rootless:             cfg.Rootless,
-		HTTPProxy:            cfg.HTTPProxy,
-		HTTPSProxy:           cfg.HTTPSProxy,
-		NoProxy:              cfg.NoProxy,
+		PollIntervalMs:          cfg.PollIntervalMs,
+		CPUs:                    cfg.CPUs,
+		MemoryGB:                cfg.MemoryGB,
+		MemorySwapGB:            cfg.MemorySwapGB,
+		DiskGB:                  cfg.DiskGB,
+		DiskImage:               config.EffectiveDiskImage(cfg),
+		HostCPUs:                daemon.HostCPUs(),
+		HostMemoryGB:            daemon.HostMemoryGB(),
+		HostDiskGB:              hostDiskGB,
+		DockerContextManaged:    cfg.DockerContextManaged,
+		DockerContextActive:     cliStatus.CalfActive,
+		DockerContextName:       cliStatus.CurrentContext,
+		DockerCLIAvailable:      cliStatus.Available,
+		Rootless:                cfg.Rootless,
+		HTTPProxy:               cfg.HTTPProxy,
+		HTTPSProxy:              cfg.HTTPSProxy,
+		NoProxy:                 cfg.NoProxy,
+		ResourceSaverEnabled:    cfg.ResourceSaverEnabled,
+		ResourceSaverTimeoutSec: cfg.ResourceSaverTimeoutSec,
 	}
 }
 
@@ -71,6 +86,23 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	if req.MemorySwapGB != nil {
 		g.backend.Cfg.MemorySwapGB = *req.MemorySwapGB
 	}
+	if req.DiskGB != nil {
+		g.backend.Cfg.DiskGB = *req.DiskGB
+	}
+	if req.DiskImage != nil {
+		path := strings.TrimSpace(*req.DiskImage)
+		if path == "" {
+			g.backend.Cfg.DiskImage = ""
+		} else {
+			expanded := config.ExpandHomePath(path)
+			defaultPath := config.DefaultDiskImagePath(g.backend.Cfg.VMName)
+			if expanded == defaultPath {
+				g.backend.Cfg.DiskImage = ""
+			} else {
+				g.backend.Cfg.DiskImage = expanded
+			}
+		}
+	}
 	if req.DockerContextManaged != nil {
 		g.backend.Cfg.DockerContextManaged = *req.DockerContextManaged
 	}
@@ -85,6 +117,12 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	}
 	if req.NoProxy != nil {
 		g.backend.Cfg.NoProxy = strings.TrimSpace(*req.NoProxy)
+	}
+	if req.ResourceSaverEnabled != nil {
+		g.backend.Cfg.ResourceSaverEnabled = *req.ResourceSaverEnabled
+	}
+	if req.ResourceSaverTimeoutSec != nil {
+		g.backend.Cfg.ResourceSaverTimeoutSec = *req.ResourceSaverTimeoutSec
 	}
 
 	if err := config.Save(g.backend.Cfg); err != nil {
@@ -112,7 +150,13 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := config.ValidateResourceUpdate(req, daemon.HostCPUs(), daemon.HostMemoryGB()); err != nil {
+	hostDiskGB := daemon.HostDiskGB()
+	g.backend.CfgMu.RLock()
+	if g.backend.Cfg.DiskGB > hostDiskGB {
+		hostDiskGB = g.backend.Cfg.DiskGB
+	}
+	g.backend.CfgMu.RUnlock()
+	if err := config.ValidateResourceUpdate(req, daemon.HostCPUs(), daemon.HostMemoryGB(), hostDiskGB); err != nil {
 		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -123,7 +167,7 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		g.backend.CfgMu.RUnlock()
 		if *req.Rootless != currentRootless {
 			if _, isNative := g.backend.Runtime.(*runtime.Native); isNative {
-				httpkit.WriteError(w, http.StatusConflict, "changing rootless requires restarting the Calf daemon")
+				httpkit.WriteError(w, http.StatusConflict, "changing rootless requires restarting the calf daemon")
 				return
 			}
 		}

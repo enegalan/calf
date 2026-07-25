@@ -4,7 +4,7 @@ set -euo pipefail
 # Shared packaging constants and helpers for the bash packaging scripts.
 
 APP_NAME="calf"
-APP_NAME_TITLE="Calf"
+APP_NAME_TITLE="calf"
 MAINTAINER="Ene Galan <hello@enegalan.com>"
 DIST_DIR="dist"
 BUILD_DIR="build"

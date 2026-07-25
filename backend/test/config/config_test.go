@@ -61,3 +61,29 @@ func TestLoadReadsExistingConfig(t *testing.T) {
 		t.Fatalf("expected log_level debug, got %q", cfg.LogLevel)
 	}
 }
+
+func TestLoadMigratesAllInterfacesListenAddr(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	configDir := filepath.Join(dir, ".config", "calf")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
+
+	path := filepath.Join(configDir, "config.yaml")
+	content := "listen_addr: \":8765\"\nlog_level: info\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error: %v", err)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+
+	want := config.Default().ListenAddr
+	if cfg.ListenAddr != want {
+		t.Fatalf("expected migrated listen_addr %q, got %q", want, cfg.ListenAddr)
+	}
+}

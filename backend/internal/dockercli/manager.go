@@ -16,7 +16,7 @@ type RuntimePort interface {
 	Status(ctx context.Context) (runtime.Status, error)
 }
 
-// Manager keeps the docker CLI pointed at the Calf socket while managed mode is enabled.
+// Manager keeps the docker CLI pointed at the calf socket while managed mode is enabled.
 type Manager struct {
 	logger  *slog.Logger
 	managed func() bool
@@ -32,7 +32,7 @@ func NewManager(logger *slog.Logger, managed func() bool, rt RuntimePort) *Manag
 	}
 }
 
-// Start periodically ensures the Calf docker CLI context is active while managed mode is on.
+// Start periodically ensures the calf docker CLI context is active while managed mode is on.
 func (m *Manager) Start(ctx context.Context) {
 	ticker := time.NewTicker(constants.DockerContextManagerInterval)
 	defer ticker.Stop()
@@ -54,7 +54,7 @@ func (m *Manager) Status() (Status, error) {
 	return StatusFor(m.runtime.DockerSocket(), m.managed())
 }
 
-// Activate creates or switches to the Calf docker CLI context for the runtime socket.
+// Activate creates or switches to the calf docker CLI context for the runtime socket.
 func (m *Manager) Activate(ctx context.Context) error {
 	socket := m.runtime.DockerSocket()
 	if socket == "" {
@@ -64,7 +64,7 @@ func (m *Manager) Activate(ctx context.Context) error {
 	return EnsureAndActivate(ctx, socket)
 }
 
-// ensure periodically ensures the Calf docker CLI context is active while managed mode is on.
+// ensure periodically ensures the calf docker CLI context is active while managed mode is on.
 func (m *Manager) ensure(ctx context.Context) {
 	if !m.managed() {
 		return

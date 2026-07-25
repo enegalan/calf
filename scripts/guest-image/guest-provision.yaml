@@ -1,4 +1,4 @@
-# Lima template used only as a one-shot bake tool for the guest disk (not a Calf product runtime).
+# Lima template used only as a one-shot bake tool for the guest disk (not a calf product runtime).
 # Output disk is copied to ~/.config/calf/guest/<vm>/disk.raw by build-guest.sh.
 minimumLimaVersion: 1.0.0
 
@@ -78,7 +78,7 @@ provision:
 
       printf '%s\n' \
         '[Unit]' \
-        'Description=Docker vsock proxy for Calf guest' \
+        'Description=Docker vsock proxy for calf guest' \
         'After=docker.service' \
         'Requires=docker.service' \
         '' \
@@ -114,7 +114,7 @@ provision:
       chmod +x /usr/local/sbin/calf-mount-virtiofs
       printf '%s\n' \
         '[Unit]' \
-        'Description=Mount Calf virtiofs shares' \
+        'Description=Mount calf virtiofs shares' \
         'DefaultDependencies=no' \
         'After=local-fs.target' \
         'Before=docker.service' \

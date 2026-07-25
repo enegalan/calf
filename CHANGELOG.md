@@ -5,11 +5,86 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.9] - 2026-07-24
+
+### Security
+
+- **Local API bind** — the daemon listens on `127.0.0.1:8765` by default (not all interfaces); CORS and WebSocket origins accept only localhost. Existing configs that still used `:8765` or `0.0.0.0:8765` are migrated to loopback on load.
+- **Volume export paths** — local-file exports reject absolute or `..` file names and require an absolute destination folder under the chosen path.
+- **Volume file browser** — paths with `.` or `..` segments are rejected so browsing cannot leave the volume.
+
+### Added
+
+- **Volume containers in use** — Container names in a volume's Container in-use tab open that container's detail.
+- **Build logs toolbar** — Build detail Logs tab has list / plain-text toggles, expand and collapse all steps, and copy to clipboard.
+- **Build logs timeline** — List view shows a fixed duration ruler with a marker for the build time window matching the scrolled log position (when the build lasted more than 0s).
+- **Build dependency actions** — Dependencies rows include a menu to open the image on Docker Hub.
+- **Build result download** — Build results rows include a menu to download the artifact as `sha256_<digest>.json`.
+- **Build row icons** — Dependencies and Build results show custom icons (chain / provenance telescope), with a generic placeholder when the type is unknown.
+- **Resource Saver** — Settings → System can enable idle engine shutdown after no containers have been running (30 seconds, then every 5 minutes up to 60 minutes; default on at 5 minutes); the status bar shows Resource Saver mode while the engine is paused.
+- **Troubleshoot** — the engine menu opens a Troubleshoot view to restart calf, get support, purge engine data, reset to factory defaults, or uninstall.
+- **Disk image settings** — Settings → System includes a disk image size slider and a disk image location field (default `~/.config/calf/guest/<vm>/disk.raw`).
+- **Engine status bar** — Start/Stop are a single play/pause control; the overflow menu covers sign-in, Settings, Troubleshoot, About, Docker Hub, updates, Restart, and Quit.
+- **Container Stats history** — Stats keep a rolling ~15 minute resource history while the engine is running, so charts survive leaving and reopening a container; history is cleared when the container is removed.
+- **Destructive action confirms** — deleting containers, images, volumes, or networks, and Kill engine, ask for confirmation first.
+- **Start engine from empty lists** — when the runtime is stopped, empty resource lists offer a Start engine button.
 
 ### Changed
 
+- **Volumes list** — Volumes updates on the same poll interval as Containers, Images, Networks, and Builds (no manual refresh control).
+- **Action feedback** — Checking for updates, Docker Desktop migration, engine start/stop, deletes, sign-out, exports/downloads, and copy-to-clipboard show calf-styled confirmation toasts (stacked bottom-right) with a close button.
+- **Build logs steps** — Expandable log steps show a chevron (down when collapsed, up when expanded).
+- **Build timing charts** — Info tab timing matches Docker Desktop: titled pies in one row (2×2 when narrow), one shared legend, and a start/end/steps summary underneath.
+- **Theme switching** — light/dark transitions use one shared timing; borders and surfaces no longer lag behind the rest of the UI.
+- **Theme settings** — Light, Dark, and System use preview cards instead of plain radios.
+- **Mounts tab** — mount rows open bind paths in the system file manager and copy the host path.
 - **UI toolkit** — the app uses Material Design 3 for theme and controls; the previous shadcn-based UI kit is gone. Icons use Lucide.
+- **Settings** — Close control to leave Settings; clearer selected sidebar color; sidebar collapse control stays lightly visible.
+- **Resource lists** — shared search, loading spinner, centered empty states, and consistent Remove actions across Images, Volumes, Networks, and Builds.
+- **What's New** — shows GitHub release notes for the installed version as rendered markdown; notes are cached so the dialog opens quickly after the first load (with a link to Releases when offline).
+- **About** — logo-first layout with GitHub, Docs, and Report issue links.
+- **Status bar** — tapping RAM/CPU/Disk opens Settings.
+
+### Fixed
+
+- **Troubleshoot Restart calf** — in development mode (external daemon), Restart explains that the backend must be restarted manually instead of claiming the app restarted.
+- **Deep links** — opening a container or image from another screen waits until the list has a match instead of dropping the pending target.
+- **Daemon crash loop** — restart attempts only reset after the daemon stays up for 30 seconds, so a crashing binary hits the restart limit.
+- **Docker Hub Sign in** — brief network errors during browser sign-in keep polling instead of closing the dialog; Cancel ends the server session.
+- **Restart labels** — Troubleshoot Restart calf restarts the daemon; tray Restart Engine only restarts the container engine.
+- **Status when daemon dies** — silent list polls and the status bar show an error after repeated failures instead of a stale “running” snapshot.
+- **Published port label** — container detail shows the real host:container mapping.
+- **Update check** — skipped when the app version is unavailable so it does not report a fake update.
+- **Compose group detail** — closes when every container in the group is gone.
+- **Build history memory** — in-memory build history is capped like on-disk history.
+- **Builds on quit** — in-flight builds cancel when the daemon shuts down.
+- **Docker Hub login hang** — OAuth HTTP calls use a timeout; missing `expires_in` defaults to 15 minutes.
+- **Engine start errors** — failed Start returns a clear message without leaking internal paths.
+- **Build timing chart tooltip** — hovering the Info tab timing chart no longer crashes the UI.
+- **Build logs toolbar** — switching to plain-text view hides expand/collapse without shifting the other toolbar buttons.
+- **Build logs step bars** — per-step duration bars on the right are removed; the fixed timeline ruler covers that role.
+- **Build dependency digests** — Dependencies show the image digest when the local image is available.
+- **Build source details** — the Info tab no longer repeats the Dockerfile path under both File name and Dockerfile.
+- **Compose group containers** — each container shows a status dot (with tooltip), links to its image detail, and opens published ports in the browser when clicked.
+- **Containers list** — each container links to its image detail; published ports show as `localhost` links (one plus a `(N)` expand control when there are several), each opening in the browser.
+- **Docker Hub Sign in** — Sign in no longer fails with "method not allowed".
+- **Docker Hub account** — after browser sign-in, the UI shows your username instead of staying on Sign in (credentials stored in the macOS keychain are detected).
+- **Docker Hub Sign in dialog** — the login page opens only when you click Open login page, not when the dialog appears.
+- **Docker Hub account chip** — when signed in, the top bar shows a truncated username next to the avatar.
+- **Guest disk arch on Apple Silicon** — when the Go toolchain runs under Rosetta, calf still selects the arm64 guest disk instead of looking for an amd64 asset.
+- **Engine start** — starting gvproxy no longer fails when its pid file is written a moment after the process starts.
+- **Status polling** — engine RAM/disk stats use fast host probes so `/v1/status` stays responsive for the UI.
+- **Engine status bar** — the bar also shows live engine CPU usage.
+- **Engine RAM/CPU** — status bar RAM and CPU use the macOS process API (not `/bin/ps`), so values stay correct when the daemon runs under an IDE sandbox that blocks `ps`.
+- **Engine Start/Stop/Kill** — bottom-bar engine actions wait long enough for a slow VM boot, and failed actions no longer crash when showing an error.
+- **Engine Stop** — Stop from the status bar always shuts down the engine; keep-alive only leaves the VM running when you quit calf.
+- **Engine status feedback** — while Start, Stop, or Kill is in progress, the status bar shows a spinner and a starting/stopping/killing label.
+- **Published ports after restart** — reopening calf no longer spams gvproxy errors when a port forward was already active from the previous session.
+- **Settings save errors** — failed Apply now shows an error instead of failing silently.
+- **Registry sign-in errors** — Docker Hub status, sign-in, and sign-out failures show a message in the UI.
+- **Dark theme errors** — error text is readable on dark backgrounds.
+- **Dialog borders** — confirmation and other modals use the same outlined edge as About, so they stay visible on light and dark surfaces.
+- **Bind mounts** — the same mount no longer appears twice when the engine reports it in both Mounts and HostConfig.Binds.
 
 ## [0.9.8] - 2026-07-23
 
@@ -51,13 +126,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Public benchmarks** — the primary `BENCHMARKS.md` table now uses the vfkit engine (Calf leads or ties OrbStack on every metric on the reference Mac); Lima numbers move to a legacy section.
+- **Public benchmarks** — the primary `BENCHMARKS.md` table now uses the vfkit engine (calf leads or ties OrbStack on every metric on the reference Mac); Lima numbers move to a legacy section.
 
 ## [0.9.5] - 2026-07-19
 
 ### Added
 
-- **Experimental fast-boot engine (macOS)** — when a provisioned vfkit guest disk (or release seed) and `vfkit` binary are present, Calf prefers that engine automatically; bundled apps download `calf-vfkit-disk-<arch>.raw.zst` from GitHub Releases on first start; build locally with `make guest-vfkit` (see `BENCHMARKS.md`).
+- **Experimental fast-boot engine (macOS)** — when a provisioned vfkit guest disk (or release seed) and `vfkit` binary are present, calf prefers that engine automatically; bundled apps download `calf-vfkit-disk-<arch>.raw.zst` from GitHub Releases on first start; build locally with `make guest-vfkit` (see `BENCHMARKS.md`).
 - **Runtime start API** — `POST /v1/runtime/start` boots the container runtime while the daemon stays up (used for fair VM-boot benches on vfkit).
 
 ### Changed
@@ -68,10 +143,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Performance benchmarks** — macOS comparison of Calf vs Docker Desktop vs OrbStack (startup, Compose, bind-mount I/O, idle memory), with reproduction steps in `BENCHMARKS.md`.
-- **Menu bar / system tray icon** — Calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; the tray menu lists running containers, Help links (repository, report issue, restart, updates), Docker Hub sign-in, Settings, and Quit; removed on **Calf → Quit**.
+- **Performance benchmarks** — macOS comparison of calf vs Docker Desktop vs OrbStack (startup, Compose, bind-mount I/O, idle memory), with reproduction steps in `BENCHMARKS.md`.
+- **Menu bar / system tray icon** — calf shows the white calf logo in the macOS menu bar and Windows notification area while the app is running; the tray menu lists running containers, Help links (repository, report issue, restart, updates), Docker Hub sign-in, Settings, and Quit; removed on **calf → Quit**.
 - **Buildx builds** — image builds inside the VM use Docker Buildx with BuildKit, including cross-architecture builds via Rosetta when a platform is set.
-- **Rootless on Linux** — when `rootless: true` (default), Calf prefers a user Docker engine when available and falls back to the system engine if none is present; ignored on macOS/Windows (Lima).
+- **Rootless on Linux** — when `rootless: true` (default), calf prefers a user Docker engine when available and falls back to the system engine if none is present; ignored on macOS/Windows (Lima).
 
 ### Fixed
 
@@ -82,15 +157,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Lima cold start** — the Docker-compatible API is available sooner during VM boot via a lightweight readiness probe instead of a full engine info round-trip; Buildx setup no longer blocks engine readiness.
-- **VM keep-alive** — on macOS and Windows, quitting Calf leaves the Lima VM running so the next Calf launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive`). With keep-alive enabled, the VM also starts automatically at login via Lima; `docker` against the Calf context is ready once the Calf app is running again (typically under 2 seconds when the VM was already up).
-- **Cold-start target** — the fair stop→start benchmark target is under 20 seconds (Calf measures ~16 s on the reference Mac, ahead of Docker Desktop); keep-alive reopen is documented separately and is not used as that metric.
+- **VM keep-alive** — on macOS and Windows, quitting calf leaves the Lima VM running so the next calf launch reaches a ready engine in under 2 seconds (configurable via `vm_keep_alive`). With keep-alive enabled, the VM also starts automatically at login via Lima; `docker` against the calf context is ready once the calf app is running again (typically under 2 seconds when the VM was already up).
+- **Cold-start target** — the fair stop→start benchmark target is under 20 seconds (calf measures ~16 s on the reference Mac, ahead of Docker Desktop); keep-alive reopen is documented separately and is not used as that metric.
 
 ## [0.9.3] - 2026-07-12
 
 ### Changed
 
 - **Settings validation** — CPU, memory, and proxy values are checked on the server before they are saved.
-- **Startup port handling** — Calf only reclaims the listen port from another Calf instance, not unrelated processes.
+- **Startup port handling** — calf only reclaims the listen port from another calf instance, not unrelated processes.
 
 ### Fixed
 
@@ -101,9 +176,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Update notifications** — Calf checks for updates on launch and in Settings, shows when a newer version is available, and opens the right installer for your platform.
+- **Update notifications** — calf checks for updates on launch and in Settings, shows when a newer version is available, and opens the right installer for your platform.
 - **macOS menu bar** — Settings, section navigation, Docker Hub sign-in, update checks, and help links are available from the native menu bar.
-- **Open at login** — optional setting in Settings to start Calf automatically when you sign in.
+- **Open at login** — optional setting in Settings to start calf automatically when you sign in.
 - **Branded macOS installer** — the `.dmg` uses a drag-to-Applications layout with a custom background.
 - **Installation guide** — step-by-step install instructions for macOS (including Homebrew), Windows, and Linux are in the README.
 
@@ -142,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Cross-platform support** — Calf now runs on Linux, macOS, and Windows.
+- **Cross-platform support** — calf now runs on Linux, macOS, and Windows.
 - **Automated cross-platform builds** verified in CI for Linux and Windows.
 - **Windows port conflict cleanup** — stale daemon instances are detected and removed on Windows.
 - **Linux build target** — `make ui-linux` and `make release-linux` are available.

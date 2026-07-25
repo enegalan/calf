@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/config"
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/dockercli"
 	"github.com/enegalan/calf/backend/internal/migration"
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -28,11 +29,13 @@ type Core struct {
 	registryLoginSessions *sync.Map
 	logBroadcaster        *logBroadcaster
 	exportScheduler       *exportScheduler
+	statsHistory          *statsHistory
 	DockerCLI             *dockercli.Manager
 	lifecycleCtx          context.Context
 	lifecycleCancel       context.CancelFunc
 	runtimeStartMu        sync.Mutex
 	runtimeStartInflight  *runtimeStartResult
+	resourceSaver         *resourceSaver
 }
 
 // runtimeStartResult is the shared completion of one in-flight EnsureRuntimeRunning start.
@@ -53,17 +56,21 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 		setter.SetOwnerContext(lifecycleCtx)
 	}
 	srv := &Core{
-		Cfg:             cfg,
-		Logger:          logger,
-		Runtime:         rt,
-		StartTime:       time.Now(),
-		migrateStatus:   migration.IdleStatus(),
-		logBroadcaster:  newLogBroadcaster(logger),
-		lifecycleCtx:    lifecycleCtx,
-		lifecycleCancel: lifecycleCancel,
+		Cfg:                   cfg,
+		Logger:                logger,
+		Runtime:               rt,
+		StartTime:             time.Now(),
+		migrateStatus:         migration.IdleStatus(),
+		registryLoginSessions: &sync.Map{},
+		logBroadcaster:        newLogBroadcaster(logger),
+		statsHistory:          newStatsHistory(constants.StatsHistoryRetention),
+		lifecycleCtx:          lifecycleCtx,
+		lifecycleCancel:       lifecycleCancel,
 	}
 	srv.exportScheduler = newExportScheduler(srv, logger)
 	srv.exportScheduler.Start()
+	srv.resourceSaver = newResourceSaver(srv)
+	srv.resourceSaver.Start()
 	srv.DockerCLI = dockercli.NewManager(logger, srv.dockerContextManaged, rt)
 	srv.loadBuilds()
 	return srv
@@ -82,6 +89,9 @@ func (s *Core) Shutdown(ctx context.Context) error {
 	s.stopRegistryLoginSessions()
 	if s.exportScheduler != nil {
 		s.exportScheduler.Stop()
+	}
+	if s.resourceSaver != nil {
+		s.resourceSaver.Stop()
 	}
 	return nil
 }

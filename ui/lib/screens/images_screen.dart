@@ -5,15 +5,25 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
+import 'package:ui/widgets/resource_list_scaffold.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class ImagesScreen extends StatefulWidget {
   /// Creates a [ImagesScreen] widget.
-  const ImagesScreen({super.key, required this.apiClient});
+  const ImagesScreen({
+    super.key,
+    required this.apiClient,
+    this.initialImageReference,
+    this.onInitialImageConsumed,
+  });
 
   final CalfClient apiClient;
+  final String? initialImageReference;
+  final VoidCallback? onInitialImageConsumed;
 
   /// Creates the mutable state for [ImagesScreen].
   @override
@@ -26,6 +36,7 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   ImageItem? _selectedImage;
@@ -44,6 +55,16 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link and retries opening it when it changes.
+  @override
+  void didUpdateWidget(covariant ImagesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialImageReference != oldWidget.initialImageReference &&
+        widget.initialImageReference != null) {
+      _openInitialImageIfNeeded(_images);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -74,12 +95,15 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _images = images;
         _loading = false;
+        _error = null;
         _syncSelectedImage(images);
       });
+      _openInitialImageIfNeeded(images);
     } catch (error) {
       if (!mounted) {
         return;
@@ -89,6 +113,11 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;
@@ -113,6 +142,51 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     _layers = null;
     _layersError = null;
     _layersLoading = false;
+  }
+
+  /// Opens [initialImageReference] once images are loaded, if provided.
+  ///
+  /// The pending reference is only consumed once a match is actually found
+  /// and opened; otherwise it stays armed so the next poll can retry.
+  void _openInitialImageIfNeeded(List<ImageItem> images) {
+    final reference = widget.initialImageReference?.trim() ?? '';
+    if (reference.isEmpty) {
+      return;
+    }
+
+    final match = _findImageByReference(images, reference);
+    if (match == null) {
+      return;
+    }
+    widget.onInitialImageConsumed?.call();
+    unawaited(_openImage(match));
+  }
+
+  /// Finds an image matching [reference] by repository:tag, repository, or id.
+  ImageItem? _findImageByReference(List<ImageItem> images, String reference) {
+    final normalized = reference
+        .replaceFirst(RegExp(r'^docker\.io/library/'), '')
+        .replaceFirst(RegExp(r'^docker\.io/'), '');
+
+    for (final image in images) {
+      if (image.reference == reference ||
+          image.reference == normalized ||
+          image.repository == normalized ||
+          image.id == reference ||
+          image.id.startsWith(normalized) ||
+          normalized.startsWith(image.shortId)) {
+        return image;
+      }
+      if (normalized.contains(':')) {
+        final separator = normalized.lastIndexOf(':');
+        final repository = normalized.substring(0, separator);
+        final tag = normalized.substring(separator + 1);
+        if (image.repository == repository && image.tag == tag) {
+          return image;
+        }
+      }
+    }
+    return null;
   }
 
   /// Navigates to or opens the selected image.
@@ -154,13 +228,34 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
     });
   }
 
-  /// Removes the selected resource via the API.
+  /// Removes the selected resource via the API after confirmation.
   Future<void> _removeImage(ImageItem image) async {
-    await widget.apiClient.removeImage(image.reference);
-    if (_selectedImage?.id == image.id) {
-      _closeImage();
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Remove image',
+      description: 'Remove "${image.reference}"? This cannot be undone.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
     }
-    await _loadImages();
+    try {
+      await widget.apiClient.removeImage(image.reference);
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Deleted image "${image.reference}"');
+      if (_selectedImage?.id == image.id) {
+        _closeImage();
+      }
+      await _loadImages();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 
   /// Runs the given async action and refreshes the list on success.
@@ -181,6 +276,22 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
   /// Pushes the image to Docker Hub via the API.
   Future<void> _pushImage(ImageItem image) async {
     await widget.apiClient.pushImage(image.reference);
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
+      }
+      await _loadImages();
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _error = error.toString());
+    }
   }
 
   /// Builds the widget tree for the current screen state.
@@ -211,78 +322,52 @@ class _ImagesScreenState extends State<ImagesScreen> with PollIntervalMixin {
                     img.id.toLowerCase().contains(_searchQuery),
               )
               .toList();
+    final runtimeStopped = _runtime?.state == 'stopped';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Images', style: theme.textTheme.headlineSmall),
+    return ResourceListScaffold(
+      title: 'Images',
+      searchController: _searchController,
+      loading: _loading,
+      error: _error,
+      empty: filtered.isEmpty,
+      emptyMessage: _searchQuery.isNotEmpty
+          ? 'No images match "$_searchQuery".'
+          : runtimeStopped
+          ? 'No images. Runtime is stopped.'
+          : 'No local images.',
+      emptyAction: filtered.isEmpty && runtimeStopped && _searchQuery.isEmpty
+          ? CalfButton(
+              onPressed: _startEngine,
+              child: const Text('Start engine'),
+            )
+          : null,
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final image = filtered[index];
 
-        /// Creates a [_ImagesScreenState] widget.
-        const SizedBox(height: 16),
-        TextField(
-          controller: _searchController,
-          decoration: const InputDecoration(hintText: 'Search'),
-        ),
-
-        /// Creates a [_ImagesScreenState] widget.
-        const SizedBox(height: 24),
-        if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
-        else if (_error != null)
-          Text(
-            _error!,
-            style: theme.textTheme.titleMedium!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          )
-        else if (filtered.isEmpty)
-          Text(
-            _searchQuery.isNotEmpty
-                ? 'No images match "$_searchQuery".'
-                : _runtime?.state == 'stopped'
-                ? 'No images. Runtime is stopped.'
-                : 'No local images.',
-            style: CalfTheme.muted(theme),
-          )
-        else
-          Expanded(
-            child: ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) {
-                final image = filtered[index];
-
-                return HoverListRow(
-                  theme: theme,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 10,
-                  ),
-                  onTap: () => _openImage(image),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              image.reference,
-                              style: theme.textTheme.titleMedium,
-                            ),
-                            Text(image.size, style: CalfTheme.muted(theme)),
-                          ],
-                        ),
-                      ),
-                      CalfButton.outline(
-                        onPressed: () => _removeImage(image),
-                        child: const Text('Remove'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+        return HoverListRow(
+          theme: theme,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          onTap: () => _openImage(image),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(image.reference, style: theme.textTheme.titleMedium),
+                    Text(image.size, style: CalfTheme.muted(theme)),
+                  ],
+                ),
+              ),
+              CalfButton.outline(
+                onPressed: () => _removeImage(image),
+                child: const Text('Remove'),
+              ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -417,6 +502,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
         Row(
           children: [
             CalfButton.ghost(
+              width: 36,
+              height: 36,
               onPressed: widget.onBack,
               child: Icon(
                 LucideIcons.chevronLeft,
@@ -493,7 +580,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 CalfButton.outline(
                   key: _menuButtonKey,
                   enabled: !_busy,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  width: 36,
+                  height: 36,
                   onPressed: _openActionsMenu,
                   child: Icon(
                     LucideIcons.chevronDown,
@@ -506,7 +594,8 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                 const SizedBox(width: 8),
                 CalfButton.destructive(
                   enabled: !_busy,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  width: 36,
+                  height: 36,
                   onPressed: widget.onRemove,
                   child: Icon(
                     LucideIcons.trash2,

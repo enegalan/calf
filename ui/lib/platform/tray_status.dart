@@ -43,6 +43,7 @@ class CalfTrayAppActions {
     required this.onSignIn,
     required this.onSignOut,
     required this.onCheckForUpdates,
+    required this.onRestartEngine,
     required this.snapshot,
   });
 
@@ -50,10 +51,11 @@ class CalfTrayAppActions {
   final Future<void> Function() onSignIn;
   final Future<void> Function() onSignOut;
   final Future<void> Function() onCheckForUpdates;
+  final Future<void> Function() onRestartEngine;
   final CalfTrayMenuSnapshotCallback snapshot;
 }
 
-/// Shows or hides the Calf tray icon on macOS (menu bar) and Windows (system tray).
+/// Shows or hides the calf tray icon on macOS (menu bar) and Windows (system tray).
 class CalfTrayStatus {
   CalfTrayStatus._();
 
@@ -61,7 +63,6 @@ class CalfTrayStatus {
   static bool _visible = false;
   static CalfTrayOpenCallback? _onOpen;
   static CalfTrayQuitCallback? _onQuit;
-  static CalfTrayOpenCallback? _onRestartEngine;
   static CalfTrayUrlCallback? _onOpenUrl;
   static CalfTrayAppActions? _appActions;
   static final _TrayHandler _handler = _TrayHandler();
@@ -70,12 +71,10 @@ class CalfTrayStatus {
   static void install({
     required CalfTrayOpenCallback onOpen,
     required CalfTrayQuitCallback onQuit,
-    CalfTrayOpenCallback? onRestartEngine,
     CalfTrayUrlCallback? onOpenUrl,
   }) {
     _onOpen = onOpen;
     _onQuit = onQuit;
-    _onRestartEngine = onRestartEngine;
     _onOpenUrl = onOpenUrl;
     if (!_installed) {
       trayManager.addListener(_handler);
@@ -93,6 +92,16 @@ class CalfTrayStatus {
     _appActions = null;
   }
 
+  /// Quits the app using the callback registered in [install].
+  static Future<void> quitApp() async {
+    final quit = _onQuit;
+    if (quit != null) {
+      await quit();
+      return;
+    }
+    exit(0);
+  }
+
   /// Installs the tray icon when supported. Safe to call more than once.
   static Future<void> show() async {
     if (!supportsTrayStatusIcon || _visible) {
@@ -105,7 +114,7 @@ class CalfTrayStatus {
         isTemplate: false,
         iconSize: 28,
       );
-      await trayManager.setToolTip('Calf');
+      await trayManager.setToolTip('calf');
       await _applyContextMenu(const CalfTrayMenuSnapshot());
       _visible = true;
     } on PlatformException catch (e, stack) {
@@ -146,7 +155,6 @@ class CalfTrayStatus {
     }
     _onOpen = null;
     _onQuit = null;
-    _onRestartEngine = null;
     _onOpenUrl = null;
     _appActions = null;
   }
@@ -183,7 +191,7 @@ class CalfTrayStatus {
     final signInPending = snapshot.signInPending;
 
     return [
-      MenuItem(key: 'open_calf', label: 'Open Calf'),
+      MenuItem(key: 'open_calf', label: 'Open calf'),
       MenuItem.separator(),
       MenuItem(key: 'containers_header', label: 'Containers', disabled: true),
       MenuItem(
@@ -274,7 +282,9 @@ class CalfTrayStatus {
         await _onOpenUrl?.call('https://github.com/enegalan/calf/issues/new');
         break;
       case 'help_restart':
-        await _onRestartEngine?.call();
+        if (app != null) {
+          await _openWindowAnd(app.onRestartEngine);
+        }
         break;
       case 'help_sign_out':
         if (app != null) {

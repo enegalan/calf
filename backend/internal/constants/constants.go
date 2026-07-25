@@ -4,13 +4,16 @@ import "time"
 
 // Server defaults control the HTTP API listen address and polling behavior.
 const (
-	DefaultListenAddr     = ":8765"
+	DefaultListenAddr     = "127.0.0.1:8765"
 	DefaultPollIntervalMS = 3000
 	LogTailLineCount      = 500
 )
 
-// Host defaults apply when total memory cannot be read from the OS.
-const DefaultHostMemoryGB = 8
+// Host defaults apply when total memory or free disk cannot be read from the OS.
+const (
+	DefaultHostMemoryGB = 8
+	DefaultHostDiskGB   = 500
+)
 
 // Build defaults cap persisted build history and bound build-related work.
 const (
@@ -19,6 +22,25 @@ const (
 	BuildSyncEnrichTimeout   = 2 * time.Minute
 	BuildJobTimeout          = 2 * time.Hour
 	MigratedBuildName        = "migrated-build"
+)
+
+// Stats history defaults control background container resource sampling.
+const (
+	StatsSampleInterval   = 5 * time.Second
+	StatsHistoryRetention = 15 * time.Minute
+)
+
+// Resource Saver defaults control idle engine shutdown when no containers run.
+const (
+	ResourceSaverPollInterval   = 5 * time.Second
+	ResourceSaverTimeoutMinSec  = 30
+	ResourceSaverTimeoutMaxSec  = 3600
+	DefaultResourceSaverTimeout = 300
+)
+
+// Troubleshoot defaults bound destructive cleanup (guest disk delete can be slow).
+const (
+	TroubleshootActionTimeout = 5 * time.Minute
 )
 
 // Command defaults apply to shell-outs and other retried runtime operations.
@@ -39,7 +61,7 @@ const (
 	DockerAPIReadyPollMax = 2 * time.Second
 )
 
-// RuntimeMode values identify whether Calf runs containers in a VM guest or on the host.
+// RuntimeMode values identify whether calf runs containers in a VM guest or on the host.
 const (
 	RuntimeModeVM     = "vm"
 	RuntimeModeNative = "native"
@@ -84,7 +106,7 @@ const DefaultNetworkScope = "local"
 // AlpineSmokeImage is the reference image used for lightweight runtime smoke checks.
 const AlpineSmokeImage = "alpine:3.20"
 
-// GitHubRepo is the canonical Calf repository used for releases and guest-disk downloads.
+// GitHubRepo is the canonical calf repository used for releases and guest-disk downloads.
 const GitHubRepo = "enegalan/calf"
 
 // Guest disk release asset name prefixes (arch suffix added at runtime).

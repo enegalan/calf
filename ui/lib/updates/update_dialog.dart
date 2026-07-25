@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/release_notes_markdown.dart';
 
 /// Shows a dialog prompting the user to download or skip an available update.
 Future<void> showUpdateAvailableDialog({
@@ -24,15 +25,10 @@ Future<void> showUpdateAvailableDialog({
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('You are running Calf $currentVersion.'),
+              Text('You are running calf $currentVersion.'),
               const SizedBox(height: 12),
               if (update.releaseNotes.isNotEmpty)
-                Text(
-                  update.releaseNotes,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                )
+                ReleaseNotesMarkdown(data: update.releaseNotes)
               else
                 Text(
                   'A newer version is available on GitHub.',

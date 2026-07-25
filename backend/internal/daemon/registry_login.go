@@ -7,9 +7,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enegalan/calf/backend/internal/browser"
 	"github.com/enegalan/calf/backend/internal/oauth/dockerhub"
 )
+
+// defaultDeviceLoginExpiresInSeconds is used when the device-code response omits (or returns
+// a non-positive) expires_in, matching the same fallback applied in the dockerhub client.
+const defaultDeviceLoginExpiresInSeconds = 900
 
 // registryLoginSession represents a Docker Hub OAuth device-code login session.
 type registryLoginSession struct {
@@ -46,8 +49,13 @@ func (s *Core) StartRegistryDeviceLogin(ctx context.Context) (RegistryDeviceLogi
 		return RegistryDeviceLoginStart{}, err
 	}
 
+	expiresIn := state.ExpiresIn
+	if expiresIn <= 0 {
+		expiresIn = defaultDeviceLoginExpiresInSeconds
+	}
+
 	sessionID := newRegistrySessionID()
-	flowCtx, cancel := context.WithTimeout(s.Lifecycle(), time.Duration(state.ExpiresIn)*time.Second)
+	flowCtx, cancel := context.WithTimeout(s.Lifecycle(), time.Duration(expiresIn)*time.Second)
 
 	session := &registryLoginSession{
 		id:              sessionID,
@@ -60,15 +68,11 @@ func (s *Core) StartRegistryDeviceLogin(ctx context.Context) (RegistryDeviceLogi
 	s.loginSessions().Store(sessionID, session)
 	go s.completeRegistryDeviceLogin(flowCtx, client, session, state)
 
-	if err := browser.OpenURL(state.VerificationURI); err != nil {
-		s.Logger.Warn("failed to open browser for docker login", "error", err, "url", state.VerificationURI)
-	}
-
 	return RegistryDeviceLoginStart{
 		SessionID:       sessionID,
 		UserCode:        state.UserCode,
 		VerificationURL: state.VerificationURI,
-		ExpiresIn:       state.ExpiresIn,
+		ExpiresIn:       expiresIn,
 	}, nil
 }
 
@@ -90,6 +94,24 @@ func (s *Core) RegistryDeviceLoginStatus(sessionID string) (RegistryDeviceLoginS
 	}, true
 }
 
+// CancelRegistryDeviceLogin cancels a pending Docker Hub device-login session.
+// Returns false when no session with that id is currently tracked.
+func (s *Core) CancelRegistryDeviceLogin(sessionID string) bool {
+	value, ok := s.loginSessions().Load(sessionID)
+	if !ok {
+		return false
+	}
+
+	session := value.(*registryLoginSession)
+	session.mu.Lock()
+	session.status = "cancelled"
+	session.mu.Unlock()
+
+	session.cancel()
+	s.loginSessions().Delete(sessionID)
+	return true
+}
+
 // loginSessions returns the sync.Map of registry login sessions.
 func (s *Core) loginSessions() *sync.Map {
 	if s.registryLoginSessions == nil {
@@ -102,11 +124,18 @@ func (s *Core) loginSessions() *sync.Map {
 func (s *Core) completeRegistryDeviceLogin(ctx context.Context, client *dockerhub.Client, session *registryLoginSession, state dockerhub.DeviceCode) {
 	defer session.cancel()
 
+	scheduleCleanup := func() {
+		time.AfterFunc(10*time.Minute, func() {
+			s.loginSessions().Delete(session.id)
+		})
+	}
+
 	setFailed := func(message string) {
 		session.mu.Lock()
 		session.status = "failed"
 		session.err = message
 		session.mu.Unlock()
+		scheduleCleanup()
 	}
 
 	accessToken, err := client.WaitForDeviceToken(ctx, state)
@@ -119,9 +148,7 @@ func (s *Core) completeRegistryDeviceLogin(ctx context.Context, client *dockerhu
 		session.status = status
 		session.err = err.Error()
 		session.mu.Unlock()
-		time.AfterFunc(10*time.Minute, func() {
-			s.loginSessions().Delete(session.id)
-		})
+		scheduleCleanup()
 		return
 	}
 
@@ -157,9 +184,7 @@ func (s *Core) completeRegistryDeviceLogin(ctx context.Context, client *dockerhu
 	session.username = username
 	session.mu.Unlock()
 
-	time.AfterFunc(10*time.Minute, func() {
-		s.loginSessions().Delete(session.id)
-	})
+	scheduleCleanup()
 }
 
 // newRegistrySessionID generates a random 16-byte hex string for a registry login session.

@@ -63,7 +63,7 @@ func (s *Core) startRuntimeUntilRunning() error {
 	}
 
 	if err := s.Runtime.Start(startCtx); err != nil {
-		return fmt.Errorf("failed to start Calf runtime: %w", err)
+		return fmt.Errorf("failed to start calf runtime: %w", err)
 	}
 
 	for {
@@ -72,12 +72,13 @@ func (s *Core) startRuntimeUntilRunning() error {
 			return fmt.Errorf("Runtime.Status: %w", err)
 		}
 		if status.State == runtime.State(constants.RuntimeStateRunning) {
+			s.ClearResourceSaver()
 			return nil
 		}
 		select {
 		case <-startCtx.Done():
 			if startCtx.Err() == context.DeadlineExceeded {
-				return fmt.Errorf("Calf runtime did not start in time")
+				return fmt.Errorf("calf runtime did not start in time")
 			}
 			return startCtx.Err()
 		case <-time.After(2 * time.Second):

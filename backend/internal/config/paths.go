@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // ConfigDir returns ~/.config/calf.
@@ -50,6 +52,49 @@ func DefaultDockerSocketPath() string {
 	}
 
 	return filepath.Join(dir, "docker.sock")
+}
+
+// DefaultDiskImagePath returns ~/.config/calf/guest/<vmName>/disk.raw.
+func DefaultDiskImagePath(vmName string) string {
+	if vmName == "" {
+		vmName = constants.DefaultVMName
+	}
+	dir, err := ConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "guest", vmName, "disk.raw")
+}
+
+// ExpandHomePath expands a leading ~/ to the user home directory.
+func ExpandHomePath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if trimmed == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return trimmed
+		}
+		return home
+	}
+	if strings.HasPrefix(trimmed, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return trimmed
+		}
+		return filepath.Join(home, trimmed[2:])
+	}
+	return trimmed
+}
+
+// EffectiveDiskImage returns the absolute guest disk image path for cfg.
+func EffectiveDiskImage(cfg Config) string {
+	if path := ExpandHomePath(cfg.DiskImage); path != "" {
+		return path
+	}
+	return DefaultDiskImagePath(cfg.VMName)
 }
 
 // BuildsFilePath returns ~/.config/calf/builds.json.

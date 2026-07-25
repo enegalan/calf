@@ -1,10 +1,19 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
+import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class AppTopBar extends StatelessWidget {
@@ -68,37 +77,45 @@ class AppTopBar extends StatelessWidget {
         children: [
           _BrandMark(theme: theme),
           const Spacer(),
-          CalfButton.ghost(
-            width: 36,
-            height: 36,
-            padding: EdgeInsets.zero,
-            onPressed: onOpenSettings,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  LucideIcons.settings,
-                  size: 18,
-                  color: theme.colorScheme.onSurface,
-                ),
-                if (updateAvailable)
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 1.5,
+          Tooltip(
+            message: updateAvailable
+                ? 'Update available — Settings'
+                : 'Settings',
+            child: CalfButton.ghost(
+              width: 36,
+              height: 36,
+              padding: EdgeInsets.zero,
+              onPressed: onOpenSettings,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(
+                    LucideIcons.settings,
+                    size: 18,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  if (updateAvailable)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Semantics(
+                        label: 'Update available',
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.colorScheme.surface,
+                              width: 1.5,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -130,7 +147,7 @@ class AppTopBar extends StatelessWidget {
 }
 
 class _BrandMark extends StatelessWidget {
-  /// Renders the Calf logo and wordmark.
+  /// Renders the calf logo and wordmark.
   const _BrandMark({required this.theme});
 
   final ThemeData theme;
@@ -142,24 +159,37 @@ class _BrandMark extends StatelessWidget {
         ? 'assets/brand/calf_logo_white.png'
         : 'assets/brand/calf_logo_black.png';
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Image.asset(
-          logoAsset,
-          width: 36,
-          height: 36,
-          fit: BoxFit.contain,
-          excludeFromSemantics: true,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          'calf',
-          style: theme.textTheme.titleMedium!.copyWith(
-            fontWeight: FontWeight.w600,
+    return Semantics(
+      label: 'calf',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Image.asset(
+            logoAsset,
+            width: 36,
+            height: 36,
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
           ),
-        ),
-      ],
+          const SizedBox(width: 5),
+          // Wordmark viewBox includes the "f" ascender, so its geometric
+          // center sits above the optical center of the letterforms.
+          Transform.translate(
+            offset: const Offset(0, -2.5),
+            child: SvgPicture.asset(
+              'assets/brand/calf_logo_text_art.svg',
+              height: 18,
+              fit: BoxFit.contain,
+              colorFilter: ColorFilter.mode(
+                theme.colorScheme.onSurface,
+                BlendMode.srcIn,
+              ),
+              excludeFromSemantics: true,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -222,14 +252,16 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
       items: [
         PopupMenuItem<String>(
           enabled: false,
-          height: 56,
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          height: 64,
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Row(
             children: [
-              _UserAvatar(
-                initial: widget.initial,
-                size: 32,
-                theme: widget.theme,
+              ExcludeSemantics(
+                child: _UserAvatar(
+                  initial: widget.initial,
+                  size: 36,
+                  theme: widget.theme,
+                ),
               ),
               const SizedBox(width: 10),
               Flexible(
@@ -238,10 +270,22 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      widget.username,
-                      style: theme.textTheme.titleMedium!.copyWith(
+                      widget.username.trim().isEmpty
+                          ? 'Signed in'
+                          : widget.username.trim(),
+                      style: theme.textTheme.titleSmall!.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Docker Hub',
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -294,33 +338,79 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     switch (selected) {
       case 'whatsnew':
         widget.onOpenWhatsNew();
+        return;
       case 'settings':
         await openExternalUrl(widget.accountSettingsUrl);
+        return;
       case 'signout':
         await widget.onSignOut();
+        return;
     }
   }
 
-  /// Builds the avatar button that opens the account menu.
+  /// Builds the account chip that opens the account menu.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final displayName = widget.username.trim().isEmpty
+        ? 'Signed in'
+        : widget.username.trim();
 
-    return CalfButton.ghost(
-      key: _buttonKey,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      onPressed: _openMenu,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _UserAvatar(initial: widget.initial, size: 28, theme: widget.theme),
-          const SizedBox(width: 4),
-          Icon(
-            LucideIcons.chevronDown,
-            size: 14,
-            color: theme.colorScheme.onSurface,
+    return Semantics(
+      button: true,
+      label: 'Account menu, signed in as $displayName',
+      child: Tooltip(
+        message: displayName,
+        waitDuration: const Duration(milliseconds: 400),
+        child: Material(
+          key: _buttonKey,
+          animationDuration: CalfTheme.materialAnimationDuration,
+          color: theme.colorScheme.surfaceContainerHighest.withValues(
+            alpha: 0.7,
           ),
-        ],
+          shape: StadiumBorder(
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _openMenu,
+            customBorder: const StadiumBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: _UserAvatar(
+                      initial: widget.initial,
+                      size: 28,
+                      theme: widget.theme,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 140),
+                    child: Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    LucideIcons.chevronDown,
+                    size: 14,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -396,7 +486,8 @@ class _UserAvatar extends StatelessWidget {
                     : theme.textTheme.bodySmall!)
                 .copyWith(
                   color: theme.colorScheme.onPrimary,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
+                  height: 1,
                 ),
       ),
     );
@@ -443,20 +534,30 @@ class _RegistryLoginDialog extends StatefulWidget {
 }
 
 class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
-  String? _error;
+  /// Consecutive transient polling failures allowed before giving up.
+  static const _maxConsecutiveFailures = 5;
 
-  /// Opens the verification URL and starts polling for login completion.
+  String? _error;
+  int _consecutiveFailures = 0;
+
+  /// Starts polling for login completion; the browser opens only via the button.
   @override
   void initState() {
     super.initState();
-    openExternalUrl(widget.start.verificationUrl);
     _poll();
   }
 
-  /// Polls the backend until browser login succeeds or fails.
+  /// Polls the backend until browser login succeeds, fails, or is cancelled.
+  ///
+  /// Transient network/timeout errors are shown inline and do not stop
+  /// polling; only an explicit failed status, a user cancellation, or
+  /// [_maxConsecutiveFailures] consecutive transient errors end the dialog.
   Future<void> _poll() async {
     while (mounted) {
       await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) {
+        return;
+      }
 
       try {
         final status = await widget.apiClient.fetchRegistryBrowserLogin(
@@ -465,6 +566,7 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         if (!mounted) {
           return;
         }
+        _consecutiveFailures = 0;
 
         if (status.isComplete) {
           widget.onComplete(status.username);
@@ -482,16 +584,48 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
           }
           return;
         }
-      } catch (error) {
-        if (!mounted) {
+
+        if (_error != null) {
+          setState(() => _error = null);
+        }
+      } on TimeoutException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
           return;
         }
-        setState(() => _error = error.toString());
-        widget.onFailed(error.toString());
-        Navigator.of(context).pop();
-        return;
+      } on SocketException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
+          return;
+        }
+      } on http.ClientException catch (error) {
+        if (!_recordTransientFailure(error.toString())) {
+          return;
+        }
+      } on ApiException catch (error) {
+        if (!_recordTransientFailure(error.message)) {
+          return;
+        }
       }
     }
+  }
+
+  /// Records a transient polling failure as an inline, non-blocking error.
+  ///
+  /// Returns false once [_maxConsecutiveFailures] is reached, in which case
+  /// the dialog reports failure and closes; otherwise polling continues.
+  bool _recordTransientFailure(String message) {
+    if (!mounted) {
+      return false;
+    }
+
+    _consecutiveFailures++;
+    if (_consecutiveFailures >= _maxConsecutiveFailures) {
+      widget.onFailed('Could not reach calf: $message');
+      Navigator.of(context).pop();
+      return false;
+    }
+
+    setState(() => _error = 'Connection issue, retrying… ($message)');
+    return true;
   }
 
   /// Reopens the Docker Hub verification page in the browser.
@@ -499,9 +633,25 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
     await openExternalUrl(widget.start.verificationUrl);
   }
 
+  /// Cancels the pending login session on the backend and closes the dialog.
+  Future<void> _cancel() async {
+    try {
+      await widget.apiClient.cancelRegistryBrowserLogin(widget.start.sessionId);
+    } on ApiException catch (_) {
+      // Best-effort cancellation; the dialog closes regardless.
+    }
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   /// Copies the device login confirmation code to the clipboard.
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.start.userCode));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
   /// Builds the browser login waiting dialog with confirmation code.
@@ -621,122 +771,122 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
         ),
       ),
       actions: [
-        CalfButton.ghost(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
+        CalfButton.ghost(onPressed: _cancel, child: const Text('Cancel')),
       ],
     );
   }
 }
 
-/// Shows a dialog listing recent Calf release highlights.
+/// Shows a dialog with GitHub release notes for the running version.
 void showWhatsNewDialog(BuildContext context, String appVersion) {
-  final theme = Theme.of(context);
+  final navigator = Navigator.of(context, rootNavigator: true);
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!navigator.mounted) {
+      return;
+    }
+    showDialog<void>(
+      context: navigator.context,
+      useRootNavigator: true,
+      builder: (dialogContext) => _WhatsNewDialog(appVersion: appVersion),
+    );
+  });
+}
 
-  showDialog<void>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
+class _WhatsNewDialog extends StatefulWidget {
+  /// Creates the What's New dialog for [appVersion].
+  const _WhatsNewDialog({required this.appVersion});
+
+  final String appVersion;
+
+  @override
+  State<_WhatsNewDialog> createState() => _WhatsNewDialogState();
+}
+
+class _WhatsNewDialogState extends State<_WhatsNewDialog> {
+  final _checker = UpdateChecker();
+  bool _loading = true;
+  String? _notes;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  @override
+  void dispose() {
+    _checker.close();
+    super.dispose();
+  }
+
+  /// Loads release notes for the current app version from GitHub.
+  Future<void> _loadNotes() async {
+    final notes = await _checker.fetchReleaseNotes(widget.appVersion);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _notes = notes;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final versionLabel = CalfVersion.displayLabel(widget.appVersion);
+
+    return AlertDialog(
       title: const Text("What's new"),
       content: SizedBox(
         width: 440,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Calf $appVersion'),
-            const SizedBox(height: 12),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.logIn,
-              title: 'Docker Hub login',
-              description: 'Browser sign-in with Google, GitHub and SSO.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.layers,
-              title: 'Image management',
-              description: 'Layers, run, pull and push from the Images screen.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.globe,
-              title: 'localhost proxy',
-              description:
-                  'Published container ports work on localhost, not just 127.0.0.1.',
-            ),
-            const SizedBox(height: 8),
-            _ReleaseNote(
-              theme: theme,
-              icon: LucideIcons.download,
-              title: 'Docker Desktop migration',
-              description: 'Import images, volumes, containers and settings.',
-            ),
-          ],
-        ),
+        child: _loading
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('calf $versionLabel'),
+                  const SizedBox(height: 12),
+                  if (_notes != null)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 320),
+                      child: SingleChildScrollView(
+                        child: ReleaseNotesMarkdown(data: _notes!),
+                      ),
+                    )
+                  else ...[
+                    Text(
+                      'Release notes are not available offline.',
+                      style: CalfTheme.muted(theme),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: CalfButton.outline(
+                        onPressed: () => openExternalUrl(calfReleasesUrl),
+                        child: const Text('View releases on GitHub'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
       ),
       actions: [
         CalfButton(
-          onPressed: () => Navigator.of(dialogContext).pop(),
+          onPressed: () => Navigator.of(context).pop(),
           child: const Text('Close'),
         ),
       ],
-    ),
-  );
-}
-
-class _ReleaseNote extends StatelessWidget {
-  /// Renders one icon, title, and description row in the What's New dialog.
-  const _ReleaseNote({
-    required this.theme,
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final ThemeData theme;
-  final IconData icon;
-  final String title;
-  final String description;
-
-  /// Builds one release highlight row with icon and text.
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 16, color: theme.colorScheme.primary),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(description, style: CalfTheme.muted(theme)),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

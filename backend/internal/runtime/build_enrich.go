@@ -3,7 +3,7 @@ package runtime
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,10 +22,11 @@ var buildImageNameRe = regexp.MustCompile(`(?i)naming to\s+(\S+)`)
 
 // imageInspectRow represents the inspect JSON for an image.
 type imageInspectRow struct {
-	ID       string   `json:"Id"`
-	Digest   string   `json:"Digest"`
-	Size     int64    `json:"Size"`
-	RepoTags []string `json:"RepoTags"`
+	ID          string   `json:"Id"`
+	Digest      string   `json:"Digest"`
+	RepoDigests []string `json:"RepoDigests"`
+	Size        int64    `json:"Size"`
+	RepoTags    []string `json:"RepoTags"`
 }
 
 // enrichBuildResult fills build dependencies, artifacts, and tags from the Dockerfile and built image.
@@ -92,19 +93,14 @@ func parseDockerfileDependencies(contextPath, dockerfile, platform string) []Bui
 // enrichDependenciesWithInspect adds digest and platform details to each dependency via image inspect.
 func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, result BuildResult, platform string) BuildResult {
 	for index, dependency := range result.Dependencies {
-		output, err := run(ctx, "nerdctl", "image", "inspect", dependency.Source, "--format", "{{json .}}")
+		row, err := inspectImageRow(ctx, run, dependency.Source)
 		if err != nil {
 			continue
 		}
 
-		var row imageInspectRow
-		if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
-			continue
-		}
-
-		digest := row.Digest
+		digest := digestFromImageInspect(row)
 		if digest == "" {
-			digest = row.ID
+			continue
 		}
 
 		result.Dependencies[index].Digest = digest
@@ -118,19 +114,14 @@ func enrichDependenciesWithInspect(ctx context.Context, run commandRunner, resul
 
 // inspectBuildImage returns build artifacts and tags for the image produced at tag.
 func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform string) ([]BuildArtifact, []BuildTag) {
-	output, err := run(ctx, "nerdctl", "image", "inspect", tag, "--format", "{{json .}}")
+	row, err := inspectImageRow(ctx, run, tag)
 	if err != nil {
 		return nil, nil
 	}
 
-	var row imageInspectRow
-	if err := json.Unmarshal(utils.TrimOutputBytes(output), &row); err != nil {
-		return nil, nil
-	}
-
-	digest := row.Digest
+	digest := digestFromImageInspect(row)
 	if digest == "" {
-		digest = row.ID
+		return nil, nil
 	}
 
 	size := utils.FormatBytes(row.Size)
@@ -155,6 +146,49 @@ func inspectBuildImage(ctx context.Context, run commandRunner, tag, platform str
 	}
 
 	return artifacts, tags
+}
+
+// inspectImageRow loads the first image inspect document for ref.
+func inspectImageRow(ctx context.Context, run commandRunner, ref string) (imageInspectRow, error) {
+	output, err := run(ctx, "nerdctl", "image", "inspect", ref)
+	if err != nil {
+		return imageInspectRow{}, err
+	}
+
+	rows, err := decodeInspectDocuments[imageInspectRow](output)
+	if err != nil {
+		return imageInspectRow{}, err
+	}
+	if len(rows) == 0 {
+		return imageInspectRow{}, fmt.Errorf("image inspect returned no documents for %s", ref)
+	}
+
+	return rows[0], nil
+}
+
+// digestFromImageInspect picks a content digest from inspect JSON (Digest, RepoDigests, or Id).
+func digestFromImageInspect(row imageInspectRow) string {
+	if digest := strings.TrimSpace(row.Digest); digest != "" {
+		return digest
+	}
+
+	for _, repoDigest := range row.RepoDigests {
+		repoDigest = strings.TrimSpace(repoDigest)
+		if at := strings.LastIndex(repoDigest, "@"); at >= 0 && at+1 < len(repoDigest) {
+			return repoDigest[at+1:]
+		}
+	}
+
+	return strings.TrimSpace(row.ID)
+}
+
+// DigestFromInspectFields picks a content digest from image inspect fields.
+func DigestFromInspectFields(digest string, repoDigests []string, id string) string {
+	return digestFromImageInspect(imageInspectRow{
+		Digest:      digest,
+		RepoDigests: repoDigests,
+		ID:          id,
+	})
 }
 
 // IsResolvableBuildContext reports whether contextPath is an absolute local directory accessible on disk.
@@ -327,8 +361,10 @@ func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 		BuildResult{},
 	)
 
-	if len(build.Dependencies) == 0 && len(enriched.Dependencies) > 0 {
-		build.Dependencies = enriched.Dependencies
+	if len(enriched.Dependencies) > 0 {
+		if len(build.Dependencies) == 0 || dependenciesMissingDigest(build.Dependencies) {
+			build.Dependencies = enriched.Dependencies
+		}
 	}
 	if len(build.Results) == 0 && len(enriched.Results) > 0 {
 		build.Results = enriched.Results
@@ -346,6 +382,16 @@ func EnrichSyncedBuild(ctx context.Context, socket string, build *Build) {
 	if build.Tags == nil {
 		build.Tags = []BuildTag{}
 	}
+}
+
+// dependenciesMissingDigest reports whether any dependency is missing a digest.
+func dependenciesMissingDigest(dependencies []BuildDependency) bool {
+	for _, dependency := range dependencies {
+		if strings.TrimSpace(dependency.Digest) == "" {
+			return true
+		}
+	}
+	return false
 }
 
 // dockerCLIRunner returns a commandRunner that invokes docker with DOCKER_HOST set to socket.

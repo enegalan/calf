@@ -28,6 +28,11 @@ func HostMemoryGB() int {
 	return gb
 }
 
+// HostDiskGB returns free disk space in gigabytes; Windows uses the default until a probe lands.
+func HostDiskGB() int {
+	return constants.DefaultHostDiskGB
+}
+
 type windowsMemoryStatusEx struct {
 	length               uint32
 	memoryLoad           uint32

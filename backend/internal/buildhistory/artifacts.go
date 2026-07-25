@@ -181,6 +181,58 @@ func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]by
 	return utils.TrimOutputBytes(output), nil
 }
 
+// FetchArtifactBytes returns the raw JSON bytes for a build history artifact digest.
+func FetchArtifactBytes(ctx context.Context, socket, historyID, digest string) ([]byte, error) {
+	historyID = strings.TrimSpace(historyID)
+	digest = strings.TrimSpace(digest)
+	if historyID == "" {
+		return nil, fmt.Errorf("build history artifact: missing history id")
+	}
+	if digest == "" {
+		return nil, fmt.Errorf("build history artifact: missing digest")
+	}
+
+	if body, err := attachmentBody(ctx, socket, historyID, digest); err == nil && len(body) > 0 {
+		return body, nil
+	}
+
+	attachments, err := listAttachments(ctx, socket, historyID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, attachment := range attachments {
+		body, err := attachmentBody(ctx, socket, historyID, attachment.Digest)
+		if err != nil || len(body) == 0 {
+			continue
+		}
+
+		if attachment.Digest == digest || digestForBytes(body) == digest {
+			return body, nil
+		}
+
+		if attachment.Type != "application/vnd.oci.image.manifest.v1+json" {
+			continue
+		}
+
+		var manifest ociManifest
+		if err := json.Unmarshal(body, &manifest); err != nil {
+			continue
+		}
+		if manifest.Config.Digest != digest {
+			continue
+		}
+
+		if configBody, err := attachmentBody(ctx, socket, historyID, manifest.Config.Digest); err == nil && len(configBody) > 0 {
+			return configBody, nil
+		}
+
+		return body, nil
+	}
+
+	return nil, fmt.Errorf("build history artifact not found for digest %s", digest)
+}
+
 // digestForBytes returns a sha256 content digest prefixed for OCI-style artifact display.
 func digestForBytes(data []byte) string {
 	if len(data) == 0 {

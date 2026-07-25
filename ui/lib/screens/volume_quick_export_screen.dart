@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -151,6 +152,7 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
         return;
       }
 
+      showCalfSnackBar(context, 'Export started');
       widget.onCompleted();
     } catch (error) {
       if (!mounted) {

@@ -100,7 +100,7 @@ sp = srv[0]
 ss = sp.read_text()
 ss2, n3 = re.subn(
     r"const MAX_BUFFER_SIZE: u32 = 1 << 20;",
-    "const MAX_BUFFER_SIZE: u32 = 1 << 23; // Calf: 8MiB fuse max_write/read",
+    "const MAX_BUFFER_SIZE: u32 = 1 << 23; // calf: 8MiB fuse max_write/read",
     ss,
     count=1,
 )
@@ -110,7 +110,7 @@ sp.write_text(ss2)
 print(f"patched MAX_BUFFER_SIZE 8MiB in {sp}")
 ss3 = sp.read_text()
 old_ra = "                    max_readahead,\n                    flags: enabled as u32,"
-new_ra = "                    max_readahead: MAX_BUFFER_SIZE, // Calf: allow guest BDI readahead > 128KiB\n                    flags: enabled as u32,"
+new_ra = "                    max_readahead: MAX_BUFFER_SIZE, // calf: allow guest BDI readahead > 128KiB\n                    flags: enabled as u32,"
 if old_ra in ss3:
     sp.write_text(ss3.replace(old_ra, new_ra, 1))
     print(f"patched max_readahead=MAX_BUFFER_SIZE in {sp}")
@@ -125,7 +125,7 @@ if not mac:
 mp = mac[0]
 ms = mp.read_text()
 pat = r"let open_flags = if \(flags & fuse::SetupmappingFlags::WRITE\.bits\(\)\) != 0 \{\s*libc::O_RDWR\s*\} else \{\s*libc::O_RDONLY\s*\};"
-repl = "let open_flags = libc::O_RDWR; // Calf: O_RDONLY DAX maps fail on APFS → guest EINVAL"
+repl = "let open_flags = libc::O_RDWR; // calf: O_RDONLY DAX maps fail on APFS → guest EINVAL"
 ms2, n = re.subn(pat, repl, ms, count=1)
 if n != 1:
     raise SystemExit(f"setupmapping O_RDWR patch failed n={n}")

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,17 +9,31 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/compose_group_detail_screen.dart';
 import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
+import 'package:ui/widgets/status_dot.dart';
+import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/storage/container_groups.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class ContainersScreen extends StatefulWidget {
   /// Creates a [ContainersScreen] widget.
-  const ContainersScreen({super.key, required this.apiClient});
+  const ContainersScreen({
+    super.key,
+    required this.apiClient,
+    this.onOpenImage,
+    this.initialContainerId,
+    this.onInitialContainerConsumed,
+  });
 
   final CalfClient apiClient;
+  final void Function(String imageReference)? onOpenImage;
+  final String? initialContainerId;
+  final VoidCallback? onInitialContainerConsumed;
 
   /// Creates the mutable state for [ContainersScreen].
   @override
@@ -34,6 +47,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   String? _error;
   bool _loading = true;
   bool _refreshInFlight = false;
+  int _consecutiveSilentFailures = 0;
   String? _selectedId;
   ContainerItem? _detailContainer;
   String? _detailProject;
@@ -55,6 +69,16 @@ class _ContainersScreenState extends State<ContainersScreen>
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link and retries opening it when it changes.
+  @override
+  void didUpdateWidget(covariant ContainersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialContainerId != oldWidget.initialContainerId &&
+        widget.initialContainerId != null) {
+      _openInitialContainerIfNeeded(_containers);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -85,10 +109,12 @@ class _ContainersScreenState extends State<ContainersScreen>
       if (!mounted) {
         return;
       }
+      _consecutiveSilentFailures = 0;
       setState(() {
         _runtime = status.runtime;
         _containers = containers;
         _loading = false;
+        _error = null;
         if (_detailContainer != null) {
           for (final container in containers) {
             if (container.id == _detailContainer!.id) {
@@ -98,11 +124,18 @@ class _ContainersScreenState extends State<ContainersScreen>
           }
         }
         if (_detailProject != null) {
-          _detailGroupContainers = containers
+          final groupContainers = containers
               .where((container) => container.composeProject == _detailProject)
               .toList();
+          if (groupContainers.isEmpty) {
+            _detailProject = null;
+            _detailGroupContainers = null;
+          } else {
+            _detailGroupContainers = groupContainers;
+          }
         }
       });
+      _openInitialContainerIfNeeded(containers);
     } catch (error) {
       if (!mounted) {
         return;
@@ -112,6 +145,11 @@ class _ContainersScreenState extends State<ContainersScreen>
           _error = error.toString();
           _loading = false;
         });
+      } else {
+        _consecutiveSilentFailures++;
+        if (_consecutiveSilentFailures >= 3) {
+          setState(() => _error = error.toString());
+        }
       }
     } finally {
       _refreshInFlight = false;
@@ -119,11 +157,71 @@ class _ContainersScreenState extends State<ContainersScreen>
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<bool> _runAction(Future<void> Function() action) async {
     try {
       await action();
       if (mounted) {
         setState(() => _error = null);
+      }
+      await _loadContainers();
+      return true;
+    } catch (error) {
+      if (!mounted) {
+        return false;
+      }
+      setState(() => _error = error.toString());
+      return false;
+    }
+  }
+
+  /// Confirms then removes a single container.
+  Future<void> _confirmRemoveContainer(ContainerItem container) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Delete container',
+      description: 'Delete "${container.name}"? This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    final ok = await _runAction(
+      () => widget.apiClient.removeContainer(container.id),
+    );
+    if (ok && mounted) {
+      showCalfSnackBar(context, 'Deleted container "${container.name}"');
+    }
+  }
+
+  /// Confirms then removes every container in [containers].
+  Future<void> _confirmRemoveAll(List<ContainerItem> containers) async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Delete all containers',
+      description:
+          'Delete ${containers.length} containers in this group? This cannot be undone.',
+      confirmLabel: 'Delete all',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    final ok = await _runGroupAction(
+      containers,
+      widget.apiClient.removeContainer,
+    );
+    if (ok && mounted) {
+      showCalfSnackBar(context, 'Deleted ${containers.length} containers');
+    }
+  }
+
+  /// Starts the container engine when the list is empty and runtime is stopped.
+  Future<void> _startEngine() async {
+    try {
+      await widget.apiClient.startRuntime();
+      if (!mounted) {
+        return;
       }
       await _loadContainers();
     } catch (error) {
@@ -135,7 +233,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   }
 
   /// Runs an action across the given containers, filtered by running state.
-  Future<void> _runGroupAction(
+  Future<bool> _runGroupAction(
     List<ContainerItem> containers,
     Future<void> Function(String id) action, {
     bool runningOnly = false,
@@ -155,11 +253,13 @@ class _ContainersScreenState extends State<ContainersScreen>
         setState(() => _error = null);
       }
       await _loadContainers();
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() => _error = error.toString());
+      return false;
     }
   }
 
@@ -169,6 +269,53 @@ class _ContainersScreenState extends State<ContainersScreen>
       _detailContainer = container;
       _selectedId = container.id;
     });
+  }
+
+  /// Opens [initialContainerId] once containers are loaded, if provided.
+  ///
+  /// The pending id is only consumed once a match is actually found and
+  /// opened; otherwise it stays armed so the next poll can retry.
+  void _openInitialContainerIfNeeded(List<ContainerItem> containers) {
+    final id = widget.initialContainerId?.trim() ?? '';
+    if (id.isEmpty) {
+      return;
+    }
+
+    final match = _findContainerById(containers, id);
+    if (match == null) {
+      return;
+    }
+    widget.onInitialContainerConsumed?.call();
+    setState(() {
+      _detailProject = null;
+      _detailGroupContainers = null;
+      _detailContainer = match;
+      _selectedId = match.id;
+    });
+  }
+
+  /// Finds a container matching [id] by full id, short id, or name.
+  ContainerItem? _findContainerById(List<ContainerItem> containers, String id) {
+    for (final container in containers) {
+      if (container.id == id ||
+          container.shortId == id ||
+          container.id.startsWith(id) ||
+          container.name == id) {
+        return container;
+      }
+    }
+    return null;
+  }
+
+  /// Opens the Images screen detail for [container]'s image.
+  void _openImage(ContainerItem container) {
+    final reference = container.image.isNotEmpty
+        ? container.image
+        : container.subtitle;
+    if (reference.isEmpty) {
+      return;
+    }
+    widget.onOpenImage?.call(reference);
   }
 
   /// Opens the compose project group detail view.
@@ -293,6 +440,8 @@ class _ContainersScreenState extends State<ContainersScreen>
         onBack: _closeComposeGroup,
         onChanged: _loadContainers,
         onOpenContainer: _openContainer,
+        onOpenImage: (imageReference) =>
+            widget.onOpenImage?.call(imageReference),
       );
     }
 
@@ -358,27 +507,48 @@ class _ContainersScreenState extends State<ContainersScreen>
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _error!,
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
+            child: ErrorText(error: _error!),
           ),
         if (_loading)
-          Text('Loading...', style: theme.textTheme.titleMedium)
+          Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text('Loading...', style: CalfTheme.muted(theme)),
+            ],
+          )
         else if (isEmpty)
           Expanded(
             child: Center(
-              child: Text(
-                _searchQuery.isNotEmpty
-                    ? 'No containers match "$_searchQuery".'
-                    : _runtime?.state == 'stopped'
-                    ? 'No containers. Runtime is stopped.'
-                    : _runningOnly
-                    ? 'No running containers.'
-                    : 'No containers.',
-                style: CalfTheme.muted(theme),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _searchQuery.isNotEmpty
+                        ? 'No containers match "$_searchQuery".'
+                        : _runtime?.state == 'stopped'
+                        ? 'No containers. Runtime is stopped.'
+                        : _runningOnly
+                        ? 'No running containers.'
+                        : 'No containers.',
+                    textAlign: TextAlign.center,
+                    style: CalfTheme.muted(theme),
+                  ),
+                  if (_runtime?.state == 'stopped' && _searchQuery.isEmpty) ...[
+                    const SizedBox(height: 16),
+                    CalfButton(
+                      onPressed: _startEngine,
+                      child: const Text('Start engine'),
+                    ),
+                  ],
+                ],
               ),
             ),
           )
@@ -400,18 +570,23 @@ class _ContainersScreenState extends State<ContainersScreen>
                         _runAction(() => widget.apiClient.startContainer(id)),
                     onStop: (id) =>
                         _runAction(() => widget.apiClient.stopContainer(id)),
-                    onRemove: (id) =>
-                        _runAction(() => widget.apiClient.removeContainer(id)),
+                    onRemove: (id) async {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      if (match != null) {
+                        await _confirmRemoveContainer(match);
+                      }
+                    },
                     onStopAll: () => _runGroupAction(
                       group.value,
                       widget.apiClient.stopContainer,
                       runningOnly: true,
                     ),
-                    onRemoveAll: () => _runGroupAction(
-                      group.value,
-                      widget.apiClient.removeContainer,
-                    ),
+                    onRemoveAll: () =>
+                        unawaited(_confirmRemoveAll(group.value)),
                     onOpen: _openContainer,
+                    onOpenImage: _openImage,
                     onOpenPort: openPort,
                   ),
                 for (final container in layout.standalone)
@@ -425,10 +600,10 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onStop: () => _runAction(
                       () => widget.apiClient.stopContainer(container.id),
                     ),
-                    onRemove: () => _runAction(
-                      () => widget.apiClient.removeContainer(container.id),
-                    ),
+                    onRemove: () =>
+                        unawaited(_confirmRemoveContainer(container)),
                     onOpen: () => _openContainer(container),
+                    onOpenImage: () => _openImage(container),
                     onOpenPort: openPort,
                   ),
               ],
@@ -463,6 +638,7 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.onStopAll,
     required this.onRemoveAll,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onOpenPort,
   });
 
@@ -479,6 +655,7 @@ class _ComposeGroupTile extends StatelessWidget {
   final VoidCallback onStopAll;
   final VoidCallback onRemoveAll;
   final void Function(ContainerItem container) onOpen;
+  final void Function(ContainerItem container) onOpenImage;
   final void Function(int port) onOpenPort;
 
   /// Builds the widget tree for the current screen state.
@@ -560,6 +737,7 @@ class _ComposeGroupTile extends StatelessWidget {
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
               onOpen: () => onOpen(container),
+              onOpenImage: () => onOpenImage(container),
               onOpenPort: onOpenPort,
             ),
       ],
@@ -577,6 +755,7 @@ class _ContainerTile extends StatelessWidget {
     required this.onStop,
     required this.onRemove,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onOpenPort,
     this.indented = false,
   });
@@ -589,53 +768,56 @@ class _ContainerTile extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onRemove;
   final VoidCallback onOpen;
+  final VoidCallback onOpenImage;
   final void Function(int port) onOpenPort;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final port = container.primaryHostPort;
+    final ports = container.hostPorts;
+    final linkStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.primary,
+    );
 
     return HoverListRow(
       theme: theme,
       selected: selected,
       padding: EdgeInsets.fromLTRB(indented ? 52 : 8, 10, 8, 10),
+      onTap: onOpen,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ContainerStatusIcon(container: container, theme: theme),
           SizedBox(width: indented ? 16 : 12),
           Expanded(
-            child: GestureDetector(
-              onTap: onOpen,
-              behavior: HitTestBehavior.opaque,
-              child: Padding(
-                padding: EdgeInsets.only(left: indented ? 12 : 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      container.displayName,
-                      style: theme.textTheme.titleMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      container.subtitle,
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: EdgeInsets.only(left: indented ? 12 : 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    container.displayName,
+                    style: theme.textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  HoverTextLink(
+                    text: container.subtitle,
+                    onTap: onOpenImage,
+                    style: linkStyle,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (ports.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    HostPortLinks(
+                      ports: ports,
+                      onOpenPort: onOpenPort,
+                      style: linkStyle,
                     ),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-          if (port != null)
-            _ActionIcon(
-              icon: LucideIcons.externalLink,
-              tooltip: 'Open localhost:$port',
-              onPressed: () => onOpenPort(port),
-            ),
           if (container.isRunning)
             _ActionIcon(
               icon: LucideIcons.square,
@@ -679,9 +861,25 @@ class _ComposeStackIcon extends StatelessWidget {
           Positioned(
             right: 0,
             bottom: 0,
-            child: _GroupStatusDot(
-              state: _groupRunState(containers),
-              theme: theme,
+            child: Builder(
+              builder: (context) {
+                final runState = _groupRunState(containers);
+                return StatusDot.fromState(
+                  state: switch (runState) {
+                    _GroupRunState.allRunning => StatusDotState.active,
+                    _GroupRunState.partial => StatusDotState.partial,
+                    _GroupRunState.stopped => StatusDotState.inactive,
+                  },
+                  activeColor: runState == _GroupRunState.partial
+                      ? theme.colorScheme.primary
+                      : null,
+                  tooltip: switch (runState) {
+                    _GroupRunState.allRunning => 'All running',
+                    _GroupRunState.partial => 'Partially running',
+                    _GroupRunState.stopped => 'Stopped',
+                  },
+                );
+              },
             ),
           ),
         ],
@@ -705,6 +903,11 @@ class _ContainerStatusIcon extends StatelessWidget {
       iconColor: theme.colorScheme.onSurfaceVariant,
       fillColor: _containerStatusColor(container, theme),
       theme: theme,
+      tooltip: container.isRunning
+          ? 'Running'
+          : container.state == 'created'
+          ? 'Created'
+          : 'Stopped',
     );
   }
 }
@@ -716,23 +919,18 @@ class _StatusDotIcon extends StatelessWidget {
     required this.iconColor,
     required this.fillColor,
     required this.theme,
+    this.tooltip,
   });
 
   final IconData icon;
   final Color iconColor;
   final Color? fillColor;
   final ThemeData theme;
-
-  static const _dotSize = 9.0;
-  static const _borderWidth = 1.5;
+  final String? tooltip;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final borderColor = fillColor != null
-        ? theme.colorScheme.surface
-        : theme.colorScheme.onSurfaceVariant;
-
     return SizedBox(
       width: 28,
       height: 28,
@@ -743,14 +941,11 @@ class _StatusDotIcon extends StatelessWidget {
           Positioned(
             right: 0,
             bottom: 0,
-            child: Container(
-              width: _dotSize,
-              height: _dotSize,
-              decoration: BoxDecoration(
-                color: fillColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: borderColor, width: _borderWidth),
-              ),
+            child: StatusDot(
+              active: fillColor != null,
+              hollow: fillColor == null,
+              activeColor: fillColor,
+              tooltip: tooltip,
             ),
           ),
         ],
@@ -803,91 +998,6 @@ _GroupRunState _groupRunState(List<ContainerItem> containers) {
   }
 
   return _GroupRunState.stopped;
-}
-
-class _GroupStatusDot extends StatelessWidget {
-  /// Creates a [_GroupStatusDot] widget.
-  const _GroupStatusDot({required this.state, required this.theme});
-
-  final _GroupRunState state;
-  final ThemeData theme;
-
-  static const _dotSize = 9.0;
-  static const _borderWidth = 1.5;
-
-  /// Builds the widget tree for the current screen state.
-  @override
-  Widget build(BuildContext context) {
-    final background = theme.colorScheme.surface;
-    final borderColor = theme.colorScheme.onSurfaceVariant;
-
-    return SizedBox(
-      width: _dotSize,
-      height: _dotSize,
-      child: switch (state) {
-        _GroupRunState.allRunning => Container(
-          decoration: BoxDecoration(
-            color: CalfColors.success,
-            shape: BoxShape.circle,
-            border: Border.all(color: background, width: _borderWidth),
-          ),
-        ),
-        _GroupRunState.stopped => Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: borderColor, width: _borderWidth),
-          ),
-        ),
-        _GroupRunState.partial => CustomPaint(
-          painter: _HalfFilledCirclePainter(
-            fillColor: theme.colorScheme.primary,
-            borderColor: borderColor,
-            borderWidth: _borderWidth,
-          ),
-        ),
-      },
-    );
-  }
-}
-
-class _HalfFilledCirclePainter extends CustomPainter {
-  /// Creates a [_HalfFilledCirclePainter] widget.
-  const _HalfFilledCirclePainter({
-    required this.fillColor,
-    required this.borderColor,
-    required this.borderWidth,
-  });
-
-  final Color fillColor;
-  final Color borderColor;
-  final double borderWidth;
-
-  /// Draws the custom painter content onto [canvas].
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - borderWidth) / 2;
-    final rect = Rect.fromCircle(center: center, radius: radius);
-
-    final fillPaint = Paint()
-      ..color = fillColor
-      ..style = PaintingStyle.fill;
-    canvas.drawArc(rect, math.pi / 2, math.pi, true, fillPaint);
-
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-    canvas.drawCircle(center, radius, borderPaint);
-  }
-
-  /// Returns whether this painter should repaint.
-  @override
-  bool shouldRepaint(covariant _HalfFilledCirclePainter oldDelegate) {
-    return fillColor != oldDelegate.fillColor ||
-        borderColor != oldDelegate.borderColor ||
-        borderWidth != oldDelegate.borderWidth;
-  }
 }
 
 class _ActionIcon extends StatelessWidget {

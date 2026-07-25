@@ -49,9 +49,16 @@ Future<void> _startDaemon() async {
       environment: env,
     );
     final process = _daemonProcess!;
-    _daemonRestartAttempts = 0;
     process.stdout.listen((data) => stdout.add(data));
     process.stderr.listen((data) => stderr.add(data));
+    // Only clear the restart budget after the process has proven it can stay
+    // up; resetting it immediately on start would let a fast crash loop spin
+    // forever instead of stopping after `_maxDaemonRestarts`.
+    Timer(const Duration(seconds: 30), () {
+      if (identical(_daemonProcess, process)) {
+        _daemonRestartAttempts = 0;
+      }
+    });
     process.exitCode.then((code) {
       stderr.writeln('calf-daemon exited with code $code');
       // Ignore exits from a process that is no longer the active daemon.
@@ -144,9 +151,17 @@ Future<void> _stopDaemon() async {
 }
 
 /// Restarts the embedded calf-daemon without quitting the app.
+///
+/// Throws [StateError] when the UI was started with an external daemon
+/// (`CALF_EXTERNAL_DAEMON`), because this process does not own that daemon.
 Future<void> _restartDaemon() async {
-  if (_externalDaemon || _daemonShutdown) {
+  if (_daemonShutdown) {
     return;
+  }
+  if (_externalDaemon) {
+    throw StateError(
+      'Development mode is active. Restart the backend manually.',
+    );
   }
 
   _daemonRestartTimer?.cancel();
@@ -165,7 +180,7 @@ Future<void> _restartDaemon() async {
   await _startDaemon();
 }
 
-/// Brings the Calf window to the foreground (tray menu action).
+/// Brings the calf window to the foreground (tray menu action).
 Future<void> _openCalfWindow() async {
   if (!supportsTrayStatusIcon) {
     return;
@@ -174,7 +189,7 @@ Future<void> _openCalfWindow() async {
   await windowManager.focus();
 }
 
-/// Quits the app from the tray menu (same as Calf → Quit).
+/// Quits the app from the tray menu (same as calf → Quit).
 Future<void> _quitCalfApp() async {
   await _stopDaemon();
   CalfTrayStatus.dispose();
@@ -190,7 +205,6 @@ Future<void> main() async {
   CalfTrayStatus.install(
     onOpen: _openCalfWindow,
     onQuit: _quitCalfApp,
-    onRestartEngine: _restartDaemon,
     onOpenUrl: openExternalUrl,
   );
   if (!_externalDaemon) {
@@ -245,7 +259,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Polls the daemon status endpoint until the runtime is running or times out.
+  /// Polls the daemon status endpoint until it answers or times out.
+  ///
+  /// The daemon is considered ready as soon as it answers with HTTP 200 and a
+  /// parseable body, regardless of the guest runtime's boot state: the engine
+  /// (VM/container runtime) may still be starting, but the UI itself no
+  /// longer needs to block on that since screens handle a stopped runtime.
   Future<void> _waitForDaemon() async {
     final url = Uri.parse('${CalfDefaults.defaultBaseUrl}/v1/status');
     const attempts = 120;
@@ -259,27 +278,15 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         if (response.statusCode == 200) {
           final body = jsonDecode(response.body);
           if (body is Map<String, dynamic>) {
-            final runtime = body['runtime'];
-            if (runtime is Map<String, dynamic> &&
-                runtime['state'] == 'running') {
-              client.close();
-              if (mounted) {
-                setState(() {
-                  _daemonReady = true;
-                  _error = null;
-                });
-                unawaited(CalfTrayStatus.show());
-              }
-              return;
+            client.close();
+            if (mounted) {
+              setState(() {
+                _daemonReady = true;
+                _error = null;
+              });
+              unawaited(CalfTrayStatus.show());
             }
-            if (runtime is Map<String, dynamic>) {
-              final log = runtime['log'];
-              if (mounted) {
-                setState(
-                  () => _error = (log is String && log.isNotEmpty) ? log : null,
-                );
-              }
-            }
+            return;
           }
         }
       } on SocketException {
@@ -300,7 +307,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       setState(() {
         _error =
             _error ??
-            'Daemon did not become ready in time. Try restarting Calf.';
+            'Daemon did not become ready in time. Try restarting calf.';
       });
     }
   }
@@ -313,9 +320,12 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       themeMode: _themeMode,
       theme: CalfTheme.light,
       darkTheme: CalfTheme.dark,
+      themeAnimationDuration: CalfTheme.animationDuration,
+      themeAnimationCurve: CalfTheme.animationCurve,
       builder: (context, child) {
         final theme = Theme.of(context);
         return Material(
+          animationDuration: CalfTheme.materialAnimationDuration,
           color: theme.colorScheme.surface,
           child: DefaultTextStyle(
             style: theme.textTheme.bodyMedium!.copyWith(
@@ -346,6 +356,8 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
               apiClient: widget.apiClient,
               themeMode: _themeMode,
               onThemeModeChanged: (mode) => setState(() => _themeMode = mode),
+              onRestartDaemon: _restartDaemon,
+              usesExternalDaemon: _externalDaemon,
             )
           : const SizedBox.shrink(),
     );

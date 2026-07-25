@@ -147,17 +147,29 @@ func listVolumeFiles(ctx context.Context, run commandRunner, name, path string) 
 		logicalPath = "/"
 	}
 
-	hostPath := volumeHostPath(row.Mountpoint, logicalPath)
+	hostPath, err := volumeHostPath(row.Mountpoint, logicalPath)
+	if err != nil {
+		return nil, err
+	}
+
 	return ListFilesAtPath(ctx, run, hostPath, logicalPath)
 }
 
-// volumeHostPath maps a volume mountpoint plus logical path to a host filesystem path.
-func volumeHostPath(mountpoint, logicalPath string) string {
+// volumeHostPath maps a volume mountpoint plus logical path to a host filesystem path,
+// re-verifying (independently of isValidContainerPath) that the resolved path stays under
+// mountpoint so a "." or ".." segment can never escape the volume's data directory.
+func volumeHostPath(mountpoint, logicalPath string) (string, error) {
+	mountpoint = filepath.Clean(mountpoint)
 	if logicalPath == "" || logicalPath == "/" {
-		return mountpoint
+		return mountpoint, nil
 	}
 
-	return filepath.Join(mountpoint, strings.TrimPrefix(logicalPath, "/"))
+	joined := filepath.Clean(filepath.Join(mountpoint, strings.TrimPrefix(logicalPath, "/")))
+	if joined != mountpoint && !strings.HasPrefix(joined, mountpoint+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes volume mountpoint")
+	}
+
+	return joined, nil
 }
 
 // ListFilesAtPath lists directory entries at hostPath, presenting paths relative to logicalPath.

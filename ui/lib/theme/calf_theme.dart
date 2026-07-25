@@ -2,21 +2,39 @@ import 'package:flutter/material.dart';
 
 import 'package:ui/constants/calf_constants.dart';
 
-/// Shared Material 3 theme helpers for the Calf UI.
+/// Shared Material 3 theme helpers for the calf UI.
 abstract final class CalfTheme {
   /// Default corner radius used across panels and inputs.
   static const BorderRadius radius = BorderRadius.all(Radius.circular(8));
 
-  /// Light Material 3 theme with Calf brand primary.
+  /// Shared duration for theme switches and layout animations (sidebar width).
+  static const Duration animationDuration = Duration(milliseconds: 200);
+
+  /// Shared curve for theme switches and layout animations.
+  static const Curve animationCurve = Curves.easeInOut;
+
+  /// Materials and buttons must use this so color/border follow [AnimatedTheme]
+  /// without a second, lagged interpolation on top of the theme lerp.
+  static const Duration materialAnimationDuration = Duration.zero;
+
+  /// Light Material 3 theme with calf brand primary.
   static ThemeData get light => _build(Brightness.light);
 
-  /// Dark Material 3 theme with Calf brand primary.
+  /// Dark Material 3 theme with calf brand primary.
   static ThemeData get dark => _build(Brightness.dark);
 
   /// Returns a muted body text style for secondary labels.
   static TextStyle muted(ThemeData theme) {
     return theme.textTheme.bodyMedium!.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
+    );
+  }
+
+  /// Dialog shape with radius and outline so modals read against the surface.
+  static ShapeBorder dialogShape(ColorScheme colorScheme) {
+    return RoundedRectangleBorder(
+      borderRadius: radius,
+      side: BorderSide(color: colorScheme.outlineVariant),
     );
   }
 
@@ -35,7 +53,7 @@ abstract final class CalfTheme {
       onSecondaryContainer: isLight
           ? const Color(0xFF0F172A)
           : const Color(0xFFE2E8F0),
-      error: isLight ? const Color(0xFFEF4444) : const Color(0xFF7F1D1D),
+      error: isLight ? const Color(0xFFEF4444) : const Color(0xFFF87171),
       onError: Colors.white,
       surface: isLight ? const Color(0xFFFFFFFF) : const Color(0xFF020817),
       onSurface: isLight ? const Color(0xFF020817) : const Color(0xFFF8FAFC),
@@ -68,6 +86,10 @@ abstract final class CalfTheme {
       ),
       cardTheme: const CardThemeData(
         shape: RoundedRectangleBorder(borderRadius: radius),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surface,
+        shape: dialogShape(colorScheme),
       ),
       // Opt into Material 3 2024 slider (gapped track + handle thumb).
       // thumbSize/trackGap are required by HandleThumbShape/GappedSliderTrackShape.

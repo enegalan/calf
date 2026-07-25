@@ -108,7 +108,7 @@ func StagingDir() (string, error) {
 	return config.MountsSubdir("migrate")
 }
 
-// RunFromDockerDesktop migrates images, volumes, containers, config, and build history from Docker Desktop to Calf.
+// RunFromDockerDesktop migrates images, volumes, containers, config, and build history from Docker Desktop to calf.
 func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 	if opts.Logger != nil {
 		opts.Logger.Info("starting docker desktop migration")
@@ -147,14 +147,14 @@ func RunFromDockerDesktop(ctx context.Context, opts Options) Status {
 
 	if opts.CalfSocket == "" {
 		status.Phase = Phase(constants.MigrationPhaseFailed)
-		status.Error = "Calf docker socket is not configured"
+		status.Error = "calf docker socket is not configured"
 		emit(status)
 		return status
 	}
 
 	if _, err := os.Stat(opts.CalfSocket); err != nil {
 		status.Phase = Phase(constants.MigrationPhaseFailed)
-		status.Error = "Calf runtime is not running"
+		status.Error = "calf runtime is not running"
 		emit(status)
 		return status
 	}
@@ -239,7 +239,7 @@ func formatCompletionMessage(summary Summary) string {
 	return "Migration completed"
 }
 
-// migrateConfig copies Docker Desktop CPU and memory settings into the Calf config when available.
+// migrateConfig copies Docker Desktop CPU and memory settings into the calf config when available.
 func migrateConfig(ctx context.Context, _ string, opts Options, status *Status, emit func(Status)) error {
 	status.Step = "config"
 	status.Progress = 5
@@ -265,7 +265,7 @@ func migrateConfig(ctx context.Context, _ string, opts Options, status *Status, 
 	return nil
 }
 
-// migrateImages exports each Docker Desktop image to a tar and loads it into Calf.
+// migrateImages exports each Docker Desktop image to a tar and loads it into calf.
 func migrateImages(ctx context.Context, ddSocket string, opts Options, staging string, status *Status, emit func(Status)) error {
 	status.Step = "images"
 	status.Message = "Migrating images"
@@ -305,7 +305,7 @@ func migrateImages(ctx context.Context, ddSocket string, opts Options, staging s
 	return nil
 }
 
-// loadImageOnCalf imports a saved image tar into the Calf runtime via nerdctl or docker.
+// loadImageOnCalf imports a saved image tar into the calf runtime via nerdctl or docker.
 func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	if opts.RunNerdctl != nil {
 		vmTarPath, err := config.HostMountToVMPath(tarPath)
@@ -319,7 +319,7 @@ func loadImageOnCalf(ctx context.Context, opts Options, tarPath string) error {
 	return dockerexec.RunError(ctx, opts.CalfSocket, "load", "-i", tarPath)
 }
 
-// migrateVolumes exports each Docker Desktop volume and recreates it on Calf.
+// migrateVolumes exports each Docker Desktop volume and recreates it on calf.
 func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging string, status *Status, emit func(Status)) error {
 	status.Step = "volumes"
 	status.Progress = 50
@@ -382,7 +382,7 @@ func migrateVolumes(ctx context.Context, ddSocket string, opts Options, staging 
 	return nil
 }
 
-// createVolumeOnCalf creates a named volume in the Calf runtime.
+// createVolumeOnCalf creates a named volume in the calf runtime.
 func createVolumeOnCalf(ctx context.Context, opts Options, name string) error {
 	if opts.RunNerdctl != nil {
 		return opts.RunNerdctl(ctx, "volume", "create", name)
@@ -391,7 +391,7 @@ func createVolumeOnCalf(ctx context.Context, opts Options, name string) error {
 	return dockerexec.RunError(ctx, opts.CalfSocket, "volume", "create", name)
 }
 
-// importVolumeOnCalf restores a staged volume tar archive into a Calf volume.
+// importVolumeOnCalf restores a staged volume tar archive into a calf volume.
 func importVolumeOnCalf(ctx context.Context, opts Options, name, tarName string) error {
 	importArgs := []string{
 		"run", "--rm",
@@ -408,7 +408,7 @@ func importVolumeOnCalf(ctx context.Context, opts Options, name, tarName string)
 	return dockerexec.RunError(ctx, opts.CalfSocket, importArgs...)
 }
 
-// migrateContainers recreates standalone and compose-group containers on Calf, preserving run state.
+// migrateContainers recreates standalone and compose-group containers on calf, preserving run state.
 func migrateContainers(ctx context.Context, ddSocket string, opts Options, status *Status, emit func(Status)) error {
 	status.Step = "containers"
 	status.Progress = 75
@@ -537,7 +537,7 @@ func composeMountsRoot() (string, error) {
 	return config.EnsureMountsDir()
 }
 
-// migrateComposeProject stages a compose project and runs compose up on Calf.
+// migrateComposeProject stages a compose project and runs compose up on calf.
 func migrateComposeProject(ctx context.Context, opts Options, group composeProjectGroup, mountsRoot string) error {
 	vmDir, vmComposePath, err := stageComposeProject(group, mountsRoot)
 	if err != nil {
@@ -747,7 +747,7 @@ func inspectContainer(ctx context.Context, socket, id string) (containerInspect,
 	return rows[0], wasRunning, nil
 }
 
-// createContainerOnCalf recreates a single container on Calf from a Docker inspect payload.
+// createContainerOnCalf recreates a single container on calf from a Docker inspect payload.
 func createContainerOnCalf(ctx context.Context, opts Options, inspect containerInspect) error {
 	name := strings.TrimPrefix(inspect.Name, "/")
 	args := []string{"create"}

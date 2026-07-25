@@ -12,9 +12,12 @@ import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/files_panel.dart';
+import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -109,7 +112,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<void> _runAction(Future<void> Function() action) async {
+  Future<bool> _runAction(Future<void> Function() action) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -127,7 +130,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         }
       }
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _busy = false;
@@ -136,14 +139,16 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         }
       });
       _loadTabData();
+      return true;
     } catch (error) {
       if (!mounted) {
-        return;
+        return false;
       }
       setState(() {
         _busy = false;
         _error = error.toString();
       });
+      return false;
     }
   }
 
@@ -209,6 +214,9 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
               }
             });
             WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) {
+                return;
+              }
               if (_logsScrollController.hasClients) {
                 _logsScrollController.jumpTo(
                   _logsScrollController.position.maxScrollExtent,
@@ -301,7 +309,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
 
     _refreshStats();
     _statsTimer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 5),
       (_) => _refreshStats(),
     );
   }
@@ -342,7 +350,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       }
       setState(() {
         _stats = stats;
-        _statsHistory.add(stats);
+        _statsHistory.replaceFrom(stats);
         _statsLoading = false;
       });
     } catch (error) {
@@ -388,6 +396,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final port = _container.primaryHostPort;
+    final portMapping = _container.primaryPortMapping;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -435,7 +444,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         GestureDetector(
                           onTap: () => openPort(port),
                           child: Text(
-                            '$port:$port',
+                            portMapping ?? '$port:$port',
                             style: theme.textTheme.bodySmall!.copyWith(
                               color: theme.colorScheme.primary,
                             ),
@@ -466,68 +475,62 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    CalfButton.outline(
-                      enabled: !_busy && _container.isRunning,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: _container.isRunning
-                          ? () => _runAction(
-                              () =>
-                                  widget.apiClient.stopContainer(_container.id),
-                            )
-                          : null,
-                      child: Icon(
-                        LucideIcons.square,
-                        size: 16,
-                        color: theme.colorScheme.onSurface,
-                      ),
+                    CalfButtonGroup(
+                      actions: [
+                        CalfGroupAction(
+                          icon: LucideIcons.square,
+                          tooltip: 'Stop',
+                          enabled: !_busy && _container.isRunning,
+                          onPressed: () => _runAction(
+                            () => widget.apiClient.stopContainer(_container.id),
+                          ),
+                        ),
+                        CalfGroupAction(
+                          icon: LucideIcons.play,
+                          tooltip: 'Start',
+                          enabled: !_busy && !_container.isRunning,
+                          onPressed: () => _runAction(
+                            () =>
+                                widget.apiClient.startContainer(_container.id),
+                          ),
+                        ),
+                        CalfGroupAction(
+                          icon: LucideIcons.rotateCw,
+                          tooltip: 'Restart',
+                          enabled: !_busy,
+                          onPressed: () => _runAction(
+                            () => widget.apiClient.restartContainer(
+                              _container.id,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
-                    const SizedBox(width: 8),
-                    CalfButton(
-                      enabled: !_busy && !_container.isRunning,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: !_container.isRunning
-                          ? () => _runAction(
-                              () => widget.apiClient.startContainer(
-                                _container.id,
-                              ),
-                            )
-                          : null,
-                      child: Icon(
-                        LucideIcons.play,
-                        size: 16,
-                        color: theme.colorScheme.onPrimary,
-                      ),
-                    ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
-                    const SizedBox(width: 8),
-                    CalfButton(
-                      enabled: !_busy,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      onPressed: () => _runAction(
-                        () => widget.apiClient.restartContainer(_container.id),
-                      ),
-                      child: Icon(
-                        LucideIcons.rotateCw,
-                        size: 16,
-                        color: theme.colorScheme.onPrimary,
-                      ),
-                    ),
-
-                    /// Creates a [_ContainerDetailViewState] widget.
                     const SizedBox(width: 8),
                     CalfButton.destructive(
                       enabled: !_busy,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      width: 40,
+                      height: 40,
                       onPressed: () async {
-                        await _runAction(
+                        final name = _container.name;
+                        final confirmed = await confirmDialog(
+                          context,
+                          title: 'Delete container',
+                          description: 'Delete "$name"? This cannot be undone.',
+                          confirmLabel: 'Delete',
+                          destructive: true,
+                        );
+                        if (!confirmed || !mounted) {
+                          return;
+                        }
+                        final ok = await _runAction(
                           () => widget.apiClient.removeContainer(_container.id),
                         );
-                        if (mounted) {
-                          widget.onBack();
+                        if (!ok || !context.mounted) {
+                          return;
                         }
+                        showCalfSnackBar(context, 'Deleted container "$name"');
+                        widget.onBack();
                       },
                       child: Icon(
                         LucideIcons.trash2,
@@ -556,14 +559,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         const SizedBox(height: 16),
         CalfTabBar(
           theme: theme,
-          labels: const [
-            'Logs',
-            'Inspect',
-            'Bind mounts',
-            'Exec',
-            'Files',
-            'Stats',
-          ],
+          labels: const ['Logs', 'Inspect', 'Mounts', 'Exec', 'Files', 'Stats'],
           selectedIndex: _tab.index,
           onSelected: (index) => _selectTab(_ContainerDetailTab.values[index]),
         ),
@@ -902,8 +898,19 @@ class _InspectRow extends StatelessWidget {
           child: SelectableText(value, style: theme.textTheme.bodySmall),
         ),
         CalfButton.ghost(
-          padding: const EdgeInsets.all(6),
-          onPressed: () => Clipboard.setData(ClipboardData(text: value)),
+          width: 28,
+          height: 28,
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: value));
+            if (!context.mounted) {
+              return;
+            }
+            showCalfSnackBar(
+              context,
+              'Copied',
+              duration: const Duration(seconds: 2),
+            );
+          },
           child: Icon(
             LucideIcons.copy,
             size: 16,
@@ -935,7 +942,7 @@ class _MountsTab extends StatelessWidget {
     if (loading) {
       return _Panel(
         theme: theme,
-        child: Text('Loading bind mounts...', style: CalfTheme.muted(theme)),
+        child: Text('Loading mounts...', style: CalfTheme.muted(theme)),
       );
     }
     if (error != null) {
@@ -952,7 +959,7 @@ class _MountsTab extends StatelessWidget {
     if (mounts.isEmpty) {
       return _Panel(
         theme: theme,
-        child: Text('No bind mounts.', style: CalfTheme.muted(theme)),
+        child: Text('No mounts.', style: CalfTheme.muted(theme)),
       );
     }
 
@@ -960,53 +967,159 @@ class _MountsTab extends StatelessWidget {
       theme: theme,
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Source (Host)',
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  'Destination (Container)',
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          for (var index = 0; index < mounts.length; index++) ...[
+            if (index > 0)
+              Divider(color: theme.colorScheme.outlineVariant, height: 1),
+            _MountRow(theme: theme, mount: mounts[index]),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
-          /// Creates a [_MountsTab] widget.
-          const SizedBox(height: 8),
-          Divider(color: theme.colorScheme.outlineVariant, height: 1),
-          for (final mount in mounts) ...[
-            /// Creates a [_MountsTab] widget.
-            const SizedBox(height: 10),
-            Row(
+class _MountRow extends StatelessWidget {
+  /// Creates a single mount row with open and copy actions.
+  const _MountRow({required this.theme, required this.mount});
+
+  final ThemeData theme;
+  final ContainerMount mount;
+
+  /// Whether the host path can be opened in the system file manager.
+  bool get _canOpenHostPath {
+    if (mount.source.isEmpty) {
+      return false;
+    }
+    final type = mount.type.toLowerCase();
+    return type.isEmpty || type == 'bind';
+  }
+
+  /// Icon for the mount type (bind folder vs named volume).
+  IconData get _typeIcon {
+    final type = mount.type.toLowerCase();
+    if (type == 'volume') {
+      return LucideIcons.database;
+    }
+    return LucideIcons.folderSymlink;
+  }
+
+  /// Opens the host path in the system file manager when possible.
+  Future<void> _openHostPath(BuildContext context) async {
+    final opened = await openInFileExplorer(mount.source);
+    if (!opened && context.mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (errorContext) => AlertDialog(
+          title: const Text('Could not open path'),
+          content: Text('Your system could not open:\n${mount.source}'),
+          actions: [
+            CalfButton(
+              onPressed: () => Navigator.of(errorContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// Builds one mount mapping with open and copy actions.
+  @override
+  Widget build(BuildContext context) {
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return HoverListRow(
+      theme: theme,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(_typeIcon, size: 18, color: muted),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    mount.source,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: theme.colorScheme.primary,
+                if (mount.name.isNotEmpty) ...[
+                  Text(
+                    mount.name,
+                    style: CalfTheme.muted(theme).copyWith(fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 6),
+                ],
+                MouseRegion(
+                  cursor: _canOpenHostPath
+                      ? SystemMouseCursors.click
+                      : SystemMouseCursors.basic,
+                  child: GestureDetector(
+                    onTap: _canOpenHostPath
+                        ? () => _openHostPath(context)
+                        : null,
+                    child: Text(
+                      mount.source,
+                      style: theme.textTheme.bodySmall!.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                        decoration: _canOpenHostPath
+                            ? TextDecoration.underline
+                            : TextDecoration.none,
+                        decorationColor: theme.colorScheme.primary.withValues(
+                          alpha: 0.35,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                Expanded(
-                  child: Text(
-                    mount.destination,
-                    style: theme.textTheme.bodySmall,
-                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(LucideIcons.arrowDown, size: 12, color: muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: SelectableText(
+                        mount.destination,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
+          const SizedBox(width: 4),
+          if (_canOpenHostPath)
+            Tooltip(
+              message: 'Open in file manager',
+              child: CalfButton.ghost(
+                width: 28,
+                height: 28,
+                onPressed: () => _openHostPath(context),
+                child: Icon(LucideIcons.folderOpen, size: 16, color: muted),
+              ),
+            ),
+          Tooltip(
+            message: 'Copy host path',
+            child: CalfButton.ghost(
+              width: 28,
+              height: 28,
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: mount.source));
+                if (!context.mounted) {
+                  return;
+                }
+                showCalfSnackBar(
+                  context,
+                  'Copied',
+                  duration: const Duration(seconds: 2),
+                );
+              },
+              child: Icon(LucideIcons.copy, size: 16, color: muted),
+            ),
+          ),
         ],
       ),
     );
@@ -1471,8 +1584,6 @@ class _StatsChartCard extends StatelessWidget {
 }
 
 class _StatsHistory {
-  static const _maxPoints = 60;
-
   final cpu = <double>[];
   final memUsed = <double>[];
   final diskRead = <double>[];
@@ -1480,24 +1591,45 @@ class _StatsHistory {
   final netRx = <double>[];
   final netTx = <double>[];
 
-  /// Records a stats sample in the rolling history buffers.
-  void add(ContainerStats stats) {
-    _append(cpu, _parsePercent(stats.cpuPercent));
-    _append(memUsed, _parsePair(stats.memUsage).$1);
-    final block = _parsePair(stats.blockIo);
-    _append(diskRead, block.$1);
-    _append(diskWrite, block.$2);
-    final net = _parsePair(stats.netIo);
-    _append(netRx, net.$1);
-    _append(netTx, net.$2);
+  /// Replaces chart series from the server history window (and live snapshot).
+  void replaceFrom(ContainerStats stats) {
+    cpu.clear();
+    memUsed.clear();
+    diskRead.clear();
+    diskWrite.clear();
+    netRx.clear();
+    netTx.clear();
+
+    if (stats.samples.isNotEmpty) {
+      for (final sample in stats.samples) {
+        _appendSample(
+          sample.cpuPercent,
+          sample.memUsage,
+          sample.blockIo,
+          sample.netIo,
+        );
+      }
+      return;
+    }
+
+    _appendSample(stats.cpuPercent, stats.memUsage, stats.blockIo, stats.netIo);
   }
 
-  /// Appends a value to the rolling history buffer.
-  void _append(List<double> target, double value) {
-    target.add(value);
-    if (target.length > _maxPoints) {
-      target.removeAt(0);
-    }
+  /// Appends one parsed sample into the chart series buffers.
+  void _appendSample(
+    String cpuPercent,
+    String memUsage,
+    String blockIo,
+    String netIo,
+  ) {
+    cpu.add(_parsePercent(cpuPercent));
+    memUsed.add(_parsePair(memUsage).$1);
+    final block = _parsePair(blockIo);
+    diskRead.add(block.$1);
+    diskWrite.add(block.$2);
+    final net = _parsePair(netIo);
+    netRx.add(net.$1);
+    netTx.add(net.$2);
   }
 }
 

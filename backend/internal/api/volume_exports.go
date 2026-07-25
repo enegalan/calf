@@ -64,10 +64,22 @@ func (g *Gateway) handleVolumeExportCreate(w http.ResponseWriter, r *http.Reques
 	if exportType == constants.VolumeExportTypeLocalFile {
 		if fileName == "" {
 			fileName = utils.SanitizeExportFileName(volumeName) + ".tar.gz"
+		} else {
+			fileName = filepath.Base(utils.SanitizeExportFileName(fileName))
+		}
+
+		if fileName == "" || fileName == "." || fileName == ".." {
+			httpkit.WriteError(w, http.StatusBadRequest, "file_name is invalid")
+			return
 		}
 
 		if folder == "" {
 			httpkit.WriteError(w, http.StatusBadRequest, "folder is required")
+			return
+		}
+
+		if !filepath.IsAbs(filepath.Clean(folder)) {
+			httpkit.WriteError(w, http.StatusBadRequest, "folder must be an absolute path")
 			return
 		}
 	} else if imageRef == "" {

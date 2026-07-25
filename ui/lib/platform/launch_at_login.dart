@@ -4,12 +4,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
-const _appName = 'Calf';
+const _appName = 'calf';
 const _bundleId = 'com.enegalan.calf';
 const _windowsRunKey = r'HKCU\Software\Microsoft\Windows\CurrentVersion\Run';
 const _linuxDesktopFileName = 'calf.desktop';
 
-/// Resolves the path used when registering Calf to start at login.
+/// Resolves the path used when registering calf to start at login.
 String launchAtLoginPath() {
   final executable = Platform.resolvedExecutable;
   if (Platform.isMacOS) {
@@ -39,7 +39,7 @@ String? macAppBundlePath(String executable) {
 }
 
 class LaunchAtLogin {
-  /// Returns whether Calf is registered to start at login on this platform.
+  /// Returns whether calf is registered to start at login on this platform.
   static Future<bool> isEnabled() async {
     if (Platform.isMacOS) {
       return _macIsEnabled();
@@ -54,7 +54,7 @@ class LaunchAtLogin {
     return false;
   }
 
-  /// Enables or disables launch-at-login registration for Calf.
+  /// Enables or disables launch-at-login registration for calf.
   static Future<bool> setEnabled(bool enabled) async {
     if (Platform.isMacOS) {
       return enabled ? _macEnable() : _macDisable();
@@ -69,7 +69,7 @@ class LaunchAtLogin {
     return false;
   }
 
-  /// Returns whether the macOS LaunchAgent plist exists and references Calf.
+  /// Returns whether the macOS LaunchAgent plist exists and references calf.
   static Future<bool> _macIsEnabled() async {
     final plist = File(_macLaunchAgentPath());
     if (!plist.existsSync()) {
@@ -86,7 +86,7 @@ class LaunchAtLogin {
     }
   }
 
-  /// Writes the macOS LaunchAgent plist so Calf starts at login.
+  /// Writes the macOS LaunchAgent plist so calf starts at login.
   static Future<bool> _macEnable() async {
     final launchPath = launchAtLoginPath();
     if (await _macIsEnabled()) {
@@ -104,7 +104,7 @@ class LaunchAtLogin {
     }
   }
 
-  /// Removes the macOS LaunchAgent plist for Calf.
+  /// Removes the macOS LaunchAgent plist for calf.
   static Future<bool> _macDisable() async {
     final plist = File(_macLaunchAgentPath());
     if (!plist.existsSync()) {
@@ -120,7 +120,7 @@ class LaunchAtLogin {
     }
   }
 
-  /// Returns the path to the macOS LaunchAgent plist for Calf.
+  /// Returns the path to the macOS LaunchAgent plist for calf.
   static String _macLaunchAgentPath() {
     final home = Platform.environment['HOME'] ?? '';
     return p.join(home, 'Library', 'LaunchAgents', '$_bundleId.plist');
@@ -147,7 +147,7 @@ class LaunchAtLogin {
 ''';
   }
 
-  /// Returns whether the Linux XDG autostart desktop file exists for Calf.
+  /// Returns whether the Linux XDG autostart desktop file exists for calf.
   static Future<bool> _linuxIsEnabled() async {
     final desktopFile = File(_linuxDesktopFilePath());
     if (!desktopFile.existsSync()) {
@@ -165,7 +165,7 @@ class LaunchAtLogin {
     }
   }
 
-  /// Writes the Linux XDG autostart desktop file for Calf.
+  /// Writes the Linux XDG autostart desktop file for calf.
   static Future<bool> _linuxEnable() async {
     final launchPath = launchAtLoginPath();
     final desktopFile = File(_linuxDesktopFilePath());
@@ -186,7 +186,7 @@ X-GNOME-Autostart-enabled=true
     }
   }
 
-  /// Removes the Linux XDG autostart desktop file for Calf.
+  /// Removes the Linux XDG autostart desktop file for calf.
   static Future<bool> _linuxDisable() async {
     final desktopFile = File(_linuxDesktopFilePath());
     if (!desktopFile.existsSync()) {
@@ -202,7 +202,7 @@ X-GNOME-Autostart-enabled=true
     }
   }
 
-  /// Returns the path to the Linux autostart desktop file for Calf.
+  /// Returns the path to the Linux autostart desktop file for calf.
   static String _linuxDesktopFilePath() {
     final configHome = Platform.environment['XDG_CONFIG_HOME'];
     if (configHome != null && configHome.isNotEmpty) {
@@ -213,7 +213,7 @@ X-GNOME-Autostart-enabled=true
     return p.join(home, '.config', 'autostart', _linuxDesktopFileName);
   }
 
-  /// Returns whether the Windows Run registry key includes Calf.
+  /// Returns whether the Windows Run registry key includes calf.
   static Future<bool> _windowsIsEnabled() async {
     try {
       final result = await Process.run('reg', [
@@ -235,7 +235,7 @@ X-GNOME-Autostart-enabled=true
     }
   }
 
-  /// Adds Calf to the Windows Run registry key for login startup.
+  /// Adds calf to the Windows Run registry key for login startup.
   static Future<bool> _windowsEnable() async {
     final launchPath = launchAtLoginPath();
     final runValue = _windowsRunValue(launchPath);
@@ -262,7 +262,7 @@ X-GNOME-Autostart-enabled=true
   /// Formats [launchPath] as a quoted Windows registry Run value.
   static String _windowsRunValue(String launchPath) => '"$launchPath"';
 
-  /// Removes Calf from the Windows Run registry key.
+  /// Removes calf from the Windows Run registry key.
   static Future<bool> _windowsDisable() async {
     try {
       final result = await Process.run('reg', [

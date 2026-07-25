@@ -4,10 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
+import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/logs_panel.dart';
+import 'package:ui/widgets/status_dot.dart';
+import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 const _maxLogLines = 2000;
@@ -31,6 +37,7 @@ class ComposeGroupDetailView extends StatefulWidget {
     required this.onBack,
     required this.onChanged,
     required this.onOpenContainer,
+    required this.onOpenImage,
   });
 
   final String project;
@@ -39,6 +46,7 @@ class ComposeGroupDetailView extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onChanged;
   final void Function(ContainerItem container) onOpenContainer;
+  final void Function(String imageReference) onOpenImage;
 
   /// Creates the mutable state for [ComposeGroupDetailView].
   @override
@@ -202,6 +210,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
       if (_logsScrollController.hasClients) {
         _logsScrollController.jumpTo(
           _logsScrollController.position.maxScrollExtent,
@@ -267,34 +278,26 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        DetailBreadcrumb(
+          segments: ['Containers', widget.project],
+          onBack: widget.onBack,
+        ),
+        const SizedBox(height: 16),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CalfButton.ghost(
-              onPressed: widget.onBack,
-              child: Icon(
-                LucideIcons.chevronLeft,
-                size: 18,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 4),
-            Text('Containers', style: CalfTheme.muted(theme)),
-            Text(' / ', style: CalfTheme.muted(theme)),
             Icon(
               LucideIcons.layers,
-              size: 20,
+              size: 28,
               color: theme.colorScheme.primary,
             ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 8),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.project, style: theme.textTheme.headlineSmall),
+                  const SizedBox(height: 4),
                   Text(
                     '$running running / ${_containers.length} total',
                     style: theme.textTheme.bodySmall!.copyWith(
@@ -304,52 +307,54 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 ],
               ),
             ),
-            CalfButton.outline(
-              enabled: !_busy && running > 0,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running > 0
-                  ? () => _runGroupAction(
-                      widget.apiClient.stopContainer,
-                      runningOnly: true,
-                    )
-                  : null,
-              child: Icon(
-                LucideIcons.square,
-                size: 16,
-                color: theme.colorScheme.onSurface,
-              ),
+            CalfButtonGroup(
+              actions: [
+                CalfGroupAction(
+                  icon: LucideIcons.square,
+                  tooltip: 'Stop all',
+                  enabled: !_busy && running > 0,
+                  onPressed: () => _runGroupAction(
+                    widget.apiClient.stopContainer,
+                    runningOnly: true,
+                  ),
+                ),
+                CalfGroupAction(
+                  icon: LucideIcons.play,
+                  tooltip: 'Start all',
+                  enabled: !_busy && running < _containers.length,
+                  onPressed: () => _runGroupAction(
+                    widget.apiClient.startContainer,
+                    stoppedOnly: true,
+                  ),
+                ),
+              ],
             ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
-            const SizedBox(width: 8),
-            CalfButton(
-              enabled: !_busy && running < _containers.length,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              onPressed: running < _containers.length
-                  ? () => _runGroupAction(
-                      widget.apiClient.startContainer,
-                      stoppedOnly: true,
-                    )
-                  : null,
-              child: Icon(
-                LucideIcons.play,
-                size: 16,
-                color: theme.colorScheme.onPrimary,
-              ),
-            ),
-
-            /// Creates a [_ComposeGroupDetailViewState] widget.
             const SizedBox(width: 8),
             CalfButton.destructive(
               enabled: !_busy,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              width: 40,
+              height: 40,
               onPressed: () async {
+                final count = _containers.length;
+                final confirmed = await confirmDialog(
+                  context,
+                  title: 'Delete all containers',
+                  description:
+                      'Delete $count containers in "${widget.project}"? This cannot be undone.',
+                  confirmLabel: 'Delete all',
+                  destructive: true,
+                );
+                if (!confirmed || !mounted) {
+                  return;
+                }
                 final ok = await _runGroupAction(
                   widget.apiClient.removeContainer,
                 );
-                if (mounted && ok) {
-                  widget.onBack();
+                if (!ok || !context.mounted) {
+                  return;
                 }
+                showCalfSnackBar(context, 'Deleted $count containers');
+                widget.onBack();
               },
               child: Icon(
                 LucideIcons.trash2,
@@ -381,14 +386,41 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 child: _ComposeContainerList(
                   theme: theme,
                   containers: _containers,
-                  colors: _containerColors,
                   onOpen: widget.onOpenContainer,
+                  onOpenImage: widget.onOpenImage,
                   onStart: (id) =>
                       _runAction(() => widget.apiClient.startContainer(id)),
                   onStop: (id) =>
                       _runAction(() => widget.apiClient.stopContainer(id)),
-                  onRemove: (id) =>
-                      _runAction(() => widget.apiClient.removeContainer(id)),
+                  onRemove: (id) async {
+                    final match = _containers
+                        .where((c) => c.id == id)
+                        .firstOrNull;
+                    if (match == null) {
+                      return;
+                    }
+                    final confirmed = await confirmDialog(
+                      context,
+                      title: 'Delete container',
+                      description:
+                          'Delete "${match.name}"? This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      destructive: true,
+                    );
+                    if (!confirmed || !mounted) {
+                      return;
+                    }
+                    final ok = await _runAction(
+                      () => widget.apiClient.removeContainer(id),
+                    );
+                    if (!ok || !context.mounted) {
+                      return;
+                    }
+                    showCalfSnackBar(
+                      context,
+                      'Deleted container "${match.name}"',
+                    );
+                  },
                   onOpenPort: openPort,
                   busy: _busy,
                 ),
@@ -417,8 +449,8 @@ class _ComposeContainerList extends StatelessWidget {
   const _ComposeContainerList({
     required this.theme,
     required this.containers,
-    required this.colors,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onStart,
     required this.onStop,
     required this.onRemove,
@@ -428,8 +460,8 @@ class _ComposeContainerList extends StatelessWidget {
 
   final ThemeData theme;
   final List<ContainerItem> containers;
-  final Map<String, Color> colors;
   final void Function(ContainerItem container) onOpen;
+  final void Function(String imageReference) onOpenImage;
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
@@ -452,8 +484,15 @@ class _ComposeContainerList extends StatelessWidget {
             _ComposeContainerRow(
               theme: theme,
               container: container,
-              accentColor: colors[container.id] ?? theme.colorScheme.primary,
               onOpen: () => onOpen(container),
+              onOpenImage: () {
+                final reference = container.image.isNotEmpty
+                    ? container.image
+                    : container.subtitle;
+                if (reference.isNotEmpty) {
+                  onOpenImage(reference);
+                }
+              },
               onStart: () => onStart(container.id),
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
@@ -471,8 +510,8 @@ class _ComposeContainerRow extends StatelessWidget {
   const _ComposeContainerRow({
     required this.theme,
     required this.container,
-    required this.accentColor,
     required this.onOpen,
+    required this.onOpenImage,
     required this.onStart,
     required this.onStop,
     required this.onRemove,
@@ -482,8 +521,8 @@ class _ComposeContainerRow extends StatelessWidget {
 
   final ThemeData theme;
   final ContainerItem container;
-  final Color accentColor;
   final VoidCallback onOpen;
+  final VoidCallback onOpenImage;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onRemove;
@@ -493,73 +532,73 @@ class _ComposeContainerRow extends StatelessWidget {
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final port = container.primaryHostPort;
+    final ports = container.hostPorts;
+    final linkStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.primary,
+    );
+    final statusColor = _composeContainerStatusColor(container);
+    final statusTooltip = container.isRunning
+        ? 'Running'
+        : container.state == 'created'
+        ? 'Created'
+        : 'Stopped';
 
     return HoverListRow(
       theme: theme,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      onTap: onOpen,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 10,
-            height: 10,
-            margin: const EdgeInsets.only(top: 6),
-            decoration: BoxDecoration(
-              color: container.isRunning
-                  ? accentColor
-                  : theme.colorScheme.onSurfaceVariant,
-              shape: BoxShape.circle,
-              border: container.isRunning
-                  ? null
-                  : Border.all(color: theme.colorScheme.onSurfaceVariant),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  LucideIcons.box,
+                  size: 22,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: StatusDot(
+                    active: statusColor != null,
+                    hollow: statusColor == null,
+                    activeColor: statusColor,
+                    tooltip: statusTooltip,
+                  ),
+                ),
+              ],
             ),
           ),
-
-          /// Creates a [_ComposeContainerRow] widget.
-          const SizedBox(width: 10),
-          Icon(
-            LucideIcons.box,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-
-          /// Creates a [_ComposeContainerRow] widget.
           const SizedBox(width: 10),
           Expanded(
-            child: GestureDetector(
-              onTap: onOpen,
-              behavior: HitTestBehavior.opaque,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    container.displayName,
-                    style: theme.textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  container.displayName,
+                  style: theme.textTheme.titleMedium,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                HoverTextLink(
+                  text: container.subtitle,
+                  onTap: onOpenImage,
+                  style: linkStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (ports.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  HostPortLinks(
+                    ports: ports,
+                    onOpenPort: onOpenPort,
+                    style: linkStyle,
                   ),
-                  Text(
-                    container.subtitle,
-                    style: theme.textTheme.bodySmall!.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (port != null) ...[
-                    /// Creates a [_ComposeContainerRow] widget.
-                    const SizedBox(height: 4),
-                    GestureDetector(
-                      onTap: () => onOpenPort(port),
-                      child: Text(
-                        'localhost:$port',
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
           if (container.isRunning)
@@ -586,6 +625,17 @@ class _ComposeContainerRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Returns the status color for a compose-group container row.
+Color? _composeContainerStatusColor(ContainerItem container) {
+  if (container.isRunning) {
+    return CalfColors.success;
+  }
+  if (container.state == 'created') {
+    return CalfColors.warning;
+  }
+  return null;
 }
 
 class _ComposeActionIcon extends StatelessWidget {

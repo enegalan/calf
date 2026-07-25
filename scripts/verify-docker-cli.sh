@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Smoke-test docker CLI commands against a running Calf daemon.
-# Prerequisites: make dev-backend (or calf daemon) and DOCKER_HOST pointing at Calf.
+# Smoke-test docker CLI commands against a running calf daemon.
+# Prerequisites: make dev-backend (or calf daemon) and DOCKER_HOST pointing at calf.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -66,7 +66,7 @@ wait_for_docker() {
     if docker info >/dev/null 2>&1; then
       return 0
     fi
-    printf 'waiting for Calf Docker socket (%s)...\n' "$DOCKER_HOST"
+    printf 'waiting for calf Docker socket (%s)...\n' "$DOCKER_HOST"
     sleep 3
   done
   echo "timed out after ${CALF_WAIT_SECONDS}s waiting for docker socket" >&2

@@ -64,7 +64,7 @@ class MacosMenuScope extends StatelessWidget {
   List<PlatformMenuItem> _buildMenus(BuildContext context) {
     final appMenuItems = <PlatformMenuItem>[
       PlatformMenuItem(
-        label: 'About Calf',
+        label: 'About calf',
         onSelected: () => showAboutCalfDialog(context, appVersion: appVersion),
       ),
       PlatformMenuItemGroup(
@@ -132,7 +132,7 @@ class MacosMenuScope extends StatelessWidget {
     ];
 
     return [
-      PlatformMenu(label: 'Calf', menus: appMenuItems),
+      PlatformMenu(label: 'calf', menus: appMenuItems),
       PlatformMenu(label: 'Navigate', menus: viewMenuItems),
       PlatformMenu(
         label: 'Account',

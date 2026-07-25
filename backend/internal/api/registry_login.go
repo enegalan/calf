@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/enegalan/calf/backend/internal/httpkit"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // registryDeviceLoginStartResponse represents the JSON payload for POST /v1/registry/login.
@@ -41,6 +42,15 @@ func (g *Gateway) handleRegistryLogin() http.HandlerFunc {
 
 			g.handleRegistryDeviceLoginStatus(w, r, parts[0])
 		},
+		http.MethodDelete: func(w http.ResponseWriter, r *http.Request) {
+			parts := httpkit.PathParts(r, "/v1/registry/login/")
+			if len(parts) != 1 {
+				httpkit.MethodNotAllowed(w, r)
+				return
+			}
+
+			g.handleRegistryDeviceLoginCancel(w, r, parts[0])
+		},
 	})
 }
 
@@ -73,4 +83,14 @@ func (g *Gateway) handleRegistryDeviceLoginStatus(w http.ResponseWriter, r *http
 		Username: status.Username,
 		Error:    status.Error,
 	})
+}
+
+// handleRegistryDeviceLoginCancel serves DELETE /v1/registry/login/{sessionID}.
+func (g *Gateway) handleRegistryDeviceLoginCancel(w http.ResponseWriter, r *http.Request, sessionID string) {
+	if !g.backend.CancelRegistryDeviceLogin(sessionID) {
+		httpkit.WriteError(w, http.StatusNotFound, "login session not found")
+		return
+	}
+
+	utils.WriteOK(w)
 }

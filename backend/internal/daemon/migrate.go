@@ -45,10 +45,14 @@ func (s *Core) RunDockerDesktopMigration() {
 		s.migrateMu.Unlock()
 	}()
 
+	s.CfgMu.RLock()
+	vmName := s.Cfg.VMName
+	s.CfgMu.RUnlock()
+
 	status := migration.RunFromDockerDesktop(ctx, migration.Options{
 		CalfSocket: s.Runtime.DockerSocket(),
-		VMName:     s.Cfg.VMName,
-		// Prefer host docker CLI against the Calf socket (krunkit / native); no limactl shell.
+		VMName:     vmName,
+		// Prefer host docker CLI against the calf socket (krunkit / native); no limactl shell.
 		RunNerdctl: nil,
 		Logger:     s.Logger,
 		OnStatus: func(update migration.Status) {

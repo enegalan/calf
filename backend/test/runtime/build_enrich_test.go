@@ -30,3 +30,14 @@ func TestParseImageRefFromBuildLog(t *testing.T) {
 		t.Fatalf("expected toth-api:latest, got %q", got)
 	}
 }
+
+func TestDigestFromInspectFieldsUsesRepoDigests(t *testing.T) {
+	got := runtime.DigestFromInspectFields(
+		"",
+		[]string{"docker.io/library/ubuntu@sha256:abcdef"},
+		"sha256:imageid",
+	)
+	if got != "sha256:abcdef" {
+		t.Fatalf("expected sha256:abcdef, got %q", got)
+	}
+}

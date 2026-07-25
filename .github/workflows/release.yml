@@ -21,18 +21,18 @@ jobs:
           - os: macos-latest
             target: package-macos
             artifacts: |
-              dist/Calf-*.dmg
-              dist/Calf-*.pkg
+              dist/calf-*.dmg
+              dist/calf-*.pkg
           - os: windows-latest
             target: package-windows
             artifacts: |
-              dist/Calf-*.exe
+              dist/calf-*.exe
           - os: ubuntu-latest
             target: package-linux
             artifacts: |
               dist/calf_*.deb
               dist/calf-*.rpm
-              dist/Calf-*.AppImage
+              dist/calf-*.AppImage
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -121,7 +121,7 @@ jobs:
           # Guest disk (calf-guest-disk-*.raw.zst) is built on a real Mac with
           # `make guest-disk` and attached manually when needed — GHA nested VZ cannot bake it.
           gh release create "v${{ steps.version.outputs.version }}" \
-            --title "Calf ${{ steps.version.outputs.version }}" \
+            --title "calf ${{ steps.version.outputs.version }}" \
             --draft \
             --generate-notes \
             dist/*

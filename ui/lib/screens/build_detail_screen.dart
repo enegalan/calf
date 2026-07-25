@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -5,7 +8,10 @@ import 'package:flutter/services.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
+import 'package:ui/platform/open_url.dart';
+import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -246,6 +252,51 @@ class _BuildDetailViewState extends State<BuildDetailView> {
   /// Copies [value] to the system clipboard.
   Future<void> _copyText(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
+    if (!mounted) {
+      return;
+    }
+    showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
+  }
+
+  /// Opens the Docker Hub page for a dependency image reference.
+  Future<void> _openDependencyInDockerHub(String source) async {
+    await openExternalUrl(dockerHubImageUrl(source));
+  }
+
+  /// Downloads a build result artifact as `sha256_<hash>.json`.
+  Future<void> _downloadBuildResult(String digest) async {
+    if (digest.isEmpty) {
+      return;
+    }
+
+    final hash = digest.startsWith('sha256:') ? digest.substring(7) : digest;
+    final suggestedName = 'sha256_$hash.json';
+    final location = await getSaveLocation(suggestedName: suggestedName);
+    if (location == null || !mounted) {
+      return;
+    }
+
+    try {
+      final bytes = await widget.apiClient.downloadBuildArtifact(
+        widget.buildId,
+        digest,
+      );
+      await File(location.path).writeAsBytes(bytes);
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Download saved');
+    } on ApiException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, error.message);
+    } on FileSystemException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, error.message);
+    }
   }
 
   /// Builds the widget tree for the current screen state.
@@ -292,7 +343,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
                         /// Creates a [_BuildDetailViewState] widget.
                         const SizedBox(width: 8),
                         CalfButton.ghost(
-                          padding: const EdgeInsets.all(4),
+                          width: 28,
+                          height: 28,
                           onPressed: () => _copyText(detail.id),
                           child: Icon(
                             LucideIcons.copy,
@@ -359,6 +411,8 @@ class _BuildDetailViewState extends State<BuildDetailView> {
           platformFilter: _platformFilter,
           onPlatformChanged: (value) => setState(() => _platformFilter = value),
           onCopy: _copyText,
+          onOpenDependency: _openDependencyInDockerHub,
+          onDownloadResult: _downloadBuildResult,
         );
       case _BuildDetailTab.source:
         return _SourceTab(
@@ -369,15 +423,17 @@ class _BuildDetailViewState extends State<BuildDetailView> {
           detail: detail,
         );
       case _BuildDetailTab.logs:
+        final rawLog = _logs?.rawLog ?? detail.rawLog;
+        final steps = _logs?.steps ?? detail.steps;
         return _LogsTab(
           theme: theme,
           detail: detail,
-          rawLog: _logs?.rawLog ?? detail.rawLog,
-          steps: _logs?.steps ?? detail.steps,
+          rawLog: rawLog,
+          steps: steps,
           loading: _logsLoading,
           error: _logsError,
           plainLogs: _plainLogs,
-          expandedSteps: _expandedSteps,
+          expandedSteps: Set<int>.from(_expandedSteps),
           onTogglePlain: (value) => setState(() => _plainLogs = value),
           onToggleStep: (index) {
             setState(() {
@@ -388,6 +444,18 @@ class _BuildDetailViewState extends State<BuildDetailView> {
               }
             });
           },
+          onExpandAll: () {
+            setState(() {
+              _expandedSteps
+                ..clear()
+                ..addAll([
+                  for (var index = 0; index < steps.length; index++)
+                    if (steps[index].log.isNotEmpty) index,
+                ]);
+            });
+          },
+          onCollapseAll: () => setState(() => _expandedSteps.clear()),
+          onCopy: () => _copyText(rawLog),
         );
       case _BuildDetailTab.history:
         return _HistoryTab(
@@ -456,6 +524,8 @@ class _InfoTab extends StatelessWidget {
     required this.platformFilter,
     required this.onPlatformChanged,
     required this.onCopy,
+    required this.onOpenDependency,
+    required this.onDownloadResult,
   });
 
   final ThemeData theme;
@@ -463,6 +533,8 @@ class _InfoTab extends StatelessWidget {
   final String platformFilter;
   final ValueChanged<String> onPlatformChanged;
   final Future<void> Function(String value) onCopy;
+  final Future<void> Function(String source) onOpenDependency;
+  final Future<void> Function(String digest) onDownloadResult;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -513,9 +585,6 @@ class _InfoTab extends StatelessWidget {
           link: true,
         ),
         _InfoRow(theme: theme, label: 'Revision', value: detail.sourceRevision),
-        _InfoRow(theme: theme, label: 'Dockerfile', value: detail.dockerfile),
-
-        /// Creates a [_InfoTab] widget.
         const SizedBox(height: 24),
         _SectionHeader(theme: theme, title: 'Build timing'),
 
@@ -527,6 +596,8 @@ class _InfoTab extends StatelessWidget {
           totalMs: detail.durationMs,
           cachedSteps: detail.cachedSteps,
           totalSteps: detail.totalSteps,
+          startedAt: detail.createdAt,
+          finishedAt: detail.finishedAt,
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -538,7 +609,19 @@ class _InfoTab extends StatelessWidget {
           rows: dependencies
               .map((item) => [item.source, item.platform, item.digest])
               .toList(),
+          leadingIcons: [
+            for (final item in dependencies)
+              buildDependencyIconKind(item.source),
+          ],
           onCopy: onCopy,
+          menuBuilder: (row) => const [
+            PopupMenuItem(value: 'open', child: Text('Open in new window')),
+          ],
+          onMenuSelected: (action, row) async {
+            if (action == 'open' && row.isNotEmpty) {
+              await onOpenDependency(row[0]);
+            }
+          },
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -551,7 +634,22 @@ class _InfoTab extends StatelessWidget {
           rows: results
               .map((item) => [item.name, item.platform, item.digest, item.size])
               .toList(),
+          leadingIcons: [
+            for (final item in results) buildResultIconKind(item.name),
+          ],
           onCopy: onCopy,
+          menuBuilder: (row) => [
+            PopupMenuItem(
+              value: 'download',
+              enabled: row.length > 2 && row[2].isNotEmpty,
+              child: const Text('Download'),
+            ),
+          ],
+          onMenuSelected: (action, row) async {
+            if (action == 'download' && row.length > 2 && row[2].isNotEmpty) {
+              await onDownloadResult(row[2]);
+            }
+          },
         ),
 
         /// Creates a [_InfoTab] widget.
@@ -649,6 +747,8 @@ class _TimingCharts extends StatelessWidget {
     required this.totalMs,
     required this.cachedSteps,
     required this.totalSteps,
+    required this.startedAt,
+    required this.finishedAt,
   });
 
   final ThemeData theme;
@@ -656,11 +756,23 @@ class _TimingCharts extends StatelessWidget {
   final int totalMs;
   final int cachedSteps;
   final int totalSteps;
+  final String startedAt;
+  final String finishedAt;
+
+  /// Minimum width that fits all four timing charts in one row.
+  static const double _wideBreakpoint = 720;
+
+  static const Color _localTransfers = Color(0xFF166534);
+  static const Color _imagePulls = Color(0xFF4ADE80);
+  static const Color _executions = Color(0xFF3B82F6);
+  static const Color _fileOperations = Color(0xFFEF4444);
+  static const Color _resultExports = Color(0xFFA855F7);
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
-    final realTime = _timingSlices(timing);
+    final idleColor = theme.colorScheme.onSurfaceVariant;
+    final realTime = _timingSlices(timing, idleColor);
     final accumulatedTotal =
         timing.localTransfersMs +
         timing.imagePullsMs +
@@ -668,117 +780,237 @@ class _TimingCharts extends StatelessWidget {
         timing.fileOperationsMs +
         timing.resultExportsMs +
         timing.idleMs;
-    final accumulatedSlices = realTime;
     final uncachedSteps = (totalSteps - cachedSteps).clamp(0, totalSteps);
     final cacheSlices = [
       _TimingSlice('Cached steps', cachedSteps.toDouble(), CalfColors.success),
-      _TimingSlice(
-        'Other steps',
-        uncachedSteps.toDouble(),
-        theme.colorScheme.onSurfaceVariant,
-      ),
-    ];
+      _TimingSlice('Non-cached steps', uncachedSteps.toDouble(), idleColor),
+    ].where((slice) => slice.value > 0).toList();
     final idleMs = timing.idleMs.clamp(0, totalMs);
     final activeMs = (totalMs - idleMs).clamp(0, totalMs);
+    final parallelSlices = [
+      _TimingSlice(
+        'Active',
+        activeMs > 0 ? activeMs.toDouble() : 1,
+        _executions,
+      ),
+      _TimingSlice('Idle', idleMs.toDouble(), idleColor),
+    ].where((slice) => slice.value > 0).toList();
+    final legendSlices = [
+      const _TimingSlice('Local file transfers', 0, _localTransfers),
+      const _TimingSlice('Image pulls', 0, _imagePulls),
+      const _TimingSlice('Executions', 0, _executions),
+      const _TimingSlice('File operations', 0, _fileOperations),
+      const _TimingSlice('Result exports', 0, _resultExports),
+      _TimingSlice('Idle', 0, idleColor),
+    ];
+    final charts = [
+      _TimingChartCard(
+        theme: theme,
+        title: 'Real time',
+        value: _formatDuration(totalMs),
+        slices: realTime,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Accumulated time',
+        value: _formatDuration(accumulatedTotal),
+        slices: realTime,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Cache usage',
+        value: '$cachedSteps/$totalSteps',
+        slices: cacheSlices.isEmpty
+            ? [_TimingSlice('None', 1, idleColor)]
+            : cacheSlices,
+      ),
+      _TimingChartCard(
+        theme: theme,
+        title: 'Parallel execution',
+        value: '',
+        slices: parallelSlices,
+      ),
+    ];
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.4,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TimingChartCard(
-          theme: theme,
-          title: 'Real time (${_formatDuration(totalMs)})',
-          slices: realTime,
-          formatValue: (value) => _formatDuration(value.toInt()),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= _wideBreakpoint;
+            if (wide) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [for (final chart in charts) Expanded(child: chart)],
+              );
+            }
+            return Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: charts[0]),
+                    Expanded(child: charts[1]),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: charts[2]),
+                    Expanded(child: charts[3]),
+                  ],
+                ),
+              ],
+            );
+          },
         ),
-        _TimingChartCard(
-          theme: theme,
-          title: 'Accumulated time (${_formatDuration(accumulatedTotal)})',
-          slices: accumulatedSlices,
-          formatValue: (value) => _formatDuration(value.toInt()),
+        const SizedBox(height: 20),
+        Center(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 8,
+            children: [
+              for (final slice in legendSlices)
+                _ChartLegendSwatch(
+                  theme: theme,
+                  color: slice.color,
+                  label: slice.label,
+                ),
+            ],
+          ),
         ),
-        _TimingChartCard(
+        const SizedBox(height: 24),
+        _TimingSummary(
           theme: theme,
-          title: 'Cache usage ($cachedSteps/$totalSteps)',
-          slices: cacheSlices,
-          formatValue: (value) => '${value.toInt()}',
-        ),
-        _TimingChartCard(
-          theme: theme,
-          title: 'Parallel execution',
-          slices: [
-            _TimingSlice(
-              'Active',
-              activeMs > 0 ? activeMs.toDouble() : 1,
-
-              /// Creates a [_TimingCharts] widget.
-              const Color(0xFF3B82F6),
-            ),
-            _TimingSlice(
-              'Idle',
-              idleMs > 0 ? idleMs.toDouble() : 0,
-              theme.colorScheme.onSurfaceVariant,
-            ),
-          ].where((slice) => slice.value > 0).toList(),
-          formatValue: (value) => _formatDuration(value.toInt()),
+          startedAt: startedAt,
+          finishedAt: finishedAt,
+          totalMs: totalMs,
+          cachedSteps: cachedSteps,
+          uncachedSteps: uncachedSteps,
+          totalSteps: totalSteps,
         ),
       ],
     );
   }
 
   /// Builds timing slices for the build-duration chart.
-  List<_TimingSlice> _timingSlices(BuildTiming timing) {
+  List<_TimingSlice> _timingSlices(BuildTiming timing, Color idleColor) {
     return [
       _TimingSlice(
         'Local file transfers',
         timing.localTransfersMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF166534),
+        _localTransfers,
       ),
-      _TimingSlice(
-        'Image pulls',
-        timing.imagePullsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF4ADE80),
-      ),
-      _TimingSlice(
-        'Executions',
-        timing.executionsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFF3B82F6),
-      ),
+      _TimingSlice('Image pulls', timing.imagePullsMs.toDouble(), _imagePulls),
+      _TimingSlice('Executions', timing.executionsMs.toDouble(), _executions),
       _TimingSlice(
         'File operations',
         timing.fileOperationsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFFEF4444),
+        _fileOperations,
       ),
       _TimingSlice(
         'Result exports',
         timing.resultExportsMs.toDouble(),
-
-        /// Creates a [_TimingCharts] widget.
-        const Color(0xFFA855F7),
+        _resultExports,
       ),
-      _TimingSlice(
-        'Idle',
-        timing.idleMs.toDouble(),
-        theme.colorScheme.onSurfaceVariant,
-      ),
+      _TimingSlice('Idle', timing.idleMs.toDouble(), idleColor),
     ].where((slice) => slice.value > 0).toList();
   }
 }
 
+/// Two-column build timing summary under the shared legend.
+class _TimingSummary extends StatelessWidget {
+  /// Creates a [_TimingSummary] widget.
+  const _TimingSummary({
+    required this.theme,
+    required this.startedAt,
+    required this.finishedAt,
+    required this.totalMs,
+    required this.cachedSteps,
+    required this.uncachedSteps,
+    required this.totalSteps,
+  });
+
+  final ThemeData theme;
+  final String startedAt;
+  final String finishedAt;
+  final int totalMs;
+  final int cachedSteps;
+  final int uncachedSteps;
+  final int totalSteps;
+
+  /// Builds the summary columns.
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _summaryLine(
+                label: 'Build start time',
+                value: _formatBuildTimestamp(startedAt),
+              ),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Build end time',
+                value: _formatBuildTimestamp(finishedAt),
+              ),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Total build time',
+                value: _formatDuration(totalMs),
+                emphasize: true,
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _summaryLine(label: 'Cached steps', value: '$cachedSteps'),
+              const SizedBox(height: 6),
+              _summaryLine(label: 'Non-cached steps', value: '$uncachedSteps'),
+              const SizedBox(height: 6),
+              _summaryLine(
+                label: 'Total steps',
+                value: '$totalSteps',
+                emphasize: true,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds one label/value summary row.
+  Widget _summaryLine({
+    required String label,
+    required String value,
+    bool emphasize = false,
+  }) {
+    final style = emphasize
+        ? theme.textTheme.bodyMedium!.copyWith(fontWeight: FontWeight.w700)
+        : CalfTheme.muted(theme);
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(text: '$label  ', style: CalfTheme.muted(theme)),
+          TextSpan(text: value, style: style),
+        ],
+      ),
+    );
+  }
+}
+
 class _TimingSlice {
-  /// Creates a [_TimingSlice] widget.
+  /// Creates a [_TimingSlice] instance.
   const _TimingSlice(this.label, this.value, this.color);
 
   final String label;
@@ -791,14 +1023,14 @@ class _TimingChartCard extends StatefulWidget {
   const _TimingChartCard({
     required this.theme,
     required this.title,
+    required this.value,
     required this.slices,
-    required this.formatValue,
   });
 
   final ThemeData theme;
   final String title;
+  final String value;
   final List<_TimingSlice> slices;
-  final String Function(double value) formatValue;
 
   /// Creates the mutable state for [_TimingChartCard].
   @override
@@ -807,6 +1039,8 @@ class _TimingChartCard extends StatefulWidget {
 
 class _TimingChartCardState extends State<_TimingChartCard> {
   int? _touchedIndex;
+
+  static const double _chartSize = 220;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -825,29 +1059,38 @@ class _TimingChartCardState extends State<_TimingChartCard> {
         ? (touchedSlice.value / total * 100).toStringAsFixed(1)
         : null;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border.all(color: widget.theme.colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.title,
-            style: widget.theme.textTheme.bodySmall!.copyWith(
-              fontWeight: FontWeight.w600,
+          SizedBox(
+            height: 48,
+            child: Column(
+              children: [
+                Text(
+                  widget.title,
+                  textAlign: TextAlign.center,
+                  style: CalfTheme.muted(widget.theme),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.value,
+                  textAlign: TextAlign.center,
+                  style: widget.theme.textTheme.titleMedium!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-
-          /// Creates a [_TimingChartCardState] widget.
-          const SizedBox(height: 8),
-          Expanded(
+          const SizedBox(height: 12),
+          SizedBox(
+            width: _chartSize,
+            height: _chartSize,
             child: total <= 0
                 ? Center(
                     child: Text(
-                      'No timing data',
+                      'No data',
                       style: CalfTheme.muted(widget.theme),
                     ),
                   )
@@ -856,8 +1099,8 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                     children: [
                       PieChart(
                         PieChartData(
-                          sectionsSpace: 1,
-                          centerSpaceRadius: 28,
+                          sectionsSpace: 0,
+                          centerSpaceRadius: 0,
                           pieTouchData: PieTouchData(
                             enabled: true,
                             touchCallback: (event, response) {
@@ -883,7 +1126,7 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               PieChartSectionData(
                                 value: widget.slices[index].value,
                                 color: widget.slices[index].color,
-                                radius: _touchedIndex == index ? 42 : 36,
+                                radius: _touchedIndex == index ? 102 : 94,
                                 title: '',
                               ),
                           ],
@@ -894,8 +1137,8 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                         IgnorePointer(
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
+                              horizontal: 8,
+                              vertical: 6,
                             ),
                             decoration: BoxDecoration(
                               color: widget.theme.colorScheme.surface,
@@ -917,14 +1160,13 @@ class _TimingChartCardState extends State<_TimingChartCard> {
                               children: [
                                 Text(
                                   touchedSlice.label,
+                                  textAlign: TextAlign.center,
                                   style: widget.theme.textTheme.bodySmall!
                                       .copyWith(fontWeight: FontWeight.w600),
                                 ),
-
-                                /// Creates a [_TimingChartCardState] widget.
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${widget.formatValue(touchedSlice.value)} ($touchedPercent%)',
+                                  '$touchedPercent%',
                                   style: CalfTheme.muted(widget.theme),
                                 ),
                               ],
@@ -1026,6 +1268,9 @@ class _DataTable extends StatelessWidget {
     required this.rows,
     required this.onCopy,
     this.copyColumnIndex,
+    this.leadingIcons,
+    this.menuBuilder,
+    this.onMenuSelected,
   });
 
   final ThemeData theme;
@@ -1033,6 +1278,9 @@ class _DataTable extends StatelessWidget {
   final List<List<String>> rows;
   final Future<void> Function(String value) onCopy;
   final int? copyColumnIndex;
+  final List<BuildRowIconKind>? leadingIcons;
+  final List<PopupMenuEntry<String>> Function(List<String> row)? menuBuilder;
+  final Future<void> Function(String action, List<String> row)? onMenuSelected;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1041,10 +1289,15 @@ class _DataTable extends StatelessWidget {
       return Text('No data found', style: CalfTheme.muted(theme));
     }
 
+    final showMenu = menuBuilder != null && onMenuSelected != null;
+    final showIcons =
+        leadingIcons != null && leadingIcons!.length == rows.length;
+
     return Column(
       children: [
         Row(
           children: [
+            if (showIcons) const SizedBox(width: 34),
             for (final column in columns) ...[
               Expanded(
                 child: Text(
@@ -1055,40 +1308,67 @@ class _DataTable extends StatelessWidget {
                 ),
               ),
             ],
-
-            /// Creates a [_DataTable] widget.
-            const SizedBox(width: 32),
+            SizedBox(width: showMenu ? 40 : 32),
           ],
         ),
-
-        /// Creates a [_DataTable] widget.
         const SizedBox(height: 8),
-        for (final row in rows)
+        for (var rowIndex = 0; rowIndex < rows.length; rowIndex++)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
+                if (showIcons) ...[
+                  BuildRowIcon(kind: leadingIcons![rowIndex]),
+                  const SizedBox(width: 12),
+                ],
                 for (var index = 0; index < columns.length; index++) ...[
                   Expanded(
                     child: Text(
-                      row.length > index ? row[index] : '',
+                      rows[rowIndex].length > index
+                          ? rows[rowIndex][index]
+                          : '',
                       style: theme.textTheme.titleMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-                if (row.isNotEmpty) ...[
+                if (showMenu)
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    color: theme.colorScheme.surface,
+                    surfaceTintColor: const Color(0x00000000),
+                    icon: Icon(
+                      LucideIcons.ellipsisVertical,
+                      size: 16,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    onSelected: (action) =>
+                        onMenuSelected!(action, rows[rowIndex]),
+                    itemBuilder: (context) => menuBuilder!(rows[rowIndex]),
+                  )
+                else if (rows[rowIndex].isNotEmpty)
                   Builder(
                     builder: (context) {
+                      final row = rows[rowIndex];
                       final copyIndex = copyColumnIndex ?? row.length - 1;
                       if (copyIndex < 0 ||
                           copyIndex >= row.length ||
                           row[copyIndex].isEmpty) {
-                        return const SizedBox.shrink();
+                        return const SizedBox(width: 32);
                       }
 
                       return CalfButton.ghost(
-                        padding: const EdgeInsets.all(4),
+                        width: 28,
+                        height: 28,
                         onPressed: () => onCopy(row[copyIndex]),
                         child: Icon(
                           LucideIcons.copy,
@@ -1098,7 +1378,6 @@ class _DataTable extends StatelessWidget {
                       );
                     },
                   ),
-                ],
               ],
             ),
           ),
@@ -1201,6 +1480,9 @@ class _LogsTab extends StatelessWidget {
     required this.expandedSteps,
     required this.onTogglePlain,
     required this.onToggleStep,
+    required this.onExpandAll,
+    required this.onCollapseAll,
+    required this.onCopy,
   });
 
   final ThemeData theme;
@@ -1213,6 +1495,9 @@ class _LogsTab extends StatelessWidget {
   final Set<int> expandedSteps;
   final ValueChanged<bool> onTogglePlain;
   final ValueChanged<int> onToggleStep;
+  final VoidCallback onExpandAll;
+  final VoidCallback onCollapseAll;
+  final VoidCallback onCopy;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1239,65 +1524,184 @@ class _LogsTab extends StatelessWidget {
       );
     }
 
-    if (plainLogs) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          CalfButton.ghost(
-            onPressed: () => onTogglePlain(false),
-            child: Text('Step view', style: theme.textTheme.bodySmall),
-          ),
-
-          /// Creates a [_LogsTab] widget.
-          const SizedBox(height: 8),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.2,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-              ),
-              child: SingleChildScrollView(
-                child: SelectableText(
-                  rawLog,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontFamily: 'Menlo',
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    final totalMs = detail.durationMs <= 0 ? 1 : detail.durationMs;
+    final expandableIndexes = [
+      for (var index = 0; index < steps.length; index++)
+        if (steps[index].log.isNotEmpty) index,
+    ];
+    final hasExpandableSteps = expandableIndexes.isNotEmpty;
+    final showExpandControls = !plainLogs && hasExpandableSteps;
+    final allExpanded =
+        showExpandControls && expandableIndexes.every(expandedSteps.contains);
+    final anyExpanded =
+        showExpandControls && expandableIndexes.any(expandedSteps.contains);
 
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            CalfButton.ghost(
-              onPressed: () => onTogglePlain(true),
-              child: Text('Plain view', style: theme.textTheme.bodySmall),
-            ),
-          ],
+        _LogsToolbar(
+          theme: theme,
+          plainLogs: plainLogs,
+          reserveExpandSlot: hasExpandableSteps,
+          showExpandControls: showExpandControls,
+          allExpanded: allExpanded,
+          anyExpanded: anyExpanded,
+          canCopy: rawLog.isNotEmpty,
+          onTogglePlain: onTogglePlain,
+          onExpandAll: onExpandAll,
+          onCollapseAll: onCollapseAll,
+          onCopy: onCopy,
         ),
-
-        /// Creates a [_LogsTab] widget.
         const SizedBox(height: 8),
         Expanded(
+          child: plainLogs
+              ? _buildPlainLogs()
+              : _StepLogsPanel(
+                  theme: theme,
+                  steps: steps,
+                  totalMs: detail.durationMs,
+                  expandedSteps: expandedSteps,
+                  onToggleStep: onToggleStep,
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the plain-text log viewer.
+  Widget _buildPlainLogs() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: SingleChildScrollView(
+        child: SelectableText(
+          rawLog,
+          style: theme.textTheme.bodySmall!.copyWith(
+            fontFamily: 'Menlo',
+            height: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Step list with a fixed timeline ruler driven by scroll position.
+class _StepLogsPanel extends StatefulWidget {
+  /// Creates a [_StepLogsPanel] widget.
+  const _StepLogsPanel({
+    required this.theme,
+    required this.steps,
+    required this.totalMs,
+    required this.expandedSteps,
+    required this.onToggleStep,
+  });
+
+  final ThemeData theme;
+  final List<BuildStep> steps;
+  final int totalMs;
+  final Set<int> expandedSteps;
+  final ValueChanged<int> onToggleStep;
+
+  /// Creates the mutable state for [_StepLogsPanel].
+  @override
+  State<_StepLogsPanel> createState() => _StepLogsPanelState();
+}
+
+class _StepLogsPanelState extends State<_StepLogsPanel> {
+  final ScrollController _scrollController = ScrollController();
+  double _viewStart = 0;
+  double _viewEnd = 1;
+
+  /// Attaches the scroll listener and seeds the initial viewport range.
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_syncViewport);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncViewport());
+  }
+
+  /// Recomputes the viewport range when expand/collapse changes content height.
+  @override
+  void didUpdateWidget(covariant _StepLogsPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final expandedChanged =
+        oldWidget.expandedSteps.length != widget.expandedSteps.length ||
+        !oldWidget.expandedSteps.containsAll(widget.expandedSteps) ||
+        !widget.expandedSteps.containsAll(oldWidget.expandedSteps);
+    if (expandedChanged ||
+        oldWidget.steps.length != widget.steps.length ||
+        oldWidget.totalMs != widget.totalMs) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncViewport());
+    }
+  }
+
+  /// Detaches the scroll listener and disposes the controller.
+  @override
+  void dispose() {
+    _scrollController.removeListener(_syncViewport);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Maps the current scroll window onto the build timeline as 0–1 fractions.
+  void _syncViewport() {
+    if (!mounted) {
+      return;
+    }
+    if (!_scrollController.hasClients) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    final content = position.maxScrollExtent + position.viewportDimension;
+    if (content <= 0) {
+      return;
+    }
+
+    final start = (position.pixels / content).clamp(0.0, 1.0);
+    final end = ((position.pixels + position.viewportDimension) / content)
+        .clamp(0.0, 1.0);
+    if ((start - _viewStart).abs() < 0.0005 &&
+        (end - _viewEnd).abs() < 0.0005) {
+      return;
+    }
+
+    setState(() {
+      _viewStart = start;
+      _viewEnd = end;
+    });
+  }
+
+  /// Builds the fixed ruler (when duration > 0) and the scrollable step list.
+  @override
+  Widget build(BuildContext context) {
+    final totalMs = widget.totalMs;
+    final showRuler = totalMs > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (showRuler) ...[
+          _BuildLogsRuler(
+            theme: widget.theme,
+            totalMs: totalMs,
+            viewStart: _viewStart,
+            viewEnd: _viewEnd,
+          ),
+          const SizedBox(height: 4),
+        ],
+        Expanded(
           child: ListView.builder(
-            itemCount: steps.length,
+            controller: _scrollController,
+            itemCount: widget.steps.length,
             itemBuilder: (context, index) {
-              final step = steps[index];
-              final expanded = expandedSteps.contains(index);
+              final step = widget.steps[index];
+              final expandable = step.log.isNotEmpty;
+              final expanded = widget.expandedSteps.contains(index);
               final badge = step.index > 0
                   ? '${step.index}/${step.total}'
                   : 'internal';
@@ -1307,26 +1711,34 @@ class _LogsTab extends StatelessWidget {
                 child: Column(
                   children: [
                     HoverListRow(
-                      theme: theme,
-                      onTap: step.log.isEmpty
-                          ? null
-                          : () => onToggleStep(index),
+                      theme: widget.theme,
+                      onTap: expandable
+                          ? () => widget.onToggleStep(index)
+                          : null,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 10,
                       ),
                       child: Row(
                         children: [
-                          _StepBadge(theme: theme, label: badge),
-
-                          /// Creates a [_LogsTab] widget.
+                          if (expandable) ...[
+                            Icon(
+                              expanded
+                                  ? LucideIcons.chevronUp
+                                  : LucideIcons.chevronDown,
+                              size: 16,
+                              color: widget.theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 6),
+                          ] else
+                            const SizedBox(width: 22),
+                          _StepBadge(theme: widget.theme, label: badge),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               step.name,
-                              style: theme.textTheme.titleMedium!.copyWith(
-                                fontFamily: 'Menlo',
-                              ),
+                              style: widget.theme.textTheme.titleMedium!
+                                  .copyWith(fontFamily: 'Menlo'),
                             ),
                           ),
                           if (step.cached)
@@ -1336,62 +1748,42 @@ class _LogsTab extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withValues(
-                                  alpha: 0.15,
-                                ),
+                                color: widget.theme.colorScheme.primary
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
                                 'CACHED',
-                                style: theme.textTheme.bodySmall!.copyWith(
-                                  color: theme.colorScheme.primary,
-                                ),
+                                style: widget.theme.textTheme.bodySmall!
+                                    .copyWith(
+                                      color: widget.theme.colorScheme.primary,
+                                    ),
                               ),
                             ),
-
-                          /// Creates a [_LogsTab] widget.
                           const SizedBox(width: 8),
                           Text(
                             _formatDuration(step.durationMs),
-                            style: CalfTheme.muted(theme),
-                          ),
-                          SizedBox(
-                            width: 120,
-                            child: Align(
-                              alignment: Alignment.centerRight,
-                              child: FractionallySizedBox(
-                                widthFactor: (step.durationMs / totalMs).clamp(
-                                  0.05,
-                                  1.0,
-                                ),
-                                child: Container(
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                    color: theme.colorScheme.primary.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                              ),
-                            ),
+                            style: CalfTheme.muted(widget.theme),
                           ),
                         ],
                       ),
                     ),
-                    if (expanded && step.log.isNotEmpty)
+                    if (expanded && expandable)
                       Container(
                         width: double.infinity,
                         margin: const EdgeInsets.only(left: 40, top: 4),
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest
+                          color: widget
+                              .theme
+                              .colorScheme
+                              .surfaceContainerHighest
                               .withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: SelectableText(
                           step.log,
-                          style: theme.textTheme.bodySmall!.copyWith(
+                          style: widget.theme.textTheme.bodySmall!.copyWith(
                             fontFamily: 'Menlo',
                           ),
                         ),
@@ -1400,6 +1792,255 @@ class _LogsTab extends StatelessWidget {
                 ),
               );
             },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Fixed build-duration ruler with a viewport marker tied to log scroll.
+class _BuildLogsRuler extends StatelessWidget {
+  /// Creates a [_BuildLogsRuler] widget.
+  const _BuildLogsRuler({
+    required this.theme,
+    required this.totalMs,
+    required this.viewStart,
+    required this.viewEnd,
+  });
+
+  final ThemeData theme;
+  final int totalMs;
+  final double viewStart;
+  final double viewEnd;
+
+  static const double _height = 28;
+
+  /// Builds the labeled tick strip and blue viewport marker.
+  @override
+  Widget build(BuildContext context) {
+    final totalSeconds = totalMs / 1000.0;
+    final interval = _rulerTickIntervalSeconds(totalSeconds);
+    final tickColor = theme.colorScheme.onSurfaceVariant.withValues(
+      alpha: 0.45,
+    );
+    final labelStyle = theme.textTheme.bodySmall!.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+      fontSize: 11,
+      height: 1,
+    );
+
+    return SizedBox(
+      height: _height,
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          if (width <= 0 || totalSeconds <= 0) {
+            return const SizedBox.shrink();
+          }
+
+          final markerLeft = (viewStart.clamp(0.0, 1.0) * width);
+          final markerRight = (viewEnd.clamp(0.0, 1.0) * width);
+          final markerWidth = (markerRight - markerLeft).clamp(4.0, width);
+
+          final ticks = <Widget>[];
+          for (
+            var t = interval;
+            t < totalSeconds - interval * 0.25;
+            t += interval
+          ) {
+            final x = (t / totalSeconds) * width;
+            ticks.add(
+              Positioned(
+                left: x - 18,
+                top: 0,
+                width: 36,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatRulerTick(t, interval),
+                      textAlign: TextAlign.center,
+                      style: labelStyle,
+                    ),
+                    const SizedBox(height: 2),
+                    Container(width: 1, height: 6, color: tickColor),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 1,
+                child: ColoredBox(color: tickColor),
+              ),
+              Positioned(
+                left: markerLeft,
+                bottom: 0,
+                width: markerWidth,
+                height: 4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              ...ticks,
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// Picks a readable tick spacing for [totalSeconds] on the build logs ruler.
+double _rulerTickIntervalSeconds(double totalSeconds) {
+  if (totalSeconds <= 1.5) {
+    return 0.1;
+  }
+  if (totalSeconds <= 5) {
+    return 0.5;
+  }
+  if (totalSeconds <= 15) {
+    return 1;
+  }
+  if (totalSeconds <= 90) {
+    return 6;
+  }
+  if (totalSeconds <= 180) {
+    return 15;
+  }
+  if (totalSeconds <= 600) {
+    return 30;
+  }
+  return 60;
+}
+
+/// Formats a ruler tick label for [seconds] given the chosen [interval].
+String _formatRulerTick(double seconds, double interval) {
+  if (interval < 1) {
+    final rounded = (seconds * 10).round() / 10;
+    if (rounded == rounded.roundToDouble()) {
+      return '${rounded.toInt()}s';
+    }
+    return '${rounded.toStringAsFixed(1)}s';
+  }
+
+  return '${seconds.round()}s';
+}
+
+/// Icon toolbar for build log view mode, expand/collapse, and copy.
+class _LogsToolbar extends StatelessWidget {
+  /// Creates a [_LogsToolbar] widget.
+  const _LogsToolbar({
+    required this.theme,
+    required this.plainLogs,
+    required this.reserveExpandSlot,
+    required this.showExpandControls,
+    required this.allExpanded,
+    required this.anyExpanded,
+    required this.canCopy,
+    required this.onTogglePlain,
+    required this.onExpandAll,
+    required this.onCollapseAll,
+    required this.onCopy,
+  });
+
+  final ThemeData theme;
+  final bool plainLogs;
+  final bool reserveExpandSlot;
+  final bool showExpandControls;
+  final bool allExpanded;
+  final bool anyExpanded;
+  final bool canCopy;
+  final ValueChanged<bool> onTogglePlain;
+  final VoidCallback onExpandAll;
+  final VoidCallback onCollapseAll;
+  final VoidCallback onCopy;
+
+  /// Height of view-mode and expand/collapse [CalfButtonGroup]s.
+  static const double _groupSize = 36;
+
+  /// Width of the expand/collapse [CalfButtonGroup] (2 segments + divider).
+  static const double _expandGroupWidth = _groupSize + 12 + 1 + _groupSize + 12;
+
+  /// Builds the right-aligned logs action strip.
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        CalfButtonGroup(
+          size: _groupSize,
+          actions: [
+            CalfGroupAction(
+              icon: LucideIcons.list,
+              tooltip: 'List view',
+              selected: !plainLogs,
+              onPressed: () => onTogglePlain(false),
+            ),
+            CalfGroupAction(
+              icon: LucideIcons.type,
+              tooltip: 'Plain-text view',
+              selected: plainLogs,
+              onPressed: () => onTogglePlain(true),
+            ),
+          ],
+        ),
+        if (reserveExpandSlot) ...[
+          const SizedBox(width: 8),
+          SizedBox(
+            width: _expandGroupWidth,
+            height: _groupSize,
+            child: showExpandControls
+                ? CalfButtonGroup(
+                    size: _groupSize,
+                    actions: [
+                      CalfGroupAction(
+                        icon: LucideIcons.unfoldVertical,
+                        tooltip: 'Expand all',
+                        selected: false,
+                        enabled: !allExpanded,
+                        onPressed: onExpandAll,
+                      ),
+                      CalfGroupAction(
+                        icon: LucideIcons.foldVertical,
+                        tooltip: 'Collapse all',
+                        selected: false,
+                        enabled: anyExpanded,
+                        onPressed: onCollapseAll,
+                      ),
+                    ],
+                  )
+                : null,
+          ),
+        ],
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Copy to clipboard',
+          child: CalfButton.ghost(
+            width: _groupSize,
+            height: _groupSize,
+            padding: EdgeInsets.zero,
+            enabled: canCopy,
+            onPressed: onCopy,
+            child: Icon(
+              LucideIcons.copy,
+              size: 14,
+              color: canCopy
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
           ),
         ),
       ],
@@ -1590,6 +2231,43 @@ String _formatDuration(int durationMs) {
   return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }
 
+/// Formats a build start/end timestamp as local `YYYY-MM-DD HH:MM:SS`.
+String _formatBuildTimestamp(String raw) {
+  if (raw.isEmpty) {
+    return '—';
+  }
+
+  final parsed = _parseBuildTimestamp(raw);
+  if (parsed == null) {
+    return raw;
+  }
+
+  final local = parsed.toLocal();
+
+  /// Pads a number to two digits for timestamp formatting.
+  String two(int value) => value.toString().padLeft(2, '0');
+
+  return '${local.year}-${two(local.month)}-${two(local.day)} '
+      '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+}
+
+/// Parses an API build timestamp, truncating nanoseconds when needed.
+DateTime? _parseBuildTimestamp(String raw) {
+  try {
+    return DateTime.parse(raw);
+  } on FormatException {
+    final truncated = raw.replaceFirstMapped(
+      RegExp(r'\.(\d{6})\d+'),
+      (match) => '.${match[1]}',
+    );
+    try {
+      return DateTime.parse(truncated);
+    } on FormatException {
+      return null;
+    }
+  }
+}
+
 /// Extracts the architecture portion from a platform string.
 String _platformArch(String platform) {
   final parts = platform.split('/');
@@ -1758,7 +2436,10 @@ class _BuildHistoryChartState extends State<_BuildHistoryChart> {
                     enabled: true,
                     handleBuiltInTouches: true,
                     touchTooltipData: LineTouchTooltipData(
-                      getTooltipItems: (_) => const [],
+                      // Suppress built-in tooltips (custom overlay via touchCallback).
+                      // Length must match touched spots or fl_chart throws while painting.
+                      getTooltipItems: (spots) =>
+                          List<LineTooltipItem?>.filled(spots.length, null),
                     ),
                     touchCallback: (event, response) {
                       final local = event.localPosition;

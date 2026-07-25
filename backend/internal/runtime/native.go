@@ -60,6 +60,16 @@ func (n *Native) Stop(_ context.Context) error {
 	return nil
 }
 
+// ForceStop is a no-op for the native runtime; the host daemon keeps running.
+func (n *Native) ForceStop(ctx context.Context) error {
+	return n.Stop(ctx)
+}
+
+// ResourceUsage returns zeros; native mode has no cheap engine-level probe yet.
+func (n *Native) ResourceUsage(_ context.Context) (ResourceUsage, error) {
+	return ResourceUsage{}, nil
+}
+
 // Status reports native mode and whether the docker socket responds.
 func (n *Native) Status(ctx context.Context) (Status, error) {
 	status := Status{
@@ -467,11 +477,8 @@ func (n *Native) registryConfigPaths() []string {
 
 // RegistryStatus reports whether the user is logged in to the default registry.
 func (n *Native) RegistryStatus(ctx context.Context) (RegistryStatus, error) {
-	if err := requireRunning(ctx, n.Status); err != nil {
-		return RegistryStatus{Server: constants.DefaultRegistryServer}, nil
-	}
-
-	return registryStatus(ctx, n.runLocal, n.registryConfigPaths()...)
+	// Host Docker credentials; readable whether or not the engine is running.
+	return registryStatus(ctx, n.runLocal, n.runLocalWithStdin, n.registryConfigPaths()...)
 }
 
 // RegistryLogin authenticates to a container registry with username and password.

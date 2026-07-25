@@ -93,10 +93,62 @@ func TestStatusReturnsMetadata(t *testing.T) {
 		t.Fatalf("Decode() error: %v", err)
 	}
 
-	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime"} {
+	for _, key := range []string{"version", "uptime_seconds", "listen_addr", "log_level", "runtime", "resources"} {
 		if _, ok := payload[key]; !ok {
 			t.Fatalf("expected %q in response", key)
 		}
+	}
+
+	resources, ok := payload["resources"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected resources object, got %T", payload["resources"])
+	}
+	for _, key := range []string{"cpu_percent", "memory_used_bytes", "memory_reserved_bytes", "disk_used_bytes", "disk_reserved_bytes"} {
+		if _, ok := resources[key]; !ok {
+			t.Fatalf("expected resources.%q in response", key)
+		}
+	}
+}
+
+func TestRuntimeStopAndKill(t *testing.T) {
+	mock := runtime.NewMock()
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	stopResp, err := http.Post(server.URL+"/v1/runtime/stop", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/stop error: %v", err)
+	}
+	defer stopResp.Body.Close()
+	if stopResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected stop status 200, got %d", stopResp.StatusCode)
+	}
+	if mock.Started {
+		t.Fatal("expected mock runtime stopped after /stop")
+	}
+
+	startResp, err := http.Post(server.URL+"/v1/runtime/start", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/start error: %v", err)
+	}
+	defer startResp.Body.Close()
+	if startResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected start status 200, got %d", startResp.StatusCode)
+	}
+	if !mock.Started {
+		t.Fatal("expected mock runtime started after /start")
+	}
+
+	killResp, err := http.Post(server.URL+"/v1/runtime/kill", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/kill error: %v", err)
+	}
+	defer killResp.Body.Close()
+	if killResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected kill status 200, got %d", killResp.StatusCode)
+	}
+	if mock.Started {
+		t.Fatal("expected mock runtime stopped after /kill")
 	}
 }
 
@@ -156,6 +208,72 @@ func TestContainerInspectAndMounts(t *testing.T) {
 
 	if statsResponse.StatusCode != http.StatusOK {
 		t.Fatalf("expected stats status 200, got %d", statsResponse.StatusCode)
+	}
+
+	var statsPayload map[string]any
+	if err := json.NewDecoder(statsResponse.Body).Decode(&statsPayload); err != nil {
+		t.Fatalf("Decode stats error: %v", err)
+	}
+	if _, ok := statsPayload["samples"]; !ok {
+		t.Fatal("expected samples field in stats response")
+	}
+}
+
+func TestContainerStatsHistoryClearedOnDelete(t *testing.T) {
+	mock := runtime.NewMock()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+	gateway := newTestGateway(cfg, slog.Default(), mock)
+	server := httptest.NewServer(gateway.Handler())
+	t.Cleanup(func() {
+		_ = gateway.Shutdown(context.Background())
+		server.Close()
+	})
+
+	gateway.Backend().RecordContainerStats("abc123", runtime.ContainerStats{
+		CPUPerc:  "3.00%",
+		MemUsage: "1MB / 1GB",
+		MemPerc:  "0.10%",
+		NetIO:    "1B / 1B",
+		BlockIO:  "1B / 1B",
+		PIDs:     "2",
+	}, time.Now())
+
+	statsResponse, err := http.Get(server.URL + "/v1/containers/abc123/stats")
+	if err != nil {
+		t.Fatalf("GET stats error: %v", err)
+	}
+	defer statsResponse.Body.Close()
+
+	var before map[string]any
+	if err := json.NewDecoder(statsResponse.Body).Decode(&before); err != nil {
+		t.Fatalf("Decode stats error: %v", err)
+	}
+	samples, ok := before["samples"].([]any)
+	if !ok || len(samples) == 0 {
+		t.Fatalf("expected retained samples before delete, got %#v", before["samples"])
+	}
+
+	deleteRequest, err := http.NewRequest(http.MethodDelete, server.URL+"/v1/containers/abc123", nil)
+	if err != nil {
+		t.Fatalf("NewRequest DELETE error: %v", err)
+	}
+	deleteResponse, err := http.DefaultClient.Do(deleteRequest)
+	if err != nil {
+		t.Fatalf("DELETE container error: %v", err)
+	}
+	defer deleteResponse.Body.Close()
+	if deleteResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected delete status 200, got %d", deleteResponse.StatusCode)
+	}
+
+	if len(gateway.Backend().ContainerStatsSamples("abc123")) != 0 {
+		t.Fatal("expected stats history cleared after container delete")
 	}
 }
 
@@ -365,6 +483,21 @@ func TestRegistryLoginSessionNotFound(t *testing.T) {
 
 	if response.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", response.StatusCode)
+	}
+}
+
+func TestRegistryLoginStartAcceptsPost(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/registry/login", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/registry/login error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusMethodNotAllowed {
+		t.Fatalf("POST /v1/registry/login returned 405 method not allowed")
 	}
 }
 
@@ -754,6 +887,7 @@ func TestHealthOptionsReturnsNoContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest() error: %v", err)
 	}
+	request.Header.Set("Origin", "http://localhost:54321")
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
@@ -765,8 +899,33 @@ func TestHealthOptionsReturnsNoContent(t *testing.T) {
 		t.Fatalf("expected status 204, got %d", response.StatusCode)
 	}
 
-	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "*" {
-		t.Fatalf("expected CORS origin *, got %q", origin)
+	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "http://localhost:54321" {
+		t.Fatalf("expected CORS origin reflected for localhost, got %q", origin)
+	}
+}
+
+func TestHealthOptionsOmitsCORSHeaderForRemoteOrigin(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodOptions, server.URL+"/v1/health", nil)
+	if err != nil {
+		t.Fatalf("NewRequest() error: %v", err)
+	}
+	request.Header.Set("Origin", "http://example.com")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("Do() error: %v", err)
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("expected status 204, got %d", response.StatusCode)
+	}
+
+	if origin := response.Header.Get("Access-Control-Allow-Origin"); origin != "" {
+		t.Fatalf("expected no CORS origin for remote origin, got %q", origin)
 	}
 }
 

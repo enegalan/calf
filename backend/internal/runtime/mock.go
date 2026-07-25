@@ -104,6 +104,26 @@ func (m *Mock) Stop(_ context.Context) error {
 	return nil
 }
 
+// ForceStop marks the mock runtime as stopped, same as Stop.
+func (m *Mock) ForceStop(ctx context.Context) error {
+	return m.Stop(ctx)
+}
+
+// ResourceUsage returns deterministic sample usage for tests.
+func (m *Mock) ResourceUsage(_ context.Context) (ResourceUsage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ResourceUsage{}, nil
+	}
+	return ResourceUsage{
+		CpuPercent:      2.5,
+		MemoryUsedBytes: 1 * constants.BytesPerGiB,
+		DiskUsedBytes:   10 * constants.BytesPerGiB,
+	}, nil
+}
+
 // Status returns the configured StatusValue or StatusErr.
 func (m *Mock) Status(_ context.Context) (Status, error) {
 	m.mu.Lock()

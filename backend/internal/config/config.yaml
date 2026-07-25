@@ -1,4 +1,4 @@
-listen_addr: ":8765"
+listen_addr: "127.0.0.1:8765"
 log_level: info
 vm_name: calf
 docker_socket: ""
@@ -8,8 +8,11 @@ cpus: 4
 memory_gb: 4
 memory_swap_gb: 1
 disk_gb: 100
+disk_image: ""
 http_proxy: ""
 https_proxy: ""
 no_proxy: ""
 vm_keep_alive: true
 rootless: true
+resource_saver_enabled: true
+resource_saver_timeout_sec: 300

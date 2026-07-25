@@ -123,20 +123,44 @@ func exportVolumeToRegistry(ctx context.Context, run commandRunner, volumeName, 
 }
 
 // copyArchiveToFolder copies a volume export archive to a folder and returns the destination path.
+// folder and fileName come from user input (API request or scheduled export config), so both are
+// sanitized: folder must resolve to an absolute path, and fileName is reduced to its base name and
+// rejected if it is empty, ".", "..", or absolute, then the final destination is verified to stay
+// inside folder.
 func copyArchiveToFolder(archivePath, folder, fileName string) (string, error) {
-	if strings.TrimSpace(folder) == "" {
-		return "", fmt.Errorf("destination folder is required")
+	folder = filepath.Clean(strings.TrimSpace(folder))
+	if folder == "" || folder == "." || !filepath.IsAbs(folder) {
+		return "", fmt.Errorf("destination folder must be an absolute path")
 	}
+
+	folderAbs, err := filepath.Abs(folder)
+	if err != nil {
+		return "", fmt.Errorf("resolve destination folder: %w", err)
+	}
+	folderAbs = filepath.Clean(folderAbs)
 
 	if strings.TrimSpace(fileName) == "" {
 		fileName = filepath.Base(archivePath)
 	}
 
-	if err := os.MkdirAll(folder, 0o755); err != nil {
+	fileName = filepath.Base(strings.TrimSpace(fileName))
+	if fileName == "" || fileName == "." || fileName == ".." || filepath.IsAbs(fileName) {
+		return "", fmt.Errorf("destination file name is invalid")
+	}
+
+	if err := os.MkdirAll(folderAbs, 0o755); err != nil {
 		return "", fmt.Errorf("create destination folder: %w", err)
 	}
 
-	destPath := filepath.Join(folder, fileName)
+	destPath, err := filepath.Abs(filepath.Join(folderAbs, fileName))
+	if err != nil {
+		return "", fmt.Errorf("resolve destination path: %w", err)
+	}
+	destPath = filepath.Clean(destPath)
+	if destPath != folderAbs && !strings.HasPrefix(destPath, folderAbs+string(filepath.Separator)) {
+		return "", fmt.Errorf("destination path escapes destination folder")
+	}
+
 	source, err := os.Open(archivePath)
 	if err != nil {
 		return "", fmt.Errorf("open archive: %w", err)

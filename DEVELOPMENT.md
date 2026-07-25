@@ -1,7 +1,7 @@
 ## Quick start
 
 ```bash
-make dev-backend   # terminal 1: daemon + runtime on :8765
+make dev-backend   # terminal 1: daemon + runtime on 127.0.0.1:8765
 make dev-ui        # terminal 2: macOS app
 ```
 
@@ -16,7 +16,7 @@ export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
 On first run the daemon creates `~/.config/calf/config.yaml` with defaults:
 
 ```yaml
-listen_addr: ":8765"
+listen_addr: "127.0.0.1:8765"
 log_level: info
 vm_name: calf
 docker_socket: ""
@@ -24,15 +24,15 @@ vm_keep_alive: true
 rootless: true
 ```
 
-`vm_keep_alive` (default `true` on macOS) leaves the guest running when Calf quits so the next launch is a warm start. The host Docker socket is torn down on quit and restored when the Calf daemon starts again. Set `vm_keep_alive` to `false` to stop the guest on quit.
+`vm_keep_alive` (default `true` on macOS) leaves the guest running when calf quits so the next launch is a warm start. The host Docker socket is torn down on quit and restored when the calf daemon starts again. Set `vm_keep_alive` to `false` to stop the guest on quit.
 
-`rootless` (default `true`) applies on **Linux** only. When enabled, Calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points Docker CLI at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS the container engine runs inside the krunkit guest (rootful Docker); the host Calf process stays user-level. Windows does not ship a container engine in this release. Restart the daemon after changing `rootless`.
+`rootless` (default `true`) applies on **Linux** only. When enabled, calf prefers a user-owned Docker socket (`$XDG_RUNTIME_DIR/docker.sock`, then `~/.docker/run/docker.sock`) and points Docker CLI at it via `DOCKER_HOST`. If no user socket exists, it falls back to `/var/run/docker.sock`. Set `rootless: false` to always use the system socket. On macOS the container engine runs inside the krunkit guest (rootful Docker); the host calf process stays user-level. Windows does not ship a container engine in this release. Restart the daemon after changing `rootless`.
 
 ## Image and build cache
 
 Images, volumes, and BuildKit layers live on the guest disk (`~/.config/calf/guest/<vm>/disk.raw`). They survive:
 
-- Quitting and reopening the Calf app
+- Quitting and reopening the calf app
 - Stopping and starting the guest (`POST /v1/runtime/start` after a stop)
 
 They are wiped if the guest disk is deleted or replaced. To inspect or free space, use the Docker CLI (`docker system df`, `docker builder prune`, `docker image prune`).
@@ -74,15 +74,15 @@ make krunkit-stack   # ~/.config/calf/krunkit (required for local macOS engine +
 #   CALF_KRUN_DAX=0 for plain virtiofs.
 ```
 
-Known limit: Docker attach/stdout over vsock can be empty; the fair bench suite reads Calf `dd` logs from the host share.
+Known limit: Docker attach/stdout over vsock can be empty; the fair bench suite reads calf `dd` logs from the host share.
 
-4. Start Calf:
+4. Start calf:
 
 ```bash
 make dev-backend
 ```
 
-5. Point your tools at Calf:
+5. Point your tools at calf:
 
 ```bash
 export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
