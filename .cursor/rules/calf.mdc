@@ -132,6 +132,7 @@ calf/
 │   │   │   ├── inspect_decode.go               Generic decoder for JSON-array or NDJSON nerdctl inspect output
 │   │   │   ├── localhost_proxy.go               macOS-only TCP proxy + port-conflict detection
 │   │   │   ├── prune.go                         System prune preview and selective execute
+│   │   │   ├── system_df.go                     docker/nerdctl system df parsing for disk breakdown
 │   │   │   ├── registry.go                      Docker config.json auth parsing/login/logout
 │   │   │   ├── errors.go                        ErrRuntimeNotRunning sentinel + guard helpers
 │   │   │   └── command_error.go                 Shell output cleanup, transient-error classification, auth-failure hints
@@ -266,7 +267,7 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 - `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
-- `prune.go` — `GET /v1/system/prune/preview` and `POST /v1/system/prune`.
+- `prune.go` — `GET /v1/system/prune/preview`, `POST /v1/system/prune`, and `GET /v1/system/df`.
 
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
@@ -352,6 +353,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `inspect_decode.go` — generic decoder tolerant of both JSON-array and NDJSON-style nerdctl inspect output.
 - `localhost_proxy.go` — macOS-only TCP proxy forwarding `::1:<port>` to `127.0.0.1:<port>` inside the VM; detects port conflicts via `lsof`. No-op on non-Darwin platforms.
 - `prune.go` — prune preview (unused containers/images/volumes/networks/build cache) and selective `nerdctl` prune execute.
+- `system_df.go` — `nerdctl system df` parsing into Size/Reclaimable rows for the clean-disk UI.
 - `registry.go` — Docker `config.json` auth parsing/login/logout, registry-key normalization.
 - `errors.go` — `ErrRuntimeNotRunning` sentinel and `requireRunning`/`emptyXIfStopped` guard helpers.
 - `command_error.go` — shell output cleanup (strips ANSI escapes, extracts `nerdctl` fatal messages), transient-error classification for retry, and an auth-failure hint wrapper for push errors.

@@ -207,3 +207,8 @@ func (u *Unsupported) PrunePreview(context.Context) (PrunePreview, error) {
 func (u *Unsupported) Prune(context.Context, PruneOptions) (PruneResult, error) {
 	return PruneResult{}, u.err()
 }
+
+// SystemDiskUsage returns an error because the engine is unsupported.
+func (u *Unsupported) SystemDiskUsage(context.Context) (SystemDiskUsage, error) {
+	return SystemDiskUsage{}, u.err()
+}

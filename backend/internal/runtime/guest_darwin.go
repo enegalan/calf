@@ -452,6 +452,14 @@ func (v *Guest) Prune(ctx context.Context, opts PruneOptions) (PruneResult, erro
 	}
 	return prune(ctx, v.runLocal, opts)
 }
+
+// SystemDiskUsage returns Images/Containers/Volumes/Build Cache size from system df.
+func (v *Guest) SystemDiskUsage(ctx context.Context) (SystemDiskUsage, error) {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return SystemDiskUsage{}, err
+	}
+	return systemDiskUsage(ctx, v.runLocal)
+}
 func (v *Guest) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err

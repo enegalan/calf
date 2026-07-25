@@ -162,6 +162,7 @@ type Runtime interface {
 	ApplyProxy(ctx context.Context, proxy ProxyConfig) error
 	PrunePreview(ctx context.Context) (PrunePreview, error)
 	Prune(ctx context.Context, opts PruneOptions) (PruneResult, error)
+	SystemDiskUsage(ctx context.Context) (SystemDiskUsage, error)
 }
 
 // New returns the platform-appropriate Runtime implementation.

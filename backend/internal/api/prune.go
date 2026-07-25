@@ -47,3 +47,17 @@ func (g *Gateway) handlePrune(w http.ResponseWriter, r *http.Request) {
 
 	httpkit.WriteJSON(w, http.StatusOK, result)
 }
+
+// handleSystemDf serves GET /v1/system/df with Images/Containers/Volumes/Build Cache usage.
+func (g *Gateway) handleSystemDf(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
+	defer cancel()
+
+	usage, err := g.backend.Runtime.SystemDiskUsage(ctx)
+	if err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+
+	httpkit.WriteJSON(w, http.StatusOK, usage)
+}

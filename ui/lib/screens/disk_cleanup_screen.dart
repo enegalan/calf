@@ -270,6 +270,10 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
           )
         else if (preview != null) ...[
           _selectedSpaceSummary(theme, preview),
+          if (preview.diskUsage.rows.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _diskUsageTable(theme, preview.diskUsage),
+          ],
           const SizedBox(height: 12),
           Expanded(
             child: ListView(
@@ -326,6 +330,63 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  /// Compact system-df style Size / Reclaimable table for engine disk usage.
+  Widget _diskUsageTable(ThemeData theme, SystemDiskUsage usage) {
+    final headerStyle = CalfTheme.muted(theme).copyWith(
+      fontWeight: FontWeight.w600,
+      fontSize: 12,
+    );
+    final cellStyle = theme.textTheme.bodySmall;
+
+    Widget cell(String text, {int flex = 1, TextAlign align = TextAlign.left}) {
+      return Expanded(
+        flex: flex,
+        child: Text(
+          text,
+          style: cellStyle,
+          textAlign: align,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Text('Type', style: headerStyle),
+            ),
+            Expanded(
+              child: Text('Size', style: headerStyle, textAlign: TextAlign.right),
+            ),
+            Expanded(
+              child: Text(
+                'Reclaimable',
+                style: headerStyle,
+                textAlign: TextAlign.right,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        for (final row in usage.rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                cell(row.type, flex: 2),
+                cell(row.size, align: TextAlign.right),
+                cell(row.reclaimable, align: TextAlign.right),
+              ],
+            ),
+          ),
       ],
     );
   }

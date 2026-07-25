@@ -188,6 +188,14 @@ func (n *Native) Prune(ctx context.Context, opts PruneOptions) (PruneResult, err
 	return prune(ctx, n.runLocal, opts)
 }
 
+// SystemDiskUsage returns Images/Containers/Volumes/Build Cache size from system df.
+func (n *Native) SystemDiskUsage(ctx context.Context) (SystemDiskUsage, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return SystemDiskUsage{}, err
+	}
+	return systemDiskUsage(ctx, n.runLocal)
+}
+
 // CreateVolume creates a named volume, or an anonymous one when name is empty.
 func (n *Native) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {

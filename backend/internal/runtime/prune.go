@@ -40,13 +40,14 @@ type PruneCategoryPreview struct {
 
 // PrunePreview is the clean-disk preview for all prune categories.
 type PrunePreview struct {
-	Containers             PruneCategoryPreview `json:"containers"`
-	Images                 PruneCategoryPreview `json:"images"`
-	Volumes                PruneCategoryPreview `json:"volumes"`
-	Networks               PruneCategoryPreview `json:"networks"`
-	BuildCache             PruneCategoryPreview `json:"build_cache"`
-	TotalReclaimableBytes  int64                `json:"total_reclaimable_bytes"`
-	TotalReclaimableSize   string               `json:"total_reclaimable_size"`
+	Containers            PruneCategoryPreview `json:"containers"`
+	Images                PruneCategoryPreview `json:"images"`
+	Volumes               PruneCategoryPreview `json:"volumes"`
+	Networks              PruneCategoryPreview `json:"networks"`
+	BuildCache            PruneCategoryPreview `json:"build_cache"`
+	DiskUsage             SystemDiskUsage      `json:"disk_usage"`
+	TotalReclaimableBytes int64                `json:"total_reclaimable_bytes"`
+	TotalReclaimableSize  string               `json:"total_reclaimable_size"`
 }
 
 // PruneResult reports which categories were pruned and estimated reclaimed bytes.
@@ -92,6 +93,11 @@ func prunePreview(ctx context.Context, run commandRunner) (PrunePreview, error) 
 		Volumes:    categoryFromItems(unusedVolumePruneItems(volumes)),
 		Networks:   categoryFromItems(unusedNetworkPruneItems(networks)),
 		BuildCache: buildCachePruneCategory(ctx, run),
+	}
+	if usage, dfErr := systemDiskUsage(ctx, run); dfErr == nil {
+		preview.DiskUsage = usage
+	} else {
+		preview.DiskUsage = SystemDiskUsage{Rows: []DiskUsageRow{}}
 	}
 	preview.TotalReclaimableBytes = preview.Containers.ReclaimableBytes +
 		preview.Images.ReclaimableBytes +

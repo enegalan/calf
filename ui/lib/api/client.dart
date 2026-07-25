@@ -1349,6 +1349,59 @@ class PruneCategoryPreview {
   }
 }
 
+/// One TYPE row from engine system df (Images, Containers, Local Volumes, Build Cache).
+class DiskUsageRow {
+  /// Creates a [DiskUsageRow] instance.
+  const DiskUsageRow({
+    required this.type,
+    this.size = '0 B',
+    this.sizeBytes = 0,
+    this.reclaimable = '0 B',
+    this.reclaimableBytes = 0,
+  });
+
+  final String type;
+  final String size;
+  final int sizeBytes;
+  final String reclaimable;
+  final int reclaimableBytes;
+
+  /// Creates a [DiskUsageRow] from a JSON map.
+  factory DiskUsageRow.fromJson(Map<String, dynamic> json) {
+    return DiskUsageRow(
+      type: json['type'] as String? ?? '',
+      size: json['size'] as String? ?? '0 B',
+      sizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
+      reclaimable: json['reclaimable'] as String? ?? '0 B',
+      reclaimableBytes: (json['reclaimable_bytes'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Engine disk breakdown from system df.
+class SystemDiskUsage {
+  /// Creates a [SystemDiskUsage] instance.
+  const SystemDiskUsage({this.rows = const []});
+
+  final List<DiskUsageRow> rows;
+
+  /// Creates a [SystemDiskUsage] from a JSON map.
+  factory SystemDiskUsage.fromJson(Map<String, dynamic> json) {
+    final rawRows = json['rows'];
+    final rows = <DiskUsageRow>[];
+    if (rawRows is List) {
+      for (final entry in rawRows) {
+        if (entry is Map<String, dynamic>) {
+          rows.add(DiskUsageRow.fromJson(entry));
+        } else if (entry is Map) {
+          rows.add(DiskUsageRow.fromJson(Map<String, dynamic>.from(entry)));
+        }
+      }
+    }
+    return SystemDiskUsage(rows: rows);
+  }
+}
+
 /// Full clean-disk prune preview across categories.
 class PrunePreview {
   /// Creates a [PrunePreview] instance.
@@ -1358,6 +1411,7 @@ class PrunePreview {
     required this.volumes,
     required this.networks,
     required this.buildCache,
+    this.diskUsage = const SystemDiskUsage(),
     this.totalReclaimableBytes = 0,
     this.totalReclaimableSize = '0 B',
   });
@@ -1367,6 +1421,7 @@ class PrunePreview {
   final PruneCategoryPreview volumes;
   final PruneCategoryPreview networks;
   final PruneCategoryPreview buildCache;
+  final SystemDiskUsage diskUsage;
   final int totalReclaimableBytes;
   final String totalReclaimableSize;
 
@@ -1383,12 +1438,21 @@ class PrunePreview {
       return const PruneCategoryPreview(items: []);
     }
 
+    SystemDiskUsage diskUsage = const SystemDiskUsage();
+    final rawUsage = json['disk_usage'];
+    if (rawUsage is Map<String, dynamic>) {
+      diskUsage = SystemDiskUsage.fromJson(rawUsage);
+    } else if (rawUsage is Map) {
+      diskUsage = SystemDiskUsage.fromJson(Map<String, dynamic>.from(rawUsage));
+    }
+
     return PrunePreview(
       containers: category('containers'),
       images: category('images'),
       volumes: category('volumes'),
       networks: category('networks'),
       buildCache: category('build_cache'),
+      diskUsage: diskUsage,
       totalReclaimableBytes:
           (json['total_reclaimable_bytes'] as num?)?.toInt() ?? 0,
       totalReclaimableSize: json['total_reclaimable_size'] as String? ?? '0 B',

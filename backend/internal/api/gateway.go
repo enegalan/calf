@@ -115,6 +115,9 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("/v1/system/prune", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodPost: g.handlePrune,
 	}))
+	mux.HandleFunc("/v1/system/df", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleSystemDf,
+	}))
 
 	return middleware.Chain(mux, g.middlewares...)
 }

@@ -859,6 +859,7 @@ func (m *Mock) PrunePreview(_ context.Context) (PrunePreview, error) {
 		preview.Networks.ReclaimableBytes +
 		preview.BuildCache.ReclaimableBytes
 	preview.TotalReclaimableSize = utils.FormatBytes(preview.TotalReclaimableBytes)
+	preview.DiskUsage = m.systemDiskUsageLocked()
 	return preview, nil
 }
 
@@ -938,3 +939,63 @@ func (m *Mock) Prune(_ context.Context, opts PruneOptions) (PruneResult, error) 
 	result.ReclaimedSize = utils.FormatBytes(reclaimed)
 	return result, nil
 }
+
+// SystemDiskUsage returns a mock system df breakdown derived from inventory sizes.
+func (m *Mock) SystemDiskUsage(_ context.Context) (SystemDiskUsage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return SystemDiskUsage{}, ErrRuntimeNotRunning
+	}
+	return m.systemDiskUsageLocked(), nil
+}
+
+// systemDiskUsageLocked builds mock df rows; caller must hold m.mu.
+func (m *Mock) systemDiskUsageLocked() SystemDiskUsage {
+	var imageBytes int64
+	for _, image := range m.Images {
+		imageBytes += parseResourceSize(image.Size)
+	}
+	var volumeBytes int64
+	for _, volume := range m.Volumes {
+		size := parseResourceSize(volume.Size)
+		if size == 0 {
+			size = 88
+		}
+		volumeBytes += size
+	}
+	return SystemDiskUsage{
+		Rows: []DiskUsageRow{
+			{
+				Type:             "Images",
+				Size:             utils.FormatBytes(imageBytes),
+				SizeBytes:        imageBytes,
+				Reclaimable:      utils.FormatBytes(imageBytes / 2),
+				ReclaimableBytes: imageBytes / 2,
+			},
+			{
+				Type:             "Containers",
+				Size:             "0 B",
+				SizeBytes:        0,
+				Reclaimable:      "0 B",
+				ReclaimableBytes: 0,
+			},
+			{
+				Type:             "Local Volumes",
+				Size:             utils.FormatBytes(volumeBytes),
+				SizeBytes:        volumeBytes,
+				Reclaimable:      utils.FormatBytes(volumeBytes),
+				ReclaimableBytes: volumeBytes,
+			},
+			{
+				Type:             "Build Cache",
+				Size:             utils.FormatBytes(m.buildCacheBytes),
+				SizeBytes:        m.buildCacheBytes,
+				Reclaimable:      utils.FormatBytes(m.buildCacheBytes),
+				ReclaimableBytes: m.buildCacheBytes,
+			},
+		},
+	}
+}
+
