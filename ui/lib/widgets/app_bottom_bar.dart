@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/files_panel.dart';
 
 /// Bottom status bar for engine state, resource usage, and app version.
@@ -137,10 +138,11 @@ class AppBottomBar extends StatelessWidget {
                           enabled: !busy,
                           onPressed: onStart,
                         ),
-                      PopupMenuButton<String>(
+                      CalfPopupMenuButton<String>(
                         tooltip: 'Engine menu',
                         enabled: !busy,
-                        padding: EdgeInsets.zero,
+                        iconSize: 14,
+                        iconColor: badgeForeground,
                         style: IconButton.styleFrom(
                           animationDuration:
                               CalfTheme.materialAnimationDuration,
@@ -149,11 +151,6 @@ class AppBottomBar extends StatelessWidget {
                           fixedSize: const Size(28, 28),
                           padding: EdgeInsets.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        icon: Icon(
-                          LucideIcons.ellipsisVertical,
-                          size: 14,
-                          color: badgeForeground,
                         ),
                         onSelected: (value) => _handleMenu(value),
                         itemBuilder: (context) => [
@@ -191,7 +188,7 @@ class AppBottomBar extends StatelessWidget {
                           PopupMenuItem(
                             value: loggedIn ? 'sign_out' : 'sign_in',
                             enabled: loggedIn || !signInPending,
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.user,
                               label: loggedIn
                                   ? 'Sign out'
@@ -202,21 +199,21 @@ class AppBottomBar extends StatelessWidget {
                           ),
                           const PopupMenuItem(
                             value: 'settings',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.settings,
                               label: 'Settings…',
                             ),
                           ),
                           const PopupMenuItem(
                             value: 'troubleshoot',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.wrench,
                               label: 'Troubleshoot',
                             ),
                           ),
                           const PopupMenuItem(
                             value: 'about',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.info,
                               label: 'About calf',
                             ),
@@ -224,7 +221,7 @@ class AppBottomBar extends StatelessWidget {
                           const PopupMenuDivider(),
                           const PopupMenuItem(
                             value: 'docker_hub',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.box,
                               label: 'Docker Hub',
                             ),
@@ -232,7 +229,7 @@ class AppBottomBar extends StatelessWidget {
                           const PopupMenuDivider(),
                           PopupMenuItem(
                             value: 'download_update',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: updateAvailable
                                   ? LucideIcons.circleAlert
                                   : LucideIcons.download,
@@ -243,14 +240,14 @@ class AppBottomBar extends StatelessWidget {
                           ),
                           const PopupMenuItem(
                             value: 'restart',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.refreshCw,
                               label: 'Restart',
                             ),
                           ),
                           const PopupMenuItem(
                             value: 'quit',
-                            child: _MenuRow(
+                            child: CalfPopupMenuRow(
                               icon: LucideIcons.power,
                               label: 'Quit calf',
                             ),
@@ -443,28 +440,6 @@ class _EngineAction extends StatelessWidget {
           child: Icon(icon, size: 14, color: foreground),
         ),
       ),
-    );
-  }
-}
-
-/// Icon + label row used inside the engine overflow menu.
-class _MenuRow extends StatelessWidget {
-  /// Creates a menu row with a leading [icon] and [label].
-  const _MenuRow({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  /// Builds the icon and label spaced like a native menu item.
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
-        const SizedBox(width: 10),
-        Expanded(child: Text(label)),
-      ],
     );
   }
 }

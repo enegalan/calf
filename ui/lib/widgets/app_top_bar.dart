@@ -12,6 +12,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -232,19 +233,13 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     final menuLeft = offset.dx + box.size.width - menuWidth;
     final menuTop = offset.dy + box.size.height + 8;
 
-    final selected = await showMenu<String>(
+    final selected = await showCalfMenu<String>(
       context: buttonContext,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(menuLeft, menuTop, menuWidth, 0),
         Offset.zero & overlayBox.size,
       ),
-      color: theme.colorScheme.surface,
-      surfaceTintColor: const Color(0x00000000),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      constraints: const BoxConstraints(minWidth: menuWidth),
+      minWidth: menuWidth,
       items: [
         PopupMenuItem<String>(
           enabled: false,
@@ -294,7 +289,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'whatsnew',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.sparkles,
             label: "What's new",
             color: theme.colorScheme.onSurface,
@@ -303,7 +298,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'settings',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.user,
             label: 'Account Settings',
             color: theme.colorScheme.onSurface,
@@ -318,7 +313,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'signout',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.logOut,
             label: 'Sign out',
             color: theme.colorScheme.error,
@@ -408,45 +403,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _AccountMenuRow extends StatelessWidget {
-  /// Renders one icon-and-label row inside the account popup menu.
-  const _AccountMenuRow({
-    required this.icon,
-    required this.label,
-    required this.color,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Widget? trailing;
-
-  /// Builds the menu row with icon, label, and optional trailing widget.
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        ?trailing,
-      ],
     );
   }
 }

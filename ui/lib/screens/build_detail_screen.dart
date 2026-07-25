@@ -11,6 +11,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -698,7 +699,7 @@ class _PlatformFilter extends StatelessWidget {
             }
 
             final offset = renderBox.localToGlobal(Offset.zero);
-            final selected = await showMenu<String>(
+            final selected = await showCalfMenu<String>(
               context: context,
               position: RelativeRect.fromLTRB(
                 offset.dx,
@@ -1333,23 +1334,11 @@ class _DataTable extends StatelessWidget {
                   ),
                 ],
                 if (showMenu)
-                  PopupMenuButton<String>(
+                  CalfPopupMenuButton<String>(
                     tooltip: 'Actions',
-                    padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 32,
                       minHeight: 32,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant),
-                    ),
-                    color: theme.colorScheme.surface,
-                    surfaceTintColor: const Color(0x00000000),
-                    icon: Icon(
-                      LucideIcons.ellipsisVertical,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                     onSelected: (action) =>
                         onMenuSelected!(action, rows[rowIndex]),

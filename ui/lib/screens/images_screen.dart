@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
@@ -422,22 +423,15 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     final overlayBox =
         Overlay.of(buttonContext).context.findRenderObject()! as RenderBox;
     final offset = box.localToGlobal(Offset.zero, ancestor: overlayBox);
-    final theme = Theme.of(buttonContext);
     const menuWidth = 220.0;
 
-    final selected = await showMenu<String>(
+    final selected = await showCalfMenu<String>(
       context: buttonContext,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(offset.dx, offset.dy + box.size.height + 4, menuWidth, 0),
         Offset.zero & overlayBox.size,
       ),
-      color: theme.colorScheme.surface,
-      surfaceTintColor: const Color(0x00000000),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      constraints: const BoxConstraints(minWidth: menuWidth),
+      minWidth: menuWidth,
       items: const [
         PopupMenuItem(value: 'pull', child: Text('Pull')),
         PopupMenuItem(value: 'push', child: Text('Push to Docker Hub')),
