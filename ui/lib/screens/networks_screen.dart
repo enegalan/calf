@@ -14,9 +14,16 @@ import 'package:ui/theme/calf_theme.dart';
 
 class NetworksScreen extends StatefulWidget {
   /// Creates a [NetworksScreen] widget.
-  const NetworksScreen({super.key, required this.apiClient});
+  const NetworksScreen({
+    super.key,
+    required this.apiClient,
+    this.initialNetworkName,
+    this.onInitialNetworkConsumed,
+  });
 
   final CalfClient apiClient;
+  final String? initialNetworkName;
+  final VoidCallback? onInitialNetworkConsumed;
 
   /// Creates the mutable state for [NetworksScreen].
   @override
@@ -46,6 +53,16 @@ class _NetworksScreenState extends State<NetworksScreen>
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link when [initialNetworkName] changes.
+  @override
+  void didUpdateWidget(covariant NetworksScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialNetworkName != oldWidget.initialNetworkName &&
+        widget.initialNetworkName != null) {
+      _openInitialNetworkIfNeeded(_networks);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -85,6 +102,7 @@ class _NetworksScreenState extends State<NetworksScreen>
         _loading = false;
         _error = null;
       });
+      _openInitialNetworkIfNeeded(networks);
     } catch (error) {
       if (!mounted) {
         return;
@@ -108,6 +126,21 @@ class _NetworksScreenState extends State<NetworksScreen>
   /// Navigates to or opens the selected network.
   void _openNetwork(NetworkItem network) {
     setState(() => _selectedNetwork = network.name);
+  }
+
+  /// Opens [initialNetworkName] once networks are loaded, if provided.
+  void _openInitialNetworkIfNeeded(List<NetworkItem> networks) {
+    final name = widget.initialNetworkName?.trim() ?? '';
+    if (name.isEmpty) {
+      return;
+    }
+    for (final network in networks) {
+      if (network.name == name) {
+        widget.onInitialNetworkConsumed?.call();
+        _openNetwork(network);
+        return;
+      }
+    }
   }
 
   /// Closes the current detail view and returns to the list.

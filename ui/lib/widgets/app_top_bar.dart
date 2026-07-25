@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -28,6 +29,7 @@ class AppTopBar extends StatelessWidget {
     required this.onSignIn,
     required this.onSignOut,
     required this.onOpenWhatsNew,
+    required this.onOpenGlobalSearch,
     this.updateAvailable = false,
   });
 
@@ -39,6 +41,7 @@ class AppTopBar extends StatelessWidget {
   final VoidCallback onSignIn;
   final Future<void> Function() onSignOut;
   final VoidCallback onOpenWhatsNew;
+  final VoidCallback onOpenGlobalSearch;
 
   /// Whether the user is signed in to Docker Hub.
   bool get _loggedIn => registryStatus?.loggedIn == true;
@@ -78,7 +81,14 @@ class AppTopBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _BrandMark(theme: theme),
-          const Spacer(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _TopBarSearchField(onOpen: onOpenGlobalSearch),
+            ),
+          ),
+          const SizedBox(width: 16),
           Tooltip(
             message: updateAvailable
                 ? 'Update available — Settings'
@@ -143,6 +153,87 @@ class AppTopBar extends StatelessWidget {
               child: Text(signInPending ? 'Signing in...' : 'Sign in'),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact search trigger in the top bar; opens the global search palette.
+class _TopBarSearchField extends StatelessWidget {
+  /// Creates a top-bar search field that opens [onOpen] when activated.
+  const _TopBarSearchField({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  /// Platform shortcut label shown in the placeholder.
+  static String get shortcutLabel {
+    final isApple =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    return isApple ? '⌘K' : 'Ctrl+K';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: CalfTheme.radius,
+          child: Ink(
+            height: 32,
+            decoration: BoxDecoration(
+              borderRadius: CalfTheme.radius,
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 10, right: 6),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.search, size: 14, color: muted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Search',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        shortcutLabel,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -212,6 +212,7 @@ calf/
 │   │       ├── detail_breadcrumb.dart          Detail view back navigation header
 │   │       ├── error_text.dart                 Formatted API error text
 │   │       ├── files_panel.dart                Lazy-loaded directory tree (LoadDirectoryCallback)
+│   │       ├── global_search_dialog.dart       ⌘K command palette for resources
 │   │       ├── hover_list_row.dart             Hover-state row wrapper
 │   │       ├── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
 │   │       ├── poll_interval_mixin.dart        Shared Timer.periodic polling mixin
@@ -413,6 +414,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `calf_popup_menu.dart` — bordered overflow menus via `showCalfMenu`, `CalfPopupMenuButton` (three-dot trigger), and `CalfPopupMenuRow`.
 - `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` for stacked bottom-right action toasts.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
+- `global_search_dialog.dart` — ⌘K / Ctrl+K command palette to search and open resources.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
 - `error_text.dart` — formatted API error text.

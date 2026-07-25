@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path/path.dart' as p;
@@ -29,6 +30,7 @@ import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/global_search_dialog.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -69,6 +71,9 @@ class _AppShellState extends State<AppShell> {
   bool _showDiskCleanup = false;
   String? _pendingImageReference;
   String? _pendingContainerId;
+  String? _pendingVolumeName;
+  String? _pendingNetworkName;
+  String? _pendingBuildId;
   RegistryLoginStatus? _registryStatus;
   bool _registryLoading = true;
   bool _registryBrowserLoginPending = false;
@@ -540,6 +545,74 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Opens the Volumes screen detail for [volumeName].
+  void openVolumeView(String volumeName) {
+    final name = volumeName.trim();
+    if (name.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 2;
+      _pendingVolumeName = name;
+      _showSettings = false;
+      _showTroubleshoot = false;
+      _showDiskCleanup = false;
+    });
+  }
+
+  /// Opens the Networks screen detail for [networkName].
+  void openNetworkView(String networkName) {
+    final name = networkName.trim();
+    if (name.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 3;
+      _pendingNetworkName = name;
+      _showSettings = false;
+      _showTroubleshoot = false;
+      _showDiskCleanup = false;
+    });
+  }
+
+  /// Opens the Builds screen detail for [buildId].
+  void openBuildView(String buildId) {
+    final id = buildId.trim();
+    if (id.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedIndex = 4;
+      _pendingBuildId = id;
+      _showSettings = false;
+      _showTroubleshoot = false;
+      _showDiskCleanup = false;
+    });
+  }
+
+  /// Opens the global resource search palette.
+  Future<void> openGlobalSearch() async {
+    final hit = await showGlobalSearchDialog(
+      context,
+      apiClient: widget.apiClient,
+    );
+    if (!mounted || hit == null) {
+      return;
+    }
+    switch (hit.kind) {
+      case GlobalSearchKind.container:
+        openContainerView(hit.id);
+      case GlobalSearchKind.image:
+        openImageView(hit.id);
+      case GlobalSearchKind.volume:
+        openVolumeView(hit.id);
+      case GlobalSearchKind.network:
+        openNetworkView(hit.id);
+      case GlobalSearchKind.build:
+        openBuildView(hit.id);
+    }
+  }
+
   /// Toggles sidebar collapsed state and persists the preference.
   void toggleSidebar() {
     setState(() {
@@ -599,6 +672,7 @@ class _AppShellState extends State<AppShell> {
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
+          onOpenGlobalSearch: () => unawaited(openGlobalSearch()),
         ),
         Expanded(
           child: Stack(
@@ -722,9 +796,34 @@ class _AppShellState extends State<AppShell> {
                               2 => VolumesScreen(
                                 apiClient: widget.apiClient,
                                 onOpenContainer: openContainerView,
+                                initialVolumeName: _pendingVolumeName,
+                                onInitialVolumeConsumed: () {
+                                  if (_pendingVolumeName == null) {
+                                    return;
+                                  }
+                                  setState(() => _pendingVolumeName = null);
+                                },
                               ),
-                              3 => NetworksScreen(apiClient: widget.apiClient),
-                              _ => BuildsScreen(apiClient: widget.apiClient),
+                              3 => NetworksScreen(
+                                apiClient: widget.apiClient,
+                                initialNetworkName: _pendingNetworkName,
+                                onInitialNetworkConsumed: () {
+                                  if (_pendingNetworkName == null) {
+                                    return;
+                                  }
+                                  setState(() => _pendingNetworkName = null);
+                                },
+                              ),
+                              _ => BuildsScreen(
+                                apiClient: widget.apiClient,
+                                initialBuildId: _pendingBuildId,
+                                onInitialBuildConsumed: () {
+                                  if (_pendingBuildId == null) {
+                                    return;
+                                  }
+                                  setState(() => _pendingBuildId = null);
+                                },
+                              ),
                             },
                     ),
                   ),
@@ -820,22 +919,36 @@ class _AppShellState extends State<AppShell> {
       ],
     );
 
-    return MacosMenuScope(
-      appVersion: _appVersion,
-      loggedIn: _registryStatus?.loggedIn == true,
-      signInPending: _registryBrowserLoginPending,
-      onOpenSettings: openSettings,
-      onCheckForUpdates: () => checkForUpdates(force: true),
-      onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
-      onSignIn: startRegistryBrowserLogin,
-      onSignOut: logoutRegistry,
-      onOpenAccountSettings: openAccountSettings,
-      onNavigateToSection: navigateToSection,
-      onToggleSidebar: toggleSidebar,
-      onReportIssue: () => openExternalUrl(calfReportIssueUrl),
-      onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
-      onOpenTroubleshoot: openTroubleshoot,
-      child: Scaffold(body: CalfToastLayer(child: shell)),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true): () {
+          unawaited(openGlobalSearch());
+        },
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
+          unawaited(openGlobalSearch());
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: MacosMenuScope(
+          appVersion: _appVersion,
+          loggedIn: _registryStatus?.loggedIn == true,
+          signInPending: _registryBrowserLoginPending,
+          onOpenSettings: openSettings,
+          onCheckForUpdates: () => checkForUpdates(force: true),
+          onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
+          onSignIn: startRegistryBrowserLogin,
+          onSignOut: logoutRegistry,
+          onOpenAccountSettings: openAccountSettings,
+          onNavigateToSection: navigateToSection,
+          onToggleSidebar: toggleSidebar,
+          onOpenGlobalSearch: () => unawaited(openGlobalSearch()),
+          onReportIssue: () => openExternalUrl(calfReportIssueUrl),
+          onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
+          onOpenTroubleshoot: openTroubleshoot,
+          child: Scaffold(body: CalfToastLayer(child: shell)),
+        ),
+      ),
     );
   }
 }

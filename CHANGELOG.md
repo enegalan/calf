@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Global search** — ⌘K (Ctrl+K on Linux/Windows) opens a palette to find and jump to containers, images, volumes, networks, and builds.
 - **Disk usage on Clean unused data** — the clean screen shows an Images / Containers / Local Volumes / Build Cache Size and Reclaimable breakdown (same idea as `docker system df`) above the prune categories.
 
 ## [1.0.0] - 2026-07-25

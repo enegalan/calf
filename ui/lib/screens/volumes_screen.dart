@@ -21,10 +21,14 @@ class VolumesScreen extends StatefulWidget {
     super.key,
     required this.apiClient,
     this.onOpenContainer,
+    this.initialVolumeName,
+    this.onInitialVolumeConsumed,
   });
 
   final CalfClient apiClient;
   final void Function(String containerId)? onOpenContainer;
+  final String? initialVolumeName;
+  final VoidCallback? onInitialVolumeConsumed;
 
   /// Creates the mutable state for [VolumesScreen].
   @override
@@ -55,6 +59,16 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link when [initialVolumeName] changes.
+  @override
+  void didUpdateWidget(covariant VolumesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialVolumeName != oldWidget.initialVolumeName &&
+        widget.initialVolumeName != null) {
+      _openInitialVolumeIfNeeded(_volumes);
+    }
   }
 
   /// Disposes the search controller and poll timer.
@@ -128,6 +142,7 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
           _error = null;
         });
       }
+      _openInitialVolumeIfNeeded(volumes);
     } catch (error) {
       if (!mounted) {
         return;
@@ -151,6 +166,21 @@ class _VolumesScreenState extends State<VolumesScreen> with PollIntervalMixin {
   /// Navigates to the detail view for [volume].
   void _openVolume(VolumeItem volume) {
     setState(() => _selectedVolume = volume.name);
+  }
+
+  /// Opens [initialVolumeName] once volumes are loaded, if provided.
+  void _openInitialVolumeIfNeeded(List<VolumeItem> volumes) {
+    final name = widget.initialVolumeName?.trim() ?? '';
+    if (name.isEmpty) {
+      return;
+    }
+    for (final volume in volumes) {
+      if (volume.name == name) {
+        widget.onInitialVolumeConsumed?.call();
+        _openVolume(volume);
+        return;
+      }
+    }
   }
 
   /// Returns from the volume detail view to the list.

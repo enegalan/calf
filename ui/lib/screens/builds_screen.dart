@@ -14,9 +14,16 @@ import 'package:ui/theme/calf_theme.dart';
 
 class BuildsScreen extends StatefulWidget {
   /// Creates a [BuildsScreen] widget.
-  const BuildsScreen({super.key, required this.apiClient});
+  const BuildsScreen({
+    super.key,
+    required this.apiClient,
+    this.initialBuildId,
+    this.onInitialBuildConsumed,
+  });
 
   final CalfClient apiClient;
+  final String? initialBuildId;
+  final VoidCallback? onInitialBuildConsumed;
 
   /// Creates the mutable state for [BuildsScreen].
   @override
@@ -45,6 +52,16 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
         () => _searchQuery = _searchController.text.trim().toLowerCase(),
       );
     });
+  }
+
+  /// Re-arms the pending deep link when [initialBuildId] changes.
+  @override
+  void didUpdateWidget(covariant BuildsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialBuildId != oldWidget.initialBuildId &&
+        widget.initialBuildId != null) {
+      _openInitialBuildIfNeeded(_builds);
+    }
   }
 
   /// Releases controllers, timers, and stream subscriptions.
@@ -82,6 +99,7 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
         _loading = false;
         _error = null;
       });
+      _openInitialBuildIfNeeded(builds);
     } catch (error) {
       if (!mounted) {
         return;
@@ -105,6 +123,21 @@ class _BuildsScreenState extends State<BuildsScreen> with PollIntervalMixin {
   /// Navigates to or opens the selected build.
   void _openBuild(BuildItem build) {
     setState(() => _selectedBuildId = build.id);
+  }
+
+  /// Opens [initialBuildId] once builds are loaded, if provided.
+  void _openInitialBuildIfNeeded(List<BuildItem> builds) {
+    final id = widget.initialBuildId?.trim() ?? '';
+    if (id.isEmpty) {
+      return;
+    }
+    for (final build in builds) {
+      if (build.id == id || build.id.startsWith(id)) {
+        widget.onInitialBuildConsumed?.call();
+        _openBuild(build);
+        return;
+      }
+    }
   }
 
   /// Closes the current detail view and returns to the list.
