@@ -5,19 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- **Global search** — ⌘K (Ctrl+K on Linux/Windows) opens a palette to find and jump to containers, images, volumes, networks, and builds.
-- **Disk usage on Clean unused data** — the clean screen shows an Images / Containers / Local Volumes / Build Cache Size and Reclaimable breakdown (same idea as `docker system df`) above the prune categories.
-
 ## [1.0.0] - 2026-07-25
 
 ### Added
 
 - **Clean unused data** — Troubleshoot opens a clean screen that previews reclaimable stopped containers, unused images, unused volumes, unused networks, and build cache, then removes only the categories you select (same idea as `docker system prune -a --volumes`).
 - **macOS Help menu** — Troubleshoot is available from Help in the native menu bar.
+- **Global search** — ⌘K (Ctrl+K on Linux/Windows) opens a palette to find and jump to containers, images, volumes, networks, and builds.
+- **Disk usage on Clean unused data** — the clean screen shows an Images / Containers / Local Volumes / Build Cache Size and Reclaimable breakdown (same idea as `docker system df`) above the prune categories.
 
 ### Changed
 
