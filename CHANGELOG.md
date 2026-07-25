@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Clean unused data** — Troubleshoot opens a clean screen that previews reclaimable stopped containers, unused images, unused volumes, unused networks, and build cache, then removes only the categories you select (same idea as `docker system prune -a --volumes`).
 - **macOS Help menu** — Troubleshoot is available from Help in the native menu bar.
 
 ### Changed

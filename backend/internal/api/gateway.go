@@ -109,6 +109,12 @@ func (g *Gateway) Handler() http.Handler {
 	mux.HandleFunc("/v1/troubleshoot/factory-reset", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodPost: g.handleTroubleshootFactoryReset,
 	}))
+	mux.HandleFunc("/v1/system/prune/preview", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handlePrunePreview,
+	}))
+	mux.HandleFunc("/v1/system/prune", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handlePrune,
+	}))
 
 	return middleware.Chain(mux, g.middlewares...)
 }

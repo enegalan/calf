@@ -160,6 +160,8 @@ type Runtime interface {
 	InspectNetwork(ctx context.Context, name string) (NetworkDetail, error)
 	RemoveNetwork(ctx context.Context, name string) error
 	ApplyProxy(ctx context.Context, proxy ProxyConfig) error
+	PrunePreview(ctx context.Context) (PrunePreview, error)
+	Prune(ctx context.Context, opts PruneOptions) (PruneResult, error)
 }
 
 // New returns the platform-appropriate Runtime implementation.

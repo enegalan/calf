@@ -1289,6 +1289,148 @@ class RegistryBrowserLoginStatus {
   }
 }
 
+/// One reclaimable item in a prune category preview.
+class PruneItem {
+  /// Creates a [PruneItem] instance.
+  const PruneItem({
+    required this.id,
+    required this.name,
+    this.size = '',
+    this.sizeBytes = 0,
+  });
+
+  final String id;
+  final String name;
+  final String size;
+  final int sizeBytes;
+
+  /// Creates a [PruneItem] from a JSON map.
+  factory PruneItem.fromJson(Map<String, dynamic> json) {
+    return PruneItem(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      size: json['size'] as String? ?? '',
+      sizeBytes: (json['size_bytes'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
+/// Preview for one prune category (containers, images, …).
+class PruneCategoryPreview {
+  /// Creates a [PruneCategoryPreview] instance.
+  const PruneCategoryPreview({
+    required this.items,
+    this.reclaimableBytes = 0,
+    this.reclaimableSize = '0 B',
+  });
+
+  final List<PruneItem> items;
+  final int reclaimableBytes;
+  final String reclaimableSize;
+
+  /// Creates a [PruneCategoryPreview] from a JSON map.
+  factory PruneCategoryPreview.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    final items = <PruneItem>[];
+    if (rawItems is List) {
+      for (final entry in rawItems) {
+        if (entry is Map<String, dynamic>) {
+          items.add(PruneItem.fromJson(entry));
+        } else if (entry is Map) {
+          items.add(PruneItem.fromJson(Map<String, dynamic>.from(entry)));
+        }
+      }
+    }
+    return PruneCategoryPreview(
+      items: items,
+      reclaimableBytes: (json['reclaimable_bytes'] as num?)?.toInt() ?? 0,
+      reclaimableSize: json['reclaimable_size'] as String? ?? '0 B',
+    );
+  }
+}
+
+/// Full clean-disk prune preview across categories.
+class PrunePreview {
+  /// Creates a [PrunePreview] instance.
+  const PrunePreview({
+    required this.containers,
+    required this.images,
+    required this.volumes,
+    required this.networks,
+    required this.buildCache,
+    this.totalReclaimableBytes = 0,
+    this.totalReclaimableSize = '0 B',
+  });
+
+  final PruneCategoryPreview containers;
+  final PruneCategoryPreview images;
+  final PruneCategoryPreview volumes;
+  final PruneCategoryPreview networks;
+  final PruneCategoryPreview buildCache;
+  final int totalReclaimableBytes;
+  final String totalReclaimableSize;
+
+  /// Creates a [PrunePreview] from a JSON map.
+  factory PrunePreview.fromJson(Map<String, dynamic> json) {
+    PruneCategoryPreview category(String key) {
+      final value = json[key];
+      if (value is Map<String, dynamic>) {
+        return PruneCategoryPreview.fromJson(value);
+      }
+      if (value is Map) {
+        return PruneCategoryPreview.fromJson(Map<String, dynamic>.from(value));
+      }
+      return const PruneCategoryPreview(items: []);
+    }
+
+    return PrunePreview(
+      containers: category('containers'),
+      images: category('images'),
+      volumes: category('volumes'),
+      networks: category('networks'),
+      buildCache: category('build_cache'),
+      totalReclaimableBytes:
+          (json['total_reclaimable_bytes'] as num?)?.toInt() ?? 0,
+      totalReclaimableSize: json['total_reclaimable_size'] as String? ?? '0 B',
+    );
+  }
+}
+
+/// Result of executing a selective prune.
+class PruneResult {
+  /// Creates a [PruneResult] instance.
+  const PruneResult({
+    this.containers = false,
+    this.images = false,
+    this.volumes = false,
+    this.networks = false,
+    this.buildCache = false,
+    this.reclaimedBytes = 0,
+    this.reclaimedSize = '0 B',
+  });
+
+  final bool containers;
+  final bool images;
+  final bool volumes;
+  final bool networks;
+  final bool buildCache;
+  final int reclaimedBytes;
+  final String reclaimedSize;
+
+  /// Creates a [PruneResult] from a JSON map.
+  factory PruneResult.fromJson(Map<String, dynamic> json) {
+    return PruneResult(
+      containers: json['containers'] as bool? ?? false,
+      images: json['images'] as bool? ?? false,
+      volumes: json['volumes'] as bool? ?? false,
+      networks: json['networks'] as bool? ?? false,
+      buildCache: json['build_cache'] as bool? ?? false,
+      reclaimedBytes: (json['reclaimed_bytes'] as num?)?.toInt() ?? 0,
+      reclaimedSize: json['reclaimed_size'] as String? ?? '0 B',
+    );
+  }
+}
+
 abstract class StatusClient {
   /// Fetches the daemon status including runtime state.
   Future<DaemonStatus> fetchStatus();
@@ -1507,6 +1649,18 @@ abstract class CalfClient implements StatusClient {
 
   /// Stops the engine, wipes calf data, and restores default settings.
   Future<void> factoryReset();
+
+  /// Fetches a preview of unused data reclaimable by prune.
+  Future<PrunePreview> fetchPrunePreview();
+
+  /// Prunes selected unused resource categories.
+  Future<PruneResult> prune({
+    bool containers = true,
+    bool images = true,
+    bool volumes = true,
+    bool networks = true,
+    bool buildCache = true,
+  });
 }
 
 class ApiClient implements CalfClient {
@@ -1574,6 +1728,54 @@ class ApiClient implements CalfClient {
       '/v1/troubleshoot/factory-reset',
       timeout: CalfDefaults.troubleshootActionTimeout,
     );
+  }
+
+  /// Fetches a preview of unused data reclaimable by prune.
+  @override
+  Future<PrunePreview> fetchPrunePreview() async {
+    final json = await _getJson('/v1/system/prune/preview');
+    return PrunePreview.fromJson(json);
+  }
+
+  /// Prunes selected unused resource categories.
+  @override
+  Future<PruneResult> prune({
+    bool containers = true,
+    bool images = true,
+    bool volumes = true,
+    bool networks = true,
+    bool buildCache = true,
+  }) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/system/prune'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'containers': containers,
+            'images': images,
+            'volumes': volumes,
+            'networks': networks,
+            'build_cache': buildCache,
+          }),
+        )
+        .timeout(CalfDefaults.troubleshootActionTimeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
+    }
+
+    return PruneResult.fromJson(json);
   }
 
   /// Fetches the list of containers.

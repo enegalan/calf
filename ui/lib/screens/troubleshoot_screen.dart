@@ -11,7 +11,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 
-/// Troubleshoot panel with restart, support, purge, reset, and uninstall actions.
+/// Troubleshoot panel with restart, support, clean unused data, purge, reset, and uninstall actions.
 class TroubleshootScreen extends StatefulWidget {
   /// Creates a [TroubleshootScreen] instance.
   const TroubleshootScreen({
@@ -21,6 +21,7 @@ class TroubleshootScreen extends StatefulWidget {
     required this.onRestart,
     required this.onQuit,
     this.onGiveFeedback,
+    this.onCleanUnusedData,
     this.usesExternalDaemon = false,
   });
 
@@ -29,6 +30,9 @@ class TroubleshootScreen extends StatefulWidget {
   final Future<void> Function() onRestart;
   final Future<void> Function() onQuit;
   final VoidCallback? onGiveFeedback;
+
+  /// Opens the clean unused data (prune) screen.
+  final VoidCallback? onCleanUnusedData;
 
   /// True when Restart calf cannot restart the daemon because it runs outside
   /// this process (`make dev-backend` / `CALF_EXTERNAL_DAEMON`).
@@ -263,6 +267,15 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
                 destructive: false,
                 enabled: !_busy,
                 onPressed: () => unawaited(_getSupport()),
+              ),
+              _TroubleshootRow(
+                title: 'Clean unused data',
+                description:
+                    'Remove unused containers, images, volumes, networks, and build cache.',
+                actionLabel: 'Clean unused data',
+                destructive: false,
+                enabled: !_busy && widget.onCleanUnusedData != null,
+                onPressed: () => widget.onCleanUnusedData?.call(),
               ),
               _TroubleshootRow(
                 title: 'Clean / Purge data',

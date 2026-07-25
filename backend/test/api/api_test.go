@@ -985,3 +985,69 @@ func TestContainerLogsWebSocketStreamsLines(t *testing.T) {
 		t.Fatalf("unexpected lines: %v", lines)
 	}
 }
+
+func TestPrunePreviewAndPrune(t *testing.T) {
+	mock := runtime.NewMock()
+	mock.Containers = append(mock.Containers, runtime.Container{
+		ID:    "dead01",
+		Name:  "old",
+		Image: "alpine",
+		State: "exited",
+	})
+	mock.Images = append(mock.Images, runtime.Image{
+		ID:         "img999",
+		Repository: "alpine",
+		Tag:        "3.20",
+		Size:       "5MB",
+	})
+	mock.Networks = append(mock.Networks, runtime.Network{
+		ID:   "net123",
+		Name: "app_net",
+	})
+	mock.SetBuildCacheBytes(1_000_000)
+	server := newTestServerWithMock(t, mock)
+
+	previewResponse, err := http.Get(server.URL + "/v1/system/prune/preview")
+	if err != nil {
+		t.Fatalf("GET preview error: %v", err)
+	}
+	defer previewResponse.Body.Close()
+	if previewResponse.StatusCode != http.StatusOK {
+		t.Fatalf("expected preview 200, got %d", previewResponse.StatusCode)
+	}
+
+	var preview runtime.PrunePreview
+	if err := json.NewDecoder(previewResponse.Body).Decode(&preview); err != nil {
+		t.Fatalf("Decode preview error: %v", err)
+	}
+	if len(preview.Containers.Items) != 1 {
+		t.Fatalf("expected 1 stopped container, got %d", len(preview.Containers.Items))
+	}
+
+	pruneResponse, err := http.Post(
+		server.URL+"/v1/system/prune",
+		"application/json",
+		strings.NewReader(`{"containers":true,"images":true,"networks":true,"build_cache":true}`),
+	)
+	if err != nil {
+		t.Fatalf("POST prune error: %v", err)
+	}
+	defer pruneResponse.Body.Close()
+	if pruneResponse.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(pruneResponse.Body)
+		t.Fatalf("expected prune 200, got %d: %s", pruneResponse.StatusCode, body)
+	}
+
+	emptyResponse, err := http.Post(
+		server.URL+"/v1/system/prune",
+		"application/json",
+		strings.NewReader(`{}`),
+	)
+	if err != nil {
+		t.Fatalf("POST empty prune error: %v", err)
+	}
+	defer emptyResponse.Body.Close()
+	if emptyResponse.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected empty prune 400, got %d", emptyResponse.StatusCode)
+	}
+}

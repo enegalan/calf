@@ -172,6 +172,22 @@ func (n *Native) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	return applyProxyInVM(ctx, n.runLocal, proxy)
 }
 
+// PrunePreview returns unused resources reclaimable by system prune.
+func (n *Native) PrunePreview(ctx context.Context) (PrunePreview, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return PrunePreview{}, err
+	}
+	return prunePreview(ctx, n.runLocal)
+}
+
+// Prune removes unused resources for the selected categories.
+func (n *Native) Prune(ctx context.Context, opts PruneOptions) (PruneResult, error) {
+	if err := requireRunning(ctx, n.Status); err != nil {
+		return PruneResult{}, err
+	}
+	return prune(ctx, n.runLocal, opts)
+}
+
 // CreateVolume creates a named volume, or an anonymous one when name is empty.
 func (n *Native) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, n.Status); err != nil {

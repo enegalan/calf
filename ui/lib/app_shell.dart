@@ -13,6 +13,7 @@ import 'package:ui/platform/launch_at_login.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/screens/builds_screen.dart';
 import 'package:ui/screens/containers_screen.dart';
+import 'package:ui/screens/disk_cleanup_screen.dart';
 import 'package:ui/screens/images_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/troubleshoot_screen.dart';
@@ -65,6 +66,7 @@ class _AppShellState extends State<AppShell> {
   int _selectedIndex = 0;
   bool _showSettings = false;
   bool _showTroubleshoot = false;
+  bool _showDiskCleanup = false;
   String? _pendingImageReference;
   String? _pendingContainerId;
   RegistryLoginStatus? _registryStatus;
@@ -458,6 +460,7 @@ class _AppShellState extends State<AppShell> {
   void openSettings() {
     setState(() {
       _showTroubleshoot = false;
+      _showDiskCleanup = false;
       _showSettings = true;
     });
   }
@@ -466,7 +469,17 @@ class _AppShellState extends State<AppShell> {
   void openTroubleshoot() {
     setState(() {
       _showSettings = false;
+      _showDiskCleanup = false;
       _showTroubleshoot = true;
+    });
+  }
+
+  /// Opens the clean unused data screen from Troubleshoot.
+  void openDiskCleanup() {
+    setState(() {
+      _showSettings = false;
+      _showTroubleshoot = false;
+      _showDiskCleanup = true;
     });
   }
 
@@ -475,6 +488,15 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _showSettings = false;
       _showTroubleshoot = false;
+      _showDiskCleanup = false;
+    });
+  }
+
+  /// Returns from disk cleanup to the Troubleshoot screen.
+  void closeDiskCleanup() {
+    setState(() {
+      _showDiskCleanup = false;
+      _showTroubleshoot = true;
     });
   }
 
@@ -484,6 +506,7 @@ class _AppShellState extends State<AppShell> {
       _selectedIndex = index;
       _showSettings = false;
       _showTroubleshoot = false;
+      _showDiskCleanup = false;
     });
   }
 
@@ -498,6 +521,7 @@ class _AppShellState extends State<AppShell> {
       _pendingImageReference = reference;
       _showSettings = false;
       _showTroubleshoot = false;
+      _showDiskCleanup = false;
     });
   }
 
@@ -512,6 +536,7 @@ class _AppShellState extends State<AppShell> {
       _pendingContainerId = id;
       _showSettings = false;
       _showTroubleshoot = false;
+      _showDiskCleanup = false;
     });
   }
 
@@ -621,12 +646,14 @@ class _AppShellState extends State<AppShell> {
                                       selected:
                                           !_showSettings &&
                                           !_showTroubleshoot &&
+                                          !_showDiskCleanup &&
                                           _selectedIndex == index,
                                       collapsed: isCurrentlyCollapsed,
                                       onTap: () => setState(() {
                                         _selectedIndex = index;
                                         _showSettings = false;
                                         _showTroubleshoot = false;
+                                        _showDiskCleanup = false;
                                       }),
                                     ),
                                   ],
@@ -641,7 +668,12 @@ class _AppShellState extends State<AppShell> {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: _showTroubleshoot
+                      child: _showDiskCleanup
+                          ? DiskCleanupScreen(
+                              apiClient: widget.apiClient,
+                              onClose: closeDiskCleanup,
+                            )
+                          : _showTroubleshoot
                           ? TroubleshootScreen(
                               apiClient: widget.apiClient,
                               onClose: closeSettings,
@@ -649,6 +681,7 @@ class _AppShellState extends State<AppShell> {
                                   widget.onRestartDaemon ?? _restartEngine,
                               onQuit: CalfTrayStatus.quitApp,
                               usesExternalDaemon: widget.usesExternalDaemon,
+                              onCleanUnusedData: openDiskCleanup,
                             )
                           : _showSettings
                           ? SettingsScreen(

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // Mock represents a mock runtime.
@@ -33,6 +34,7 @@ type Mock struct {
 	LogLines         []string
 	Started          bool
 	registryLoggedIn bool
+	buildCacheBytes  int64
 }
 
 // NewMock returns a Mock preloaded with sample containers, images, volumes, and networks.
@@ -799,4 +801,140 @@ func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 // ApplyProxy is a no-op success for proxy configuration in tests.
 func (m *Mock) ApplyProxy(_ context.Context, _ ProxyConfig) error {
 	return nil
+}
+
+// SetBuildCacheBytes sets mock reclaimable build-cache bytes for prune preview tests.
+func (m *Mock) SetBuildCacheBytes(bytes int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.buildCacheBytes = bytes
+}
+
+// PrunePreview returns reclaimable unused resources from the mock inventory.
+func (m *Mock) PrunePreview(_ context.Context) (PrunePreview, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return PrunePreview{}, ErrRuntimeNotRunning
+	}
+
+	containers := append([]Container(nil), m.Containers...)
+	images := append([]Image(nil), m.Images...)
+	volumes := append([]Volume(nil), m.Volumes...)
+	for index := range volumes {
+		volumes[index].InUse = len(m.Containers) > 0
+		if volumes[index].Size == "" {
+			volumes[index].Size = "88 B"
+		}
+	}
+	networks := append([]Network(nil), m.Networks...)
+
+	preview := PrunePreview{
+		Containers: categoryFromItems(stoppedContainerPruneItems(containers)),
+		Images:     categoryFromItems(unusedImagePruneItems(containers, images)),
+		Volumes:    categoryFromItems(unusedVolumePruneItems(volumes)),
+		Networks:   categoryFromItems(unusedNetworkPruneItems(networks)),
+		BuildCache: PruneCategoryPreview{
+			Items:            []PruneItem{},
+			ReclaimableBytes: 0,
+			ReclaimableSize:  utils.FormatBytes(0),
+		},
+	}
+	if m.buildCacheBytes > 0 {
+		preview.BuildCache = PruneCategoryPreview{
+			Items: []PruneItem{{
+				ID:        "build-cache",
+				Name:      "Build cache",
+				Size:      utils.FormatBytes(m.buildCacheBytes),
+				SizeBytes: m.buildCacheBytes,
+			}},
+			ReclaimableBytes: m.buildCacheBytes,
+			ReclaimableSize:  utils.FormatBytes(m.buildCacheBytes),
+		}
+	}
+	preview.TotalReclaimableBytes = preview.Containers.ReclaimableBytes +
+		preview.Images.ReclaimableBytes +
+		preview.Volumes.ReclaimableBytes +
+		preview.Networks.ReclaimableBytes +
+		preview.BuildCache.ReclaimableBytes
+	preview.TotalReclaimableSize = utils.FormatBytes(preview.TotalReclaimableBytes)
+	return preview, nil
+}
+
+// Prune removes selected unused mock resources.
+func (m *Mock) Prune(_ context.Context, opts PruneOptions) (PruneResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return PruneResult{}, ErrRuntimeNotRunning
+	}
+	if !opts.Containers && !opts.Images && !opts.Volumes && !opts.Networks && !opts.BuildCache {
+		return PruneResult{}, ErrPruneCategoryRequired
+	}
+
+	var reclaimed int64
+	result := PruneResult{}
+
+	if opts.Containers {
+		kept := make([]Container, 0, len(m.Containers))
+		for _, container := range m.Containers {
+			if containerKeptAlive(container.State) {
+				kept = append(kept, container)
+				continue
+			}
+		}
+		m.Containers = kept
+		result.Containers = true
+	}
+	if opts.Images {
+		used := usedImageKeys(m.Containers, m.Images)
+		kept := make([]Image, 0, len(m.Images))
+		for _, image := range m.Images {
+			if imageIsUsed(image, used) {
+				kept = append(kept, image)
+				continue
+			}
+			reclaimed += parseResourceSize(image.Size)
+		}
+		m.Images = kept
+		result.Images = true
+	}
+	if opts.Volumes {
+		kept := make([]Volume, 0, len(m.Volumes))
+		inUse := len(m.Containers) > 0
+		for _, volume := range m.Volumes {
+			if inUse {
+				kept = append(kept, volume)
+				continue
+			}
+			size := parseResourceSize(volume.Size)
+			if size == 0 {
+				size = 88
+			}
+			reclaimed += size
+		}
+		m.Volumes = kept
+		result.Volumes = true
+	}
+	if opts.Networks {
+		kept := make([]Network, 0, len(m.Networks))
+		for _, network := range m.Networks {
+			if isDefaultNetwork(network.Name) {
+				kept = append(kept, network)
+			}
+		}
+		m.Networks = kept
+		result.Networks = true
+	}
+	if opts.BuildCache {
+		reclaimed += m.buildCacheBytes
+		m.buildCacheBytes = 0
+		result.BuildCache = true
+	}
+
+	result.ReclaimedBytes = reclaimed
+	result.ReclaimedSize = utils.FormatBytes(reclaimed)
+	return result, nil
 }

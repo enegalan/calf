@@ -436,6 +436,22 @@ func (v *Guest) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 	}
 	return applyProxyInVM(ctx, v.guestCommandRunner, proxy)
 }
+
+// PrunePreview returns unused resources reclaimable by system prune.
+func (v *Guest) PrunePreview(ctx context.Context) (PrunePreview, error) {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return PrunePreview{}, err
+	}
+	return prunePreview(ctx, v.runLocal)
+}
+
+// Prune removes unused resources for the selected categories.
+func (v *Guest) Prune(ctx context.Context, opts PruneOptions) (PruneResult, error) {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return PruneResult{}, err
+	}
+	return prune(ctx, v.runLocal, opts)
+}
 func (v *Guest) CreateVolume(ctx context.Context, name string) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err

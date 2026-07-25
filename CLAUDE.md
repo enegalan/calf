@@ -71,7 +71,8 @@ calf/
 │   │   │   ├── migrate.go                     Migration HTTP handlers
 │   │   │   ├── registry.go                    Registry HTTP handlers
 │   │   │   ├── registry_login.go              Docker Hub login HTTP handlers
-│   │   │   └── troubleshoot.go                Purge and factory-reset HTTP handlers
+│   │   │   ├── troubleshoot.go                Purge and factory-reset HTTP handlers
+│   │   │   └── prune.go                       System prune preview and execute HTTP handlers
 │   │   ├── httpkit/
 │   │   │   ├── response.go                    JSON response helpers
 │   │   │   ├── json.go                        Request JSON decode helper
@@ -125,6 +126,7 @@ calf/
 │   │   │   ├── volume_detail.go                 Volume inspect/clone/list-files/usage, relative time formatting
 │   │   │   ├── inspect_decode.go               Generic decoder for JSON-array or NDJSON nerdctl inspect output
 │   │   │   ├── localhost_proxy.go               macOS-only TCP proxy + port-conflict detection
+│   │   │   ├── prune.go                         System prune preview and selective execute
 │   │   │   ├── registry.go                      Docker config.json auth parsing/login/logout
 │   │   │   ├── errors.go                        ErrRuntimeNotRunning sentinel + guard helpers
 │   │   │   └── command_error.go                 Shell output cleanup, transient-error classification, auth-failure hints
@@ -153,7 +155,7 @@ calf/
 │   │   ├── daemon/                             stats_history tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -194,7 +196,8 @@ calf/
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
-│   │   │   └── troubleshoot_screen.dart            Restart, support, purge, factory reset, uninstall
+│   │   │   ├── disk_cleanup_screen.dart            Clean unused data (prune preview + execute)
+│   │   │   └── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
@@ -258,6 +261,7 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 - `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
+- `prune.go` — `GET /v1/system/prune/preview` and `POST /v1/system/prune`.
 
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
@@ -342,6 +346,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `volume_detail.go` — volume inspect/clone/list-files/container-usage logic, human-readable relative time formatting.
 - `inspect_decode.go` — generic decoder tolerant of both JSON-array and NDJSON-style nerdctl inspect output.
 - `localhost_proxy.go` — macOS-only TCP proxy forwarding `::1:<port>` to `127.0.0.1:<port>` inside the VM; detects port conflicts via `lsof`. No-op on non-Darwin platforms.
+- `prune.go` — prune preview (unused containers/images/volumes/networks/build cache) and selective `nerdctl` prune execute.
 - `registry.go` — Docker `config.json` auth parsing/login/logout, registry-key normalization.
 - `errors.go` — `ErrRuntimeNotRunning` sentinel and `requireRunning`/`emptyXIfStopped` guard helpers.
 - `command_error.go` — shell output cleanup (strips ANSI escapes, extracts `nerdctl` fatal messages), transient-error classification for retry, and an auth-failure hint wrapper for push errors.
@@ -394,7 +399,8 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
-- `troubleshoot_screen.dart` — restart, support, purge engine data, factory reset, and uninstall.
+- `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
+- `troubleshoot_screen.dart` — restart, support, clean unused data, purge engine data, factory reset, and uninstall.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
