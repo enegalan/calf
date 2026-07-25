@@ -35,6 +35,7 @@ class MacosMenuScope extends StatelessWidget {
     required this.onToggleSidebar,
     required this.onReportIssue,
     required this.onOpenRepository,
+    required this.onOpenTroubleshoot,
   });
 
   final Widget child;
@@ -51,6 +52,7 @@ class MacosMenuScope extends StatelessWidget {
   final VoidCallback onToggleSidebar;
   final VoidCallback onReportIssue;
   final VoidCallback onOpenRepository;
+  final VoidCallback onOpenTroubleshoot;
 
   static const _sectionLabels = [
     'Containers',
@@ -163,6 +165,14 @@ class MacosMenuScope extends StatelessWidget {
           PlatformMenuItem(
             label: 'GitHub Repository',
             onSelected: onOpenRepository,
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Troubleshoot',
+                onSelected: onOpenTroubleshoot,
+              ),
+            ],
           ),
         ],
       ),

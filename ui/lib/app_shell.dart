@@ -801,6 +801,7 @@ class _AppShellState extends State<AppShell> {
       onToggleSidebar: toggleSidebar,
       onReportIssue: () => openExternalUrl(calfReportIssueUrl),
       onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
+      onOpenTroubleshoot: openTroubleshoot,
       child: Scaffold(body: CalfToastLayer(child: shell)),
     );
   }
