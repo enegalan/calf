@@ -1,8 +1,6 @@
-<p align="center">
-  <img src="ui/assets/brand/calf_logo_art.png" width="360" alt="calf" />
+<p align="left">
+  <img src="ui/assets/brand/calf_logo_art.png" width="140" alt="calf" />
 </p>
-
-# calf
 
 A fast, lightweight alternative to Docker Desktop for running and managing containers on your machine, without the overhead of a full desktop stack.
 
