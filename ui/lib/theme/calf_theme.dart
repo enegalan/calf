@@ -84,6 +84,7 @@ abstract final class CalfTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      fontFamily: CalfFonts.sans,
       scaffoldBackgroundColor: colorScheme.surface,
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant,

@@ -1444,7 +1444,7 @@ class _SourceTab extends StatelessWidget {
               child: SelectableText(
                 content,
                 style: theme.textTheme.bodySmall!.copyWith(
-                  fontFamily: 'Menlo',
+                  fontFamily: CalfFonts.mono,
                   height: 1.5,
                 ),
               ),
@@ -1569,7 +1569,7 @@ class _LogsTab extends StatelessWidget {
         child: SelectableText(
           rawLog,
           style: theme.textTheme.bodySmall!.copyWith(
-            fontFamily: 'Menlo',
+            fontFamily: CalfFonts.mono,
             height: 1.4,
           ),
         ),
@@ -1727,7 +1727,7 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                             child: Text(
                               step.name,
                               style: widget.theme.textTheme.titleMedium!
-                                  .copyWith(fontFamily: 'Menlo'),
+                                  .copyWith(fontFamily: CalfFonts.mono),
                             ),
                           ),
                           if (step.cached)
@@ -1773,7 +1773,7 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                         child: SelectableText(
                           step.log,
                           style: widget.theme.textTheme.bodySmall!.copyWith(
-                            fontFamily: 'Menlo',
+                            fontFamily: CalfFonts.mono,
                           ),
                         ),
                       ),

@@ -6,6 +6,15 @@ abstract final class CalfColors {
   static const Color warning = Color(0xFFF0A500);
 }
 
+/// Bundled typeface family names registered in `pubspec.yaml`.
+abstract final class CalfFonts {
+  /// UI body and titles (Geist).
+  static const String sans = 'Geist';
+
+  /// Logs, inspect JSON, and other monospaced surfaces (Geist Mono).
+  static const String mono = 'GeistMono';
+}
+
 abstract final class CalfDefaults {
   static const String defaultBaseUrl = 'http://127.0.0.1:8765';
   static const int defaultPollIntervalMs = 3000;

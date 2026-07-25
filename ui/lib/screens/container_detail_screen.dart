@@ -703,7 +703,7 @@ class _InspectTab extends StatelessWidget {
                     child: SelectableText(
                       text,
                       style: theme.textTheme.bodySmall!.copyWith(
-                        fontFamily: 'Menlo',
+                        fontFamily: CalfFonts.mono,
                       ),
                     ),
                   )

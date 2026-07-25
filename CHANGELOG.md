@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Overflow menus** — three-dot and contextual menus use a shared bordered surface matching dialogs and panels.
+- **Typography** — UI uses Geist; logs and code use Geist Mono.
 
 ## [0.9.9] - 2026-07-24
 
