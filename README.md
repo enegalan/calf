@@ -25,7 +25,7 @@ Public macOS benchmarks comparing calf with Docker Desktop and OrbStack (VM boot
 The `.dmg` and `.pkg` installers are unsigned during the development phase. To install calf on macOS, run this single command to install the application:
 
 ```bash
-brew install --cask enegalan/calf-homebrew/calf
+brew install --cask enegalan/calf/calf
 ```
 
 ### Windows

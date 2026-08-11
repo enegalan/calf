@@ -143,7 +143,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 - [x] macOS `.dmg` / `.pkg` installers (v0.8.0; unsigned during development)
 - [ ] Apple signing and notarization (scheduled for future releases)
-- [x] Homebrew cask (`brew install --cask enegalan/calf-homebrew/calf`)
+- [x] Homebrew cask (`brew install --cask enegalan/calf/calf`)
 - [x] Daemon embedded in app bundle, spawned by Flutter app on launch, killed on close
 - [x] In-app update check and download links (GitHub Releases; auto-install pending signing)
 - [x] Windows `.exe` installer (v0.8.0; Lima VM runtime, same as macOS)
