@@ -163,10 +163,14 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if _, err := exec.LookPath("docker"); err != nil {
 		return fmt.Errorf("docker CLI not found: required for the krunkit runtime")
 	}
-	// Guest-disk download allows up to 45 minutes; do not inherit Start's short deadline.
+	// Guest-disk download allows up to GuestDiskFetchTimeout; do not inherit Start's short deadline.
 	if err := k.ensureGuestDisk(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
+	// Boot wait is independent of first-run disk download duration.
+	bootCtx, bootCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Minute)
+	defer bootCancel()
+	ctx = bootCtx
 	if err := os.MkdirAll(k.dataDir, 0o755); err != nil {
 		return err
 	}

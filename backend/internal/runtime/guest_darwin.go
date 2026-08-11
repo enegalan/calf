@@ -140,13 +140,16 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 	}
 	seed := resolveSeedArchive(v.dataDir)
 	if seed == "" {
-		dlCtx, cancel := context.WithTimeout(ctx, 45*time.Minute)
+		dlCtx, cancel := context.WithTimeout(ctx, constants.GuestDiskFetchTimeout)
 		defer cancel()
 		downloaded, err := v.downloadGuestDisk(dlCtx)
 		if err != nil {
 			return fmt.Errorf("guest disk missing at %s (%w); run make guest-disk or set CALF_GUEST_DISK_URL", v.diskPath(), err)
 		}
 		seed = downloaded
+	}
+	if err := ensureHostSpaceForGuestExtract(v.dataDir, seed); err != nil {
+		return err
 	}
 	return v.extractGuestSeed(seed)
 }

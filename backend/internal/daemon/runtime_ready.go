@@ -51,7 +51,7 @@ func (s *Core) startRuntimeUntilRunning() error {
 	if s.lifecycleCtx != nil {
 		parent = s.lifecycleCtx
 	}
-	startCtx, cancel := context.WithTimeout(parent, 3*time.Minute)
+	startCtx, cancel := context.WithTimeout(parent, constants.GuestDiskFetchTimeout+3*time.Minute)
 	defer cancel()
 
 	status, statusErr := s.Runtime.Status(startCtx)

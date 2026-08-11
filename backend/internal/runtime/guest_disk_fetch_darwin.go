@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
@@ -139,18 +140,27 @@ type githubRelease struct {
 	Assets  []githubReleaseAsset `json:"assets"`
 }
 
-// resolveGuestDiskDownloadURL finds the disk asset for this version, else latest.
+// resolveGuestDiskDownloadURL finds calf-guest-disk-* for this version, else latest, else any recent release.
 func resolveGuestDiskDownloadURL(ctx context.Context) (string, error) {
 	want := guestDiskAssetName()
 	tag := "v" + version.Version
+	var lastErr error
 	if url, err := releaseAssetURL(ctx, tag, want); err == nil {
 		return url, nil
+	} else {
+		lastErr = err
 	}
-	url, err := latestReleaseAssetURL(ctx, want)
-	if err != nil {
-		return "", fmt.Errorf("no GitHub release asset %q for v%s or latest: %w", want, version.Version, err)
+	if url, err := latestReleaseAssetURL(ctx, want); err == nil {
+		return url, nil
+	} else {
+		lastErr = err
 	}
-	return url, nil
+	if url, err := anyReleaseAssetURL(ctx, want); err == nil {
+		return url, nil
+	} else {
+		lastErr = err
+	}
+	return "", fmt.Errorf("no GitHub release asset %q for v%s or recent releases: %w", want, version.Version, lastErr)
 }
 
 func releaseAssetURL(ctx context.Context, tag, assetName string) (string, error) {
@@ -179,6 +189,23 @@ func latestReleaseAssetURL(ctx context.Context, assetName string) (string, error
 		}
 	}
 	return "", fmt.Errorf("asset %s not in latest release %s", assetName, rel.TagName)
+}
+
+// anyReleaseAssetURL scans recent GitHub Releases for assetName (newest first).
+func anyReleaseAssetURL(ctx context.Context, assetName string) (string, error) {
+	api := fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=30", constants.GitHubRepo)
+	var releases []githubRelease
+	if err := getJSON(ctx, api, &releases); err != nil {
+		return "", err
+	}
+	for _, rel := range releases {
+		for _, a := range rel.Assets {
+			if a.Name == assetName && a.BrowserDownloadURL != "" {
+				return a.BrowserDownloadURL, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("asset %s not found in recent releases", assetName)
 }
 
 func getJSON(ctx context.Context, url string, dest any) error {
@@ -232,4 +259,74 @@ func downloadFile(ctx context.Context, url, destPath string) error {
 		return err
 	}
 	return os.Rename(tmp, destPath)
+}
+
+// ensureHostSpaceForGuestExtract checks free space before decompressing the guest disk seed.
+func ensureHostSpaceForGuestExtract(dataDir, seed string) error {
+	required := guestDiskUncompressedBytes(seed)
+	if required <= 0 {
+		required = constants.GuestDiskMinFreeBytes
+	}
+	free, ok := hostVolumeAvailableBytes(dataDir)
+	if !ok {
+		return nil
+	}
+	if free >= required {
+		return nil
+	}
+	return fmt.Errorf(
+		"not enough free disk space to extract the guest disk: need ~%s free, have %s. Free space on this Mac and retry (Docker Desktop data under ~/Library/Containers/com.docker.docker is often large)",
+		formatByteSize(required),
+		formatByteSize(free),
+	)
+}
+
+// guestDiskUncompressedBytes reads the zstd frame content size from seed, or 0 if unknown.
+func guestDiskUncompressedBytes(seed string) int64 {
+	f, err := os.Open(seed)
+	if err != nil {
+		return 0
+	}
+	defer f.Close()
+	hdr := make([]byte, 128)
+	n, err := io.ReadFull(f, hdr)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return 0
+	}
+	if n == 0 {
+		return 0
+	}
+	var h zstd.Header
+	if err := h.Decode(hdr[:n]); err != nil || !h.HasFCS {
+		return 0
+	}
+	if h.FrameContentSize == 0 || h.FrameContentSize > 1<<46 {
+		return 0
+	}
+	return int64(h.FrameContentSize)
+}
+
+// hostVolumeAvailableBytes returns free bytes on the volume containing path.
+func hostVolumeAvailableBytes(path string) (int64, bool) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(path, &st); err != nil {
+		return 0, false
+	}
+	return int64(st.Bavail) * int64(st.Bsize), true
+}
+
+// formatByteSize renders a compact human size for errors.
+func formatByteSize(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	}
+	units := []string{"KiB", "MiB", "GiB", "TiB"}
+	v := float64(size)
+	for _, u := range units {
+		v /= 1024
+		if v < 1024 {
+			return fmt.Sprintf("%.1f %s", v, u)
+		}
+	}
+	return fmt.Sprintf("%.1f PiB", v/1024)
 }

@@ -115,6 +115,13 @@ const (
 	GuestEFIAssetPrefix  = "calf-guest-efi"
 )
 
+// GuestDiskFetchTimeout bounds first-run guest disk download + extract.
+const GuestDiskFetchTimeout = 45 * time.Minute
+
+// GuestDiskMinFreeBytes is the fallback free-space requirement when the zstd
+// frame does not advertise an uncompressed size.
+const GuestDiskMinFreeBytes = 20 * BytesPerGiB
+
 // JobStatus values are persisted statuses for builds, volume exports, and similar jobs.
 const (
 	JobStatusRunning   = "running"

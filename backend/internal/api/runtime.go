@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
@@ -12,7 +14,22 @@ import (
 func (g *Gateway) handleRuntimeStart(w http.ResponseWriter, r *http.Request) {
 	if err := g.backend.EnsureRuntimeRunning(r.Context()); err != nil {
 		g.logger.Error("runtime start failed", "error", err)
-		httpkit.WriteError(w, http.StatusServiceUnavailable, "failed to start the container runtime")
+		msg := "failed to start the container runtime"
+		errText := err.Error()
+		switch {
+		case strings.Contains(errText, "guest disk missing"),
+			strings.Contains(errText, "no GitHub release asset"),
+			strings.Contains(errText, "not enough free disk space"),
+			strings.Contains(errText, "krunkit not found"),
+			strings.Contains(errText, "gvproxy not found"),
+			strings.Contains(errText, "docker CLI not found"):
+			msg = errText
+		case errors.Is(err, context.DeadlineExceeded):
+			msg = "timed out starting the container runtime"
+		case errors.Is(err, context.Canceled):
+			msg = "container runtime start was canceled"
+		}
+		httpkit.WriteError(w, http.StatusServiceUnavailable, msg)
 		return
 	}
 	status, err := g.backend.Runtime.Status(r.Context())
