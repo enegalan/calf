@@ -36,6 +36,7 @@ type Core struct {
 	runtimeStartMu        sync.Mutex
 	runtimeStartInflight  *runtimeStartResult
 	resourceSaver         *resourceSaver
+	dockerSocketProxy     *dockerSocketProxy
 }
 
 // runtimeStartResult is the shared completion of one in-flight EnsureRuntimeRunning start.
@@ -72,8 +73,24 @@ func New(cfg config.Config, logger *slog.Logger, rt runtime.Runtime) *Core {
 	srv.resourceSaver = newResourceSaver(srv)
 	srv.resourceSaver.Start()
 	srv.DockerCLI = dockercli.NewManager(logger, srv.dockerContextManaged, rt)
+	srv.startDockerSocketProxy()
 	srv.loadBuilds()
 	return srv
+}
+
+// startDockerSocketProxy binds the public Docker CLI socket when the runtime uses a separate engine socket.
+func (s *Core) startDockerSocketProxy() {
+	public := s.Runtime.DockerSocket()
+	engine := resolveEngineDockerSocket(s.Runtime)
+	if public == "" || engine == "" || public == engine {
+		return
+	}
+	proxy := newDockerSocketProxy(s.Logger, public, engine, s.lifecycleCtx, s.EnsureRuntimeRunning)
+	if err := proxy.Start(); err != nil {
+		s.Logger.Warn("docker socket proxy failed to start", "error", err)
+		return
+	}
+	s.dockerSocketProxy = proxy
 }
 
 // Lifecycle returns the daemon context canceled during Shutdown.
@@ -92,6 +109,20 @@ func (s *Core) Shutdown(ctx context.Context) error {
 	}
 	if s.resourceSaver != nil {
 		s.resourceSaver.Stop()
+	}
+	if s.dockerSocketProxy != nil {
+		handOff := false
+		s.CfgMu.RLock()
+		keepAlive := s.Cfg.VMKeepAlive
+		s.CfgMu.RUnlock()
+		if keepAlive {
+			statusCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			status, err := s.Runtime.Status(statusCtx)
+			cancel()
+			handOff = err == nil && status.State == runtime.State(constants.RuntimeStateRunning)
+		}
+		s.dockerSocketProxy.Stop(handOff)
+		s.dockerSocketProxy = nil
 	}
 	return nil
 }

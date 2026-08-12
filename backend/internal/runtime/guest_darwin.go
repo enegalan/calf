@@ -30,7 +30,8 @@ var guestLogger = slog.Default()
 type Guest struct {
 	mu             sync.Mutex
 	vmName         string
-	dockerSocket   string
+	dockerSocket   string // public CLI path (~/.config/calf/docker.sock); daemon wake-proxy listens here
+	engineSocket   string // krunkit vsock path under guest data dir
 	cpus           int
 	memoryGB       int
 	diskGB         int
@@ -80,6 +81,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 	v := &Guest{
 		vmName:         vmName,
 		dockerSocket:   dockerSocket,
+		engineSocket:   filepath.Join(dataDir, "docker-engine.sock"),
 		cpus:           cpus,
 		memoryGB:       memoryGB,
 		diskGB:         diskGB,
@@ -94,8 +96,11 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 	return v
 }
 
-// DockerSocket returns the host unix socket bridged to guest Docker via vsock.
+// DockerSocket returns the public host path the Docker CLI should use (daemon wake-proxy).
 func (v *Guest) DockerSocket() string { return v.dockerSocket }
+
+// EngineDockerSocket returns the krunkit vsock-backed socket path (not the public CLI path).
+func (v *Guest) EngineDockerSocket() string { return v.engineSocket }
 
 func (v *Guest) diskPath() string { return v.diskImage }
 func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
@@ -345,7 +350,7 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
-			return d.DialContext(ctx, "unix", v.dockerSocket)
+			return d.DialContext(ctx, "unix", v.engineSocket)
 		},
 		DisableKeepAlives: true,
 	}}
@@ -366,7 +371,7 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 		command = "docker"
 	}
 	env := os.Environ()
-	env = dockerHostEnvFrom(env, v.dockerSocket)
+	env = dockerHostEnvFrom(env, v.engineSocket)
 	if v.proxy != (ProxyConfig{}) {
 		env = proxyEnvFrom(env, v.proxy)
 	}
@@ -377,7 +382,7 @@ func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 	if command == "nerdctl" {
 		command = "docker"
 	}
-	env := dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	env := dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
@@ -567,7 +572,7 @@ func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(str
 }
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return streamCommandLogs(ctx, command, output)
 }
 func (v *Guest) InspectContainer(ctx context.Context, id string) (json.RawMessage, error) {
@@ -603,7 +608,7 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 		return err
 	}
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 func (v *Guest) ContainerStats(ctx context.Context, id string) (ContainerStats, error) {

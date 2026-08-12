@@ -214,9 +214,9 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	_ = os.Remove(k.gvproxySockPath())
-	if err := os.MkdirAll(filepath.Dir(k.dockerSocket), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(k.engineSocket), 0o755); err != nil {
 		return err
 	}
 
@@ -244,7 +244,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"--device", "virtio-blk,path=" + k.diskPath() + ",format=raw",
 		"--device", netDevice,
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts,permissionSemantics=simplified",
-		"--device", "virtio-vsock,port=2375,socketURL=" + k.dockerSocket + ",connect",
+		"--device", "virtio-vsock,port=2375,socketURL=" + k.engineSocket + ",connect",
 		"--pidfile", k.krunkitPidPath(),
 		"--krun-log-level", "2",
 	}
@@ -661,7 +661,7 @@ func (k *Krunkit) Stop(ctx context.Context) error {
 		return nil
 	}
 	_ = k.stopKrunkitStack()
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	return nil
 }
 
@@ -677,7 +677,7 @@ func (k *Krunkit) ForceStop(ctx context.Context) error {
 	k.localhostProxy.stopAll()
 	k.started.Store(false)
 	_ = k.stopKrunkitStack()
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	return nil
 }
 

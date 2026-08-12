@@ -16,7 +16,7 @@ This file provides guidance to AI assistants when working with code in this repo
 
 The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
 
-The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at calf via `DOCKER_HOST`.
+The daemon also exposes a Docker-API-compatible socket (`~/.config/calf/docker.sock`), so the real `docker` / `docker compose` CLI can point at calf via `DOCKER_HOST`. On macOS that path is a wake-on-connect proxy: Resource Saver can stop the VM without removing the CLI endpoint.
 
 Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace, no Scout/AI/Cloud features.
 
@@ -102,6 +102,7 @@ calf/
 │   │   │   ├── migrate.go                     Docker Desktop migration runner
 │   │   │   ├── registry_login.go              Docker Hub device-flow session manager
 │   │   │   ├── resource_saver.go              Idle engine shutdown when no containers are running
+│   │   │   ├── docker_socket_proxy.go         Public docker.sock wake-on-connect proxy (macOS)
 │   │   │   ├── runtime_ready.go               Start/wait for runtime (non-HTTP)
 │   │   │   ├── stats_history.go               In-memory rolling container stats ring buffer
 │   │   │   ├── stats_sampler.go               Background sampler for running container stats
@@ -155,7 +156,7 @@ calf/
 │   │   ├── buildhistory/history_test.go
 │   │   ├── buildstore/buildstore_test.go
 │   │   ├── config/config_test.go
-│   │   ├── daemon/                             stats_history tests
+│   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
 │   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
@@ -296,6 +297,7 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `migrate.go` — Docker Desktop migration runner.
 - `registry_login.go` — Docker Hub device-flow session manager.
 - `resource_saver.go` — stops the engine after an idle period with no running containers when enabled in config.
+- `docker_socket_proxy.go` — keeps `~/.config/calf/docker.sock` listening while the macOS engine is stopped; wakes via `EnsureRuntimeRunning` on CLI connect and forwards to the guest vsock socket.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
 - `stats_history.go` — in-memory rolling stats samples per container (15m retention).
 - `stats_sampler.go` — background sampler that appends stats for running containers.

@@ -7,13 +7,11 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
-	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 // RuntimePort is the runtime surface needed to manage the docker CLI context.
 type RuntimePort interface {
 	DockerSocket() string
-	Status(ctx context.Context) (runtime.Status, error)
 }
 
 // Manager keeps the docker CLI pointed at the calf socket while managed mode is enabled.
@@ -79,11 +77,8 @@ func (m *Manager) ensure(ctx context.Context) {
 		return
 	}
 
-	status, err := m.runtime.Status(ctx)
-	if err != nil || status.State != runtime.State(constants.RuntimeStateRunning) {
-		return
-	}
-
+	// Keep the calf context selected whenever the public socket exists so Docker
+	// CLI can wake Resource Saver via the daemon proxy without switching contexts.
 	activateCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
 	defer cancel()
 
