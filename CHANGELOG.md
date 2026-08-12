@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.13] - 2026-08-12
+
+### Fixed
+
+- **Docker CLI required on macOS** — start error now tells you to install the CLI with `brew install docker` (Docker Desktop is not required).
+- **macOS engine libraries** — release builds bundle libkrun GPU dependencies (libepoxy, virglrenderer, MoltenVK) so Start engine works without Homebrew.
+
 ## [0.9.12] - 2026-08-11
 
 ### Fixed

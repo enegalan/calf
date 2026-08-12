@@ -161,7 +161,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		return fmt.Errorf("gvproxy not found: brew install libkrun/krun/gvproxy, or use a release that bundles it (CALF_GVPROXY_BIN overrides)")
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker CLI not found: required for the krunkit runtime")
+		return fmt.Errorf("docker CLI not found: install docker CLI binary")
 	}
 	// Guest-disk download allows up to GuestDiskFetchTimeout; do not inherit Start's short deadline.
 	if err := k.ensureGuestDisk(context.WithoutCancel(ctx)); err != nil {

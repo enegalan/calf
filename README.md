@@ -22,6 +22,8 @@ Public macOS benchmarks comparing calf with Docker Desktop and OrbStack (VM boot
 
 ### macOS
 
+On macOS, calf runs containers in its own VM. You need the **Docker CLI** on the host (`brew install docker`).
+
 The `.dmg` and `.pkg` installers are unsigned during the development phase. To install calf on macOS, run this single command to install the application:
 
 ```bash

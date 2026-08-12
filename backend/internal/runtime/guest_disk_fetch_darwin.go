@@ -275,7 +275,7 @@ func ensureHostSpaceForGuestExtract(dataDir, seed string) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"not enough free disk space to extract the guest disk: need ~%s free, have %s. Free space on this Mac and retry (Docker Desktop data under ~/Library/Containers/com.docker.docker is often large)",
+		"not enough free disk space to extract the guest disk: need ~%s free, have %s. Free space on this Mac and retry",
 		formatByteSize(required),
 		formatByteSize(free),
 	)
