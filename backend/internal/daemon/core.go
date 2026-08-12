@@ -117,12 +117,12 @@ func (s *Core) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// ForceStopRuntime stops the engine and reclaims the public Docker CLI socket proxy.
+// ForceStopRuntime stops the engine and restores wake-on-connect proxy mode.
 func (s *Core) ForceStopRuntime(ctx context.Context) error {
 	err := s.Runtime.ForceStop(ctx)
 	if s.dockerSocketProxy != nil {
-		if rebindErr := s.dockerSocketProxy.Rebind(); rebindErr != nil {
-			s.Logger.Warn("docker socket proxy rebind after force-stop failed", "error", rebindErr)
+		if proxyErr := s.dockerSocketProxy.UseProxy(); proxyErr != nil {
+			s.Logger.Warn("docker socket proxy restore after force-stop failed", "error", proxyErr)
 		}
 	}
 	return err

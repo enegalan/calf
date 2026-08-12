@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.16] - 2026-08-12
+
+### Fixed
+
+- **Docker compose EOF / stale docker.sock** — while the engine is running, calf points the CLI socket straight at the guest (no extra proxy hop). After stop or a broken symlink from an upgrade, it restores wake-on-connect listen mode and repairs the path every few seconds.
+
 ## [0.9.15] - 2026-08-12
 
 ### Fixed

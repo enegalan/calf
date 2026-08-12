@@ -28,10 +28,12 @@ func TestDockerSocketProxyWakesAndForwards(t *testing.T) {
 
 	var wakeCount atomic.Int32
 	var engineLn net.Listener
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	proxy := daemon.NewDockerSocketProxyForTest(
 		public,
 		engine,
-		context.Background(),
+		life,
 		func(ctx context.Context) error {
 			wakeCount.Add(1)
 			_ = os.Remove(engine)
@@ -89,8 +91,56 @@ func TestDockerSocketProxyWakesAndForwards(t *testing.T) {
 	}
 }
 
-// TestDockerSocketProxyRebindReplacesSymlink restores a real socket after hand-off damage.
-func TestDockerSocketProxyRebindReplacesSymlink(t *testing.T) {
+// TestDockerSocketProxyDirectAndProxyModes switches between symlink and listen modes.
+func TestDockerSocketProxyDirectAndProxyModes(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	public := filepath.Join(dir, "docker.sock")
+	engine := filepath.Join(dir, "engine.sock")
+	ln, err := net.Listen("unix", engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy := daemon.NewDockerSocketProxyForTest(public, engine, life, func(context.Context) error {
+		return nil
+	})
+	if err := proxy.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer proxy.Stop()
+
+	if err := proxy.UseDirect(); err != nil {
+		t.Fatalf("UseDirect: %v", err)
+	}
+	info, err := os.Lstat(public)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected symlink in direct mode")
+	}
+
+	if err := proxy.UseProxy(); err != nil {
+		t.Fatalf("UseProxy: %v", err)
+	}
+	info, err = os.Lstat(public)
+	if err != nil {
+		t.Fatalf("Lstat after UseProxy: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("public path still a symlink")
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		t.Fatalf("public path is not a socket")
+	}
+}
+
+// TestDockerSocketProxyRebindRepairsBrokenDirect repairs a dangling symlink.
+func TestDockerSocketProxyRebindRepairsBrokenDirect(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +152,9 @@ func TestDockerSocketProxyRebindReplacesSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	proxy := daemon.NewDockerSocketProxyForTest(public, engine, context.Background(), func(context.Context) error {
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy := daemon.NewDockerSocketProxyForTest(public, engine, life, func(context.Context) error {
 		return nil
 	})
 	if err := proxy.Start(); err != nil {
@@ -110,27 +162,18 @@ func TestDockerSocketProxyRebindReplacesSymlink(t *testing.T) {
 	}
 	defer proxy.Stop()
 
-	// Simulate a raced daemon quit that replaced the public path with a symlink.
-	_ = os.Remove(public)
-	if err := os.Symlink(engine, public); err != nil {
-		t.Fatal(err)
+	if err := proxy.UseDirect(); err != nil {
+		t.Fatalf("UseDirect: %v", err)
 	}
-	info, err := os.Lstat(public)
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected symlink before rebind")
-	}
-
+	_ = os.Remove(engine)
 	if err := proxy.Rebind(); err != nil {
 		t.Fatalf("Rebind: %v", err)
 	}
-	info, err = os.Lstat(public)
+	info, err := os.Lstat(public)
 	if err != nil {
 		t.Fatalf("Lstat after rebind: %v", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("public path still a symlink")
-	}
-	if info.Mode()&os.ModeSocket == 0 {
-		t.Fatalf("public path is not a socket")
+		t.Fatalf("public path still a symlink after broken direct repair")
 	}
 }

@@ -9,20 +9,36 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
+const (
+	dockerProxyMaxConcurrent   = 16
+	dockerProxyReclaimInterval = 2 * time.Second
+
+	dockerProxyModeListen int32 = 0
+	dockerProxyModeDirect int32 = 1
+)
+
 // dockerSocketProxy listens on the public Docker CLI socket and forwards to the
 // engine vsock socket. When the engine is stopped (Resource Saver), the first
 // CLI connection wakes it via EnsureRuntimeRunning before forwarding.
+//
+// While the engine is running the public path is a symlink to the engine socket
+// so compose/CLI talk to vsock directly (avoids double-hop EOFs). Shutdown never
+// leaves that symlink behind; only the live daemon switches modes.
 type dockerSocketProxy struct {
 	logger    *slog.Logger
 	public    string
 	engine    string
 	wake      func(context.Context) error
 	lifecycle context.Context
+	gate      chan struct{}
+	mode      atomic.Int32
+	switchMu  sync.Mutex
 
 	mu       sync.Mutex
 	listener net.Listener
@@ -44,6 +60,7 @@ func newDockerSocketProxy(logger *slog.Logger, public, engine string, lifecycle 
 		engine:    engine,
 		wake:      wake,
 		lifecycle: lifecycle,
+		gate:      make(chan struct{}, dockerProxyMaxConcurrent),
 		stopCh:    make(chan struct{}),
 		doneCh:    make(chan struct{}),
 	}
@@ -61,24 +78,110 @@ func (p *dockerSocketProxy) Start() error {
 		p.mu.Unlock()
 		return nil
 	}
-	return p.listen()
+	if err := p.listen(); err != nil {
+		return err
+	}
+	go p.watchPublicPath()
+	return nil
 }
 
-// Rebind reclaims the public socket path if a symlink or other process replaced it.
+// UseDirect points the public path at the engine socket for direct CLI access.
+func (p *dockerSocketProxy) UseDirect() error {
+	if p == nil {
+		return nil
+	}
+	p.switchMu.Lock()
+	defer p.switchMu.Unlock()
+	p.mu.Lock()
+	if p.stopped {
+		p.mu.Unlock()
+		return nil
+	}
+	p.mu.Unlock()
+	if _, err := os.Stat(p.engine); err != nil {
+		return fmt.Errorf("engine socket missing for direct mode: %w", err)
+	}
+	p.shutdownListener()
+	_ = os.Remove(p.public)
+	if err := os.Symlink(p.engine, p.public); err != nil {
+		if listenErr := p.listen(); listenErr != nil {
+			return fmt.Errorf("symlink direct mode: %v; listen fallback: %w", err, listenErr)
+		}
+		return fmt.Errorf("symlink direct mode: %w", err)
+	}
+	p.mode.Store(dockerProxyModeDirect)
+	p.logger.Info("docker socket switched to direct engine path", "public", p.public, "engine", p.engine)
+	return nil
+}
+
+// UseProxy listens on the public path again (wake-on-connect mode).
+func (p *dockerSocketProxy) UseProxy() error {
+	if p == nil {
+		return nil
+	}
+	p.switchMu.Lock()
+	defer p.switchMu.Unlock()
+	p.mu.Lock()
+	stopped := p.stopped
+	owns := p.listener != nil && publicPathIsSocket(p.public)
+	p.mu.Unlock()
+	if stopped {
+		return nil
+	}
+	if p.mode.Load() == dockerProxyModeListen && owns {
+		return nil
+	}
+	p.shutdownListener()
+	if err := p.listen(); err != nil {
+		return err
+	}
+	p.mode.Store(dockerProxyModeListen)
+	return nil
+}
+
+// Rebind restores a working public path after ForceStop or a raced hand-off.
 func (p *dockerSocketProxy) Rebind() error {
 	if p == nil {
 		return nil
 	}
+	p.switchMu.Lock()
+	defer p.switchMu.Unlock()
 	p.mu.Lock()
 	stopped := p.stopped
-	owns := !stopped && p.listener != nil && publicPathIsSocket(p.public)
 	p.mu.Unlock()
-	if stopped || owns {
+	if stopped {
+		return nil
+	}
+
+	mode := p.mode.Load()
+	if mode == dockerProxyModeDirect {
+		if publicPathIsSymlinkTo(p.public, p.engine) {
+			if _, err := os.Stat(p.engine); err == nil {
+				return nil
+			}
+		}
+		p.logger.Info("docker socket proxy reclaiming after broken direct path", "public", p.public)
+		p.shutdownListener()
+		if err := p.listen(); err != nil {
+			return err
+		}
+		p.mode.Store(dockerProxyModeListen)
+		return nil
+	}
+
+	p.mu.Lock()
+	owns := p.listener != nil && publicPathIsSocket(p.public)
+	p.mu.Unlock()
+	if owns {
 		return nil
 	}
 	p.logger.Info("docker socket proxy reclaiming public path", "public", p.public)
 	p.shutdownListener()
-	return p.listen()
+	if err := p.listen(); err != nil {
+		return err
+	}
+	p.mode.Store(dockerProxyModeListen)
+	return nil
 }
 
 // Stop closes the public listener and removes the public socket path.
@@ -86,6 +189,8 @@ func (p *dockerSocketProxy) Stop() {
 	if p == nil {
 		return
 	}
+	p.switchMu.Lock()
+	defer p.switchMu.Unlock()
 	p.mu.Lock()
 	if p.stopped {
 		p.mu.Unlock()
@@ -97,6 +202,25 @@ func (p *dockerSocketProxy) Stop() {
 	_ = os.Remove(p.public)
 }
 
+// watchPublicPath periodically repairs docker.sock after upgrade races or crashes.
+func (p *dockerSocketProxy) watchPublicPath() {
+	if p.lifecycle == nil {
+		return
+	}
+	ticker := time.NewTicker(dockerProxyReclaimInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.lifecycle.Done():
+			return
+		case <-ticker.C:
+			if err := p.Rebind(); err != nil {
+				p.logger.Debug("docker socket proxy reclaim tick failed", "error", err)
+			}
+		}
+	}
+}
+
 // listen binds the public path and starts the accept loop.
 func (p *dockerSocketProxy) listen() error {
 	if err := os.MkdirAll(filepath.Dir(p.public), 0o755); err != nil {
@@ -104,7 +228,8 @@ func (p *dockerSocketProxy) listen() error {
 		return fmt.Errorf("create docker socket dir: %w", err)
 	}
 	_ = os.Remove(p.public)
-	listener, err := net.Listen("unix", p.public)
+	var lc net.ListenConfig
+	listener, err := lc.Listen(context.Background(), "unix", p.public)
 	if err != nil {
 		p.failDone()
 		return fmt.Errorf("listen on docker socket %s: %w", p.public, err)
@@ -123,6 +248,7 @@ func (p *dockerSocketProxy) listen() error {
 	p.doneCh = doneCh
 	p.stopped = false
 	p.mu.Unlock()
+	p.mode.Store(dockerProxyModeListen)
 
 	go p.serve(listener, doneCh)
 	p.logger.Info("docker socket proxy listening", "public", p.public, "engine", p.engine)
@@ -173,6 +299,19 @@ func publicPathIsSocket(path string) bool {
 	return info.Mode()&os.ModeSymlink == 0 && info.Mode()&os.ModeSocket != 0
 }
 
+// publicPathIsSymlinkTo reports whether path is a symlink to want.
+func publicPathIsSymlinkTo(path, want string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return false
+	}
+	target, err := os.Readlink(path)
+	if err != nil {
+		return false
+	}
+	return target == want
+}
+
 // serve accepts connections until the listener closes.
 func (p *dockerSocketProxy) serve(listener net.Listener, doneCh chan struct{}) {
 	defer close(doneCh)
@@ -193,6 +332,13 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 	if p.lifecycle != nil {
 		parent = p.lifecycle
 	}
+	select {
+	case p.gate <- struct{}{}:
+		defer func() { <-p.gate }()
+	case <-parent.Done():
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(parent, constants.GuestDiskFetchTimeout+3*time.Minute)
 	defer cancel()
 
@@ -207,6 +353,9 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 		if err != nil {
 			p.logger.Warn("docker socket dial engine failed", "error", err)
 			return
+		}
+		if directErr := p.UseDirect(); directErr != nil {
+			p.logger.Debug("docker socket direct switch after wake failed", "error", directErr)
 		}
 	}
 	defer server.Close()
@@ -313,4 +462,20 @@ func (p *DockerSocketProxy) Rebind() error {
 		return nil
 	}
 	return p.inner.Rebind()
+}
+
+// UseDirect switches to a public symlink for tests.
+func (p *DockerSocketProxy) UseDirect() error {
+	if p == nil || p.inner == nil {
+		return nil
+	}
+	return p.inner.UseDirect()
+}
+
+// UseProxy switches back to listen mode for tests.
+func (p *DockerSocketProxy) UseProxy() error {
+	if p == nil || p.inner == nil {
+		return nil
+	}
+	return p.inner.UseProxy()
 }
