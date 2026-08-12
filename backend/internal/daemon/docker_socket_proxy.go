@@ -28,6 +28,7 @@ type dockerSocketProxy struct {
 	listener net.Listener
 	stopCh   chan struct{}
 	doneCh   chan struct{}
+	stopped  bool
 }
 
 // engineDockerSocketer is implemented by runtimes that expose a separate vsock socket.
@@ -54,76 +55,131 @@ func (p *dockerSocketProxy) Start() error {
 		return nil
 	}
 	if p.public == "" || p.engine == "" || p.public == p.engine {
+		p.mu.Lock()
+		p.stopped = true
 		close(p.doneCh)
+		p.mu.Unlock()
 		return nil
 	}
+	return p.listen()
+}
+
+// Rebind reclaims the public socket path if a symlink or other process replaced it.
+func (p *dockerSocketProxy) Rebind() error {
+	if p == nil {
+		return nil
+	}
+	p.mu.Lock()
+	stopped := p.stopped
+	owns := !stopped && p.listener != nil && publicPathIsSocket(p.public)
+	p.mu.Unlock()
+	if stopped || owns {
+		return nil
+	}
+	p.logger.Info("docker socket proxy reclaiming public path", "public", p.public)
+	p.shutdownListener()
+	return p.listen()
+}
+
+// Stop closes the public listener and removes the public socket path.
+func (p *dockerSocketProxy) Stop() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	if p.stopped {
+		p.mu.Unlock()
+		return
+	}
+	p.stopped = true
+	p.mu.Unlock()
+	p.shutdownListener()
+	_ = os.Remove(p.public)
+}
+
+// listen binds the public path and starts the accept loop.
+func (p *dockerSocketProxy) listen() error {
 	if err := os.MkdirAll(filepath.Dir(p.public), 0o755); err != nil {
-		close(p.doneCh)
+		p.failDone()
 		return fmt.Errorf("create docker socket dir: %w", err)
 	}
 	_ = os.Remove(p.public)
 	listener, err := net.Listen("unix", p.public)
 	if err != nil {
-		close(p.doneCh)
+		p.failDone()
 		return fmt.Errorf("listen on docker socket %s: %w", p.public, err)
 	}
 	if err := os.Chmod(p.public, 0o666); err != nil {
 		_ = listener.Close()
 		_ = os.Remove(p.public)
-		close(p.doneCh)
+		p.failDone()
 		return fmt.Errorf("chmod docker socket: %w", err)
 	}
+
 	p.mu.Lock()
 	p.listener = listener
+	p.stopCh = make(chan struct{})
+	doneCh := make(chan struct{})
+	p.doneCh = doneCh
+	p.stopped = false
 	p.mu.Unlock()
-	go p.serve(listener)
+
+	go p.serve(listener, doneCh)
 	p.logger.Info("docker socket proxy listening", "public", p.public, "engine", p.engine)
 	return nil
 }
 
-// Stop closes the public listener. When handOff is true and the engine socket
-// still exists, replaces the public path with a symlink so vm_keep_alive CLI use
-// keeps working after the daemon quits.
-func (p *dockerSocketProxy) Stop(handOff bool) {
-	if p == nil {
-		return
-	}
-	select {
-	case <-p.stopCh:
-	default:
-		close(p.stopCh)
-	}
+// shutdownListener closes the current accept loop and waits for it to exit.
+func (p *dockerSocketProxy) shutdownListener() {
 	p.mu.Lock()
 	listener := p.listener
+	stopCh := p.stopCh
+	doneCh := p.doneCh
 	p.listener = nil
 	p.mu.Unlock()
+
+	if stopCh != nil {
+		select {
+		case <-stopCh:
+		default:
+			close(stopCh)
+		}
+	}
 	if listener != nil {
 		_ = listener.Close()
 	}
-	<-p.doneCh
-	_ = os.Remove(p.public)
-	if handOff {
-		if _, err := os.Stat(p.engine); err == nil {
-			if err := os.Symlink(p.engine, p.public); err != nil {
-				p.logger.Warn("docker socket hand-off symlink failed", "error", err)
-			}
-		}
+	if doneCh != nil {
+		<-doneCh
 	}
 }
 
-// serve accepts connections until the listener closes or stopCh fires.
-func (p *dockerSocketProxy) serve(listener net.Listener) {
-	defer close(p.doneCh)
+// failDone closes doneCh when Start fails before serve runs.
+func (p *dockerSocketProxy) failDone() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	select {
+	case <-p.doneCh:
+	default:
+		close(p.doneCh)
+	}
+}
+
+// publicPathIsSocket reports whether path exists as a non-symlink unix socket.
+func publicPathIsSocket(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeSymlink == 0 && info.Mode()&os.ModeSocket != 0
+}
+
+// serve accepts connections until the listener closes.
+func (p *dockerSocketProxy) serve(listener net.Listener, doneCh chan struct{}) {
+	defer close(doneCh)
 	for {
 		client, err := listener.Accept()
 		if err != nil {
-			select {
-			case <-p.stopCh:
-				return
-			default:
-				p.logger.Debug("docker socket accept ended", "error", err)
-				return
-			}
+			return
 		}
 		go p.handle(client)
 	}
@@ -140,40 +196,29 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 	ctx, cancel := context.WithTimeout(parent, constants.GuestDiskFetchTimeout+3*time.Minute)
 	defer cancel()
 
-	if !p.engineDialable() {
+	server, err := p.dialEngine(ctx, 400*time.Millisecond)
+	if err != nil {
 		p.logger.Info("docker CLI connected while engine stopped; waking")
-		if err := p.wake(ctx); err != nil {
-			p.logger.Warn("docker socket wake failed", "error", err)
+		if wakeErr := p.wake(ctx); wakeErr != nil {
+			p.logger.Warn("docker socket wake failed", "error", wakeErr)
 			return
 		}
-	}
-
-	server, err := p.dialEngine(ctx)
-	if err != nil {
-		p.logger.Warn("docker socket dial engine failed", "error", err)
-		return
+		server, err = p.dialEngine(ctx, 30*time.Second)
+		if err != nil {
+			p.logger.Warn("docker socket dial engine failed", "error", err)
+			return
+		}
 	}
 	defer server.Close()
 
 	proxyUnixConnection(client, server)
 }
 
-// engineDialable reports whether the engine vsock socket accepts a connection right now.
-func (p *dockerSocketProxy) engineDialable() bool {
-	var d net.Dialer
-	conn, err := d.Dial("unix", p.engine)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-// dialEngine connects to the krunkit vsock socket with short retries.
-func (p *dockerSocketProxy) dialEngine(ctx context.Context) (net.Conn, error) {
+// dialEngine connects to the krunkit vsock socket, retrying until timeout.
+func (p *dockerSocketProxy) dialEngine(ctx context.Context, timeout time.Duration) (net.Conn, error) {
 	var d net.Dialer
 	var lastErr error
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(timeout)
 	if t, ok := ctx.Deadline(); ok && t.Before(deadline) {
 		deadline = t
 	}
@@ -254,10 +299,18 @@ func (p *DockerSocketProxy) Start() error {
 	return p.inner.Start()
 }
 
-// Stop closes the proxy and optionally hands off via symlink.
-func (p *DockerSocketProxy) Stop(handOff bool) {
+// Stop closes the proxy.
+func (p *DockerSocketProxy) Stop() {
 	if p == nil || p.inner == nil {
 		return
 	}
-	p.inner.Stop(handOff)
+	p.inner.Stop()
+}
+
+// Rebind reclaims the public socket path for tests.
+func (p *DockerSocketProxy) Rebind() error {
+	if p == nil || p.inner == nil {
+		return nil
+	}
+	return p.inner.Rebind()
 }

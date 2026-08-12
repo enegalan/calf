@@ -297,7 +297,7 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `migrate.go` — Docker Desktop migration runner.
 - `registry_login.go` — Docker Hub device-flow session manager.
 - `resource_saver.go` — stops the engine after an idle period with no running containers when enabled in config.
-- `docker_socket_proxy.go` — keeps `~/.config/calf/docker.sock` listening while the macOS engine is stopped; wakes via `EnsureRuntimeRunning` on CLI connect and forwards to the guest vsock socket.
+- `docker_socket_proxy.go` — keeps `~/.config/calf/docker.sock` listening while the macOS engine is stopped; wakes via `EnsureRuntimeRunning` on CLI connect and forwards to the guest vsock socket. Reclaims the path after ForceStop if a symlink replaced it.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
 - `stats_history.go` — in-memory rolling stats samples per container (15m retention).
 - `stats_sampler.go` — background sampler that appends stats for running containers.

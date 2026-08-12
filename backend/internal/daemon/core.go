@@ -111,20 +111,21 @@ func (s *Core) Shutdown(ctx context.Context) error {
 		s.resourceSaver.Stop()
 	}
 	if s.dockerSocketProxy != nil {
-		handOff := false
-		s.CfgMu.RLock()
-		keepAlive := s.Cfg.VMKeepAlive
-		s.CfgMu.RUnlock()
-		if keepAlive {
-			statusCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			status, err := s.Runtime.Status(statusCtx)
-			cancel()
-			handOff = err == nil && status.State == runtime.State(constants.RuntimeStateRunning)
-		}
-		s.dockerSocketProxy.Stop(handOff)
+		s.dockerSocketProxy.Stop()
 		s.dockerSocketProxy = nil
 	}
 	return nil
+}
+
+// ForceStopRuntime stops the engine and reclaims the public Docker CLI socket proxy.
+func (s *Core) ForceStopRuntime(ctx context.Context) error {
+	err := s.Runtime.ForceStop(ctx)
+	if s.dockerSocketProxy != nil {
+		if rebindErr := s.dockerSocketProxy.Rebind(); rebindErr != nil {
+			s.Logger.Warn("docker socket proxy rebind after force-stop failed", "error", rebindErr)
+		}
+	}
+	return err
 }
 
 // stopRegistryLoginSessions cancels in-flight Docker Hub device-login flows during shutdown.

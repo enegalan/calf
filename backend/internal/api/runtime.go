@@ -46,7 +46,7 @@ func (g *Gateway) handleRuntimeStop(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 	defer cancel()
 
-	if err := g.backend.Runtime.ForceStop(ctx); err != nil {
+	if err := g.backend.ForceStopRuntime(ctx); err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -64,7 +64,7 @@ func (g *Gateway) handleRuntimeKill(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 	defer cancel()
 
-	if err := g.backend.Runtime.ForceStop(ctx); err != nil {
+	if err := g.backend.ForceStopRuntime(ctx); err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

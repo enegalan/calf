@@ -73,6 +73,11 @@ func (s *Core) startRuntimeUntilRunning() error {
 		}
 		if status.State == runtime.State(constants.RuntimeStateRunning) {
 			s.ClearResourceSaver()
+			if s.dockerSocketProxy != nil {
+				if err := s.dockerSocketProxy.Rebind(); err != nil {
+					s.Logger.Warn("docker socket proxy rebind after start failed", "error", err)
+				}
+			}
 			return nil
 		}
 		select {

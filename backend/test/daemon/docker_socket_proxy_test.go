@@ -52,7 +52,7 @@ func TestDockerSocketProxyWakesAndForwards(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	defer func() {
-		proxy.Stop(false)
+		proxy.Stop()
 		if engineLn != nil {
 			_ = engineLn.Close()
 		}
@@ -89,8 +89,8 @@ func TestDockerSocketProxyWakesAndForwards(t *testing.T) {
 	}
 }
 
-// TestDockerSocketProxyHandOffSymlink leaves a public symlink when handOff is true.
-func TestDockerSocketProxyHandOffSymlink(t *testing.T) {
+// TestDockerSocketProxyRebindReplacesSymlink restores a real socket after hand-off damage.
+func TestDockerSocketProxyRebindReplacesSymlink(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
 	if err != nil {
 		t.Fatal(err)
@@ -108,20 +108,29 @@ func TestDockerSocketProxyHandOffSymlink(t *testing.T) {
 	if err := proxy.Start(); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	proxy.Stop(true)
+	defer proxy.Stop()
 
-	info, err := os.Lstat(public)
-	if err != nil {
-		t.Fatalf("Lstat public: %v", err)
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected symlink at %s", public)
-	}
-	target, err := os.Readlink(public)
-	if err != nil {
+	// Simulate a raced daemon quit that replaced the public path with a symlink.
+	_ = os.Remove(public)
+	if err := os.Symlink(engine, public); err != nil {
 		t.Fatal(err)
 	}
-	if target != engine {
-		t.Fatalf("symlink target %q, want %q", target, engine)
+	info, err := os.Lstat(public)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("expected symlink before rebind")
+	}
+
+	if err := proxy.Rebind(); err != nil {
+		t.Fatalf("Rebind: %v", err)
+	}
+	info, err = os.Lstat(public)
+	if err != nil {
+		t.Fatalf("Lstat after rebind: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("public path still a symlink")
+	}
+	if info.Mode()&os.ModeSocket == 0 {
+		t.Fatalf("public path is not a socket")
 	}
 }
