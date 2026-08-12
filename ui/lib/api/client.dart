@@ -1581,7 +1581,7 @@ class ApiClient implements CalfClient {
   Future<List<ContainerItem>> fetchContainers() async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/containers'))
-        .timeout(timeout);
+        .timeout(CalfDefaults.resourceListTimeout);
     return _decodeList(response, ContainerItem.fromJson);
   }
 
@@ -1590,7 +1590,7 @@ class ApiClient implements CalfClient {
   Future<List<ImageItem>> fetchImages() async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/images'))
-        .timeout(timeout);
+        .timeout(CalfDefaults.resourceListTimeout);
     return _decodeList(response, ImageItem.fromJson);
   }
 
@@ -1618,7 +1618,7 @@ class ApiClient implements CalfClient {
   Future<List<NetworkItem>> fetchNetworks() async {
     final response = await httpClient
         .get(Uri.parse('$baseUrl/v1/networks'))
-        .timeout(timeout);
+        .timeout(CalfDefaults.resourceListTimeout);
     return _decodeList(response, NetworkItem.fromJson);
   }
 
@@ -1884,7 +1884,9 @@ class ApiClient implements CalfClient {
     final uri = Uri.parse('$baseUrl/v1/builds').replace(
       queryParameters: tag == null || tag.isEmpty ? null : {'tag': tag},
     );
-    final response = await httpClient.get(uri).timeout(timeout);
+    final response = await httpClient
+        .get(uri)
+        .timeout(CalfDefaults.resourceListTimeout);
     return _decodeList(response, BuildItem.fromJson);
   }
 

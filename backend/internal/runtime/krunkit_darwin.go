@@ -413,12 +413,12 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 // watchPortProxies forwards published container ports via gvproxy and keeps ::1→127.0.0.1 proxies.
 func (k *Krunkit) watchPortProxies(ctx context.Context) {
 	guestLogger.Info("krunkit port forward watcher started")
-	syncOnce := func(force bool) {
+	syncOnce := func() {
 		status, err := k.Status(ctx)
 		if err != nil || status.State != State(constants.RuntimeStateRunning) || !k.started.Load() {
 			return
 		}
-		containers, err := listContainers(ctx, k.runLocal)
+		containers, err := k.ListContainers(ctx)
 		if err != nil {
 			guestLogger.Warn("list containers for port forward failed", "error", err)
 			k.proxyResync.Store(true)
@@ -426,9 +426,8 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 		}
 		ports := publishedTCPPorts(containers)
 		k.syncGvproxyForwards(ctx, ports)
-		k.localhostProxy.sync(ports, force)
 	}
-	syncOnce(true)
+	syncOnce()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -436,11 +435,7 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			force := k.proxyResync.Load()
-			syncOnce(force)
-			if force {
-				k.proxyResync.Store(false)
-			}
+			syncOnce()
 		}
 	}
 }

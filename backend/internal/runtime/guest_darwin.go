@@ -45,6 +45,13 @@ type Guest struct {
 	localhostProxy *localhostProxies
 	ownerCtx       context.Context
 	watcherCancel  context.CancelFunc
+
+	listMu            sync.Mutex
+	listCache         []Container
+	listCacheAt       time.Time
+	listInflight      chan struct{}
+	listInflightErr   error
+	listInflightValue []Container
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -284,16 +291,12 @@ func (v *Guest) watchPortProxies(ctx context.Context) {
 			if err != nil || status.State != State(constants.RuntimeStateRunning) || !v.started.Load() {
 				continue
 			}
-			containers, err := listContainers(ctx, v.runLocal)
+			containers, err := v.ListContainers(ctx)
 			if err != nil {
 				v.proxyResync.Store(true)
 				continue
 			}
-			force := v.proxyResync.Load()
-			v.localhostProxy.sync(publishedTCPPorts(containers), force)
-			if force {
-				v.proxyResync.Store(false)
-			}
+			_ = containers // ListContainers already syncs localhost proxies
 		}
 	}
 }
@@ -394,7 +397,7 @@ func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 		if !v.started.Load() {
 			return []Container{}, nil
 		}
-		containers, err := listContainers(ctx, v.runLocal)
+		containers, err := v.cachedListContainers(ctx)
 		if err == nil {
 			force := v.proxyResync.Load()
 			v.localhostProxy.sync(publishedTCPPorts(containers), force)
@@ -404,6 +407,62 @@ func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 		}
 		return containers, err
 	})
+}
+
+const containersListCacheTTL = 2 * time.Second
+
+// cachedListContainers returns a short-lived shared list so UI polls, port watchers,
+// and the stats sampler do not stampede docker ps over vsock.
+func (v *Guest) cachedListContainers(ctx context.Context) ([]Container, error) {
+	v.listMu.Lock()
+	if v.listCache != nil && time.Since(v.listCacheAt) < containersListCacheTTL {
+		out := append([]Container(nil), v.listCache...)
+		v.listMu.Unlock()
+		return out, nil
+	}
+	if v.listInflight != nil {
+		wait := v.listInflight
+		v.listMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-wait:
+		}
+		v.listMu.Lock()
+		out := append([]Container(nil), v.listInflightValue...)
+		err := v.listInflightErr
+		v.listMu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	wait := make(chan struct{})
+	v.listInflight = wait
+	v.listMu.Unlock()
+
+	containers, err := listContainers(ctx, v.runLocal)
+
+	v.listMu.Lock()
+	v.listInflightErr = err
+	v.listInflightValue = containers
+	if err == nil {
+		v.listCache = append([]Container(nil), containers...)
+		v.listCacheAt = time.Now()
+	}
+	close(wait)
+	v.listInflight = nil
+	out := append([]Container(nil), containers...)
+	v.listMu.Unlock()
+	return out, err
+}
+
+// invalidateContainersCache drops the shared docker ps cache after mutations.
+func (v *Guest) invalidateContainersCache() {
+	v.listMu.Lock()
+	v.listCache = nil
+	v.listCacheAt = time.Time{}
+	v.listMu.Unlock()
 }
 func (v *Guest) ListImages(ctx context.Context) ([]Image, error) {
 	return emptyIfStopped(ctx, v.Status, func(ctx context.Context) ([]Image, error) { return listImages(ctx, v.runLocal) })
@@ -515,6 +574,7 @@ func (v *Guest) StartContainer(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "start", id)
+	v.invalidateContainersCache()
 	return err
 }
 func (v *Guest) StopContainer(ctx context.Context, id string) error {
@@ -522,6 +582,7 @@ func (v *Guest) StopContainer(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "stop", id)
+	v.invalidateContainersCache()
 	return err
 }
 func (v *Guest) RemoveContainer(ctx context.Context, id string) error {
@@ -529,6 +590,7 @@ func (v *Guest) RemoveContainer(ctx context.Context, id string) error {
 		return err
 	}
 	_, err := v.runLocal(ctx, "nerdctl", "rm", "-f", id)
+	v.invalidateContainersCache()
 	return err
 }
 func (v *Guest) RemoveImage(ctx context.Context, ref string) error {
