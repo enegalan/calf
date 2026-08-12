@@ -91,8 +91,9 @@ func TestDockerSocketProxyWakesAndForwards(t *testing.T) {
 	}
 }
 
-// TestDockerSocketProxyDirectAndProxyModes switches between symlink and listen modes.
-func TestDockerSocketProxyDirectAndProxyModes(t *testing.T) {
+// TestDockerSocketProxyUseDirectKeepsListenSocket verifies UseDirect no longer
+// symlinks to vsock (that flooded the guest under parallel Compose calls).
+func TestDockerSocketProxyUseDirectKeepsListenSocket(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
 	if err != nil {
 		t.Fatal(err)
@@ -120,27 +121,20 @@ func TestDockerSocketProxyDirectAndProxyModes(t *testing.T) {
 		t.Fatalf("UseDirect: %v", err)
 	}
 	info, err := os.Lstat(public)
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("expected symlink in direct mode")
-	}
-
-	if err := proxy.UseProxy(); err != nil {
-		t.Fatalf("UseProxy: %v", err)
-	}
-	info, err = os.Lstat(public)
 	if err != nil {
-		t.Fatalf("Lstat after UseProxy: %v", err)
+		t.Fatalf("Lstat after UseDirect: %v", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("public path still a symlink")
+		t.Fatalf("UseDirect must not symlink public path to engine")
 	}
 	if info.Mode()&os.ModeSocket == 0 {
 		t.Fatalf("public path is not a socket")
 	}
 }
 
-// TestDockerSocketProxyRebindRepairsBrokenDirect repairs a dangling symlink.
-func TestDockerSocketProxyRebindRepairsBrokenDirect(t *testing.T) {
+// TestDockerSocketProxyRebindRepairsBrokenSymlink restores listen mode after a
+// leftover symlink (e.g. from an older calf release).
+func TestDockerSocketProxyRebindRepairsBrokenSymlink(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
 	if err != nil {
 		t.Fatal(err)
@@ -162,11 +156,23 @@ func TestDockerSocketProxyRebindRepairsBrokenDirect(t *testing.T) {
 	}
 	defer proxy.Stop()
 
-	if err := proxy.UseDirect(); err != nil {
-		t.Fatalf("UseDirect: %v", err)
+	proxy.Stop()
+	_ = os.Remove(public)
+	if err := os.Symlink(engine, public); err != nil {
+		t.Fatalf("Symlink: %v", err)
 	}
 	_ = os.Remove(engine)
-	if err := proxy.Rebind(); err != nil {
+
+	life2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	proxy2 := daemon.NewDockerSocketProxyForTest(public, engine, life2, func(context.Context) error {
+		return nil
+	})
+	if err := proxy2.Start(); err != nil {
+		t.Fatalf("Start after symlink: %v", err)
+	}
+	defer proxy2.Stop()
+	if err := proxy2.Rebind(); err != nil {
 		t.Fatalf("Rebind: %v", err)
 	}
 	info, err := os.Lstat(public)
@@ -174,6 +180,6 @@ func TestDockerSocketProxyRebindRepairsBrokenDirect(t *testing.T) {
 		t.Fatalf("Lstat after rebind: %v", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		t.Fatalf("public path still a symlink after broken direct repair")
+		t.Fatalf("public path still a symlink after repair")
 	}
 }

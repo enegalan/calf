@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.20] - 2026-08-12
+
+### Fixed
+
+- **`docker compose` “Cannot connect to the Docker daemon”** — large Compose projects no longer overwhelm the engine socket. calf keeps a queued proxy on `docker.sock` instead of pointing the CLI straight at the guest, so parallel image checks wait instead of failing.
+
 ## [0.9.19] - 2026-08-12
 
 ### Fixed

@@ -20,16 +20,15 @@ const (
 	dockerProxyReclaimInterval = 2 * time.Second
 
 	dockerProxyModeListen int32 = 0
-	dockerProxyModeDirect int32 = 1
 )
 
 // dockerSocketProxy listens on the public Docker CLI socket and forwards to the
 // engine vsock socket. When the engine is stopped (Resource Saver), the first
 // CLI connection wakes it via EnsureRuntimeRunning before forwarding.
 //
-// While the engine is running the public path is a symlink to the engine socket
-// so compose/CLI talk to vsock directly (avoids double-hop EOFs). Shutdown never
-// leaves that symlink behind; only the live daemon switches modes.
+// The public path stays a real listen socket (never a symlink to vsock). A gate
+// limits concurrent dials into the guest so large `docker compose` image checks
+// queue instead of failing with "Cannot connect to the Docker daemon".
 type dockerSocketProxy struct {
 	logger    *slog.Logger
 	public    string
@@ -85,33 +84,14 @@ func (p *dockerSocketProxy) Start() error {
 	return nil
 }
 
-// UseDirect points the public path at the engine socket for direct CLI access.
+// UseDirect keeps the public path in listen/proxy mode.
+//
+// Older releases symlinked docker.sock straight at the guest vsock while the
+// engine was running. That flooded vsock under parallel Compose API calls and
+// surfaced as "Cannot connect to the Docker daemon". The name remains for
+// callers/tests; behavior is stay-proxied.
 func (p *dockerSocketProxy) UseDirect() error {
-	if p == nil {
-		return nil
-	}
-	p.switchMu.Lock()
-	defer p.switchMu.Unlock()
-	p.mu.Lock()
-	if p.stopped {
-		p.mu.Unlock()
-		return nil
-	}
-	p.mu.Unlock()
-	if _, err := os.Stat(p.engine); err != nil {
-		return fmt.Errorf("engine socket missing for direct mode: %w", err)
-	}
-	p.shutdownListener()
-	_ = os.Remove(p.public)
-	if err := os.Symlink(p.engine, p.public); err != nil {
-		if listenErr := p.listen(); listenErr != nil {
-			return fmt.Errorf("symlink direct mode: %v; listen fallback: %w", err, listenErr)
-		}
-		return fmt.Errorf("symlink direct mode: %w", err)
-	}
-	p.mode.Store(dockerProxyModeDirect)
-	p.logger.Info("docker socket switched to direct engine path", "public", p.public, "engine", p.engine)
-	return nil
+	return p.UseProxy()
 }
 
 // UseProxy listens on the public path again (wake-on-connect mode).
@@ -139,7 +119,8 @@ func (p *dockerSocketProxy) UseProxy() error {
 	return nil
 }
 
-// Rebind restores a working public path after ForceStop or a raced hand-off.
+// Rebind restores a working public listen socket after ForceStop, a raced hand-off,
+// or a leftover symlink from older calf releases.
 func (p *dockerSocketProxy) Rebind() error {
 	if p == nil {
 		return nil
@@ -153,20 +134,11 @@ func (p *dockerSocketProxy) Rebind() error {
 		return nil
 	}
 
-	mode := p.mode.Load()
-	if mode == dockerProxyModeDirect {
-		if publicPathIsSymlinkTo(p.public, p.engine) {
-			if _, err := os.Stat(p.engine); err == nil {
-				return nil
-			}
-		}
-		p.logger.Info("docker socket proxy reclaiming after broken direct path", "public", p.public)
+	info, err := os.Lstat(p.public)
+	if err == nil && info.Mode()&os.ModeSymlink != 0 {
+		p.logger.Info("docker socket proxy reclaiming symlink public path", "public", p.public)
 		p.shutdownListener()
-		if err := p.listen(); err != nil {
-			return err
-		}
-		p.mode.Store(dockerProxyModeListen)
-		return nil
+		return p.listen()
 	}
 
 	p.mu.Lock()
@@ -177,11 +149,7 @@ func (p *dockerSocketProxy) Rebind() error {
 	}
 	p.logger.Info("docker socket proxy reclaiming public path", "public", p.public)
 	p.shutdownListener()
-	if err := p.listen(); err != nil {
-		return err
-	}
-	p.mode.Store(dockerProxyModeListen)
-	return nil
+	return p.listen()
 }
 
 // Stop closes the public listener and removes the public socket path.
@@ -299,19 +267,6 @@ func publicPathIsSocket(path string) bool {
 	return info.Mode()&os.ModeSymlink == 0 && info.Mode()&os.ModeSocket != 0
 }
 
-// publicPathIsSymlinkTo reports whether path is a symlink to want.
-func publicPathIsSymlinkTo(path, want string) bool {
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink == 0 {
-		return false
-	}
-	target, err := os.Readlink(path)
-	if err != nil {
-		return false
-	}
-	return target == want
-}
-
 // serve accepts connections until the listener closes.
 func (p *dockerSocketProxy) serve(listener net.Listener, doneCh chan struct{}) {
 	defer close(doneCh)
@@ -353,9 +308,6 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 		if err != nil {
 			p.logger.Warn("docker socket dial engine failed", "error", err)
 			return
-		}
-		if directErr := p.UseDirect(); directErr != nil {
-			p.logger.Debug("docker socket direct switch after wake failed", "error", directErr)
 		}
 	}
 	defer server.Close()
@@ -464,7 +416,7 @@ func (p *DockerSocketProxy) Rebind() error {
 	return p.inner.Rebind()
 }
 
-// UseDirect switches to a public symlink for tests.
+// UseDirect keeps listen/proxy mode (no longer symlinks to the engine socket).
 func (p *DockerSocketProxy) UseDirect() error {
 	if p == nil || p.inner == nil {
 		return nil
