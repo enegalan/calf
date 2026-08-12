@@ -148,6 +148,12 @@ func (p *localhostProxies) sync(ports map[int]struct{}, force bool) {
 
 		listener, err := net.Listen("tcp", net.JoinHostPort("::1", strconv.Itoa(port)))
 		if err != nil {
+			// gvproxy already binds *:port for published containers; ::1 is covered.
+			// Do not report that as a conflict (calf fighting itself).
+			if HostPortHeldByCalfForwarder(findLocalhostPortBlocker(port)) {
+				delete(p.conflicts, port)
+				continue
+			}
 			p.conflicts[port] = localhostPortConflict(port)
 			continue
 		}
@@ -254,6 +260,12 @@ func localhostPortConflict(port int) PortConflict {
 	}
 }
 
+// HostPortHeldByCalfForwarder reports whether processName is calf's own host forwarder.
+// gvproxy exposes published container ports on *:port; the ::1 localhost proxy is redundant then.
+func HostPortHeldByCalfForwarder(processName string) bool {
+	return strings.EqualFold(strings.TrimSpace(processName), "gvproxy")
+}
+
 // findLocalhostPortBlocker identifies the process listening on a host port via lsof.
 func findLocalhostPortBlocker(port int) string {
 	output, err := exec.Command("lsof", "-nP", "-iTCP:"+strconv.Itoa(port), "-sTCP:LISTEN").Output()
@@ -268,12 +280,19 @@ func findLocalhostPortBlocker(port int) string {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 9 {
+		if len(fields) < 2 {
 			continue
 		}
 
-		address := fields[len(fields)-1]
-		if !strings.HasSuffix(address, portSuffix) && !strings.Contains(address, portSuffix) {
+		// NAME is typically "TCP *:80 (LISTEN)" — scan fields for host:port, not the last token.
+		address := ""
+		for _, field := range fields {
+			if strings.Contains(field, portSuffix) {
+				address = field
+				break
+			}
+		}
+		if address == "" {
 			continue
 		}
 
