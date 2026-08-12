@@ -327,10 +327,10 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ### `internal/runtime/` (core abstraction)
 - `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle including `ForceStop`/`ResourceUsage`, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `ResourceUsage`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWindowsUnsupported` on Windows.
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
-- `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; DAX remount `dax=inode` by default).
+- `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; virtiofs for `~/.config/calf/mounts` and `$HOME`; DAX remount `dax=inode` by default).
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
-- `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`.
+- `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
 - `guest_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-guest-disk-<arch>.raw.zst`.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.

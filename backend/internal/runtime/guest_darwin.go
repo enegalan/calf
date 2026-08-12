@@ -160,13 +160,16 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 }
 
 // ensureHostMountSymlink makes host ~/.config/calf/mounts resolve inside the guest via /mnt/calf.
+// Skipped when $HOME is already the calf-home virtiofs share (see ensureHostHomeShare).
 func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return
 	}
 	hostMounts := filepath.Join(home, ".config", "calf", "mounts")
-	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && ln -sfn /mnt/calf \"/host" + hostMounts + "\""
+	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && " +
+		"if [ -L \"/host" + home + "\" ] && [ \"$(readlink \"/host" + home + "\")\" = \"/mnt/calf-home\" ]; then exit 0; fi && " +
+		"ln -sfn /mnt/calf \"/host" + hostMounts + "\""
 	_, _ = v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "-v", "/:/host", "alpine:3.20", "sh", "-c", script)
 }
 

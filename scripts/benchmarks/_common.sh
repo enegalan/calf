@@ -37,8 +37,8 @@ bench_host_dir() {
 }
 
 # bench_volume_src is the path passed to docker -v for a real host bind mount.
-# calf must use the guest virtiofs mount (/mnt/calf/...); a macOS $HOME path is
-# created as a plain directory on the guest root disk and is not a bind mount.
+# Prefer ~/.config/calf/mounts (guest /mnt/calf/...) for fair virtiofs benchmarks.
+# As of 0.9.17, $HOME is also shared (calf-home), so macOS $HOME paths bind for real too.
 bench_volume_src() {
   local product=$1
   case "$product" in

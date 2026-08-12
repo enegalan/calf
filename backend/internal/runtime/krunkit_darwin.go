@@ -178,6 +178,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if k.dockerAPIReady(ctx) && k.krunkitAlive() && k.gvproxyAlive() {
 		k.ensureHostMountSymlink(ctx)
 		k.ensureKrunkitDAXMount(ctx)
+		k.ensureHostHomeShare(ctx)
 		k.ensureGuestNetwork(ctx)
 		k.ensureBuildxAsync(lifeCtx)
 		if os.Getenv("CALF_BENCHMARK") != "1" {
@@ -237,6 +238,8 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"virtio-net,type=unixgram,path=%s,mac=52:55:00:d1:55:01,offloading=on,vfkitMagic=on",
 		k.gvproxySockPath(),
 	)
+	// calf-mounts: app-managed share (~/.config/calf/mounts). calf-home: user home so
+	// docker -v $HOME/... bind mounts work like Docker Desktop (not empty guest stubs).
 	args := []string{
 		"--cpus", strconv.Itoa(k.cpus),
 		"--memory", strconv.Itoa(k.memoryGB * 1024),
@@ -244,6 +247,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"--device", "virtio-blk,path=" + k.diskPath() + ",format=raw",
 		"--device", netDevice,
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts,permissionSemantics=simplified",
+		"--device", "virtio-fs,sharedDir=" + home + ",mountTag=calf-home,permissionSemantics=simplified",
 		"--device", "virtio-vsock,port=2375,socketURL=" + k.engineSocket + ",connect",
 		"--pidfile", k.krunkitPidPath(),
 		"--krun-log-level", "2",
@@ -275,6 +279,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	}
 	k.ensureHostMountSymlink(ctx)
 	k.ensureKrunkitDAXMount(ctx)
+	k.ensureHostHomeShare(ctx)
 	k.ensureGuestNetwork(ctx)
 	k.ensureBuildxAsync(lifeCtx)
 	if os.Getenv("CALF_BENCHMARK") != "1" {
@@ -600,6 +605,38 @@ func (k *Krunkit) gvproxyUnexpose(ctx context.Context, client *http.Client, port
 		return fmt.Errorf("unexpose status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// ensureHostHomeShare mounts calf-home and replaces stub $HOME on the guest with a symlink.
+// Without this, docker -v /Users/... creates empty dirs on the guest disk and file binds fail.
+func (k *Krunkit) ensureHostHomeShare(ctx context.Context) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return
+	}
+	// Escape for embedding in a single-quoted shell string.
+	homeq := strings.ReplaceAll(home, "'", `'\''`)
+	script := `
+set -e
+mkdir -p /mnt/calf-home
+if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
+  if ! mount -t virtiofs -o noatime calf-home /mnt/calf-home 2>/dev/null; then
+    echo "calf-home virtiofs mount failed" >&2
+    exit 1
+  fi
+fi
+HOME_PATH='` + homeq + `'
+PARENT=$(dirname "$HOME_PATH")
+mkdir -p "$PARENT"
+# Replace docker-created stub trees so bind mounts see real host files.
+if [ -e "$HOME_PATH" ] && [ ! -L "$HOME_PATH" ]; then
+  rm -rf "$HOME_PATH"
+fi
+ln -sfn /mnt/calf-home "$HOME_PATH"
+`
+	if _, err := k.runGuestRoot(ctx, script); err != nil {
+		guestLogger.Warn("host home share setup failed (non-fatal)", "error", err)
+	}
 }
 
 // ensureKrunkitDAXMount remounts calf-mounts with DAX virtiofs.
