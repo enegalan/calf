@@ -18,7 +18,6 @@ import 'package:ui/screens/settings_screen.dart';
 import 'package:ui/screens/troubleshoot_screen.dart';
 import 'package:ui/screens/volumes_screen.dart';
 import 'package:ui/storage/sidebar_preferences.dart';
-import 'package:ui/storage/update_preferences.dart';
 import 'package:ui/updates/update_checker.dart';
 import 'package:ui/updates/update_dialog.dart';
 import 'package:ui/updates/update_info.dart';
@@ -354,18 +353,6 @@ class _AppShellState extends State<AppShell> {
           update: result.latest!,
           currentVersion: result.currentVersion,
           onDownload: () => openExternalUrl(result.latest!.downloadUrl),
-          onSkip: () async {
-            await UpdatePreferences.saveSkippedVersion(result.latest!.version);
-            if (!mounted) {
-              return;
-            }
-            setState(
-              () => _updateCheckResult = UpdateCheckResult.upToDate(
-                currentVersion: result.currentVersion,
-                checkedAt: result.checkedAt,
-              ),
-            );
-          },
         );
       }
     } else if (force) {

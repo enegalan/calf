@@ -6,14 +6,12 @@ class UpdatePreferencesData {
   /// Creates cached update-check preference data.
   const UpdatePreferencesData({
     this.lastCheckAt,
-    this.skippedVersion = '',
     this.cachedUpdate,
     this.whatsNewVersion = '',
     this.whatsNewNotes = '',
   });
 
   final DateTime? lastCheckAt;
-  final String skippedVersion;
   final UpdateInfo? cachedUpdate;
 
   /// App version whose What's New notes are stored in [whatsNewNotes].
@@ -24,7 +22,7 @@ class UpdatePreferencesData {
 }
 
 class UpdatePreferences {
-  /// Loads update-check cache and skipped-version preferences from disk.
+  /// Loads update-check cache and What's New preferences from disk.
   static Future<UpdatePreferencesData> load() async {
     final raw = await CalfUiStorage.readMap(CalfStorageFiles.updates);
     if (raw == null) {
@@ -37,7 +35,6 @@ class UpdatePreferences {
       lastCheckAt = DateTime.tryParse(lastCheckRaw);
     }
 
-    final skippedVersion = raw['skipped_version'];
     final cachedUpdateRaw = raw['cached_update'];
     UpdateInfo? cachedUpdate;
     if (cachedUpdateRaw is Map<String, dynamic>) {
@@ -49,7 +46,6 @@ class UpdatePreferences {
 
     return UpdatePreferencesData(
       lastCheckAt: lastCheckAt,
-      skippedVersion: skippedVersion is String ? skippedVersion : '',
       cachedUpdate: cachedUpdate,
       whatsNewVersion: whatsNewVersion is String ? whatsNewVersion : '',
       whatsNewNotes: whatsNewNotes is String ? whatsNewNotes : '',
@@ -60,28 +56,12 @@ class UpdatePreferences {
   static Future<void> saveCheckResult({
     required DateTime checkedAt,
     required UpdateInfo? latest,
-    String skippedVersion = '',
   }) async {
     final current = await load();
     await _save(
       UpdatePreferencesData(
         lastCheckAt: checkedAt,
-        skippedVersion: skippedVersion,
         cachedUpdate: latest,
-        whatsNewVersion: current.whatsNewVersion,
-        whatsNewNotes: current.whatsNewNotes,
-      ),
-    );
-  }
-
-  /// Records [version] as skipped so update prompts are suppressed.
-  static Future<void> saveSkippedVersion(String version) async {
-    final current = await load();
-    await _save(
-      UpdatePreferencesData(
-        lastCheckAt: current.lastCheckAt,
-        skippedVersion: version,
-        cachedUpdate: current.cachedUpdate,
         whatsNewVersion: current.whatsNewVersion,
         whatsNewNotes: current.whatsNewNotes,
       ),
@@ -97,7 +77,6 @@ class UpdatePreferences {
     await _save(
       UpdatePreferencesData(
         lastCheckAt: current.lastCheckAt,
-        skippedVersion: current.skippedVersion,
         cachedUpdate: current.cachedUpdate,
         whatsNewVersion: version,
         whatsNewNotes: notes,
@@ -110,8 +89,6 @@ class UpdatePreferences {
     await CalfUiStorage.writeMap(CalfStorageFiles.updates, {
       if (data.lastCheckAt != null)
         'last_check_at': data.lastCheckAt!.toIso8601String(),
-      if (data.skippedVersion.isNotEmpty)
-        'skipped_version': data.skippedVersion,
       if (data.cachedUpdate != null)
         'cached_update': {
           'version': data.cachedUpdate!.version,

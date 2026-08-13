@@ -880,12 +880,62 @@ class _WhatsNewDialogState extends State<_WhatsNewDialog> {
     final versionLabel = CalfVersion.displayLabel(widget.appVersion);
 
     return AlertDialog(
-      title: const Text("What's new"),
+      shape: CalfTheme.dialogShape(theme.colorScheme),
+      titlePadding: EdgeInsets.zero,
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+      actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
       content: SizedBox(
-        width: 440,
-        child: _loading
-            ? const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
+        width: 480,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: CalfTheme.radius,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    LucideIcons.sparkles,
+                    size: 22,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "What's new",
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'calf $versionLabel',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontFamily: CalfFonts.mono,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(
                   child: SizedBox(
                     width: 24,
@@ -894,35 +944,39 @@ class _WhatsNewDialogState extends State<_WhatsNewDialog> {
                   ),
                 ),
               )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('calf $versionLabel'),
-                  const SizedBox(height: 12),
-                  if (_notes != null)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 320),
-                      child: SingleChildScrollView(
-                        child: ReleaseNotesMarkdown(data: _notes!),
-                      ),
-                    )
-                  else ...[
-                    Text(
-                      'Release notes are not available offline.',
-                      style: CalfTheme.muted(theme),
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: CalfButton.outline(
-                        onPressed: () => openExternalUrl(calfReleasesUrl),
-                        child: const Text('View releases on GitHub'),
-                      ),
-                    ),
-                  ],
-                ],
+            else if (_notes != null)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(
+                    alpha: theme.brightness == Brightness.dark ? 0.55 : 1,
+                  ),
+                  borderRadius: CalfTheme.radius,
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                ),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: ReleaseNotesMarkdown(data: _notes!),
+                  ),
+                ),
+              )
+            else ...[
+              Text(
+                'Release notes are not available offline.',
+                style: CalfTheme.muted(theme),
               ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: CalfButton.outline(
+                  onPressed: () => openExternalUrl(calfReleasesUrl),
+                  child: const Text('View releases on GitHub'),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
       actions: [
         CalfButton(

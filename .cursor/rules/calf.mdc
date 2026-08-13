@@ -190,7 +190,7 @@ calf/
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
 │   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
 │   │   │   ├── sidebar_preferences.dart         Persists sidebar expanded/collapsed state
-│   │   │   └── update_preferences.dart          Persists update-check cache and skipped versions
+│   │   │   └── update_preferences.dart          Persists update-check cache and What's New notes
 │   │   ├── updates/
 │   │   │   ├── update_checker.dart              GitHub Releases check + platform asset selection
 │   │   │   ├── update_dialog.dart               Update-available dialog
@@ -408,7 +408,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `container_groups.dart` — persists expanded/collapsed UI groups.
 - `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles; exposes a `LogViewerPreferencesMixin` for screens to mix in.
 - `sidebar_preferences.dart` — persists sidebar expanded/collapsed state.
-- `update_preferences.dart` — persists update-check cache and skipped versions.
+- `update_preferences.dart` — persists update-check cache and What's New notes.
 
 ### `updates/`
 - `update_checker.dart` — queries GitHub Releases for the latest version and picks the platform installer asset.
