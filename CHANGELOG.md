@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Published port links** — clicking a host port in the containers list opens `https://` when the app speaks TLS (for example `npm run start:https`), instead of always using `http://`.
 - **Engine stop/kill, status, purge, and factory reset errors** — these now show a clear message instead of raw internal error text when the operation fails.
 - **Deep links from search** — opening a container, image, volume, network, or build from global search no longer crashes with a build-phase `setState` error.
 - **`docker compose` “Cannot connect to the Docker daemon”** — large Compose projects no longer overwhelm the engine socket. calf keeps a queued proxy on `docker.sock` instead of pointing the CLI straight at the guest, so parallel image checks wait instead of failing.

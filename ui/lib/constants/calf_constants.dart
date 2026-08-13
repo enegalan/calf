@@ -27,6 +27,9 @@ abstract final class CalfDefaults {
   static const Duration volumeActionTimeout = Duration(seconds: 30);
   static const Duration volumeExportTimeout = Duration(minutes: 30);
   static const Duration troubleshootActionTimeout = Duration(minutes: 5);
+
+  /// TLS handshake wait when choosing http vs https for a published port link.
+  static const Duration portTlsProbeTimeout = Duration(milliseconds: 500);
 }
 
 abstract final class CalfStorageFiles {
