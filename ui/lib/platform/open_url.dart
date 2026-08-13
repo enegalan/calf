@@ -86,8 +86,6 @@ Future<bool> localhostPortUsesTls(int port) async {
     return false;
   } on TlsException {
     return false;
-  } on CertificateException {
-    return false;
   } finally {
     if (socket != null) {
       await socket.close();
