@@ -139,7 +139,7 @@ func (r *resourceSaver) tick() {
 
 	stopCtx, stopCancel := context.WithTimeout(r.core.lifecycleCtx, constants.DefaultActionTimeout)
 	defer stopCancel()
-	if err := r.core.Runtime.ForceStop(stopCtx); err != nil {
+	if err := r.core.ForceStopRuntime(stopCtx); err != nil {
 		r.core.Logger.Warn("resource saver failed to stop runtime", "error", err)
 		return
 	}

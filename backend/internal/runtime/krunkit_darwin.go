@@ -161,12 +161,16 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		return fmt.Errorf("gvproxy not found: brew install libkrun/krun/gvproxy, or use a release that bundles it (CALF_GVPROXY_BIN overrides)")
 	}
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker CLI not found: required for the krunkit runtime")
+		return fmt.Errorf("docker CLI not found: install docker CLI binary")
 	}
-	// Guest-disk download allows up to 45 minutes; do not inherit Start's short deadline.
+	// Guest-disk download allows up to GuestDiskFetchTimeout; do not inherit Start's short deadline.
 	if err := k.ensureGuestDisk(context.WithoutCancel(ctx)); err != nil {
 		return err
 	}
+	// Boot wait is independent of first-run disk download duration.
+	bootCtx, bootCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Minute)
+	defer bootCancel()
+	ctx = bootCtx
 	if err := os.MkdirAll(k.dataDir, 0o755); err != nil {
 		return err
 	}
@@ -174,6 +178,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if k.dockerAPIReady(ctx) && k.krunkitAlive() && k.gvproxyAlive() {
 		k.ensureHostMountSymlink(ctx)
 		k.ensureKrunkitDAXMount(ctx)
+		k.ensureHostHomeShare(ctx)
 		k.ensureGuestNetwork(ctx)
 		k.ensureBuildxAsync(lifeCtx)
 		if os.Getenv("CALF_BENCHMARK") != "1" {
@@ -210,9 +215,9 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	_ = os.Remove(k.gvproxySockPath())
-	if err := os.MkdirAll(filepath.Dir(k.dockerSocket), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(k.engineSocket), 0o755); err != nil {
 		return err
 	}
 
@@ -233,6 +238,8 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"virtio-net,type=unixgram,path=%s,mac=52:55:00:d1:55:01,offloading=on,vfkitMagic=on",
 		k.gvproxySockPath(),
 	)
+	// calf-mounts: app-managed share (~/.config/calf/mounts). calf-home: user home so
+	// docker -v $HOME/... bind mounts work like Docker Desktop (not empty guest stubs).
 	args := []string{
 		"--cpus", strconv.Itoa(k.cpus),
 		"--memory", strconv.Itoa(k.memoryGB * 1024),
@@ -240,7 +247,8 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"--device", "virtio-blk,path=" + k.diskPath() + ",format=raw",
 		"--device", netDevice,
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts,permissionSemantics=simplified",
-		"--device", "virtio-vsock,port=2375,socketURL=" + k.dockerSocket + ",connect",
+		"--device", "virtio-fs,sharedDir=" + home + ",mountTag=calf-home,permissionSemantics=simplified",
+		"--device", "virtio-vsock,port=2375,socketURL=" + k.engineSocket + ",connect",
 		"--pidfile", k.krunkitPidPath(),
 		"--krun-log-level", "2",
 	}
@@ -271,6 +279,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	}
 	k.ensureHostMountSymlink(ctx)
 	k.ensureKrunkitDAXMount(ctx)
+	k.ensureHostHomeShare(ctx)
 	k.ensureGuestNetwork(ctx)
 	k.ensureBuildxAsync(lifeCtx)
 	if os.Getenv("CALF_BENCHMARK") != "1" {
@@ -404,12 +413,12 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 // watchPortProxies forwards published container ports via gvproxy and keeps ::1→127.0.0.1 proxies.
 func (k *Krunkit) watchPortProxies(ctx context.Context) {
 	guestLogger.Info("krunkit port forward watcher started")
-	syncOnce := func(force bool) {
+	syncOnce := func() {
 		status, err := k.Status(ctx)
 		if err != nil || status.State != State(constants.RuntimeStateRunning) || !k.started.Load() {
 			return
 		}
-		containers, err := listContainers(ctx, k.runLocal)
+		containers, err := k.ListContainers(ctx)
 		if err != nil {
 			guestLogger.Warn("list containers for port forward failed", "error", err)
 			k.proxyResync.Store(true)
@@ -417,9 +426,8 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 		}
 		ports := publishedTCPPorts(containers)
 		k.syncGvproxyForwards(ctx, ports)
-		k.localhostProxy.sync(ports, force)
 	}
-	syncOnce(true)
+	syncOnce()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -427,11 +435,7 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			force := k.proxyResync.Load()
-			syncOnce(force)
-			if force {
-				k.proxyResync.Store(false)
-			}
+			syncOnce()
 		}
 	}
 }
@@ -598,6 +602,38 @@ func (k *Krunkit) gvproxyUnexpose(ctx context.Context, client *http.Client, port
 	return nil
 }
 
+// ensureHostHomeShare mounts calf-home and replaces stub $HOME on the guest with a symlink.
+// Without this, docker -v /Users/... creates empty dirs on the guest disk and file binds fail.
+func (k *Krunkit) ensureHostHomeShare(ctx context.Context) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return
+	}
+	// Escape for embedding in a single-quoted shell string.
+	homeq := strings.ReplaceAll(home, "'", `'\''`)
+	script := `
+set -e
+mkdir -p /mnt/calf-home
+if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
+  if ! mount -t virtiofs -o noatime calf-home /mnt/calf-home 2>/dev/null; then
+    echo "calf-home virtiofs mount failed" >&2
+    exit 1
+  fi
+fi
+HOME_PATH='` + homeq + `'
+PARENT=$(dirname "$HOME_PATH")
+mkdir -p "$PARENT"
+# Replace docker-created stub trees so bind mounts see real host files.
+if [ -e "$HOME_PATH" ] && [ ! -L "$HOME_PATH" ]; then
+  rm -rf "$HOME_PATH"
+fi
+ln -sfn /mnt/calf-home "$HOME_PATH"
+`
+	if _, err := k.runGuestRoot(ctx, script); err != nil {
+		guestLogger.Warn("host home share setup failed (non-fatal)", "error", err)
+	}
+}
+
 // ensureKrunkitDAXMount remounts calf-mounts with DAX virtiofs.
 // Default: dax=inode. CALF_KRUN_DAX=0 forces plain virtiofs.
 // CALF_KRUN_DAX_MODE=always maximizes bind-write (~4 GB/s) but weakens cold bind-read (~600 MiB/s).
@@ -657,7 +693,7 @@ func (k *Krunkit) Stop(ctx context.Context) error {
 		return nil
 	}
 	_ = k.stopKrunkitStack()
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	return nil
 }
 
@@ -673,7 +709,7 @@ func (k *Krunkit) ForceStop(ctx context.Context) error {
 	k.localhostProxy.stopAll()
 	k.started.Store(false)
 	_ = k.stopKrunkitStack()
-	_ = os.Remove(k.dockerSocket)
+	_ = os.Remove(k.engineSocket)
 	return nil
 }
 

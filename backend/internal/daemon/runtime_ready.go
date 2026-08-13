@@ -51,7 +51,7 @@ func (s *Core) startRuntimeUntilRunning() error {
 	if s.lifecycleCtx != nil {
 		parent = s.lifecycleCtx
 	}
-	startCtx, cancel := context.WithTimeout(parent, 3*time.Minute)
+	startCtx, cancel := context.WithTimeout(parent, constants.GuestDiskFetchTimeout+3*time.Minute)
 	defer cancel()
 
 	status, statusErr := s.Runtime.Status(startCtx)
@@ -73,6 +73,11 @@ func (s *Core) startRuntimeUntilRunning() error {
 		}
 		if status.State == runtime.State(constants.RuntimeStateRunning) {
 			s.ClearResourceSaver()
+			if s.dockerSocketProxy != nil {
+				if err := s.dockerSocketProxy.UseProxy(); err != nil {
+					s.Logger.Warn("docker socket proxy ensure after start failed", "error", err)
+				}
+			}
 			return nil
 		}
 		select {

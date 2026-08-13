@@ -32,7 +32,8 @@ type Guest struct {
 	cliOps
 	mu             sync.Mutex
 	vmName         string
-	dockerSocket   string
+	dockerSocket   string // public CLI path (~/.config/calf/docker.sock); daemon wake-proxy listens here
+	engineSocket   string // krunkit vsock path under guest data dir
 	cpus           int
 	memoryGB       int
 	diskGB         int
@@ -46,6 +47,13 @@ type Guest struct {
 	localhostProxy *localhostProxies
 	ownerCtx       context.Context
 	watcherCancel  context.CancelFunc
+
+	listMu            sync.Mutex
+	listCache         []Container
+	listCacheAt       time.Time
+	listInflight      chan struct{}
+	listInflightErr   error
+	listInflightValue []Container
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -82,6 +90,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 	v := &Guest{
 		vmName:         vmName,
 		dockerSocket:   dockerSocket,
+		engineSocket:   filepath.Join(dataDir, "docker-engine.sock"),
 		cpus:           cpus,
 		memoryGB:       memoryGB,
 		diskGB:         diskGB,
@@ -97,8 +106,11 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 	return v
 }
 
-// DockerSocket returns the host unix socket bridged to guest Docker via vsock.
+// DockerSocket returns the public host path the Docker CLI should use (daemon wake-proxy).
 func (v *Guest) DockerSocket() string { return v.dockerSocket }
+
+// EngineDockerSocket returns the krunkit vsock-backed socket path (not the public CLI path).
+func (v *Guest) EngineDockerSocket() string { return v.engineSocket }
 
 func (v *Guest) diskPath() string { return v.diskImage }
 func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
@@ -143,7 +155,7 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 	}
 	seed := resolveSeedArchive(v.dataDir)
 	if seed == "" {
-		dlCtx, cancel := context.WithTimeout(ctx, 45*time.Minute)
+		dlCtx, cancel := context.WithTimeout(ctx, constants.GuestDiskFetchTimeout)
 		defer cancel()
 		downloaded, err := v.downloadGuestDisk(dlCtx)
 		if err != nil {
@@ -151,17 +163,23 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 		}
 		seed = downloaded
 	}
+	if err := ensureHostSpaceForGuestExtract(v.dataDir, seed); err != nil {
+		return err
+	}
 	return v.extractGuestSeed(seed)
 }
 
 // ensureHostMountSymlink makes host ~/.config/calf/mounts resolve inside the guest via /mnt/calf.
+// Skipped when $HOME is already the calf-home virtiofs share (see ensureHostHomeShare).
 func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return
 	}
 	hostMounts := filepath.Join(home, ".config", "calf", "mounts")
-	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && ln -sfn /mnt/calf \"/host" + hostMounts + "\""
+	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && " +
+		"if [ -L \"/host" + home + "\" ] && [ \"$(readlink \"/host" + home + "\")\" = \"/mnt/calf-home\" ]; then exit 0; fi && " +
+		"ln -sfn /mnt/calf \"/host" + hostMounts + "\""
 	_, _ = v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "-v", "/:/host", "alpine:3.20", "sh", "-c", script)
 }
 
@@ -318,7 +336,7 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
-			return d.DialContext(ctx, "unix", v.dockerSocket)
+			return d.DialContext(ctx, "unix", v.engineSocket)
 		},
 		DisableKeepAlives: true,
 	}}
@@ -341,7 +359,7 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 		command = "docker"
 	}
 	env := os.Environ()
-	env = dockerHostEnvFrom(env, v.dockerSocket)
+	env = dockerHostEnvFrom(env, v.engineSocket)
 	if v.proxy != (ProxyConfig{}) {
 		env = proxyEnvFrom(env, v.proxy)
 	}
@@ -354,7 +372,7 @@ func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 	if command == "nerdctl" {
 		command = "docker"
 	}
-	env := dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	env := dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
@@ -365,7 +383,7 @@ func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 		if !v.started.Load() {
 			return []Container{}, nil
 		}
-		containers, err := listContainers(ctx, v.runLocal)
+		containers, err := v.cachedListContainers(ctx)
 		if err == nil {
 			force := v.proxyResync.Load()
 			v.localhostProxy.sync(publishedTCPPorts(containers), force)
@@ -375,6 +393,62 @@ func (v *Guest) ListContainers(ctx context.Context) ([]Container, error) {
 		}
 		return containers, err
 	})
+}
+
+const containersListCacheTTL = 2 * time.Second
+
+// cachedListContainers returns a short-lived shared list so UI polls, port watchers,
+// and the stats sampler do not stampede docker ps over vsock.
+func (v *Guest) cachedListContainers(ctx context.Context) ([]Container, error) {
+	v.listMu.Lock()
+	if v.listCache != nil && time.Since(v.listCacheAt) < containersListCacheTTL {
+		out := append([]Container(nil), v.listCache...)
+		v.listMu.Unlock()
+		return out, nil
+	}
+	if v.listInflight != nil {
+		wait := v.listInflight
+		v.listMu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-wait:
+		}
+		v.listMu.Lock()
+		out := append([]Container(nil), v.listInflightValue...)
+		err := v.listInflightErr
+		v.listMu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		return out, nil
+	}
+	wait := make(chan struct{})
+	v.listInflight = wait
+	v.listMu.Unlock()
+
+	containers, err := listContainers(ctx, v.runLocal)
+
+	v.listMu.Lock()
+	v.listInflightErr = err
+	v.listInflightValue = containers
+	if err == nil {
+		v.listCache = append([]Container(nil), containers...)
+		v.listCacheAt = time.Now()
+	}
+	close(wait)
+	v.listInflight = nil
+	out := append([]Container(nil), containers...)
+	v.listMu.Unlock()
+	return out, err
+}
+
+// invalidateContainersCache drops the shared docker ps cache after mutations.
+func (v *Guest) invalidateContainersCache() {
+	v.listMu.Lock()
+	v.listCache = nil
+	v.listCacheAt = time.Time{}
+	v.listMu.Unlock()
 }
 
 // ApplyProxy stores proxy settings and applies them inside the guest when running. Unlike
@@ -415,6 +489,36 @@ func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, plat
 	return result, err
 }
 
+// StartContainer starts a stopped container and drops the shared list cache.
+func (v *Guest) StartContainer(ctx context.Context, id string) error {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return err
+	}
+	_, err := v.runLocal(ctx, "nerdctl", "start", id)
+	v.invalidateContainersCache()
+	return err
+}
+
+// StopContainer stops a running container and drops the shared list cache.
+func (v *Guest) StopContainer(ctx context.Context, id string) error {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return err
+	}
+	_, err := v.runLocal(ctx, "nerdctl", "stop", id)
+	v.invalidateContainersCache()
+	return err
+}
+
+// RemoveContainer force-removes a container and drops the shared list cache.
+func (v *Guest) RemoveContainer(ctx context.Context, id string) error {
+	if err := requireRunning(ctx, v.Status); err != nil {
+		return err
+	}
+	_, err := v.runLocal(ctx, "nerdctl", "rm", "-f", id)
+	v.invalidateContainersCache()
+	return err
+}
+
 // StreamLogs tails recent history then follows new log lines for a container.
 func (v *Guest) StreamLogs(ctx context.Context, id string, output func(string)) error {
 	if err := requireRunning(ctx, v.Status); err != nil {
@@ -438,7 +542,7 @@ func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(str
 // streamLogsFollow runs docker logs -f and pipes lines to output.
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return streamCommandLogs(ctx, command, output)
 }
 
@@ -448,7 +552,7 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 		return err
 	}
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.dockerSocket)
+	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 

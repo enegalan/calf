@@ -90,7 +90,7 @@ func (s *Core) FactoryReset(ctx context.Context) error {
 func (s *Core) stopRuntimeForTroubleshoot(ctx context.Context) error {
 	stopCtx, cancel := context.WithTimeout(ctx, constants.DefaultActionTimeout)
 	defer cancel()
-	if err := s.Runtime.ForceStop(stopCtx); err != nil {
+	if err := s.ForceStopRuntime(stopCtx); err != nil {
 		return fmt.Errorf("stop runtime: %w", err)
 	}
 	s.ClearResourceSaver()

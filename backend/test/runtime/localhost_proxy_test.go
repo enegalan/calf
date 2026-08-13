@@ -39,3 +39,18 @@ func TestParseListenPort(t *testing.T) {
 		t.Fatalf("expected 0 for invalid addr, got %d", got)
 	}
 }
+
+func TestHostPortHeldByCalfForwarder(t *testing.T) {
+	if !runtime.HostPortHeldByCalfForwarder("gvproxy") {
+		t.Fatal("expected gvproxy to count as calf forwarder")
+	}
+	if !runtime.HostPortHeldByCalfForwarder("GVProxy") {
+		t.Fatal("expected case-insensitive gvproxy match")
+	}
+	if runtime.HostPortHeldByCalfForwarder("nginx") {
+		t.Fatal("did not expect nginx to count as calf forwarder")
+	}
+	if runtime.HostPortHeldByCalfForwarder("another process") {
+		t.Fatal("did not expect placeholder to count as calf forwarder")
+	}
+}

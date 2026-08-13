@@ -19,7 +19,10 @@ abstract final class CalfDefaults {
   static const String defaultBaseUrl = 'http://127.0.0.1:8765';
   static const int defaultPollIntervalMs = 3000;
   static const Duration defaultRequestTimeout = Duration(seconds: 5);
-  static const Duration runtimeActionTimeout = Duration(minutes: 3);
+  /// Lists (containers/images/networks/builds) can exceed 5s when many resources
+  /// talk to the engine over the VM socket; keep UI polls from timing out first.
+  static const Duration resourceListTimeout = Duration(seconds: 45);
+  static const Duration runtimeActionTimeout = Duration(minutes: 50);
   static const Duration imageActionTimeout = Duration(minutes: 10);
   static const Duration volumeActionTimeout = Duration(seconds: 30);
   static const Duration volumeExportTimeout = Duration(minutes: 30);
