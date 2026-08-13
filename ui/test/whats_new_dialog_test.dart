@@ -8,30 +8,31 @@ import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/release_notes_markdown.dart';
 
 void main() {
-  test('normalizeReleaseNotesMarkdown shortens GitHub PR and changelog links', () {
-    const raw = '''
+  test(
+    'normalizeReleaseNotesMarkdown shortens GitHub PR and changelog links',
+    () {
+      const raw = '''
 ## What's Changed\r
 * Update benchmarks by @enegalan in https://github.com/enegalan/calf/pull/60\r
 \r
 **Full Changelog**: https://github.com/enegalan/calf/compare/v0.9.7...v0.9.8
 ''';
 
-    final normalized = normalizeReleaseNotesMarkdown(raw);
+      final normalized = normalizeReleaseNotesMarkdown(raw);
 
-    expect(normalized.contains('\r'), isFalse);
-    expect(
-      normalized,
-      contains(
-        'in [#60](https://github.com/enegalan/calf/pull/60)',
-      ),
-    );
-    expect(
-      normalized,
-      contains(
-        '[Full changelog](https://github.com/enegalan/calf/compare/v0.9.7...v0.9.8)',
-      ),
-    );
-  });
+      expect(normalized.contains('\r'), isFalse);
+      expect(
+        normalized,
+        contains('in [#60](https://github.com/enegalan/calf/pull/60)'),
+      );
+      expect(
+        normalized,
+        contains(
+          '[Full changelog](https://github.com/enegalan/calf/compare/v0.9.7...v0.9.8)',
+        ),
+      );
+    },
+  );
 
   testWidgets('ReleaseNotesMarkdown builds GitHub-style notes', (tester) async {
     await tester.pumpWidget(
