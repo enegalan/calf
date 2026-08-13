@@ -38,6 +38,11 @@ abstract final class CalfTheme {
     );
   }
 
+  /// Popup menu shape with radius and outline (same chrome as dialogs).
+  static ShapeBorder popupMenuShape(ColorScheme colorScheme) {
+    return dialogShape(colorScheme);
+  }
+
   /// Builds a Material 3 [ThemeData] for the given brightness.
   static ThemeData _build(Brightness brightness) {
     final isLight = brightness == Brightness.light;
@@ -79,6 +84,7 @@ abstract final class CalfTheme {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: colorScheme,
+      fontFamily: CalfFonts.sans,
       scaffoldBackgroundColor: colorScheme.surface,
       dividerTheme: DividerThemeData(
         color: colorScheme.outlineVariant,
@@ -90,6 +96,11 @@ abstract final class CalfTheme {
       dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surface,
         shape: dialogShape(colorScheme),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colorScheme.surface,
+        surfaceTintColor: const Color(0x00000000),
+        shape: popupMenuShape(colorScheme),
       ),
       // Opt into Material 3 2024 slider (gapped track + handle thumb).
       // thumbSize/trackGap are required by HandleThumbShape/GappedSliderTrackShape.

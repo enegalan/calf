@@ -58,9 +58,41 @@ String dockerHubImageUrl(String imageRef) {
   return '$base/tags?name=${Uri.encodeQueryComponent(tag)}';
 }
 
-/// Opens [port] in the system browser via `http://localhost`.
+/// Opens [port] in the system browser on localhost.
+///
+/// Probes for TLS first so HTTPS apps (self-signed included) open as
+/// `https://`, and plain HTTP apps still open as `http://`.
 void openPort(int port) {
-  openExternalUrl('http://localhost:$port');
+  Future<void>(() async {
+    final scheme = await localhostPortUsesTls(port) ? 'https' : 'http';
+    await openExternalUrl('$scheme://localhost:$port');
+  });
+}
+
+/// Returns true when a TLS handshake succeeds against `127.0.0.1:[port]`.
+Future<bool> localhostPortUsesTls(int port) async {
+  SecureSocket? socket;
+  try {
+    socket = await SecureSocket.connect(
+      InternetAddress.loopbackIPv4,
+      port,
+      timeout: CalfDefaults.portTlsProbeTimeout,
+      onBadCertificate: (_) => true,
+    );
+    return true;
+  } on SocketException {
+    return false;
+  } on HandshakeException {
+    return false;
+  } on TlsException {
+    return false;
+  } on CertificateException {
+    return false;
+  } finally {
+    if (socket != null) {
+      await socket.close();
+    }
+  }
 }
 
 /// Opens [url] in the platform default browser. Returns false on empty URL or failure.

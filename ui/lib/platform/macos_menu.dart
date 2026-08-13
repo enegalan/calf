@@ -33,8 +33,10 @@ class MacosMenuScope extends StatelessWidget {
     required this.onOpenAccountSettings,
     required this.onNavigateToSection,
     required this.onToggleSidebar,
+    required this.onOpenGlobalSearch,
     required this.onReportIssue,
     required this.onOpenRepository,
+    required this.onOpenTroubleshoot,
   });
 
   final Widget child;
@@ -49,8 +51,10 @@ class MacosMenuScope extends StatelessWidget {
   final VoidCallback onOpenAccountSettings;
   final ValueChanged<int> onNavigateToSection;
   final VoidCallback onToggleSidebar;
+  final VoidCallback onOpenGlobalSearch;
   final VoidCallback onReportIssue;
   final VoidCallback onOpenRepository;
+  final VoidCallback onOpenTroubleshoot;
 
   static const _sectionLabels = [
     'Containers',
@@ -96,15 +100,24 @@ class MacosMenuScope extends StatelessWidget {
     ];
 
     final viewMenuItems = <PlatformMenuItem>[
-      for (var index = 0; index < _sectionLabels.length; index++)
-        PlatformMenuItem(
-          label: _sectionLabels[index],
-          shortcut: SingleActivator(
-            LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + index),
-            meta: true,
-          ),
-          onSelected: () => onNavigateToSection(index),
-        ),
+      PlatformMenuItem(
+        label: 'Search…',
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyK, meta: true),
+        onSelected: onOpenGlobalSearch,
+      ),
+      PlatformMenuItemGroup(
+        members: [
+          for (var index = 0; index < _sectionLabels.length; index++)
+            PlatformMenuItem(
+              label: _sectionLabels[index],
+              shortcut: SingleActivator(
+                LogicalKeyboardKey(LogicalKeyboardKey.digit1.keyId + index),
+                meta: true,
+              ),
+              onSelected: () => onNavigateToSection(index),
+            ),
+        ],
+      ),
       PlatformMenuItemGroup(
         members: [
           PlatformMenuItem(
@@ -163,6 +176,14 @@ class MacosMenuScope extends StatelessWidget {
           PlatformMenuItem(
             label: 'GitHub Repository',
             onSelected: onOpenRepository,
+          ),
+          PlatformMenuItemGroup(
+            members: [
+              PlatformMenuItem(
+                label: 'Troubleshoot',
+                onSelected: onOpenTroubleshoot,
+              ),
+            ],
           ),
         ],
       ),

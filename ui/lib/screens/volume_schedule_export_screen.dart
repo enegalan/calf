@@ -712,7 +712,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                 children: [
                                   /// Creates a [_VolumeScheduleExportViewState] widget.
                                   const SizedBox(height: 12),
-                                  _ExportNamePatternField(
+                                  VolumeExportNamePatternField(
                                     theme: theme,
                                     controller: _fileNameController,
                                     label: 'File name pattern',
@@ -800,7 +800,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                         child: _type == VolumeQuickExportType.newImage
                             ? Padding(
                                 padding: const EdgeInsets.only(top: 12),
-                                child: _ExportNamePatternField(
+                                child: VolumeExportNamePatternField(
                                   theme: theme,
                                   controller: _imageRefController,
                                   label: 'Image name pattern',
@@ -838,7 +838,7 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    _DockerHubRegistryNotice(theme: theme),
+                                    VolumeExportRegistryNotice(theme: theme),
 
                                     /// Creates a [_VolumeScheduleExportViewState] widget.
                                     const SizedBox(height: 12),
@@ -1065,206 +1065,6 @@ class _ExportTimeRowState extends State<_ExportTimeRow> {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _DockerHubRegistryNotice extends StatelessWidget {
-  /// Creates a [_DockerHubRegistryNotice] widget.
-  const _DockerHubRegistryNotice({required this.theme});
-
-  final ThemeData theme;
-
-  /// Builds the widget tree for the current screen state.
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(LucideIcons.info, size: 16, color: theme.colorScheme.primary),
-
-          /// Creates a [_DockerHubRegistryNotice] widget.
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'This might make any data in the volume publicly accessible on Docker Hub.',
-              style: theme.textTheme.bodySmall,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ExportNamePatternField extends StatelessWidget {
-  /// Creates a [_ExportNamePatternField] widget.
-  const _ExportNamePatternField({
-    required this.theme,
-    required this.controller,
-    required this.label,
-    required this.placeholder,
-    required this.helperText,
-    required this.previewLabel,
-    required this.preview,
-    required this.onChanged,
-    required this.onInsertToken,
-  });
-
-  final ThemeData theme;
-  final TextEditingController controller;
-  final String label;
-  final String placeholder;
-  final String helperText;
-  final String previewLabel;
-  final String preview;
-  final VoidCallback onChanged;
-  final ValueChanged<String> onInsertToken;
-
-  static const _tokens = ['{volume}', '{timestamp}', '{date}', '{time}'];
-
-  /// Builds the widget tree for the current screen state.
-  @override
-  Widget build(BuildContext context) {
-    final pattern = controller.text.trim();
-    final isStaticName =
-        pattern.isNotEmpty && !exportNamePatternHasUniqueToken(pattern);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall!.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-
-        /// Creates a [_ExportNamePatternField] widget.
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(hintText: placeholder),
-          onChanged: (_) => onChanged(),
-        ),
-
-        /// Creates a [_ExportNamePatternField] widget.
-        const SizedBox(height: 8),
-        Text(helperText, style: CalfTheme.muted(theme)),
-
-        /// Creates a [_ExportNamePatternField] widget.
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final token in _tokens)
-              _PatternTokenChip(
-                theme: theme,
-                label: token,
-                onTap: () => onInsertToken(token),
-              ),
-          ],
-        ),
-        if (pattern.isNotEmpty) ...[
-          /// Creates a [_ExportNamePatternField] widget.
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  previewLabel,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                /// Creates a [_ExportNamePatternField] widget.
-                const SizedBox(height: 4),
-                Text(preview, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-        ],
-        if (isStaticName) ...[
-          /// Creates a [_ExportNamePatternField] widget.
-          const SizedBox(height: 8),
-          Text(
-            'Static name: each scheduled run will overwrite the previous export at this destination.',
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _PatternTokenChip extends StatefulWidget {
-  /// Creates a [_PatternTokenChip] widget.
-  const _PatternTokenChip({
-    required this.theme,
-    required this.label,
-    required this.onTap,
-  });
-
-  final ThemeData theme;
-  final String label;
-  final VoidCallback onTap;
-
-  /// Creates the mutable state for [_PatternTokenChip].
-  @override
-  State<_PatternTokenChip> createState() => _PatternTokenChipState();
-}
-
-class _PatternTokenChipState extends State<_PatternTokenChip> {
-  bool _hovered = false;
-
-  /// Builds the widget tree for the current screen state.
-  @override
-  Widget build(BuildContext context) {
-    final borderColor = _hovered
-        ? widget.theme.colorScheme.primary
-        : widget.theme.colorScheme.outlineVariant;
-    final backgroundColor = _hovered
-        ? widget.theme.colorScheme.primary.withValues(alpha: 0.12)
-        : null;
-    final textColor = _hovered
-        ? widget.theme.colorScheme.primary
-        : widget.theme.colorScheme.onSurface;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            border: Border.all(color: borderColor),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            widget.label,
-            style: widget.theme.textTheme.bodySmall!.copyWith(color: textColor),
-          ),
-        ),
       ),
     );
   }

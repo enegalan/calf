@@ -2,7 +2,6 @@
 description: calf project conventions, stack, layout, and hard rules
 alwaysApply: true
 ---
-
 # CLAUDE.md
 
 This file provides guidance to AI assistants when working with code in this repository. It must stay equivalent to `.cursor/rules/calf.mdc` — update both in the same change.
@@ -76,10 +75,12 @@ calf/
 │   │   │   ├── migrate.go                     Migration HTTP handlers
 │   │   │   ├── registry.go                    Registry HTTP handlers
 │   │   │   ├── registry_login.go              Docker Hub login HTTP handlers
-│   │   │   └── troubleshoot.go                Purge and factory-reset HTTP handlers
+│   │   │   ├── troubleshoot.go                Purge and factory-reset HTTP handlers
+│   │   │   └── prune.go                       System prune preview and execute HTTP handlers
 │   │   ├── httpkit/
-│   │   │   ├── response.go                    JSON response helpers
-│   │   │   ├── json.go                        Request JSON decode helper
+│   │   │   ├── response.go                    JSON response and logged-error helpers
+│   │   │   ├── json.go                        Request JSON decode helpers
+│   │   │   ├── context.go                     Per-request context timeout helper
 │   │   │   ├── origin.go                      Localhost Origin/host checks for CORS and WebSocket
 │   │   │   ├── route.go                       HTTP method and path routing helpers
 │   │   │   ├── runtime_errors.go              Runtime error to HTTP status mapping
@@ -116,6 +117,7 @@ calf/
 │   │   │   ├── krunkit_darwin.go              macOS krunkit + gvproxy runtime
 │   │   │   ├── process_resources_darwin.go    Host CPU/RAM probe for status bar (proc_info, ps fallback)
 │   │   │   ├── select_other.go                Non-darwin stub for selection helper
+│   │   │   ├── cli_ops.go                      Shared container/image/volume/network/registry ops embedded by Native and Guest
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── guest_darwin.go                 Shared guest disk/EFI/vsock helpers (embedded by Krunkit)
 │   │   │   ├── guest_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
@@ -131,6 +133,8 @@ calf/
 │   │   │   ├── volume_detail.go                 Volume inspect/clone/list-files/usage, relative time formatting
 │   │   │   ├── inspect_decode.go               Generic decoder for JSON-array or NDJSON nerdctl inspect output
 │   │   │   ├── localhost_proxy.go               macOS-only TCP proxy + port-conflict detection
+│   │   │   ├── prune.go                         System prune preview and selective execute
+│   │   │   ├── system_df.go                     docker/nerdctl system df parsing for disk breakdown
 │   │   │   ├── registry.go                      Docker config.json auth parsing/login/logout
 │   │   │   ├── errors.go                        ErrRuntimeNotRunning sentinel + guard helpers
 │   │   │   └── command_error.go                 Shell output cleanup, transient-error classification, auth-failure hints
@@ -159,16 +163,19 @@ calf/
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, registry, rootless, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
 ├── ui/                                      Flutter application
 │   ├── lib/
 │   │   ├── main.dart                          App entrypoint; Material theme bridged from ShadThemeData (light/dark)
-│   │   ├── app_shell.dart                     Sidebar nav, top/bottom bars, SettingsScreen (resources, migration, theme)
+│   │   ├── app_shell.dart                     Sidebar nav, top/bottom bars, screen switching
 │   │   ├── api/
-│   │   │   └── client.dart                    CalfClient/StatusClient interfaces + ApiClient (http + WebSocket)
+│   │   │   ├── client.dart                    Barrel file re-exporting models.dart/calf_client.dart/api_client.dart
+│   │   │   ├── models.dart                    DTO/response model classes with fromJson/toJson
+│   │   │   ├── calf_client.dart                Abstract CalfClient interface
+│   │   │   └── api_client.dart                 Concrete ApiClient + ApiException (http + WebSocket)
 │   │   ├── constants/
 │   │   │   └── calf_constants.dart            Shared colors, defaults, storage filenames, GitHub repo
 │   │   ├── theme/
@@ -200,28 +207,34 @@ calf/
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
-│   │   │   └── troubleshoot_screen.dart            Restart, support, purge, factory reset, uninstall
+│   │   │   ├── disk_cleanup_screen.dart            Clean unused data (prune preview + execute)
+│   │   │   ├── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
+│   │   │   └── settings_screen.dart                SettingsScreen (resources, proxy, migration, theme, updates)
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
 │   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
+│   │       ├── calf_popup_menu.dart            Bordered popup menus (showCalfMenu, CalfPopupMenuButton, CalfPopupMenuRow)
 │   │       ├── calf_snack_bar.dart             Toast layer (OverlayPortal) + showCalfSnackBar
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
 │   │       ├── detail_breadcrumb.dart          Detail view back navigation header
 │   │       ├── error_text.dart                 Formatted API error text
 │   │       ├── files_panel.dart                Lazy-loaded directory tree (LoadDirectoryCallback)
+│   │       ├── global_search_dialog.dart       ⌘K command palette for resources
 │   │       ├── hover_list_row.dart             Hover-state row wrapper
 │   │       ├── logs_panel.dart                 Log viewer incl. multi-container "mixed" color-coded blocks
-│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic polling mixin
+│   │       ├── poll_interval_mixin.dart        Shared Timer.periodic + ResourceListPollMixin
 │   │       ├── resource_list_scaffold.dart     List screen layout helper
 │   │       ├── running_filter_switch.dart      "Show only running" filter switch
 │   │       ├── status_dot.dart                 Running/in-use status indicator dot
 │   │       ├── host_port_links.dart            Collapsible published host-port links
 │   │       ├── build_row_icons.dart            Build dependency/result leading icons (chain, provenance, placeholder)
 │   │       └── volume_export_form.dart         Shared volume export form widgets
+│   │   ├── utils/
+│   │   │   └── format.dart                     Duration and file-size formatters
 │   ├── test/widget_test.dart                  Flutter widget test
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
 │   └── analysis_options.yaml                  flutter_lints, no custom overrides
@@ -263,12 +276,14 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `config.go` — `/v1/config` handler, response shape, and update logic.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 - `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
+- `prune.go` — `GET /v1/system/prune/preview`, `POST /v1/system/prune`, and `GET /v1/system/df`.
 
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
 
-- `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`.
-- `json.go` — `JSONDecode` with a max request body size.
+- `response.go` — `WriteJSON`, `WriteError`, `MethodNotAllowed`, `WriteLoggedError` (logs err, writes a fixed public message), `RequireNonEmpty` (400 on blank required fields).
+- `json.go` — `JSONDecode` with a max request body size, plus `JSONDecodeOrFail` which writes a 400 "invalid json body" response on failure.
+- `context.go` — `WithTimeout` wraps a request's context with a timeout, for handlers that call the runtime layer with a bounded deadline.
 - `origin.go` — `IsLocalOrigin` / `IsLocalHost` for CORS and WebSocket origin checks.
 - `route.go` — `ServeMethods`, `ServeRoutes`, `ServePrefix`, `PathParts`.
 - `runtime_errors.go` — maps runtime errors to HTTP status codes.
@@ -334,6 +349,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
 - `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; virtiofs for `~/.config/calf/mounts` and `$HOME`; DAX remount `dax=inode` by default).
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
+- `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
@@ -348,6 +364,8 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `volume_detail.go` — volume inspect/clone/list-files/container-usage logic, human-readable relative time formatting.
 - `inspect_decode.go` — generic decoder tolerant of both JSON-array and NDJSON-style nerdctl inspect output.
 - `localhost_proxy.go` — macOS-only TCP proxy forwarding `::1:<port>` to `127.0.0.1:<port>` inside the VM; detects port conflicts via `lsof`. No-op on non-Darwin platforms.
+- `prune.go` — prune preview (unused containers/images/volumes/networks/build cache) and selective `nerdctl` prune execute.
+- `system_df.go` — `nerdctl system df` parsing into Size/Reclaimable rows for the clean-disk UI.
 - `registry.go` — Docker `config.json` auth parsing/login/logout, registry-key normalization.
 - `errors.go` — `ErrRuntimeNotRunning` sentinel and `requireRunning`/`emptyXIfStopped` guard helpers.
 - `command_error.go` — shell output cleanup (strips ANSI escapes, extracts `nerdctl` fatal messages), transient-error classification for retry, and an auth-failure hint wrapper for push errors.
@@ -358,16 +376,25 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 App entrypoint. Calls `_startDaemon()` to spawn the Go daemon binary (found next to the Flutter executable — `.app` bundle on macOS, alongside the binary on Linux/Windows) and waits for `/v1/status` to respond before showing the UI. Kills the daemon on app close. Inserts common Homebrew paths into `PATH` on macOS (no-op on other platforms). Builds light/dark Material 3 `ThemeData` via `CalfTheme` with brand primary color from `CalfColors.primary`.
 
 ### `app_shell.dart`
-Sidebar navigation (Containers / Images / Volumes / Builds) plus the settings screen, a top bar showing Docker Hub registry sign-in status, and a bottom engine status bar (Start/Stop/Kill, RAM/disk used vs reserved, app version). `SettingsScreen` handles CPU/memory/swap slider configuration (bounded by host capacity from `/v1/config`), Docker Desktop migration trigger + polling, and theme mode switching.
+Sidebar navigation (Containers / Images / Volumes / Builds) plus screen switching between resource screens and `SettingsScreen`/`TroubleshootScreen`/`DiskCleanupScreen`, a top bar showing Docker Hub registry sign-in status, and a bottom engine status bar (Start/Stop/Kill, RAM/disk used vs reserved, app version).
 
 ### `api/client.dart`
-Abstract `CalfClient` / `StatusClient` interfaces with a concrete `ApiClient` implementation over `package:http`. Response models are plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation. `ApiException` is the custom error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
+Barrel file that re-exports `models.dart`, `calf_client.dart`, and `api_client.dart`, so existing `import 'package:ui/api/client.dart'` call sites keep working without changes.
+
+### `api/models.dart`
+DTO/response model classes (`DaemonStatus`, `ContainerItem`, `ImageItem`, `VolumeItem`, `BuildDetail`, `Config`, etc.) as plain immutable Dart classes with `fromJson`/`toJson` factories — no code generation.
+
+### `api/calf_client.dart`
+Abstract `CalfClient` interface declaring every daemon operation (containers, images, volumes, builds, networks, registry, runtime, config, migration, prune) used by the UI.
+
+### `api/api_client.dart`
+Concrete `ApiClient` implementation of `CalfClient` over `package:http`, plus the `ApiException` error type. WebSocket URIs are built manually (swapping `ws`/`wss` for `http`/`https`). Default base URL and timeouts come from `CalfDefaults` in `constants/calf_constants.dart`.
 
 ### `constants/calf_constants.dart`
 Shared UI constants: `CalfColors` (primary, success, warning), `CalfDefaults` (base URL, poll interval, HTTP timeouts), `CalfStorageFiles` (JSON preference filenames), `CalfGitHub` (repository slug).
 
 ### `theme/calf_theme.dart`
-Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`), shared panel radius, and `CalfTheme.muted` for secondary label text.
+Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`), shared panel radius, dialog/popup-menu shapes, and `CalfTheme.muted` for secondary label text.
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
@@ -400,7 +427,9 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
-- `troubleshoot_screen.dart` — restart, support, purge engine data, factory reset, and uninstall.
+- `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
+- `troubleshoot_screen.dart` — restart, support, clean unused data, purge engine data, factory reset, and uninstall.
+- `settings_screen.dart` — `SettingsScreen`: resource limits (CPU/memory/swap/disk sliders bounded by host capacity from `/v1/config`), disk image location, Docker CLI context toggle, open-at-login, theme mode picker, update check/download, Docker Desktop migration trigger + polling, and HTTP/HTTPS/no-proxy configuration.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
@@ -408,16 +437,21 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `app_bottom_bar.dart` — engine status badge, play/pause, overflow menu (including Troubleshoot), RAM/disk used vs reserved, app version.
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
+- `calf_popup_menu.dart` — bordered overflow menus via `showCalfMenu`, `CalfPopupMenuButton` (three-dot trigger), and `CalfPopupMenuRow`.
 - `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` for stacked bottom-right action toasts.
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
+- `global_search_dialog.dart` — ⌘K / Ctrl+K command palette to search and open resources.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
 - `error_text.dart` — formatted API error text.
 - `detail_breadcrumb.dart`, `calf_tab_bar.dart` — shared detail view chrome.
-- `poll_interval_mixin.dart` — shared list-screen polling lifecycle.
+- `poll_interval_mixin.dart` — shared list-screen polling lifecycle (`PollIntervalMixin`) plus in-flight / silent-failure load helpers (`ResourceListPollMixin`).
 - `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
 - `confirm_dialog.dart` — confirm dialog helper.
-- `status_dot.dart`, `host_port_links.dart`, `build_row_icons.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, build dependency/result row icons, and volume export shared UI.
+- `status_dot.dart`, `host_port_links.dart`, `build_row_icons.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, build dependency/result row icons, and volume export shared UI (including name-pattern field and registry notice).
+
+### `utils/`
+- `format.dart` — shared `formatDurationMs`, `formatFileSize`, and `formatFileSizeCompact` helpers used by list screens, charts, and the status bar.
 
 ## Testing Conventions
 

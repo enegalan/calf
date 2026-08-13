@@ -3,12 +3,16 @@ package api
 import (
 	"net/http"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // handleRegistryStatus serves GET /v1/registry.
 func (g *Gateway) handleRegistryStatus(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	status, err := g.backend.Runtime.RegistryStatus(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -20,14 +24,16 @@ func (g *Gateway) handleRegistryStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleRegistryCredentials serves POST /v1/registry.
 func (g *Gateway) handleRegistryCredentials(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Server   string `json:"server"`
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
@@ -45,6 +51,9 @@ func (g *Gateway) handleRegistryCredentials(w http.ResponseWriter, r *http.Reque
 
 // handleRegistryLogout serves DELETE /v1/registry.
 func (g *Gateway) handleRegistryLogout(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	server := r.URL.Query().Get("server")
 
 	if !httpkit.EnsureRuntimeOrFail(w, r.Context(), g.backend) {

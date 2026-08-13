@@ -197,3 +197,18 @@ func (u *Unsupported) RemoveNetwork(context.Context, string) error { return u.er
 
 // ApplyProxy returns an error because the engine is unsupported.
 func (u *Unsupported) ApplyProxy(context.Context, ProxyConfig) error { return u.err() }
+
+// PrunePreview returns an error because the engine is unsupported.
+func (u *Unsupported) PrunePreview(context.Context) (PrunePreview, error) {
+	return PrunePreview{}, u.err()
+}
+
+// Prune returns an error because the engine is unsupported.
+func (u *Unsupported) Prune(context.Context, PruneOptions) (PruneResult, error) {
+	return PruneResult{}, u.err()
+}
+
+// SystemDiskUsage returns an error because the engine is unsupported.
+func (u *Unsupported) SystemDiskUsage(context.Context) (SystemDiskUsage, error) {
+	return SystemDiskUsage{}, u.err()
+}

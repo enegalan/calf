@@ -34,7 +34,7 @@ type statusResponse struct {
 func (g *Gateway) handleStatus(w http.ResponseWriter, r *http.Request) {
 	runtimeStatus, err := g.backend.Runtime.Status(r.Context())
 	if err != nil {
-		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
+		httpkit.WriteLoggedError(g.logger, w, http.StatusInternalServerError, "failed to read runtime status", err)
 		return
 	}
 

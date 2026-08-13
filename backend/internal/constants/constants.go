@@ -50,6 +50,13 @@ const (
 	DefaultCommandRetryDelay = 200 * time.Millisecond
 )
 
+// Action timeouts bound HTTP handlers whose underlying operation is known to run longer than
+// DefaultActionTimeout: booting the container runtime, and pulling/pushing/running images.
+const (
+	RuntimeActionTimeout = 3 * time.Minute
+	ImageActionTimeout   = 10 * time.Minute
+)
+
 // Runtime defaults configure the VM name, nerdctl path, and exec terminal.
 const (
 	DefaultVMName   = "calf"

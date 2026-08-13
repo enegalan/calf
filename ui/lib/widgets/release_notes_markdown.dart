@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -40,7 +41,7 @@ class ReleaseNotesMarkdown extends StatelessWidget {
         strong: body?.copyWith(fontWeight: FontWeight.w700),
         em: body?.copyWith(fontStyle: FontStyle.italic),
         code: body?.copyWith(
-          fontFamily: 'monospace',
+          fontFamily: CalfFonts.mono,
           backgroundColor: theme.colorScheme.surfaceContainerHighest,
         ),
         codeblockDecoration: BoxDecoration(

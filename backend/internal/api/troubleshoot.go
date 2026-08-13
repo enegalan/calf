@@ -15,7 +15,7 @@ func (g *Gateway) handleTroubleshootPurge(w http.ResponseWriter, r *http.Request
 	defer cancel()
 
 	if err := g.backend.PurgeData(ctx); err != nil {
-		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
+		httpkit.WriteLoggedError(g.logger, w, http.StatusInternalServerError, "failed to purge engine data", err)
 		return
 	}
 	utils.WriteOK(w)
@@ -27,7 +27,7 @@ func (g *Gateway) handleTroubleshootFactoryReset(w http.ResponseWriter, r *http.
 	defer cancel()
 
 	if err := g.backend.FactoryReset(ctx); err != nil {
-		httpkit.WriteError(w, http.StatusInternalServerError, err.Error())
+		httpkit.WriteLoggedError(g.logger, w, http.StatusInternalServerError, "failed to factory-reset calf", err)
 		return
 	}
 	utils.WriteOK(w)

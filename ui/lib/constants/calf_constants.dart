@@ -6,10 +6,20 @@ abstract final class CalfColors {
   static const Color warning = Color(0xFFF0A500);
 }
 
+/// Bundled typeface family names registered in `pubspec.yaml`.
+abstract final class CalfFonts {
+  /// UI body and titles (Geist).
+  static const String sans = 'Geist';
+
+  /// Logs, inspect JSON, and other monospaced surfaces (Geist Mono).
+  static const String mono = 'GeistMono';
+}
+
 abstract final class CalfDefaults {
   static const String defaultBaseUrl = 'http://127.0.0.1:8765';
   static const int defaultPollIntervalMs = 3000;
   static const Duration defaultRequestTimeout = Duration(seconds: 5);
+
   /// Lists (containers/images/networks/builds) can exceed 5s when many resources
   /// talk to the engine over the VM socket; keep UI polls from timing out first.
   static const Duration resourceListTimeout = Duration(seconds: 45);
@@ -18,6 +28,9 @@ abstract final class CalfDefaults {
   static const Duration volumeActionTimeout = Duration(seconds: 30);
   static const Duration volumeExportTimeout = Duration(minutes: 30);
   static const Duration troubleshootActionTimeout = Duration(minutes: 5);
+
+  /// TLS handshake wait when choosing http vs https for a published port link.
+  static const Duration portTlsProbeTimeout = Duration(milliseconds: 500);
 }
 
 abstract final class CalfStorageFiles {

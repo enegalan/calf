@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:xterm/xterm.dart';
 
+import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/storage/logs_viewer_preferences.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
@@ -171,7 +172,7 @@ class _LogsPanelState extends State<LogsPanel>
           ? SelectableText(
               widget.error!,
               style: theme.textTheme.bodySmall!.copyWith(
-                fontFamily: 'Menlo',
+                fontFamily: CalfFonts.mono,
                 color: theme.colorScheme.error,
               ),
             )
@@ -997,7 +998,9 @@ class _LogTextView extends StatelessWidget {
 
   /// Builds one highlighted log line row at [index].
   Widget _buildLineRow(int index) {
-    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: 'Menlo');
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(
+      fontFamily: CalfFonts.mono,
+    );
     final timestampStyle = baseStyle.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -1055,7 +1058,9 @@ class _LogTextView extends StatelessWidget {
       );
     }
 
-    final baseStyle = theme.textTheme.bodySmall!.copyWith(fontFamily: 'Menlo');
+    final baseStyle = theme.textTheme.bodySmall!.copyWith(
+      fontFamily: CalfFonts.mono,
+    );
     final timestampStyle = baseStyle.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -1531,6 +1536,7 @@ class _ExecPanelState extends State<ExecPanel> {
         widget.terminal,
         controller: _controller,
         theme: widget.terminalTheme,
+        textStyle: const TerminalStyle(fontFamily: CalfFonts.mono),
         backgroundOpacity: 0,
         keyboardAppearance: widget.keyboardAppearance,
         scrollController: _scrollController,

@@ -4,12 +4,16 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
 // handleVolumesList serves GET /v1/volumes.
 func (g *Gateway) handleVolumesList(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	volumes, err := g.backend.Runtime.ListVolumes(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -21,12 +25,14 @@ func (g *Gateway) handleVolumesList(w http.ResponseWriter, r *http.Request) {
 
 // handleVolumesCreate serves POST /v1/volumes.
 func (g *Gateway) handleVolumesCreate(w http.ResponseWriter, r *http.Request) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Name string `json:"name"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
@@ -116,6 +122,9 @@ func (g *Gateway) handleVolumeAction() http.HandlerFunc {
 			g.handleVolumeDetail(w, r, parts[0])
 		},
 		http.MethodDelete: func(w http.ResponseWriter, r *http.Request, parts []string) {
+			r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+			defer cancel()
+
 			if err := g.backend.Runtime.RemoveVolume(r.Context(), parts[0]); err != nil {
 				httpkit.WriteRuntimeOrFail(w, err)
 				return
@@ -128,6 +137,9 @@ func (g *Gateway) handleVolumeAction() http.HandlerFunc {
 
 // handleVolumeDetail serves GET /v1/volumes/{name} with volume inspect data.
 func (g *Gateway) handleVolumeDetail(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	detail, err := g.backend.Runtime.InspectVolume(r.Context(), name)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -139,6 +151,9 @@ func (g *Gateway) handleVolumeDetail(w http.ResponseWriter, r *http.Request, nam
 
 // handleVolumeFiles serves GET /v1/volumes/{name}/files for directory listing inside the volume.
 func (g *Gateway) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	path := strings.TrimSpace(r.URL.Query().Get("path"))
 	files, err := g.backend.Runtime.ListVolumeFiles(r.Context(), name, path)
 	if err != nil {
@@ -151,6 +166,9 @@ func (g *Gateway) handleVolumeFiles(w http.ResponseWriter, r *http.Request, name
 
 // handleVolumeContainers serves GET /v1/volumes/{name}/containers listing containers using the volume.
 func (g *Gateway) handleVolumeContainers(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	containers, err := g.backend.Runtime.VolumeContainers(r.Context(), name)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
@@ -162,17 +180,18 @@ func (g *Gateway) handleVolumeContainers(w http.ResponseWriter, r *http.Request,
 
 // handleVolumeClone serves POST /v1/volumes/{name}/clone to duplicate a volume.
 func (g *Gateway) handleVolumeClone(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	var payload struct {
 		Name string `json:"name"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
-	if strings.TrimSpace(payload.Name) == "" {
-		httpkit.WriteError(w, http.StatusBadRequest, "name is required")
+	if !httpkit.RequireNonEmpty(w, "name", payload.Name) {
 		return
 	}
 

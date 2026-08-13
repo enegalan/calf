@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/daemon"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -39,8 +40,7 @@ func (g *Gateway) handleBuildsCreate(w http.ResponseWriter, r *http.Request) {
 		Platform   string `json:"platform"`
 	}
 
-	if err := httpkit.JSONDecode(r, &payload); err != nil {
-		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
 		return
 	}
 
@@ -89,6 +89,9 @@ func (g *Gateway) handleBuildAction() http.HandlerFunc {
 		},
 	}, map[string]httpkit.PartsHandler{
 		http.MethodGet: func(w http.ResponseWriter, r *http.Request, parts []string) {
+			r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+			defer cancel()
+
 			build, ok := g.backend.GetBuild(parts[0])
 			if !ok {
 				httpkit.WriteError(w, http.StatusNotFound, "build not found")
@@ -103,6 +106,9 @@ func (g *Gateway) handleBuildAction() http.HandlerFunc {
 
 // handleBuildSource serves GET /v1/builds/{id}/source with Dockerfile content and context metadata.
 func (g *Gateway) handleBuildSource(w http.ResponseWriter, r *http.Request, buildID string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	build, ok := g.backend.GetBuild(buildID)
 	if !ok {
 		httpkit.WriteError(w, http.StatusNotFound, "build not found")
@@ -130,6 +136,9 @@ func (g *Gateway) handleBuildSource(w http.ResponseWriter, r *http.Request, buil
 
 // handleBuildLogs serves GET /v1/builds/{id}/logs with raw log output and parsed build steps.
 func (g *Gateway) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildID string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	build, ok := g.backend.GetBuild(buildID)
 	if !ok {
 		httpkit.WriteError(w, http.StatusNotFound, "build not found")
@@ -151,6 +160,9 @@ func (g *Gateway) handleBuildLogs(w http.ResponseWriter, r *http.Request, buildI
 
 // handleBuildArtifactDownload serves GET /v1/builds/{id}/artifacts/download?digest=...
 func (g *Gateway) handleBuildArtifactDownload(w http.ResponseWriter, r *http.Request, buildID string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
 	digest := strings.TrimSpace(r.URL.Query().Get("digest"))
 	if digest == "" {
 		httpkit.WriteError(w, http.StatusBadRequest, "digest is required")

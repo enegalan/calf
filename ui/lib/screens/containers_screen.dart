@@ -41,19 +41,13 @@ class ContainersScreen extends StatefulWidget {
 }
 
 class _ContainersScreenState extends State<ContainersScreen>
-    with PollIntervalMixin {
+    with PollIntervalMixin, ResourceListPollMixin {
   List<ContainerItem> _containers = [];
   RuntimeStatus? _runtime;
-  String? _error;
-  bool _loading = true;
-  bool _refreshInFlight = false;
-  int _consecutiveSilentFailures = 0;
   String? _selectedId;
   ContainerItem? _detailContainer;
   String? _detailProject;
   List<ContainerItem>? _detailGroupContainers;
-  final _searchController = TextEditingController();
-  String _searchQuery = '';
   bool _runningOnly = false;
   final Map<String, bool> _expandedGroups = {};
 
@@ -61,14 +55,10 @@ class _ContainersScreenState extends State<ContainersScreen>
   @override
   void initState() {
     super.initState();
+    initListSearchListener();
     _loadGroupPreferences();
     _loadContainers();
     startPollInterval(widget.apiClient, _loadContainers);
-    _searchController.addListener(() {
-      setState(
-        () => _searchQuery = _searchController.text.trim().toLowerCase(),
-      );
-    });
   }
 
   /// Re-arms the pending deep link and retries opening it when it changes.
@@ -77,7 +67,12 @@ class _ContainersScreenState extends State<ContainersScreen>
     super.didUpdateWidget(oldWidget);
     if (widget.initialContainerId != oldWidget.initialContainerId &&
         widget.initialContainerId != null) {
-      _openInitialContainerIfNeeded(_containers);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _openInitialContainerIfNeeded(_containers);
+      });
     }
   }
 
@@ -85,75 +80,50 @@ class _ContainersScreenState extends State<ContainersScreen>
   @override
   void dispose() {
     disposePollInterval();
-    _searchController.dispose();
+    disposeListSearch();
     super.dispose();
   }
 
   /// Fetches runtime status and containers, optionally skipping the loading indicator.
   Future<void> _loadContainers({bool silent = false}) async {
-    if (_refreshInFlight) {
-      return;
-    }
-
-    _refreshInFlight = true;
-    if (!silent) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
-
-    try {
-      final status = await widget.apiClient.fetchStatus();
-      final containers = await widget.apiClient.fetchContainers();
-      if (!mounted) {
-        return;
-      }
-      _consecutiveSilentFailures = 0;
-      setState(() {
-        _runtime = status.runtime;
-        _containers = containers;
-        _loading = false;
-        _error = null;
-        if (_detailContainer != null) {
-          for (final container in containers) {
-            if (container.id == _detailContainer!.id) {
-              _detailContainer = container;
-              break;
+    await runListLoad(
+      silent: silent,
+      body: () async {
+        final status = await widget.apiClient.fetchStatus();
+        final containers = await widget.apiClient.fetchContainers();
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _runtime = status.runtime;
+          _containers = containers;
+          listLoading = false;
+          listError = null;
+          if (_detailContainer != null) {
+            for (final container in containers) {
+              if (container.id == _detailContainer!.id) {
+                _detailContainer = container;
+                break;
+              }
             }
           }
-        }
-        if (_detailProject != null) {
-          final groupContainers = containers
-              .where((container) => container.composeProject == _detailProject)
-              .toList();
-          if (groupContainers.isEmpty) {
-            _detailProject = null;
-            _detailGroupContainers = null;
-          } else {
-            _detailGroupContainers = groupContainers;
+          if (_detailProject != null) {
+            final groupContainers = containers
+                .where(
+                  (container) => container.composeProject == _detailProject,
+                )
+                .toList();
+            if (groupContainers.isEmpty) {
+              _detailProject = null;
+              _detailGroupContainers = null;
+            } else {
+              _detailGroupContainers = groupContainers;
+            }
           }
-        }
-      });
-      _openInitialContainerIfNeeded(containers);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      if (!silent) {
-        setState(() {
-          _error = error.toString();
-          _loading = false;
         });
-      } else {
-        _consecutiveSilentFailures++;
-        if (_consecutiveSilentFailures >= 3) {
-          setState(() => _error = error.toString());
-        }
-      }
-    } finally {
-      _refreshInFlight = false;
-    }
+        _openInitialContainerIfNeeded(containers);
+      },
+    );
   }
 
   /// Runs the given async action and refreshes the list on success.
@@ -161,7 +131,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     try {
       await action();
       if (mounted) {
-        setState(() => _error = null);
+        setState(() => listError = null);
       }
       await _loadContainers();
       return true;
@@ -169,7 +139,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       if (!mounted) {
         return false;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
       return false;
     }
   }
@@ -228,7 +198,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       if (!mounted) {
         return;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -250,7 +220,7 @@ class _ContainersScreenState extends State<ContainersScreen>
         await action(container.id);
       }
       if (mounted) {
-        setState(() => _error = null);
+        setState(() => listError = null);
       }
       await _loadContainers();
       return true;
@@ -258,7 +228,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       if (!mounted) {
         return false;
       }
-      setState(() => _error = error.toString());
+      setState(() => listError = formatAsyncError(error));
       return false;
     }
   }
@@ -372,19 +342,19 @@ class _ContainersScreenState extends State<ContainersScreen>
       items = items.where((container) => container.isRunning).toList();
     }
 
-    if (_searchQuery.isEmpty) {
+    if (listSearchQuery.isEmpty) {
       return items;
     }
 
     return items.where((container) {
-      return container.name.toLowerCase().contains(_searchQuery) ||
-          container.displayName.toLowerCase().contains(_searchQuery) ||
-          container.composeProject.toLowerCase().contains(_searchQuery) ||
-          container.image.toLowerCase().contains(_searchQuery) ||
-          container.subtitle.toLowerCase().contains(_searchQuery) ||
-          container.id.toLowerCase().contains(_searchQuery) ||
-          container.status.toLowerCase().contains(_searchQuery) ||
-          container.ports.toLowerCase().contains(_searchQuery);
+      return container.name.toLowerCase().contains(listSearchQuery) ||
+          container.displayName.toLowerCase().contains(listSearchQuery) ||
+          container.composeProject.toLowerCase().contains(listSearchQuery) ||
+          container.image.toLowerCase().contains(listSearchQuery) ||
+          container.subtitle.toLowerCase().contains(listSearchQuery) ||
+          container.id.toLowerCase().contains(listSearchQuery) ||
+          container.status.toLowerCase().contains(listSearchQuery) ||
+          container.ports.toLowerCase().contains(listSearchQuery);
     }).toList();
   }
 
@@ -472,7 +442,7 @@ class _ContainersScreenState extends State<ContainersScreen>
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
         TextField(
-          controller: _searchController,
+          controller: listSearchController,
           decoration: InputDecoration(
             hintText: 'Search',
             prefixIcon: Icon(
@@ -504,12 +474,12 @@ class _ContainersScreenState extends State<ContainersScreen>
               ),
             ),
           ),
-        if (_error != null)
+        if (listError != null)
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: ErrorText(error: _error!),
+            child: ErrorText(error: listError!),
           ),
-        if (_loading)
+        if (listLoading)
           Row(
             children: [
               SizedBox(
@@ -531,8 +501,8 @@ class _ContainersScreenState extends State<ContainersScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    _searchQuery.isNotEmpty
-                        ? 'No containers match "$_searchQuery".'
+                    listSearchQuery.isNotEmpty
+                        ? 'No containers match "$listSearchQuery".'
                         : _runtime?.state == 'stopped'
                         ? 'No containers. Runtime is stopped.'
                         : _runningOnly
@@ -541,7 +511,8 @@ class _ContainersScreenState extends State<ContainersScreen>
                     textAlign: TextAlign.center,
                     style: CalfTheme.muted(theme),
                   ),
-                  if (_runtime?.state == 'stopped' && _searchQuery.isEmpty) ...[
+                  if (_runtime?.state == 'stopped' &&
+                      listSearchQuery.isEmpty) ...[
                     const SizedBox(height: 16),
                     CalfButton(
                       onPressed: _startEngine,

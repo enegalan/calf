@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -12,6 +13,7 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -27,6 +29,7 @@ class AppTopBar extends StatelessWidget {
     required this.onSignIn,
     required this.onSignOut,
     required this.onOpenWhatsNew,
+    required this.onOpenGlobalSearch,
     this.updateAvailable = false,
   });
 
@@ -38,6 +41,7 @@ class AppTopBar extends StatelessWidget {
   final VoidCallback onSignIn;
   final Future<void> Function() onSignOut;
   final VoidCallback onOpenWhatsNew;
+  final VoidCallback onOpenGlobalSearch;
 
   /// Whether the user is signed in to Docker Hub.
   bool get _loggedIn => registryStatus?.loggedIn == true;
@@ -74,9 +78,17 @@ class AppTopBar extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _BrandMark(theme: theme),
-          const Spacer(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _TopBarSearchField(onOpen: onOpenGlobalSearch),
+            ),
+          ),
+          const SizedBox(width: 16),
           Tooltip(
             message: updateAvailable
                 ? 'Update available — Settings'
@@ -146,6 +158,87 @@ class AppTopBar extends StatelessWidget {
   }
 }
 
+/// Compact search trigger in the top bar; opens the global search palette.
+class _TopBarSearchField extends StatelessWidget {
+  /// Creates a top-bar search field that opens [onOpen] when activated.
+  const _TopBarSearchField({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  /// Platform shortcut label shown in the placeholder.
+  static String get shortcutLabel {
+    final isApple =
+        !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.macOS ||
+            defaultTargetPlatform == TargetPlatform.iOS);
+    return isApple ? '⌘K' : 'Ctrl+K';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 280),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: CalfTheme.radius,
+          child: Ink(
+            height: 32,
+            decoration: BoxDecoration(
+              borderRadius: CalfTheme.radius,
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 10, right: 6),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.search, size: 14, color: muted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Search',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      child: Text(
+                        shortcutLabel,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: muted,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BrandMark extends StatelessWidget {
   /// Renders the calf logo and wordmark.
   const _BrandMark({required this.theme});
@@ -173,20 +266,15 @@ class _BrandMark extends StatelessWidget {
             excludeFromSemantics: true,
           ),
           const SizedBox(width: 5),
-          // Wordmark viewBox includes the "f" ascender, so its geometric
-          // center sits above the optical center of the letterforms.
-          Transform.translate(
-            offset: const Offset(0, -2.5),
-            child: SvgPicture.asset(
-              'assets/brand/calf_logo_text_art.svg',
-              height: 18,
-              fit: BoxFit.contain,
-              colorFilter: ColorFilter.mode(
-                theme.colorScheme.onSurface,
-                BlendMode.srcIn,
-              ),
-              excludeFromSemantics: true,
+          SvgPicture.asset(
+            'assets/brand/calf_logo_text_art.svg',
+            height: 18,
+            fit: BoxFit.contain,
+            colorFilter: ColorFilter.mode(
+              theme.colorScheme.onSurface,
+              BlendMode.srcIn,
             ),
+            excludeFromSemantics: true,
           ),
         ],
       ),
@@ -236,19 +324,13 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
     final menuLeft = offset.dx + box.size.width - menuWidth;
     final menuTop = offset.dy + box.size.height + 8;
 
-    final selected = await showMenu<String>(
+    final selected = await showCalfMenu<String>(
       context: buttonContext,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(menuLeft, menuTop, menuWidth, 0),
         Offset.zero & overlayBox.size,
       ),
-      color: theme.colorScheme.surface,
-      surfaceTintColor: const Color(0x00000000),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: theme.colorScheme.outlineVariant),
-      ),
-      constraints: const BoxConstraints(minWidth: menuWidth),
+      minWidth: menuWidth,
       items: [
         PopupMenuItem<String>(
           enabled: false,
@@ -298,7 +380,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'whatsnew',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.sparkles,
             label: "What's new",
             color: theme.colorScheme.onSurface,
@@ -307,7 +389,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'settings',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.user,
             label: 'Account Settings',
             color: theme.colorScheme.onSurface,
@@ -322,7 +404,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         PopupMenuItem<String>(
           value: 'signout',
           height: 40,
-          child: _AccountMenuRow(
+          child: CalfPopupMenuRow(
             icon: LucideIcons.logOut,
             label: 'Sign out',
             color: theme.colorScheme.error,
@@ -412,45 +494,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _AccountMenuRow extends StatelessWidget {
-  /// Renders one icon-and-label row inside the account popup menu.
-  const _AccountMenuRow({
-    required this.icon,
-    required this.label,
-    required this.color,
-    this.trailing,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Widget? trailing;
-
-  /// Builds the menu row with icon, label, and optional trailing widget.
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            label,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        ?trailing,
-      ],
     );
   }
 }

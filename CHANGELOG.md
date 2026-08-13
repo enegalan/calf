@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-07-25
+
+### Added
+
+- **Clean unused data** — Troubleshoot opens a clean screen that previews reclaimable stopped containers, unused images, unused volumes, unused networks, and build cache, then removes only the categories you select (same idea as `docker system prune -a --volumes`).
+- **macOS Help menu** — Troubleshoot is available from Help in the native menu bar.
+- **Global search** — ⌘K (Ctrl+K on Linux/Windows) opens a palette to find and jump to containers, images, volumes, networks, and builds.
+- **Disk usage on Clean unused data** — the clean screen shows an Images / Containers / Local Volumes / Build Cache Size and Reclaimable breakdown (same idea as `docker system df`) above the prune categories.
+
+### Changed
+
+- **Overflow menus** — three-dot and contextual menus use a shared bordered surface matching dialogs and panels.
+- **Typography** — UI uses Geist; logs and code use Geist Mono.
+
+### Fixed
+
+- **Published port links** — clicking a host port in the containers list opens `https://` when the app speaks TLS (for example `npm run start:https`), instead of always using `http://`.
+- **Engine stop/kill, status, purge, and factory reset errors** — these now show a clear message instead of raw internal error text when the operation fails.
+- **Deep links from search** — opening a container, image, volume, network, or build from global search no longer crashes with a build-phase `setState` error.
+- **`docker compose` “Cannot connect to the Docker daemon”** — large Compose projects no longer overwhelm the engine socket. calf keeps a queued proxy on `docker.sock` instead of pointing the CLI straight at the guest, so parallel image checks wait instead of failing.
+- **Containers list timing out** — with many containers the list often failed after 5 seconds. calf now reuses recent list results inside the engine and the UI waits longer for big lists.
+- **False “port in use” warnings for published ports** — when nginx (or any container) publishes 80/443, calf no longer shows red errors claiming localhost is blocked. Those ports are already forwarded by calf’s network proxy.
+- **Host bind mounts under your home folder** — macOS now shares your home directory into the VM, so `docker` / Compose binds like `/Users/.../project` see real files (and file mounts work). Before, those paths became empty folders on the guest disk and many apps failed to start.
+- **Docker CLI socket after Resource Saver / app restart** — calf keeps owning `docker.sock` as a real proxy socket, so `docker` / `compose` no longer hit EOF when the engine was stopped or the app restarted. The first CLI command while idle wakes the engine.
+- **Docker CLI required on macOS** — start error now tells you to install the CLI with `brew install docker` (Docker Desktop is not required).
+- **macOS engine libraries** — release builds bundle libkrun GPU dependencies (libepoxy, virglrenderer, MoltenVK) so Start engine works without Homebrew.
+- **macOS engine first start** — calf finds `calf-guest-disk-*` across GitHub releases when the current tag is missing it, checks free disk space before extracting (~40 GB), and shows a clearer error when start fails for those reasons. First-run download can take longer without aborting the boot wait.
+- **macOS app icon** — follows Apple's 824×824 grid on a 1024 canvas with transparent corners outside the rounded icon.
+
 ## [0.9.20] - 2026-08-12
 
 ### Fixed

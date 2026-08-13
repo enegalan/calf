@@ -135,15 +135,15 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 ---
 
-## Phase 3 — Product experience and polish *(in progress — v0.9.x)*
+## Phase 3 — Product experience and polish *(complete for 1.0 — signing deferred)*
 
 **Goal:** Improve product in-app UX, and native platform polish.
 
 ### 3.1 Installation and lifecycle
 
-- [x] macOS `.dmg` / `.pkg` installers (v0.8.0; unsigned during development)
-- [ ] Apple signing and notarization (scheduled for future releases)
-- [x] Homebrew cask (`brew install --cask enegalan/calf/calf`)
+- [x] macOS `.dmg` / `.pkg` installers (v0.8.0+; unsigned; Homebrew is the recommended macOS path for 1.0)
+- [ ] Apple signing and notarization (post-1.0 / later 1.x when Developer Program is available)
+- [x] Homebrew cask (`brew install --cask enegalan/calf-homebrew/calf`)
 - [x] Daemon embedded in app bundle, spawned by Flutter app on launch, killed on close
 - [x] In-app update check and download links (GitHub Releases; auto-install pending signing)
 - [x] Windows `.exe` installer (v0.8.0; Lima VM runtime, same as macOS)

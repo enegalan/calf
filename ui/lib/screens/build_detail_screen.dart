@@ -7,10 +7,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/utils/format.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
@@ -369,7 +371,7 @@ class _BuildDetailViewState extends State<BuildDetailView> {
               _SummaryColumn(
                 theme: theme,
                 label: 'Duration',
-                value: _formatDuration(detail.durationMs),
+                value: formatDurationMs(detail.durationMs),
               ),
 
               /// Creates a [_BuildDetailViewState] widget.
@@ -698,7 +700,7 @@ class _PlatformFilter extends StatelessWidget {
             }
 
             final offset = renderBox.localToGlobal(Offset.zero);
-            final selected = await showMenu<String>(
+            final selected = await showCalfMenu<String>(
               context: context,
               position: RelativeRect.fromLTRB(
                 offset.dx,
@@ -807,13 +809,13 @@ class _TimingCharts extends StatelessWidget {
       _TimingChartCard(
         theme: theme,
         title: 'Real time',
-        value: _formatDuration(totalMs),
+        value: formatDurationMs(totalMs),
         slices: realTime,
       ),
       _TimingChartCard(
         theme: theme,
         title: 'Accumulated time',
-        value: _formatDuration(accumulatedTotal),
+        value: formatDurationMs(accumulatedTotal),
         slices: realTime,
       ),
       _TimingChartCard(
@@ -963,7 +965,7 @@ class _TimingSummary extends StatelessWidget {
               const SizedBox(height: 6),
               _summaryLine(
                 label: 'Total build time',
-                value: _formatDuration(totalMs),
+                value: formatDurationMs(totalMs),
                 emphasize: true,
               ),
             ],
@@ -1333,23 +1335,11 @@ class _DataTable extends StatelessWidget {
                   ),
                 ],
                 if (showMenu)
-                  PopupMenuButton<String>(
+                  CalfPopupMenuButton<String>(
                     tooltip: 'Actions',
-                    padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 32,
                       minHeight: 32,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant),
-                    ),
-                    color: theme.colorScheme.surface,
-                    surfaceTintColor: const Color(0x00000000),
-                    icon: Icon(
-                      LucideIcons.ellipsisVertical,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                     onSelected: (action) =>
                         onMenuSelected!(action, rows[rowIndex]),
@@ -1455,7 +1445,7 @@ class _SourceTab extends StatelessWidget {
               child: SelectableText(
                 content,
                 style: theme.textTheme.bodySmall!.copyWith(
-                  fontFamily: 'Menlo',
+                  fontFamily: CalfFonts.mono,
                   height: 1.5,
                 ),
               ),
@@ -1580,7 +1570,7 @@ class _LogsTab extends StatelessWidget {
         child: SelectableText(
           rawLog,
           style: theme.textTheme.bodySmall!.copyWith(
-            fontFamily: 'Menlo',
+            fontFamily: CalfFonts.mono,
             height: 1.4,
           ),
         ),
@@ -1738,7 +1728,7 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                             child: Text(
                               step.name,
                               style: widget.theme.textTheme.titleMedium!
-                                  .copyWith(fontFamily: 'Menlo'),
+                                  .copyWith(fontFamily: CalfFonts.mono),
                             ),
                           ),
                           if (step.cached)
@@ -1762,7 +1752,7 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                             ),
                           const SizedBox(width: 8),
                           Text(
-                            _formatDuration(step.durationMs),
+                            formatDurationMs(step.durationMs),
                             style: CalfTheme.muted(widget.theme),
                           ),
                         ],
@@ -1784,7 +1774,7 @@ class _StepLogsPanelState extends State<_StepLogsPanel> {
                         child: SelectableText(
                           step.log,
                           style: widget.theme.textTheme.bodySmall!.copyWith(
-                            fontFamily: 'Menlo',
+                            fontFamily: CalfFonts.mono,
                           ),
                         ),
                       ),
@@ -2172,7 +2162,7 @@ class _HistoryTab extends StatelessWidget {
                   /// Creates a [_HistoryTab] widget.
                   const SizedBox(width: 12),
                   Text(
-                    _formatDuration(item.durationMs),
+                    formatDurationMs(item.durationMs),
                     style: CalfTheme.muted(theme),
                   ),
 
@@ -2213,22 +2203,6 @@ Color _statusColor(String status, ThemeData theme) {
     default:
       return theme.colorScheme.onSurfaceVariant;
   }
-}
-
-/// Formats the value for display.
-String _formatDuration(int durationMs) {
-  if (durationMs <= 0) {
-    return '0.0s';
-  }
-
-  final seconds = durationMs / 1000;
-  if (seconds < 60) {
-    return '${seconds.toStringAsFixed(1)}s';
-  }
-
-  final minutes = seconds ~/ 60;
-  final remainder = seconds % 60;
-  return '${minutes}m ${remainder.toStringAsFixed(0)}s';
 }
 
 /// Formats a build start/end timestamp as local `YYYY-MM-DD HH:MM:SS`.
@@ -2593,7 +2567,7 @@ class _BuildHistoryTooltip extends StatelessWidget {
           const SizedBox(height: 8),
           _tooltipRow(
             label: 'Duration',
-            value: _formatDuration(item.durationMs),
+            value: formatDurationMs(item.durationMs),
             swatch: durationColor,
             labelStyle: labelStyle,
             valueStyle: valueStyle,
