@@ -195,7 +195,6 @@ class UpdateChecker {
         currentVersion: normalizedCurrent,
         latest: preferences.cachedUpdate!,
         checkedAt: preferences.lastCheckAt!,
-        skippedVersion: preferences.skippedVersion,
       );
     }
 
@@ -241,14 +240,12 @@ class UpdateChecker {
       await UpdatePreferences.saveCheckResult(
         checkedAt: checkedAt,
         latest: latest,
-        skippedVersion: preferences.skippedVersion,
       );
 
       return _resultFromCache(
         currentVersion: normalizedCurrent,
         latest: latest,
         checkedAt: checkedAt,
-        skippedVersion: preferences.skippedVersion,
       );
     } on TimeoutException {
       return UpdateCheckResult.failed(
@@ -301,20 +298,12 @@ class UpdateChecker {
     return values;
   }
 
-  /// Builds an [UpdateCheckResult] from cached release data and skip state.
+  /// Builds an [UpdateCheckResult] from cached release data.
   static UpdateCheckResult _resultFromCache({
     required String currentVersion,
     required UpdateInfo latest,
     required DateTime checkedAt,
-    required String skippedVersion,
   }) {
-    if (skippedVersion == latest.version) {
-      return UpdateCheckResult.upToDate(
-        currentVersion: currentVersion,
-        checkedAt: checkedAt,
-      );
-    }
-
     if (compareVersions(currentVersion, latest.version) >= 0) {
       return UpdateCheckResult.upToDate(
         currentVersion: currentVersion,

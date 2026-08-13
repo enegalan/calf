@@ -14,7 +14,7 @@ class UpdateInfo {
 }
 
 class UpdateCheckResult {
-  /// Reports that the running version is current or was skipped.
+  /// Reports that the running version is current.
   const UpdateCheckResult.upToDate({
     required this.currentVersion,
     this.checkedAt,

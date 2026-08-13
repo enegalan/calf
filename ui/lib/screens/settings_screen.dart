@@ -7,7 +7,6 @@ import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/launch_at_login.dart';
 import 'package:ui/platform/open_url.dart';
-import 'package:ui/storage/update_preferences.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
@@ -142,21 +141,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   /// Opens the update download URL in the browser.
   Future<void> downloadUpdate(UpdateInfo update) async {
     await openExternalUrl(update.downloadUrl);
-  }
-
-  /// Records the given version as skipped and clears the update prompt.
-  Future<void> skipUpdateVersion(UpdateInfo update) async {
-    await UpdatePreferences.saveSkippedVersion(update.version);
-    if (!mounted) {
-      return;
-    }
-
-    final result = UpdateCheckResult.upToDate(
-      currentVersion: widget.appVersion,
-      checkedAt: _updateCheckResult?.checkedAt,
-    );
-    setState(() => _updateCheckResult = result);
-    widget.onUpdateCheckResultChanged?.call(result);
   }
 
   /// Loads daemon configuration into the settings form.
@@ -538,18 +522,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Text(
                 'Version ${_updateCheckResult!.latest!.version} is available.',
                 style: theme.textTheme.titleMedium,
-              ),
-              if (_updateCheckResult!.latest!.releaseNotes.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _updateCheckResult!.latest!.releaseNotes,
-                  style: CalfTheme.muted(theme),
-                ),
-              ],
-              const SizedBox(height: 8),
-              CalfButton.outline(
-                onPressed: () => skipUpdateVersion(_updateCheckResult!.latest!),
-                child: const Text('Skip this version'),
               ),
             ] else
               Text('You are up to date.', style: CalfTheme.muted(theme)),
