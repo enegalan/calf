@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-08-14
+
+### Fixed
+
+- **Debug switch** — turning Debug on or off no longer restarts the container engine.
+- **HTTP proxy** — applying proxy settings no longer kills the engine helper mid-run.
+
 ## [1.0.2] - 2026-08-14
 
 ### Added
