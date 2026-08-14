@@ -173,6 +173,9 @@ abstract class CalfClient {
   /// Updates the daemon configuration.
   Future<Config> updateConfig(Config config);
 
+  /// Updates only the daemon log level.
+  Future<Config> updateLogLevel(String logLevel);
+
   /// Fetches recent daemon logs for the Debug viewer.
   Future<DaemonLogs> fetchDaemonLogs();
 

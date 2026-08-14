@@ -190,7 +190,9 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	proxyChanged := req.HTTPProxy != nil || req.HTTPSProxy != nil || req.NoProxy != nil
+	g.backend.CfgMu.RLock()
+	proxyChanged := config.ProxyUpdateChanged(req, g.backend.Cfg)
+	g.backend.CfgMu.RUnlock()
 	saved, err := g.applyConfigUpdate(req)
 	if err != nil {
 		httpkit.WriteError(w, http.StatusInternalServerError, "failed to save config: "+err.Error())

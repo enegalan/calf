@@ -420,8 +420,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _debugSaving = true);
 
     try {
-      final updated = await widget.apiClient.updateConfig(
-        current.copyWith(logLevel: value ? 'debug' : 'info'),
+      final updated = await widget.apiClient.updateLogLevel(
+        value ? 'debug' : 'info',
       );
       if (!mounted) {
         return;
@@ -810,9 +810,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 ? CalfResourceSaver.labelForSeconds(seconds)
                                 : '',
                             textAlign: TextAlign.center,
-                            style: CalfTheme.muted(
-                              theme,
-                            ).copyWith(fontSize: 10),
+                            style: CalfTheme.muted(theme)
+                                .copyWith(fontSize: 10),
                           ),
                         ),
                     ],
@@ -1352,9 +1351,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               error,
-              style: CalfTheme.muted(
-                theme,
-              ).copyWith(fontSize: 12, color: theme.colorScheme.error),
+              style: CalfTheme.muted(theme)
+                  .copyWith(fontSize: 12, color: theme.colorScheme.error),
             ),
           ),
       ],

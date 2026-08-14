@@ -146,9 +146,8 @@ class ApiClient implements CalfClient {
   /// fetchNetworkDetail.
   @override
   Future<List<ImageLayer>> fetchImageLayers(String reference) async {
-    final uri = Uri.parse(
-      '$baseUrl/v1/images/layers',
-    ).replace(queryParameters: {'reference': reference});
+    final uri = Uri.parse('$baseUrl/v1/images/layers')
+        .replace(queryParameters: {'reference': reference});
     final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, ImageLayer.fromJson);
   }
@@ -491,11 +490,22 @@ class ApiClient implements CalfClient {
   /// Updates the daemon configuration.
   @override
   Future<Config> updateConfig(Config config) async {
+    return _putConfig(config.toJson());
+  }
+
+  /// Updates only the daemon log level.
+  @override
+  Future<Config> updateLogLevel(String logLevel) async {
+    return _putConfig({'log_level': logLevel});
+  }
+
+  /// PUTs a config JSON body and decodes the saved config.
+  Future<Config> _putConfig(Map<String, dynamic> body) async {
     final response = await httpClient
         .put(
           Uri.parse('$baseUrl/v1/config'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode(config.toJson()),
+          body: jsonEncode(body),
         )
         .timeout(timeout);
 
@@ -703,9 +713,8 @@ class ApiClient implements CalfClient {
     String id, {
     String path = '/',
   }) async {
-    final uri = Uri.parse(
-      '$baseUrl/v1/containers/$id/files',
-    ).replace(queryParameters: {'path': path});
+    final uri = Uri.parse('$baseUrl/v1/containers/$id/files')
+        .replace(queryParameters: {'path': path});
     final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
   }

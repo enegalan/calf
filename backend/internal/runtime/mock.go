@@ -35,6 +35,7 @@ type Mock struct {
 	Started          bool
 	registryLoggedIn bool
 	buildCacheBytes  int64
+	applyProxyCalls  int
 }
 
 // NewMock returns a Mock preloaded with sample containers, images, volumes, and networks.
@@ -800,7 +801,17 @@ func (m *Mock) RemoveNetwork(_ context.Context, name string) error {
 
 // ApplyProxy is a no-op success for proxy configuration in tests.
 func (m *Mock) ApplyProxy(_ context.Context, _ ProxyConfig) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.applyProxyCalls++
 	return nil
+}
+
+// ApplyProxyCalls returns how many times ApplyProxy was invoked.
+func (m *Mock) ApplyProxyCalls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.applyProxyCalls
 }
 
 // SetBuildCacheBytes sets mock reclaimable build-cache bytes for prune preview tests.

@@ -27,6 +27,20 @@ type UpdateRequest struct {
 	LogLevel                *string `json:"log_level,omitempty"`
 }
 
+// ProxyUpdateChanged reports whether the request changes stored HTTP proxy values.
+func ProxyUpdateChanged(req UpdateRequest, current Config) bool {
+	if req.HTTPProxy != nil && strings.TrimSpace(*req.HTTPProxy) != current.HTTPProxy {
+		return true
+	}
+	if req.HTTPSProxy != nil && strings.TrimSpace(*req.HTTPSProxy) != current.HTTPSProxy {
+		return true
+	}
+	if req.NoProxy != nil && strings.TrimSpace(*req.NoProxy) != current.NoProxy {
+		return true
+	}
+	return false
+}
+
 // ValidateResourceUpdate checks CPU, memory, and disk fields in a config update against host capacity.
 func ValidateResourceUpdate(req UpdateRequest, hostCPUs, hostMemoryGB, hostDiskGB int) error {
 	if hostCPUs < 1 {
