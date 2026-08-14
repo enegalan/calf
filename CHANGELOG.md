@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-08-14
+
 ### Fixed
 
 - **Build history** — Builds list syncs from the engine guest on macOS, so missing or broken host Docker Desktop buildx plugins no longer block history import.
