@@ -496,7 +496,8 @@ class ApiClient implements CalfClient {
   /// Updates only the daemon log level.
   @override
   Future<Config> updateLogLevel(String logLevel) async {
-    return _putConfig({'log_level': logLevel});
+    final body = <String, dynamic>{'log_level': logLevel};
+    return _putConfig(body);
   }
 
   /// PUTs a config JSON body and decodes the saved config.
