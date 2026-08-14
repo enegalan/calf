@@ -14,6 +14,7 @@ type ProxyConfig struct {
 }
 
 // applyProxyInVM writes HTTP proxy settings into the guest so containerd, Docker, and shell sessions inherit them.
+// Docker/containerd restart is deferred so a guest `docker run` helper is not SIGTERM'd (exit 143).
 func applyProxyInVM(ctx context.Context, run commandRunner, proxy ProxyConfig) error {
 	httpProxyDQ := shellDoubleQuote(proxy.HTTPProxy)
 	httpsProxyDQ := shellDoubleQuote(proxy.HTTPSProxy)
@@ -23,6 +24,9 @@ func applyProxyInVM(ctx context.Context, run commandRunner, proxy ProxyConfig) e
 	httpsProxySQ := shellQuote(proxy.HTTPSProxy)
 	noProxySQ := shellQuote(proxy.NoProxy)
 
+	// Restart docker/containerd after this helper exits. The guest apply runs
+	// inside `docker run`, so an in-process `systemctl restart docker` SIGTERMs
+	// the helper (exit 143) and looks like the engine crashed.
 	script := fmt.Sprintf(`set -eux -o pipefail
 sudo mkdir -p /etc/systemd/system/containerd.service.d
 sudo tee /etc/systemd/system/containerd.service.d/calf-proxy.conf >/dev/null <<'EOF'
@@ -43,12 +47,7 @@ export https_proxy='%s'
 export no_proxy='%s'
 EOF
 sudo systemctl daemon-reload
-if systemctl is-active --quiet containerd; then
-  sudo systemctl restart containerd
-fi
-if systemctl is-active --quiet docker; then
-  sudo systemctl restart docker
-fi
+sudo systemd-run --quiet --collect --on-active=1s --timer-property=AccuracySec=1s /bin/systemctl try-restart containerd.service docker.service
 `,
 		httpProxyDQ, httpsProxyDQ, noProxyDQ, httpProxyDQ, httpsProxyDQ, noProxyDQ,
 		httpProxySQ, httpsProxySQ, noProxySQ, httpProxySQ, httpsProxySQ, noProxySQ,

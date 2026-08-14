@@ -420,8 +420,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _debugSaving = true);
 
     try {
-      final updated = await widget.apiClient.updateConfig(
-        current.copyWith(logLevel: value ? 'debug' : 'info'),
+      final updated = await widget.apiClient.updateLogLevel(
+        value ? 'debug' : 'info',
       );
       if (!mounted) {
         return;

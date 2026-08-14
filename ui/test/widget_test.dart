@@ -340,6 +340,10 @@ class FakeCalfClient implements CalfClient {
   Future<Config> updateConfig(Config config) async => config;
 
   @override
+  Future<Config> updateLogLevel(String logLevel) async =>
+      (await fetchConfig()).copyWith(logLevel: logLevel);
+
+  @override
   Future<DaemonLogs> fetchDaemonLogs() async => const DaemonLogs(
     text: 'time=2026-08-14T12:00:00Z level=INFO msg="runtime started"',
     path: '/tmp/calf.log',
@@ -815,6 +819,12 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<Config> updateConfig(Config config) async {
+    await Future<void>.delayed(Duration.zero);
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
+  Future<Config> updateLogLevel(String logLevel) async {
     await Future<void>.delayed(Duration.zero);
     throw ApiException('daemon unavailable', statusCode: 503);
   }

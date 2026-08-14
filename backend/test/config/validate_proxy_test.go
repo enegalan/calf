@@ -8,6 +8,36 @@ import (
 	"github.com/enegalan/calf/backend/internal/config"
 )
 
+func TestProxyUpdateChangedIgnoresUnchangedEmptyValues(t *testing.T) {
+	empty := ""
+	debug := "debug"
+	req := config.UpdateRequest{
+		LogLevel:   &debug,
+		HTTPProxy:  &empty,
+		HTTPSProxy: &empty,
+		NoProxy:    &empty,
+	}
+	if config.ProxyUpdateChanged(req, config.Config{}) {
+		t.Fatal("empty proxy fields matching stored config should not count as a change")
+	}
+}
+
+func TestProxyUpdateChangedDetectsHTTPProxy(t *testing.T) {
+	value := "http://127.0.0.1:8080"
+	req := config.UpdateRequest{HTTPProxy: &value}
+	if !config.ProxyUpdateChanged(req, config.Config{}) {
+		t.Fatal("expected HTTP proxy change")
+	}
+}
+
+func TestProxyUpdateChangedNilFields(t *testing.T) {
+	req := config.UpdateRequest{}
+	current := config.Config{HTTPProxy: "http://127.0.0.1:8080"}
+	if config.ProxyUpdateChanged(req, current) {
+		t.Fatal("omitted proxy fields should not count as a change")
+	}
+}
+
 func TestValidateProxyUpdateNoProxyCIDR(t *testing.T) {
 	cidr := "192.168.0.0/16"
 	req := config.UpdateRequest{NoProxy: &cidr}

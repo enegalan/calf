@@ -1118,6 +1118,51 @@ func TestConfigPutLogLevel(t *testing.T) {
 	}
 }
 
+func TestConfigPutLogLevelDoesNotApplyProxy(t *testing.T) {
+	mock := runtime.NewMock()
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	putResp, err := putJSON(server.URL+"/v1/config", `{"log_level":"debug","http_proxy":"","https_proxy":"","no_proxy":""}`)
+	if err != nil {
+		t.Fatalf("PUT /v1/config error: %v", err)
+	}
+	defer putResp.Body.Close()
+	if putResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(putResp.Body)
+		t.Fatalf("expected PUT 200, got %d: %s", putResp.StatusCode, body)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if got := mock.ApplyProxyCalls(); got != 0 {
+		t.Fatalf("log_level update applied proxy %d times", got)
+	}
+}
+
+func TestConfigPutProxyChangeAppliesProxy(t *testing.T) {
+	mock := runtime.NewMock()
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	putResp, err := putJSON(server.URL+"/v1/config", `{"http_proxy":"http://127.0.0.1:8080"}`)
+	if err != nil {
+		t.Fatalf("PUT /v1/config error: %v", err)
+	}
+	defer putResp.Body.Close()
+	if putResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(putResp.Body)
+		t.Fatalf("expected PUT 200, got %d: %s", putResp.StatusCode, body)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if mock.ApplyProxyCalls() == 1 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("expected ApplyProxy once, got %d", mock.ApplyProxyCalls())
+}
+
 func TestConfigPutLogLevelInvalid(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()
