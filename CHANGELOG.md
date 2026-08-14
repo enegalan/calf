@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-14
+
 ### Added
 
 - **Debug logs** — Settings has a Debug switch. When it is on, a bug button appears in the top bar so you can copy daemon logs and send them when reporting a problem.
