@@ -130,7 +130,9 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
     final theme = Theme.of(context);
     final body = _error != null && _text.isEmpty
         ? _error!
-        : (_text.isEmpty ? 'No logs yet. Reproduce the issue, then copy from here.' : _text);
+        : (_text.isEmpty
+            ? 'No logs yet. Reproduce the issue, then copy from here.'
+            : _text);
     final bodyColor = _error != null && _text.isEmpty
         ? theme.colorScheme.error
         : theme.colorScheme.onSurface;
