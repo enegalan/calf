@@ -549,6 +549,11 @@ class _ContainersScreenState extends State<ContainersScreen>
                         await _confirmRemoveContainer(match);
                       }
                     },
+                    onStartAll: () => _runGroupAction(
+                      group.value,
+                      widget.apiClient.startContainer,
+                      stoppedOnly: true,
+                    ),
                     onStopAll: () => _runGroupAction(
                       group.value,
                       widget.apiClient.stopContainer,
@@ -606,6 +611,7 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.onStart,
     required this.onStop,
     required this.onRemove,
+    required this.onStartAll,
     required this.onStopAll,
     required this.onRemoveAll,
     required this.onOpen,
@@ -623,6 +629,7 @@ class _ComposeGroupTile extends StatelessWidget {
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
+  final VoidCallback onStartAll;
   final VoidCallback onStopAll;
   final VoidCallback onRemoveAll;
   final void Function(ContainerItem container) onOpen;
@@ -684,11 +691,18 @@ class _ComposeGroupTile extends StatelessWidget {
                   ),
                 ),
               ),
-              _ActionIcon(
-                icon: LucideIcons.square,
-                tooltip: 'Stop all',
-                onPressed: onStopAll,
-              ),
+              if (running > 0)
+                _ActionIcon(
+                  icon: LucideIcons.square,
+                  tooltip: 'Stop all',
+                  onPressed: onStopAll,
+                )
+              else
+                _ActionIcon(
+                  icon: LucideIcons.play,
+                  tooltip: 'Start all',
+                  onPressed: onStartAll,
+                ),
               _ActionIcon(
                 icon: LucideIcons.trash2,
                 tooltip: 'Delete all',
