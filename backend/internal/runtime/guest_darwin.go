@@ -295,6 +295,8 @@ func (v *Guest) Stop(ctx context.Context) error {
 }
 
 // Status reports whether the guest Docker API is reachable.
+// After Start succeeds, a brief ping failure still reports running so the UI
+// does not treat a vsock blip as a stopped engine (empty container list).
 func (v *Guest) Status(ctx context.Context) (Status, error) {
 	st := Status{Mode: Mode(constants.RuntimeModeVM), State: State(constants.RuntimeStateStopped), DockerSocket: v.dockerSocket, VMName: v.vmName}
 	if v.dockerAPIReady(ctx) {
@@ -303,6 +305,8 @@ func (v *Guest) Status(ctx context.Context) (Status, error) {
 			v.started.Store(true)
 			v.proxyResync.Store(true)
 		}
+	} else if v.started.Load() {
+		st.State = State(constants.RuntimeStateRunning)
 	}
 	st.PortConflicts = v.localhostProxy.conflictsSnapshot()
 	return st, nil
@@ -428,12 +432,14 @@ func (v *Guest) cachedListContainers(ctx context.Context) ([]Container, error) {
 	containers, err := listContainers(ctx, v.runLocal)
 
 	v.listMu.Lock()
-	v.listInflightErr = err
-	v.listInflightValue = containers
 	if err == nil {
 		v.listCache = append([]Container(nil), containers...)
 		v.listCacheAt = time.Now()
+	} else {
+		containers, err = KeepLastList(v.listCache, containers, err)
 	}
+	v.listInflightErr = err
+	v.listInflightValue = containers
 	close(wait)
 	v.listInflight = nil
 	out := append([]Container(nil), containers...)

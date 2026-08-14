@@ -2,6 +2,7 @@ package buildhistory
 
 import (
 	"context"
+	"strings"
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/dockerexec"
@@ -13,4 +14,25 @@ func runDocker(ctx context.Context, socket string, args ...string) ([]byte, erro
 	defer cancel()
 
 	return dockerexec.Run(runCtx, socket, args...)
+}
+
+// IsDockerUnreachable reports a docker CLI / vsock connect failure (EOF, ping, buildkit dial).
+func IsDockerUnreachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	markers := []string{
+		"error during connect",
+		"unexpected eof",
+		"driver not connecting",
+		"cannot connect to the docker daemon",
+		"connection refused",
+	}
+	for _, marker := range markers {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
 }

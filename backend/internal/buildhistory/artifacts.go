@@ -53,6 +53,10 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 
 			manifestArtifacts, err := manifestArtifacts(ctx, socket, historyID, attachment.Digest, manifestPlatform)
 			if err != nil {
+				if IsDockerUnreachable(err) {
+					slog.Debug("skipping manifest attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
+					return nil, err
+				}
 				slog.Warn("skipping manifest attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
 				continue
 			}
@@ -60,6 +64,10 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 		case "https://slsa.dev/provenance/v0.2":
 			artifact, err := attachmentArtifact(ctx, socket, historyID, attachment, "Provenance v1", manifestPlatform)
 			if err != nil {
+				if IsDockerUnreachable(err) {
+					slog.Debug("skipping provenance attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
+					return nil, err
+				}
 				slog.Debug("skipping provenance attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
 				continue
 			}
