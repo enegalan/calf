@@ -586,7 +586,7 @@ func migrateBuilds(ctx context.Context, ddSocket string, opts Options, status *S
 		return
 	}
 
-	historyRows, err := buildhistory.List(ctx, ddSocket)
+	historyRows, err := buildhistory.List(ctx, buildhistory.SocketRunner(ddSocket))
 	if err != nil {
 		output, err := dockerexec.Run(ctx, ddSocket, "buildx", "ls", "--format", "{{json .}}")
 		if err != nil {

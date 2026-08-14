@@ -17,6 +17,17 @@ func FormatCommandError(output string) string {
 	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
 	lines := strings.Split(cleaned, "\n")
 
+	preferredMarkers := []string{
+		"unknown command",
+		"unknown flag",
+		"not found",
+		"is not a docker command",
+		"permission denied",
+		"error:",
+		"fatal:",
+	}
+
+	var lastUseful string
 	for index := len(lines) - 1; index >= 0; index-- {
 		line := strings.TrimSpace(lines[index])
 		if line == "" || isProgressLine(line) {
@@ -31,7 +42,24 @@ func FormatCommandError(output string) string {
 			continue
 		}
 
-		return line
+		if strings.HasPrefix(line, "Usage:") || strings.HasPrefix(line, "Run '") {
+			continue
+		}
+
+		lower := strings.ToLower(line)
+		for _, marker := range preferredMarkers {
+			if strings.Contains(lower, marker) {
+				return line
+			}
+		}
+
+		if lastUseful == "" {
+			lastUseful = line
+		}
+	}
+
+	if lastUseful != "" {
+		return lastUseful
 	}
 
 	cleaned = strings.TrimSpace(cleaned)

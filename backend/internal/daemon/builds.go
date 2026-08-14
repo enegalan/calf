@@ -31,12 +31,7 @@ func (s *Core) ResolveBuildSourcePaths(ctx context.Context, build runtime.Build)
 		return contextPath, dockerfile
 	}
 
-	socket := s.Runtime.DockerSocket()
-	if socket == "" {
-		return contextPath, dockerfile
-	}
-
-	detail, err := buildhistory.Inspect(ctx, socket, build.HistoryRef)
+	detail, err := buildhistory.Inspect(ctx, s.buildxRunner(), build.HistoryRef)
 	if err != nil {
 		return contextPath, dockerfile
 	}
@@ -210,7 +205,7 @@ func (s *Core) EnrichHistoryBuildIfNeeded(ctx context.Context, build runtime.Bui
 		return build
 	}
 
-	enriched := s.enrichHistoryBuild(ctx, socket, build)
+	enriched := s.enrichHistoryBuild(ctx, s.buildxRunner(), socket, build)
 	if buildsEqual(build, enriched) {
 		return build
 	}
@@ -263,9 +258,10 @@ func (s *Core) DownloadBuildArtifact(ctx context.Context, buildID, digest string
 
 	fileName := artifactDownloadFileName(digest)
 	socket := s.Runtime.DockerSocket()
+	run := s.buildxRunner()
 
-	if build.HistoryRef != "" && socket != "" {
-		body, err := buildhistory.FetchArtifactBytes(ctx, socket, build.HistoryRef, digest)
+	if build.HistoryRef != "" {
+		body, err := buildhistory.FetchArtifactBytes(ctx, run, build.HistoryRef, digest)
 		if err == nil && len(body) > 0 {
 			return body, fileName, nil
 		}

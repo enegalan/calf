@@ -30,13 +30,16 @@ type ociManifest struct {
 }
 
 // BuildArtifacts lists OCI manifest and provenance attachments for a buildx history entry.
-func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]runtime.BuildArtifact, error) {
+func BuildArtifacts(ctx context.Context, run Runner, historyID, platform string) ([]runtime.BuildArtifact, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
 		return nil, fmt.Errorf("build history artifacts: missing history id")
 	}
+	if run == nil {
+		return nil, fmt.Errorf("build history artifacts: missing docker runner")
+	}
 
-	attachments, err := listAttachments(ctx, socket, historyID)
+	attachments, err := listAttachments(ctx, run, historyID)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +54,7 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 				manifestPlatform = runtime.PlatformArch(attachment.Platform)
 			}
 
-			manifestArtifacts, err := manifestArtifacts(ctx, socket, historyID, attachment.Digest, manifestPlatform)
+			manifestArtifacts, err := manifestArtifacts(ctx, run, historyID, attachment.Digest, manifestPlatform)
 			if err != nil {
 				if IsDockerUnreachable(err) {
 					slog.Debug("skipping manifest attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
@@ -62,7 +65,7 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 			}
 			artifacts = append(artifacts, manifestArtifacts...)
 		case "https://slsa.dev/provenance/v0.2":
-			artifact, err := attachmentArtifact(ctx, socket, historyID, attachment, "Provenance v1", manifestPlatform)
+			artifact, err := attachmentArtifact(ctx, run, historyID, attachment, "Provenance v1", manifestPlatform)
 			if err != nil {
 				if IsDockerUnreachable(err) {
 					slog.Debug("skipping provenance attachment", "history_id", historyID, "digest", attachment.Digest, "platform", manifestPlatform, "error", err)
@@ -83,10 +86,9 @@ func BuildArtifacts(ctx context.Context, socket, historyID, platform string) ([]
 }
 
 // listAttachments queries buildx history inspect for attachment metadata rows.
-func listAttachments(ctx context.Context, socket, historyID string) ([]attachmentRow, error) {
-	output, err := runDocker(
+func listAttachments(ctx context.Context, run Runner, historyID string) ([]attachmentRow, error) {
+	output, err := run(
 		ctx,
-		socket,
 		"buildx",
 		"history",
 		"inspect",
@@ -132,8 +134,8 @@ func parseAttachmentRows(output string) []attachmentRow {
 }
 
 // manifestArtifacts builds artifact entries from an OCI image manifest attachment body.
-func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform string) ([]runtime.BuildArtifact, error) {
-	output, err := attachmentBody(ctx, socket, historyID, digest)
+func manifestArtifacts(ctx context.Context, run Runner, historyID, digest, platform string) ([]runtime.BuildArtifact, error) {
+	output, err := attachmentBody(ctx, run, historyID, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -160,11 +162,12 @@ func manifestArtifacts(ctx context.Context, socket, historyID, digest, platform 
 // attachmentArtifact builds a single artifact entry from a non-manifest history attachment.
 func attachmentArtifact(
 	ctx context.Context,
-	socket, historyID string,
+	run Runner,
+	historyID string,
 	attachment attachmentRow,
 	name, platform string,
 ) (runtime.BuildArtifact, error) {
-	output, err := attachmentBody(ctx, socket, historyID, attachment.Digest)
+	output, err := attachmentBody(ctx, run, historyID, attachment.Digest)
 	if err != nil {
 		return runtime.BuildArtifact{}, err
 	}
@@ -180,8 +183,8 @@ func attachmentArtifact(
 }
 
 // attachmentBody fetches the raw bytes of a buildx history attachment by digest.
-func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]byte, error) {
-	output, err := runDocker(ctx, socket, "buildx", "history", "inspect", "attachment", historyID, digest)
+func attachmentBody(ctx context.Context, run Runner, historyID, digest string) ([]byte, error) {
+	output, err := run(ctx, "buildx", "history", "inspect", "attachment", historyID, digest)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +193,7 @@ func attachmentBody(ctx context.Context, socket, historyID, digest string) ([]by
 }
 
 // FetchArtifactBytes returns the raw JSON bytes for a build history artifact digest.
-func FetchArtifactBytes(ctx context.Context, socket, historyID, digest string) ([]byte, error) {
+func FetchArtifactBytes(ctx context.Context, run Runner, historyID, digest string) ([]byte, error) {
 	historyID = strings.TrimSpace(historyID)
 	digest = strings.TrimSpace(digest)
 	if historyID == "" {
@@ -199,18 +202,21 @@ func FetchArtifactBytes(ctx context.Context, socket, historyID, digest string) (
 	if digest == "" {
 		return nil, fmt.Errorf("build history artifact: missing digest")
 	}
+	if run == nil {
+		return nil, fmt.Errorf("build history artifact: missing docker runner")
+	}
 
-	if body, err := attachmentBody(ctx, socket, historyID, digest); err == nil && len(body) > 0 {
+	if body, err := attachmentBody(ctx, run, historyID, digest); err == nil && len(body) > 0 {
 		return body, nil
 	}
 
-	attachments, err := listAttachments(ctx, socket, historyID)
+	attachments, err := listAttachments(ctx, run, historyID)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, attachment := range attachments {
-		body, err := attachmentBody(ctx, socket, historyID, attachment.Digest)
+		body, err := attachmentBody(ctx, run, historyID, attachment.Digest)
 		if err != nil || len(body) == 0 {
 			continue
 		}
@@ -231,7 +237,7 @@ func FetchArtifactBytes(ctx context.Context, socket, historyID, digest string) (
 			continue
 		}
 
-		if configBody, err := attachmentBody(ctx, socket, historyID, manifest.Config.Digest); err == nil && len(configBody) > 0 {
+		if configBody, err := attachmentBody(ctx, run, historyID, manifest.Config.Digest); err == nil && len(configBody) > 0 {
 			return configBody, nil
 		}
 

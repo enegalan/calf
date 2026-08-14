@@ -8,6 +8,16 @@ import (
 	"github.com/enegalan/calf/backend/internal/dockerexec"
 )
 
+// Runner executes docker CLI arguments (without the leading "docker" token).
+type Runner func(ctx context.Context, args ...string) ([]byte, error)
+
+// SocketRunner returns a Runner that invokes the host docker CLI against socket.
+func SocketRunner(socket string) Runner {
+	return func(ctx context.Context, args ...string) ([]byte, error) {
+		return runDocker(ctx, socket, args...)
+	}
+}
+
 // runDocker executes docker against the given unix socket with a bounded timeout.
 func runDocker(ctx context.Context, socket string, args ...string) ([]byte, error) {
 	runCtx, cancel := context.WithTimeout(ctx, constants.DockerCLITimeout)

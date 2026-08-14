@@ -185,6 +185,11 @@ func (n *Native) AttachExec(ctx context.Context, id string, stdin io.Reader, onO
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 
+// RunBuildxCLI runs docker/nerdctl buildx arguments against the native engine socket.
+func (n *Native) RunBuildxCLI(ctx context.Context, args ...string) ([]byte, error) {
+	return n.runLocal(ctx, "nerdctl", args...)
+}
+
 // runLocal executes a host command, retrying transient nerdctl failures.
 func (n *Native) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
 	env := n.commandEnv()

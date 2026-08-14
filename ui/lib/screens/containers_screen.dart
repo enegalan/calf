@@ -756,7 +756,6 @@ class _ContainerTile extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(indented ? 52 : 8, 10, 8, 10),
       onTap: onOpen,
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ContainerStatusIcon(container: container, theme: theme),
           SizedBox(width: indented ? 16 : 12),

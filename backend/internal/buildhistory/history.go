@@ -86,8 +86,12 @@ func (r Row) BuildDurationMs() int64 {
 }
 
 // List queries docker buildx history and returns parsed rows.
-func List(ctx context.Context, socket string) ([]Row, error) {
-	output, err := runDocker(ctx, socket, "buildx", "history", "ls", "--format", "{{json .}}")
+func List(ctx context.Context, run Runner) ([]Row, error) {
+	if run == nil {
+		return nil, nil
+	}
+
+	output, err := run(ctx, "buildx", "history", "ls", "--format", "{{json .}}")
 	if err != nil {
 		return nil, err
 	}
