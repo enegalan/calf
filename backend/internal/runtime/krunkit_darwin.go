@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -197,7 +198,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 					if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 						return
 					}
-					guestLogger.Warn("proxy application during krunkit start failed (non-fatal)", "error", err)
+					slog.Default().Warn("proxy application during krunkit start failed (non-fatal)", "error", err)
 				}
 			}()
 		}
@@ -298,7 +299,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 					return
 				}
-				guestLogger.Warn("proxy application during krunkit start failed (non-fatal)", "error", err)
+				slog.Default().Warn("proxy application during krunkit start failed (non-fatal)", "error", err)
 			}
 		}()
 	}
@@ -352,7 +353,7 @@ ip route replace default via 192.168.127.1 dev eth0 2>/dev/null || true
 ip -4 addr show eth0 | grep -q '192.168.127.2'
 ip -4 route show default | grep -q .`
 	if _, err := k.runGuestRoot(ctx, script); err != nil {
-		guestLogger.Warn("guest network setup failed (non-fatal)", "error", err)
+		slog.Default().Warn("guest network setup failed (non-fatal)", "error", err)
 	}
 }
 
@@ -412,7 +413,7 @@ func (k *Krunkit) startGvproxy(gvproxyBin string) error {
 
 // watchPortProxies forwards published container ports via gvproxy and keeps ::1→127.0.0.1 proxies.
 func (k *Krunkit) watchPortProxies(ctx context.Context) {
-	guestLogger.Info("krunkit port forward watcher started")
+	slog.Default().Info("krunkit port forward watcher started")
 	syncOnce := func() {
 		status, err := k.Status(ctx)
 		if err != nil || status.State != State(constants.RuntimeStateRunning) || !k.started.Load() {
@@ -420,7 +421,7 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 		}
 		containers, err := k.ListContainers(ctx)
 		if err != nil {
-			guestLogger.Warn("list containers for port forward failed", "error", err)
+			slog.Default().Warn("list containers for port forward failed", "error", err)
 			k.proxyResync.Store(true)
 			return
 		}
@@ -462,7 +463,7 @@ func (k *Krunkit) syncGvproxyForwards(ctx context.Context, ports map[int]struct{
 			continue
 		}
 		if err := k.gvproxyUnexpose(ctx, client, port); err != nil {
-			guestLogger.Warn("gvproxy port unexpose failed", "port", port, "error", err)
+			slog.Default().Warn("gvproxy port unexpose failed", "port", port, "error", err)
 		}
 		delete(k.forwardedPorts, port)
 	}
@@ -471,10 +472,10 @@ func (k *Krunkit) syncGvproxyForwards(ctx context.Context, ports map[int]struct{
 			continue
 		}
 		if err := k.gvproxyExpose(ctx, client, port, guestIP); err != nil {
-			guestLogger.Warn("gvproxy port expose failed", "port", port, "error", err)
+			slog.Default().Warn("gvproxy port expose failed", "port", port, "error", err)
 			continue
 		}
-		guestLogger.Info("gvproxy port exposed", "port", port, "guest", guestIP)
+		slog.Default().Info("gvproxy port exposed", "port", port, "guest", guestIP)
 		k.forwardedPorts[port] = struct{}{}
 	}
 }
@@ -630,7 +631,7 @@ fi
 ln -sfn /mnt/calf-home "$HOME_PATH"
 `
 	if _, err := k.runGuestRoot(ctx, script); err != nil {
-		guestLogger.Warn("host home share setup failed (non-fatal)", "error", err)
+		slog.Default().Warn("host home share setup failed (non-fatal)", "error", err)
 	}
 }
 

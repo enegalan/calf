@@ -168,6 +168,12 @@ const (
 	BytesPerGiB = 1024 * 1024 * 1024
 )
 
+// Daemon log file size cap and how much of the file the debug UI returns.
+const (
+	DaemonLogMaxBytes  = 5 * BytesPerMiB
+	DaemonLogTailBytes = 512 * BytesPerKiB
+)
+
 // Docker byte unit conversions match decimal (1000-based) sizes from docker system df.
 const (
 	DockerBytesPerKB = 1000

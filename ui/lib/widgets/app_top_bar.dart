@@ -31,6 +31,8 @@ class AppTopBar extends StatelessWidget {
     required this.onOpenWhatsNew,
     required this.onOpenGlobalSearch,
     this.updateAvailable = false,
+    this.debugEnabled = false,
+    this.onOpenDebugLogs,
   });
 
   final RegistryLoginStatus? registryStatus;
@@ -42,6 +44,8 @@ class AppTopBar extends StatelessWidget {
   final Future<void> Function() onSignOut;
   final VoidCallback onOpenWhatsNew;
   final VoidCallback onOpenGlobalSearch;
+  final VoidCallback? onOpenDebugLogs;
+  final bool debugEnabled;
 
   /// Whether the user is signed in to Docker Hub.
   bool get _loggedIn => registryStatus?.loggedIn == true;
@@ -89,6 +93,23 @@ class AppTopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
+          if (debugEnabled && onOpenDebugLogs != null) ...[
+            Tooltip(
+              message: 'Daemon logs',
+              child: CalfButton.ghost(
+                width: 36,
+                height: 36,
+                padding: EdgeInsets.zero,
+                onPressed: onOpenDebugLogs,
+                child: Icon(
+                  LucideIcons.bug,
+                  size: 18,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           Tooltip(
             message: updateAvailable
                 ? 'Update available — Settings'

@@ -99,6 +99,9 @@ func (g *Gateway) Handler() http.Handler {
 		http.MethodGet: g.handleConfigGet,
 		http.MethodPut: g.handleConfigPut,
 	}))
+	mux.HandleFunc("/v1/debug/logs", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleDebugLogs,
+	}))
 	mux.HandleFunc("/v1/migrate/docker-desktop", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet:  g.handleDockerDesktopMigrationStatus,
 		http.MethodPost: g.handleDockerDesktopMigrationStart,

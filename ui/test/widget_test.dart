@@ -340,6 +340,12 @@ class FakeCalfClient implements CalfClient {
   Future<Config> updateConfig(Config config) async => config;
 
   @override
+  Future<DaemonLogs> fetchDaemonLogs() async => const DaemonLogs(
+    text: 'time=2026-08-14T12:00:00Z level=INFO msg="runtime started"',
+    path: '/tmp/calf.log',
+  );
+
+  @override
   Future<MigrationStatus> fetchDockerDesktopMigration() async =>
       const MigrationStatus(
         phase: 'idle',
@@ -523,6 +529,32 @@ void main() {
 
     expect(find.text('Loading...'), findsNothing);
     expect(find.text('daemon unavailable'), findsOneWidget);
+  });
+
+  testWidgets('shows debug log button when log level is debug', (tester) async {
+    final apiClient = FakeCalfClient(
+      DaemonStatus(
+        uptimeSeconds: 42,
+        listenAddr: ':8765',
+        logLevel: 'debug',
+        runtime: const RuntimeStatus(
+          mode: 'vm',
+          state: 'running',
+          dockerSocket: '/tmp/calf.sock',
+          vmName: 'calf',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(MainApp(apiClient: apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(LucideIcons.bug), findsOneWidget);
+    await tester.tap(find.byIcon(LucideIcons.bug));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Daemon logs'), findsOneWidget);
+    expect(find.textContaining('runtime started'), findsOneWidget);
   });
 }
 
@@ -783,6 +815,12 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<Config> updateConfig(Config config) async {
+    await Future<void>.delayed(Duration.zero);
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
+  Future<DaemonLogs> fetchDaemonLogs() async {
     await Future<void>.delayed(Duration.zero);
     throw ApiException('daemon unavailable', statusCode: 503);
   }

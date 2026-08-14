@@ -97,6 +97,26 @@ func EffectiveDiskImage(cfg Config) string {
 	return DefaultDiskImagePath(cfg.VMName)
 }
 
+// LogsDir returns ~/.config/calf/logs.
+func LogsDir() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "logs"), nil
+}
+
+// LogFilePath returns ~/.config/calf/logs/calf.log.
+func LogFilePath() (string, error) {
+	dir, err := LogsDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "calf.log"), nil
+}
+
 // BuildsFilePath returns ~/.config/calf/builds.json.
 func BuildsFilePath() (string, error) {
 	dir, err := ConfigDir()

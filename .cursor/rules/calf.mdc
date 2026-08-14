@@ -63,6 +63,7 @@ calf/
 │   │   │   ├── status.go                      Status HTTP handler
 │   │   │   ├── runtime.go                     Runtime start/stop/kill HTTP handlers
 │   │   │   ├── config.go                      Config HTTP handler
+│   │   │   ├── debug_logs.go                  Daemon log file HTTP handler
 │   │   │   ├── builds.go                      Build HTTP handlers
 │   │   │   ├── containers.go                  Container HTTP handlers
 │   │   │   ├── exec.go                        Exec HTTP handlers (WebSocket + one-shot)
@@ -110,7 +111,8 @@ calf/
 │   │   │   └── troubleshoot.go                Purge guest data and factory reset
 │   │   ├── config/
 │   │   │   ├── config.go                      Config struct, YAML load/save, defaults
-│   │   │   └── logger.go                       slog.TextHandler setup with level parsing
+│   │   │   ├── logger.go                       slog.TextHandler to stdout + log file, runtime level
+│   │   │   └── log_file.go                     Rotating daemon log file and tail reader
 │   │   ├── runtime/
 │   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Krunkit (darwin) / Unsupported (windows)
 │   │   │   ├── select_darwin.go               Darwin runtime: always krunkit
@@ -160,6 +162,7 @@ calf/
 │   │   ├── buildhistory/history_test.go
 │   │   ├── buildstore/buildstore_test.go
 │   │   ├── config/config_test.go
+│   │   ├── config/logger_test.go
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
@@ -209,11 +212,12 @@ calf/
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   │   ├── disk_cleanup_screen.dart            Clean unused data (prune preview + execute)
 │   │   │   ├── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
-│   │   │   └── settings_screen.dart                SettingsScreen (resources, proxy, migration, theme, updates)
+│   │   │   └── settings_screen.dart                SettingsScreen (resources, proxy, migration, theme, updates, debug)
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
 │   │       ├── app_bottom_bar.dart             Engine status, resources, version bar
+│   │       ├── daemon_logs_dialog.dart         Debug daemon log viewer
 │   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
 │   │       ├── calf_popup_menu.dart            Bordered popup menus (showCalfMenu, CalfPopupMenuButton, CalfPopupMenuRow)
@@ -264,7 +268,8 @@ Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` an
 
 ### `internal/config/`
 - `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `disk_image`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
-- `logger.go` — wraps `slog.NewTextHandler` with a level parser (`debug`/`warn`/`error`, default `info`).
+- `logger.go` — wraps `slog.NewTextHandler` writing to stdout and `~/.config/calf/logs/calf.log`, with a level parser (`debug`/`warn`/`error`, default `info`) that can change at runtime.
+- `log_file.go` — rotating daemon log file writer and tail reader used by Debug logs.
 
 ### `internal/api/`
 HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and writes responses via `httpkit`.
@@ -274,6 +279,7 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `status.go` — `/v1/status` (version, runtime state, RAM/disk used vs reserved).
 - `runtime.go` — `POST /v1/runtime/start|stop|kill` (boot, graceful stop, force stop).
 - `config.go` — `/v1/config` handler, response shape, and update logic.
+- `debug_logs.go` — `GET /v1/debug/logs` returns recent daemon log file contents.
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 - `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
 - `prune.go` — `GET /v1/system/prune/preview`, `POST /v1/system/prune`, and `GET /v1/system/df`.
@@ -429,11 +435,12 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 - `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
 - `troubleshoot_screen.dart` — restart, support, clean unused data, purge engine data, factory reset, and uninstall.
-- `settings_screen.dart` — `SettingsScreen`: resource limits (CPU/memory/swap/disk sliders bounded by host capacity from `/v1/config`), disk image location, Docker CLI context toggle, open-at-login, theme mode picker, update check/download, Docker Desktop migration trigger + polling, and HTTP/HTTPS/no-proxy configuration.
+- `settings_screen.dart` — `SettingsScreen`: resource limits (CPU/memory/swap/disk sliders bounded by host capacity from `/v1/config`), disk image location, Docker CLI context toggle, open-at-login, debug logging, theme mode picker, update check/download, Docker Desktop migration trigger + polling, and HTTP/HTTPS/no-proxy configuration.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
-- `app_top_bar.dart` — registry auth UI.
+- `app_top_bar.dart` — registry auth UI and optional Debug logs button.
+- `daemon_logs_dialog.dart` — daemon log viewer opened from the top-bar bug button (copy / open file).
 - `app_bottom_bar.dart` — engine status badge, play/pause, overflow menu (including Troubleshoot), RAM/disk used vs reserved, app version.
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
