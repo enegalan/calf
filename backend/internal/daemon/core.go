@@ -37,6 +37,7 @@ type Core struct {
 	runtimeStartInflight  *runtimeStartResult
 	resourceSaver         *resourceSaver
 	dockerSocketProxy     *dockerSocketProxy
+	historyArtifactSkip   sync.Map
 }
 
 // runtimeStartResult is the shared completion of one in-flight EnsureRuntimeRunning start.

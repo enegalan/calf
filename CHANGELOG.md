@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-08-14
+
+### Fixed
+
+- **Containers list** — containers stay on screen during a brief engine connection blip, instead of vanishing and coming back.
+
 ## [1.0.3] - 2026-08-14
 
 ### Fixed

@@ -137,6 +137,8 @@ func IsTransientCommandError(err error) bool {
 		"deadline exceeded",
 		"i/o timeout",
 		"broken pipe",
+		"error during connect",
+		"unexpected eof",
 	}
 
 	for _, marker := range transientMarkers {

@@ -37,6 +37,18 @@ func emptyIfStopped[T any](
 	return listFn(ctx)
 }
 
+// KeepLastList returns the live list on success, or the last known list when a
+// live fetch fails. A brief engine blip must not look like zero containers.
+func KeepLastList[T any](cached []T, live []T, err error) ([]T, error) {
+	if err == nil {
+		return live, nil
+	}
+	if len(cached) == 0 {
+		return live, err
+	}
+	return append([]T(nil), cached...), nil
+}
+
 // requireRunning returns ErrRuntimeNotRunning when the runtime is not in the running state.
 func requireRunning(ctx context.Context, statusFn func(context.Context) (Status, error)) error {
 	status, err := statusFn(ctx)

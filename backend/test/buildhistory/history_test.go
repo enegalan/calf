@@ -1,6 +1,7 @@
 package buildhistory_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/enegalan/calf/backend/internal/buildhistory"
@@ -17,6 +18,16 @@ func TestParseDurationMs(t *testing.T) {
 
 	if got := buildhistory.ParseDurationMs("1h5m10s"); got < 3910000 || got > 3920000 {
 		t.Fatalf("expected ~3910000ms, got %d", got)
+	}
+}
+
+func TestIsDockerUnreachablePingEOF(t *testing.T) {
+	err := fmt.Errorf(`error during connect: Get "http://%%2FUsers%%2Fegalan%%2F.config%%2Fcalf%%2Fdocker.sock/_ping": EOF`)
+	if !buildhistory.IsDockerUnreachable(err) {
+		t.Fatal("expected ping EOF to be unreachable")
+	}
+	if buildhistory.IsDockerUnreachable(fmt.Errorf("image not found")) {
+		t.Fatal("image not found must not be unreachable")
 	}
 }
 

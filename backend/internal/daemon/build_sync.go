@@ -178,11 +178,30 @@ func (s *Core) enrichHistoryBuild(ctx context.Context, socket string, build runt
 
 	runtime.EnrichSyncedBuild(ctx, socket, &build)
 
-	if artifacts, err := buildhistory.BuildArtifacts(ctx, socket, build.HistoryRef, build.Platform); err == nil && len(artifacts) > 0 {
-		build.Results = artifacts
+	if len(build.Results) == 0 && !s.skipHistoryArtifacts(build.HistoryRef) {
+		artifacts, err := buildhistory.BuildArtifacts(ctx, socket, build.HistoryRef, build.Platform)
+		if err != nil || len(artifacts) == 0 {
+			s.markHistoryArtifactsSkip(build.HistoryRef)
+		} else {
+			build.Results = artifacts
+		}
 	}
 
 	return build
+}
+
+// skipHistoryArtifacts reports whether artifact inspect should not run again for this history id.
+func (s *Core) skipHistoryArtifacts(historyID string) bool {
+	_, ok := s.historyArtifactSkip.Load(historyID)
+	return ok
+}
+
+// markHistoryArtifactsSkip records a history id whose attachments failed or were empty.
+func (s *Core) markHistoryArtifactsSkip(historyID string) {
+	if historyID == "" {
+		return
+	}
+	s.historyArtifactSkip.Store(historyID, struct{}{})
 }
 
 // isTerminalBuildStatus reports whether a build status indicates the build has finished.
