@@ -128,14 +128,15 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final body = _error != null && _text.isEmpty
-        ? _error!
-        : (_text.isEmpty
-            ? 'No logs yet. Reproduce the issue, then copy from here.'
-            : _text);
-    final bodyColor = _error != null && _text.isEmpty
-        ? theme.colorScheme.error
-        : theme.colorScheme.onSurface;
+    var body = _text;
+    var bodyColor = theme.colorScheme.onSurface;
+    if (_error != null && _text.isEmpty) {
+      body = _error!;
+      bodyColor = theme.colorScheme.error;
+    } else if (_text.isEmpty) {
+      body = 'No logs yet. Reproduce the issue, then copy from here.';
+    }
+    final canCopy = _text.isNotEmpty || (_error != null && _error!.isNotEmpty);
 
     return AlertDialog(
       shape: CalfTheme.dialogShape(theme.colorScheme),
@@ -195,9 +196,7 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
             child: const Text('Open log file'),
           ),
         CalfButton.outline(
-          onPressed: _text.isEmpty && (_error == null || _error!.isEmpty)
-              ? null
-              : _copy,
+          onPressed: canCopy ? _copy : null,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
