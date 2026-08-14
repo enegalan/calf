@@ -19,15 +19,17 @@ type InspectDetail struct {
 }
 
 // Inspect fetches build context, Dockerfile path, and labels for a buildx history entry.
-func Inspect(ctx context.Context, socket, historyID string) (InspectDetail, error) {
+func Inspect(ctx context.Context, run Runner, historyID string) (InspectDetail, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
 		return InspectDetail{}, fmt.Errorf("build history inspect: missing history id")
 	}
+	if run == nil {
+		return InspectDetail{}, fmt.Errorf("build history inspect: missing docker runner")
+	}
 
-	output, err := runDocker(
+	output, err := run(
 		ctx,
-		socket,
 		"buildx",
 		"history",
 		"inspect",

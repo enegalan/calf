@@ -7,13 +7,16 @@ import (
 )
 
 // Logs fetches the build log text for a buildx history entry.
-func Logs(ctx context.Context, socket, historyID string) (string, error) {
+func Logs(ctx context.Context, run Runner, historyID string) (string, error) {
 	historyID = strings.TrimSpace(historyID)
 	if historyID == "" {
 		return "", fmt.Errorf("build history logs: missing history id")
 	}
+	if run == nil {
+		return "", fmt.Errorf("build history logs: missing docker runner")
+	}
 
-	output, err := runDocker(ctx, socket, "buildx", "history", "logs", historyID)
+	output, err := run(ctx, "buildx", "history", "logs", historyID)
 	if err != nil {
 		return "", err
 	}

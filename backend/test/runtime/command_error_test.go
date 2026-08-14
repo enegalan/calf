@@ -26,6 +26,14 @@ func TestIsTransientCommandError(t *testing.T) {
 	}
 }
 
+func TestFormatCommandErrorPrefersUnknownCommand(t *testing.T) {
+	output := "docker: unknown command: docker buildx\n\nRun 'docker --help' for more information\n"
+	got := runtime.FormatCommandError(output)
+	if got != "docker: unknown command: docker buildx" {
+		t.Fatalf("FormatCommandError() = %q, want unknown-command line", got)
+	}
+}
+
 func TestKeepLastListUsesCacheOnError(t *testing.T) {
 	cached := []string{"web", "db"}
 	got, err := runtime.KeepLastList(cached, nil, fmt.Errorf("error during connect"))

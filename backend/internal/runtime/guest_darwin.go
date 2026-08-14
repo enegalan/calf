@@ -182,14 +182,65 @@ func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 }
 
 // runGuestRoot runs a shell script in the guest init mount/network namespace.
+// Output is collected via docker logs because attach streams over vsock return empty.
 func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error) {
-	return v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "--pid=host",
-		"alpine:3.20", "nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--", "bash", "-lc", script)
+	name := fmt.Sprintf("calf-guestcmd-%d", time.Now().UnixNano())
+	createOut, err := v.runLocal(ctx, "docker", "create",
+		"--name", name,
+		"--privileged",
+		"--pid=host",
+		constants.AlpineSmokeImage,
+		"nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--",
+		"bash", "-lc", script,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("guest create: %w", err)
+	}
+	containerID := strings.TrimSpace(string(createOut))
+	if containerID == "" {
+		containerID = name
+	}
+	defer func() {
+		_, _ = v.runLocal(context.WithoutCancel(ctx), "docker", "rm", "-f", containerID)
+	}()
+
+	if _, err := v.runLocal(ctx, "docker", "start", containerID); err != nil {
+		return nil, fmt.Errorf("guest start: %w", err)
+	}
+
+	waitOut, waitErr := v.runLocal(ctx, "docker", "wait", containerID)
+	logs, logsErr := v.runLocal(ctx, "docker", "logs", containerID)
+	if waitErr != nil {
+		if logsErr == nil && len(logs) > 0 {
+			return logs, fmt.Errorf("guest wait: %w: %s", waitErr, FormatCommandError(string(logs)))
+		}
+		return nil, fmt.Errorf("guest wait: %w", waitErr)
+	}
+
+	exitCode := strings.TrimSpace(string(waitOut))
+	if exitCode != "0" {
+		message := FormatCommandError(string(logs))
+		if message == "" {
+			message = fmt.Sprintf("guest command exit %s", exitCode)
+		}
+		if logsErr != nil {
+			return logs, fmt.Errorf("%s", message)
+		}
+		return logs, fmt.Errorf("%s", message)
+	}
+	if logsErr != nil {
+		return nil, fmt.Errorf("guest logs: %w", logsErr)
+	}
+	return logs, nil
 }
 
 // guestCommandRunner adapts guest root shells and docker CLI for shared helpers (proxy, buildx install).
+// buildx runs inside the guest so calf does not depend on a host Docker Desktop CLI plugin.
 func (v *Guest) guestCommandRunner(ctx context.Context, command string, args ...string) ([]byte, error) {
 	if command == "nerdctl" || command == "docker" {
+		if len(args) > 0 && args[0] == "buildx" {
+			return v.runGuestRoot(ctx, dockerCLIShellCommand(args...))
+		}
 		return v.runLocal(ctx, command, args...)
 	}
 	if command == "bash" && len(args) >= 2 && args[0] == "-lc" {
@@ -201,6 +252,21 @@ func (v *Guest) guestCommandRunner(ctx context.Context, command string, args ...
 	}
 	all := append([]string{command}, args...)
 	return v.runGuestRoot(ctx, strings.Join(all, " "))
+}
+
+// RunBuildxCLI runs docker buildx arguments inside the guest (where buildx is installed).
+func (v *Guest) RunBuildxCLI(ctx context.Context, args ...string) ([]byte, error) {
+	return v.runGuestRoot(ctx, dockerCLIShellCommand(args...))
+}
+
+// dockerCLIShellCommand builds a single-quoted `docker ...` shell command from CLI args.
+func dockerCLIShellCommand(args ...string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, "docker")
+	for _, arg := range args {
+		parts = append(parts, "'"+strings.ReplaceAll(arg, "'", `'\''`)+"'")
+	}
+	return strings.Join(parts, " ")
 }
 
 // ensureHostDockerInternal maps host.docker.internal to the guest NAT gateway for containers.
@@ -485,7 +551,7 @@ func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, plat
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return BuildResult{}, err
 	}
-	result, err := runBuildx(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
+	result, err := runBuildx(ctx, v.guestCommandRunner, contextPath, tag, dockerfile, platform)
 	if err != nil && isBuildxMissingError(err) {
 		slog.Default().Warn("buildx build failed; falling back to docker build", "error", err)
 		return runBuild(ctx, v.runLocal, contextPath, tag, dockerfile, platform)

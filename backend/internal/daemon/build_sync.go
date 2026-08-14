@@ -45,7 +45,8 @@ func (s *Core) syncBuildHistory(ctx context.Context) {
 		return
 	}
 
-	rows, err := buildhistory.List(ctx, socket)
+	run := s.buildxRunner()
+	rows, err := buildhistory.List(ctx, run)
 	if err != nil {
 		s.Logger.Debug("build history sync skipped", "error", err)
 		return
@@ -79,7 +80,7 @@ func (s *Core) syncBuildHistory(ctx context.Context) {
 			continue
 		}
 
-		updated := s.enrichHistoryBuild(enrichCtx, socket, applyHistoryRow(build, row))
+		updated := s.enrichHistoryBuild(enrichCtx, run, socket, applyHistoryRow(build, row))
 		if !buildsEqual(updated, build) {
 			enrichedByID[build.ID] = updated
 		}
@@ -87,7 +88,7 @@ func (s *Core) syncBuildHistory(ctx context.Context) {
 
 	newBuilds := make([]runtime.Build, 0, len(importRows))
 	for _, row := range importRows {
-		newBuilds = append(newBuilds, s.enrichHistoryBuild(enrichCtx, socket, baseBuildFromHistoryRow(row)))
+		newBuilds = append(newBuilds, s.enrichHistoryBuild(enrichCtx, run, socket, baseBuildFromHistoryRow(row)))
 	}
 
 	s.BuildsMu.Lock()
@@ -149,13 +150,13 @@ func timingEqual(left, right runtime.BuildTiming) bool {
 }
 
 // enrichHistoryBuild fills context, logs, and artifacts for a build linked to buildkit history.
-func (s *Core) enrichHistoryBuild(ctx context.Context, socket string, build runtime.Build) runtime.Build {
+func (s *Core) enrichHistoryBuild(ctx context.Context, run buildhistory.Runner, socket string, build runtime.Build) runtime.Build {
 	if build.HistoryRef == "" {
 		return build
 	}
 
 	if !runtime.IsResolvableBuildContext(build.Context) {
-		detail, err := buildhistory.Inspect(ctx, socket, build.HistoryRef)
+		detail, err := buildhistory.Inspect(ctx, run, build.HistoryRef)
 		if err == nil {
 			build.Context = detail.Context
 			if detail.Dockerfile != "" {
@@ -170,7 +171,7 @@ func (s *Core) enrichHistoryBuild(ctx context.Context, socket string, build runt
 	}
 
 	if isTerminalBuildStatus(build.Status) && build.RawLog == "" && len(build.Steps) == 0 {
-		logs, err := buildhistory.Logs(ctx, socket, build.HistoryRef)
+		logs, err := buildhistory.Logs(ctx, run, build.HistoryRef)
 		if err == nil {
 			runtime.ApplyBuildLogs(&build, logs)
 		}
@@ -179,7 +180,7 @@ func (s *Core) enrichHistoryBuild(ctx context.Context, socket string, build runt
 	runtime.EnrichSyncedBuild(ctx, socket, &build)
 
 	if len(build.Results) == 0 && !s.skipHistoryArtifacts(build.HistoryRef) {
-		artifacts, err := buildhistory.BuildArtifacts(ctx, socket, build.HistoryRef, build.Platform)
+		artifacts, err := buildhistory.BuildArtifacts(ctx, run, build.HistoryRef, build.Platform)
 		if err != nil || len(artifacts) == 0 {
 			s.markHistoryArtifactsSkip(build.HistoryRef)
 		} else {
@@ -262,4 +263,17 @@ func applyHistoryRow(build runtime.Build, row buildhistory.Row) runtime.Build {
 		updated.TotalSteps = row.TotalSteps
 	}
 	return updated
+}
+
+// buildxCLIer is implemented by runtimes that can run buildx without the host Docker Desktop plugin.
+type buildxCLIer interface {
+	RunBuildxCLI(ctx context.Context, args ...string) ([]byte, error)
+}
+
+// buildxRunner returns the runtime buildx CLI runner, falling back to host docker against the public socket.
+func (s *Core) buildxRunner() buildhistory.Runner {
+	if runner, ok := s.Runtime.(buildxCLIer); ok {
+		return runner.RunBuildxCLI
+	}
+	return buildhistory.SocketRunner(s.Runtime.DockerSocket())
 }
