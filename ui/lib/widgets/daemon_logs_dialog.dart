@@ -160,8 +160,11 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
                 borderRadius: CalfTheme.radius,
                 border: Border.all(color: theme.colorScheme.outlineVariant),
               ),
-              child: SizedBox(
-                height: 360,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: 160,
+                  maxHeight: 320,
+                ),
                 child: _loading
                     ? const Center(
                         child: SizedBox(
