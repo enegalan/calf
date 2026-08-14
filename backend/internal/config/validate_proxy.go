@@ -24,6 +24,7 @@ type UpdateRequest struct {
 	NoProxy                 *string `json:"no_proxy,omitempty"`
 	ResourceSaverEnabled    *bool   `json:"resource_saver_enabled,omitempty"`
 	ResourceSaverTimeoutSec *int    `json:"resource_saver_timeout_sec,omitempty"`
+	LogLevel                *string `json:"log_level,omitempty"`
 }
 
 // ValidateResourceUpdate checks CPU, memory, and disk fields in a config update against host capacity.

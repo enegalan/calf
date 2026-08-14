@@ -173,6 +173,9 @@ abstract class CalfClient {
   /// Updates the daemon configuration.
   Future<Config> updateConfig(Config config);
 
+  /// Fetches recent daemon logs for the Debug viewer.
+  Future<DaemonLogs> fetchDaemonLogs();
+
   /// Fetches the current Docker Desktop migration status.
   Future<MigrationStatus> fetchDockerDesktopMigration();
 

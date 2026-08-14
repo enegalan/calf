@@ -517,6 +517,13 @@ class ApiClient implements CalfClient {
     return Config.fromJson(json);
   }
 
+  /// Fetches recent daemon logs for the Debug viewer.
+  @override
+  Future<DaemonLogs> fetchDaemonLogs() async {
+    final json = await _getJson('/v1/debug/logs');
+    return DaemonLogs.fromJson(json);
+  }
+
   /// Fetches the current Docker Desktop migration status.
   @override
   Future<MigrationStatus> fetchDockerDesktopMigration() async {

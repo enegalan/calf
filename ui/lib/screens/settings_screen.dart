@@ -13,7 +13,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 
-/// Settings screen: resource limits, proxy, migration, theme, and updates.
+/// Settings screen: resource limits, proxy, migration, theme, updates, and debug.
 class SettingsScreen extends StatefulWidget {
   /// Creates a [SettingsScreen] instance.
   const SettingsScreen({
@@ -26,6 +26,7 @@ class SettingsScreen extends StatefulWidget {
     this.initialUpdateCheckResult,
     this.onCheckForUpdates,
     this.onUpdateCheckResultChanged,
+    this.onDebugChanged,
   });
 
   final CalfClient apiClient;
@@ -36,6 +37,7 @@ class SettingsScreen extends StatefulWidget {
   final UpdateCheckResult? initialUpdateCheckResult;
   final Future<void> Function()? onCheckForUpdates;
   final ValueChanged<UpdateCheckResult>? onUpdateCheckResultChanged;
+  final ValueChanged<bool>? onDebugChanged;
 
   /// Creates the state object for [SettingsScreen].
   @override
@@ -64,6 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   MigrationStatus? _migrationStatus;
   bool _dockerContextManaged = true;
   bool _dockerContextSaving = false;
+  bool _debugSaving = false;
   bool? _launchAtLoginEnabled;
   bool _launchAtLoginLoading = true;
   bool _launchAtLoginSaving = false;
@@ -407,6 +410,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Toggles verbose daemon logging and the top-bar logs button.
+  Future<void> setDebugEnabled(bool value) async {
+    final current = _config;
+    if (current == null) {
+      return;
+    }
+
+    setState(() => _debugSaving = true);
+
+    try {
+      final updated = await widget.apiClient.updateConfig(
+        current.copyWith(logLevel: value ? 'debug' : 'info'),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _config = updated;
+        _debugSaving = false;
+      });
+      widget.onDebugChanged?.call(updated.logLevel == 'debug');
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _debugSaving = false;
+        _configError = error.toString();
+      });
+    }
+  }
+
   /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
@@ -471,6 +506,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 16),
+          _settingRow(
+            'Debug',
+            Switch(
+              value: _config?.logLevel == 'debug',
+              onChanged: _config == null || _debugSaving
+                  ? null
+                  : setDebugEnabled,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Shows a bug button in the top bar so you can copy daemon logs when something goes wrong.',
+            style: CalfTheme.muted(theme),
+          ),
           const SizedBox(height: 16),
           _sectionHeader('Theme', theme),
           const SizedBox(height: 12),

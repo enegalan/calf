@@ -34,6 +34,7 @@ type configView struct {
 	NoProxy                 string `json:"no_proxy"`
 	ResourceSaverEnabled    bool   `json:"resource_saver_enabled"`
 	ResourceSaverTimeoutSec int    `json:"resource_saver_timeout_sec"`
+	LogLevel                string `json:"log_level"`
 }
 
 // buildConfigView builds the JSON payload for GET /v1/config including host capacity and Docker CLI status.
@@ -69,6 +70,7 @@ func (g *Gateway) buildConfigView() configView {
 		NoProxy:                 cfg.NoProxy,
 		ResourceSaverEnabled:    cfg.ResourceSaverEnabled,
 		ResourceSaverTimeoutSec: cfg.ResourceSaverTimeoutSec,
+		LogLevel:                cfg.LogLevel,
 	}
 }
 
@@ -124,6 +126,15 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	if req.ResourceSaverTimeoutSec != nil {
 		g.backend.Cfg.ResourceSaverTimeoutSec = *req.ResourceSaverTimeoutSec
 	}
+	if req.LogLevel != nil {
+		normalized, err := config.NormalizeLogLevel(*req.LogLevel)
+		if err != nil {
+			return config.Config{}, err
+		}
+		g.backend.Cfg.LogLevel = normalized
+		config.SetLogLevel(normalized)
+		g.backend.Logger.Info("log level updated", "level", normalized)
+	}
 
 	if err := config.Save(g.backend.Cfg); err != nil {
 		return config.Config{}, err
@@ -148,6 +159,12 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 	if err := config.ValidateProxyUpdate(req); err != nil {
 		httpkit.WriteError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if req.LogLevel != nil {
+		if _, err := config.NormalizeLogLevel(*req.LogLevel); err != nil {
+			httpkit.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 
 	hostDiskGB := daemon.HostDiskGB()

@@ -1051,3 +1051,93 @@ func TestPrunePreviewAndPrune(t *testing.T) {
 		t.Fatalf("expected empty prune 400, got %d", emptyResponse.StatusCode)
 	}
 }
+
+func TestDebugLogsReturnsEmptyWhenMissing(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/debug/logs")
+	if err != nil {
+		t.Fatalf("GET /v1/debug/logs error: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", response.StatusCode)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+	text, ok := payload["text"].(string)
+	if !ok {
+		t.Fatalf("expected string text, got %T", payload["text"])
+	}
+	if text != "" {
+		t.Fatalf("expected empty text, got %q", text)
+	}
+	path, ok := payload["path"].(string)
+	if !ok || path == "" {
+		t.Fatalf("expected non-empty path, got %#v", payload["path"])
+	}
+}
+
+func TestConfigPutLogLevel(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	putResp, err := putJSON(server.URL+"/v1/config", `{"log_level":"debug"}`)
+	if err != nil {
+		t.Fatalf("PUT /v1/config error: %v", err)
+	}
+	defer putResp.Body.Close()
+	if putResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(putResp.Body)
+		t.Fatalf("expected PUT 200, got %d: %s", putResp.StatusCode, body)
+	}
+
+	var cfg map[string]any
+	if err := json.NewDecoder(putResp.Body).Decode(&cfg); err != nil {
+		t.Fatalf("Decode config error: %v", err)
+	}
+	if cfg["log_level"] != "debug" {
+		t.Fatalf("expected log_level debug, got %#v", cfg["log_level"])
+	}
+
+	statusResp, err := http.Get(server.URL + "/v1/status")
+	if err != nil {
+		t.Fatalf("GET /v1/status error: %v", err)
+	}
+	defer statusResp.Body.Close()
+	var status map[string]any
+	if err := json.NewDecoder(statusResp.Body).Decode(&status); err != nil {
+		t.Fatalf("Decode status error: %v", err)
+	}
+	if status["log_level"] != "debug" {
+		t.Fatalf("expected status log_level debug, got %#v", status["log_level"])
+	}
+}
+
+func TestConfigPutLogLevelInvalid(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	putResp, err := putJSON(server.URL+"/v1/config", `{"log_level":"trace"}`)
+	if err != nil {
+		t.Fatalf("PUT /v1/config error: %v", err)
+	}
+	defer putResp.Body.Close()
+	if putResp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected PUT 400, got %d", putResp.StatusCode)
+	}
+}
+
+// putJSON sends a PUT request with a JSON body.
+func putJSON(url, body string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return http.DefaultClient.Do(req)
+}

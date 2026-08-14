@@ -1632,6 +1632,7 @@ class Config {
     this.noProxy = '',
     this.resourceSaverEnabled = true,
     this.resourceSaverTimeoutSec = 300,
+    this.logLevel = 'info',
   });
 
   final int pollIntervalMs;
@@ -1653,6 +1654,7 @@ class Config {
   final String noProxy;
   final bool resourceSaverEnabled;
   final int resourceSaverTimeoutSec;
+  final String logLevel;
 
   /// Serializes this [Config] to a JSON map.
   Map<String, dynamic> toJson() => {
@@ -1668,6 +1670,7 @@ class Config {
     'no_proxy': noProxy,
     'resource_saver_enabled': resourceSaverEnabled,
     'resource_saver_timeout_sec': resourceSaverTimeoutSec,
+    'log_level': logLevel,
   };
 
   /// Creates a [Config] from a JSON map.
@@ -1695,6 +1698,7 @@ class Config {
       resourceSaverEnabled: json['resource_saver_enabled'] as bool? ?? true,
       resourceSaverTimeoutSec:
           (json['resource_saver_timeout_sec'] as num?)?.toInt() ?? 300,
+      logLevel: json['log_level'] as String? ?? 'info',
     );
   }
 
@@ -1719,6 +1723,7 @@ class Config {
     String? noProxy,
     bool? resourceSaverEnabled,
     int? resourceSaverTimeoutSec,
+    String? logLevel,
   }) {
     return Config(
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
@@ -1741,6 +1746,24 @@ class Config {
       resourceSaverEnabled: resourceSaverEnabled ?? this.resourceSaverEnabled,
       resourceSaverTimeoutSec:
           resourceSaverTimeoutSec ?? this.resourceSaverTimeoutSec,
+      logLevel: logLevel ?? this.logLevel,
+    );
+  }
+}
+
+/// Recent daemon log file contents for the Debug viewer.
+class DaemonLogs {
+  /// Creates a [DaemonLogs] instance.
+  const DaemonLogs({this.text = '', this.path = ''});
+
+  final String text;
+  final String path;
+
+  /// Creates a [DaemonLogs] from a JSON map.
+  factory DaemonLogs.fromJson(Map<String, dynamic> json) {
+    return DaemonLogs(
+      text: json['text'] as String? ?? '',
+      path: json['path'] as String? ?? '',
     );
   }
 }

@@ -27,6 +27,7 @@ import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/build_row_icons.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/daemon_logs_dialog.dart';
 import 'package:ui/widgets/global_search_dialog.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/constants/calf_constants.dart';
@@ -79,6 +80,7 @@ class _AppShellState extends State<AppShell> {
   bool _engineActionBusy = false;
   _EnginePendingAction _enginePending = _EnginePendingAction.none;
   Timer? _statusPollTimer;
+  bool _debugEnabled = false;
   UpdateCheckResult? _updateCheckResult;
   bool _updateDialogShown = false;
   late final UpdateChecker _updateChecker = UpdateChecker();
@@ -140,6 +142,7 @@ class _AppShellState extends State<AppShell> {
       _daemonStatusFailureCount = 0;
       setState(() {
         _daemonStatus = status;
+        _debugEnabled = status.logLevel.toLowerCase() == 'debug';
         if (status.version.isNotEmpty) {
           _appVersion = status.version;
         }
@@ -468,6 +471,13 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  /// Opens the daemon logs dialog from the debug bug button.
+  void openDebugLogs() {
+    unawaited(
+      showDaemonLogsDialog(context: context, apiClient: widget.apiClient),
+    );
+  }
+
   /// Opens the Troubleshoot screen from the engine menu.
   void openTroubleshoot() {
     setState(() {
@@ -666,11 +676,13 @@ class _AppShellState extends State<AppShell> {
           registryLoading: _registryLoading,
           signInPending: _registryBrowserLoginPending,
           updateAvailable: _updateCheckResult?.hasUpdate == true,
+          debugEnabled: _debugEnabled,
           onOpenSettings: openSettings,
           onSignIn: startRegistryBrowserLogin,
           onSignOut: logoutRegistry,
           onOpenWhatsNew: () => showWhatsNewDialog(context, _appVersion),
           onOpenGlobalSearch: () => unawaited(openGlobalSearch()),
+          onOpenDebugLogs: openDebugLogs,
         ),
         Expanded(
           child: Stack(
@@ -767,6 +779,9 @@ class _AppShellState extends State<AppShell> {
                                   checkForUpdates(force: true),
                               onUpdateCheckResultChanged: (result) {
                                 setState(() => _updateCheckResult = result);
+                              },
+                              onDebugChanged: (enabled) {
+                                setState(() => _debugEnabled = enabled);
                               },
                             )
                           : switch (_selectedIndex) {

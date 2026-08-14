@@ -23,8 +23,6 @@ import (
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
-var guestLogger = slog.Default()
-
 // Guest holds shared macOS guest state (disk, EFI, vsock Docker helpers) used by Krunkit. It
 // embeds cliOps for the operations shared with Native (see cli_ops.go); methods with
 // guest-specific behavior are defined below.
@@ -236,7 +234,7 @@ if [ -d /etc/dnsmasq.d ]; then
 fi
 `
 	if _, err := v.runGuestRoot(ctx, script); err != nil {
-		guestLogger.Warn("host.docker.internal setup failed (non-fatal)", "error", err)
+		slog.Default().Warn("host.docker.internal setup failed (non-fatal)", "error", err)
 	}
 }
 
@@ -276,7 +274,7 @@ func (v *Guest) ensureBuildxAsync(lifeCtx context.Context) {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			guestLogger.Warn("buildx setup failed (non-fatal)", "error", err)
+			slog.Default().Warn("buildx setup failed (non-fatal)", "error", err)
 		}
 	}()
 }
@@ -483,7 +481,7 @@ func (v *Guest) RunBuild(ctx context.Context, contextPath, tag, dockerfile, plat
 	}
 	result, err := runBuildx(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
 	if err != nil && isBuildxMissingError(err) {
-		guestLogger.Warn("buildx build failed; falling back to docker build", "error", err)
+		slog.Default().Warn("buildx build failed; falling back to docker build", "error", err)
 		return runBuild(ctx, v.runLocal, contextPath, tag, dockerfile, platform)
 	}
 	return result, err

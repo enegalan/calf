@@ -82,6 +82,8 @@ func (s *Core) FactoryReset(ctx context.Context) error {
 	s.BuildsMu.Unlock()
 
 	s.ClearResourceSaver()
+	config.SetLogLevel(defaults.LogLevel)
+	config.ReopenLogFile()
 	s.Logger.Info("factory reset complete", "config_dir", cfgDir)
 	return nil
 }
