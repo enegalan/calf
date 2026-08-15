@@ -526,4 +526,3 @@ func TestProxyUnixConnectionForwardsRequestBody(t *testing.T) {
 		t.Fatal("proxy did not finish after body forward")
 	}
 }
-
