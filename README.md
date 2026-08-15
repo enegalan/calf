@@ -22,13 +22,18 @@ Public macOS benchmarks comparing calf with Docker Desktop and OrbStack (VM boot
 
 ### macOS
 
-On macOS, calf runs containers in its own VM. You need the **Docker CLI** on the host (`brew install docker`).
-
-The `.dmg` and `.pkg` installers are unsigned during the development phase. To install calf on macOS, run this single command to install the application:
+On macOS, calf runs containers in its own VM. Install the **Docker CLI** and its plugins on the host (calf does not ship them):
 
 ```bash
+brew install docker docker-compose docker-buildx
 brew install --cask enegalan/calf/calf
 ```
+
+Then open calf and leave **Use calf for Docker CLI** enabled in Settings so `docker` / `docker compose` talk to calf.
+
+**Leaving Docker Desktop:** trashing Docker Desktop often leaves broken symlinks under `~/.docker/cli-plugins/` (for `docker-buildx` and `docker-compose`). calf detects that on startup and relinks working plugins from Homebrew, OrbStack, or PATH when it can. If Settings still shows a plugins warning, run the `brew install` line above.
+
+The `.dmg` and `.pkg` installers are unsigned during the development phase.
 
 ### Windows
 

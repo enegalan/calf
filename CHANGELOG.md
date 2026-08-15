@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-08-16
+
+### Fixed
+
+- **Docker CLI plugins after leaving Docker Desktop** — calf detects broken `docker-buildx` / `docker-compose` symlinks under `~/.docker/cli-plugins/` (common after trashing Docker Desktop) and relinks working copies from Homebrew, OrbStack, or PATH so `docker compose up --build` keeps working. Settings shows an install hint when a plugin is still missing.
+
 ## [1.0.7] - 2026-08-15
 
 ### Fixed

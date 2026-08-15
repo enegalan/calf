@@ -486,6 +486,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : 'Active context: ${_config!.dockerContextName}',
               style: CalfTheme.muted(theme),
             ),
+            if (_config!.dockerPluginsHint.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                _config!.dockerPluginsHint,
+                style: theme.textTheme.bodyMedium!.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
           ],
           const SizedBox(height: 16),
           _settingRow(

@@ -15,12 +15,15 @@ import (
 
 // Status represents the current state of the docker CLI context.
 type Status struct {
-	Available      bool   `json:"available"`
-	CurrentContext string `json:"current_context"`
-	CalfActive     bool   `json:"calf_active"`
-	CalfExists     bool   `json:"calf_exists"`
-	Managed        bool   `json:"managed"`
-	Socket         string `json:"socket"`
+	Available        bool   `json:"available"`
+	CurrentContext   string `json:"current_context"`
+	CalfActive       bool   `json:"calf_active"`
+	CalfExists       bool   `json:"calf_exists"`
+	Managed          bool   `json:"managed"`
+	Socket           string `json:"socket"`
+	BuildxAvailable  bool   `json:"buildx_available"`
+	ComposeAvailable bool   `json:"compose_available"`
+	PluginsHint      string `json:"plugins_hint,omitempty"`
 }
 
 // dockerConfig represents the current context of the docker CLI.
@@ -29,12 +32,18 @@ type dockerConfig struct {
 }
 
 // StatusFor reports whether the docker CLI is available and how the calf context is configured.
+// It also attempts to repair broken buildx/compose plugins under ~/.docker/cli-plugins.
 func StatusFor(socket string, managed bool) (Status, error) {
 	status := Status{
 		Managed:        managed,
 		Socket:         socket,
 		CurrentContext: readCurrentContext(),
 	}
+
+	plugins, _, _ := EnsureCLIPlugins()
+	status.BuildxAvailable = plugins.BuildxAvailable
+	status.ComposeAvailable = plugins.ComposeAvailable
+	status.PluginsHint = plugins.Hint
 
 	if _, err := exec.LookPath("docker"); err != nil {
 		return status, nil

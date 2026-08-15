@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
@@ -54,6 +55,8 @@ func (m *Manager) Status() (Status, error) {
 
 // Activate creates or switches to the calf docker CLI context for the runtime socket.
 func (m *Manager) Activate(ctx context.Context) error {
+	m.repairPlugins()
+
 	socket := m.runtime.DockerSocket()
 	if socket == "" {
 		return nil
@@ -62,8 +65,10 @@ func (m *Manager) Activate(ctx context.Context) error {
 	return EnsureAndActivate(ctx, socket)
 }
 
-// ensure periodically ensures the calf docker CLI context is active while managed mode is on.
+// ensure repairs CLI plugins and keeps the calf docker context active while managed mode is on.
 func (m *Manager) ensure(ctx context.Context) {
+	m.repairPlugins()
+
 	if !m.managed() {
 		return
 	}
@@ -84,5 +89,20 @@ func (m *Manager) ensure(ctx context.Context) {
 
 	if err := EnsureAndActivate(activateCtx, socket); err != nil {
 		m.logger.Debug("docker context activation skipped", "error", err)
+	}
+}
+
+// repairPlugins fixes broken or missing buildx/compose plugins left by Docker Desktop uninstalls.
+func (m *Manager) repairPlugins() {
+	status, repaired, err := EnsureCLIPlugins()
+	if err != nil {
+		m.logger.Warn("docker CLI plugin repair failed", "error", err)
+		return
+	}
+	if len(repaired) > 0 {
+		m.logger.Info("docker CLI plugins repaired", "plugins", strings.Join(repaired, ", "))
+	}
+	if !status.BuildxAvailable || !status.ComposeAvailable {
+		m.logger.Debug("docker CLI plugins incomplete", "hint", status.Hint)
 	}
 }
