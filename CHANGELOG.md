@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-08-16
+
+### Fixed
+
+- **`docker compose up --build` EOF on macOS** — newer host Docker CLIs no longer fail with EOF or version errors when building through calf. calf keeps the CLI socket compatible and finishes each plain call cleanly so compose/buildx probes stay reliable.
+
 ## [1.0.8] - 2026-08-16
 
 ### Fixed

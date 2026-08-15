@@ -407,3 +407,122 @@ func TestProxyUnixConnectionForcesConnectionCloseOnPlainHTTP(t *testing.T) {
 		t.Fatal("proxy did not finish after plain HTTP response")
 	}
 }
+
+// TestClampDockerAPIVersionDowngradesNewerClientPaths rewrites /v1.55/ to the
+// guest max so newer host Docker CLIs work against the guest engine.
+func TestClampDockerAPIVersionDowngradesNewerClientPaths(t *testing.T) {
+	req := "GET /v1.55/containers/buildx_buildkit_default/json HTTP/1.1\r\nHost: localhost\r\n\r\n"
+	got := daemon.ClampDockerAPIVersionForTest([]byte(req), "1.52")
+	if !bytes.Contains(got, []byte("GET /v1.52/containers/buildx_buildkit_default/json HTTP/1.1")) {
+		t.Fatalf("clamp failed: %q", got)
+	}
+	if bytes.Contains(got, []byte("/v1.55/")) {
+		t.Fatalf("old version still present: %q", got)
+	}
+
+	same := "GET /v1.52/version HTTP/1.1\r\nHost: localhost\r\n\r\n"
+	out := daemon.ClampDockerAPIVersionForTest([]byte(same), "1.52")
+	if !bytes.Equal(out, []byte(same)) {
+		t.Fatalf("same version mutated: %q", out)
+	}
+
+	older := "GET /v1.44/_ping HTTP/1.1\r\nHost: localhost\r\n\r\n"
+	out = daemon.ClampDockerAPIVersionForTest([]byte(older), "1.52")
+	if !bytes.Equal(out, []byte(older)) {
+		t.Fatalf("older version mutated: %q", out)
+	}
+}
+
+// TestProxyUnixConnectionClampsAPIVersionAndCloses verifies plain HTTP requests
+// are rewritten to the guest max API and finish without a keep-alive hang.
+func TestProxyUnixConnectionClampsAPIVersionAndCloses(t *testing.T) {
+	clientA, clientB := net.Pipe()
+	serverA, serverB := net.Pipe()
+
+	done := make(chan struct{})
+	go func() {
+		daemon.ProxyUnixConnectionForTest(clientA, serverA)
+		close(done)
+	}()
+
+	req := "GET /v1.55/containers/json HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+	if _, err := clientB.Write([]byte(req)); err != nil {
+		t.Fatalf("client write: %v", err)
+	}
+	go func() { _, _ = io.Copy(io.Discard, clientB) }()
+
+	buf := make([]byte, 512)
+	_ = serverB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := serverB.Read(buf)
+	if err != nil {
+		t.Fatalf("server read: %v", err)
+	}
+	got := buf[:n]
+	if !bytes.Contains(got, []byte("GET /v1.52/containers/json HTTP/1.1")) {
+		t.Fatalf("missing clamped path in %q", got)
+	}
+	if !bytes.Contains(bytes.ToLower(got), []byte("connection: close")) {
+		t.Fatalf("missing Connection: close in %q", got)
+	}
+
+	if _, err := serverB.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n[]")); err != nil {
+		t.Fatalf("server write: %v", err)
+	}
+	_ = serverB.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy did not finish after clamped HTTP response")
+	}
+}
+
+// TestProxyUnixConnectionForwardsRequestBody copies Content-Length body bytes
+// before reading the engine response (compose build POST payloads).
+func TestProxyUnixConnectionForwardsRequestBody(t *testing.T) {
+	clientA, clientB := net.Pipe()
+	serverA, serverB := net.Pipe()
+
+	done := make(chan struct{})
+	go func() {
+		daemon.ProxyUnixConnectionForTest(clientA, serverA)
+		close(done)
+	}()
+
+	body := []byte(`{"Image":"alpine"}`)
+	req := fmt.Sprintf(
+		"POST /v1.55/containers/create HTTP/1.1\r\nHost: localhost\r\nContent-Length: %d\r\n\r\n",
+		len(body),
+	)
+	if _, err := clientB.Write(append([]byte(req), body...)); err != nil {
+		t.Fatalf("client write: %v", err)
+	}
+	go func() { _, _ = io.Copy(io.Discard, clientB) }()
+
+	buf := make([]byte, 1024)
+	_ = serverB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	var got []byte
+	for !bytes.Contains(got, body) {
+		n, err := serverB.Read(buf)
+		if n > 0 {
+			got = append(got, buf[:n]...)
+		}
+		if err != nil {
+			t.Fatalf("server read: %v (got %q)", err, got)
+		}
+	}
+	if !bytes.Contains(got, []byte("POST /v1.52/containers/create HTTP/1.1")) {
+		t.Fatalf("missing clamped path in %q", got)
+	}
+
+	if _, err := serverB.Write([]byte("HTTP/1.1 201 Created\r\nContent-Length: 2\r\n\r\n{}")); err != nil {
+		t.Fatalf("server write: %v", err)
+	}
+	_ = serverB.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy did not finish after body forward")
+	}
+}
