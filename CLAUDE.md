@@ -149,6 +149,7 @@ calf/
 │   │   │   └── constants.go                   Shared timeouts, defaults, log tail count, alpine smoke image
 │   │   ├── dockercli/
 │   │   │   ├── context.go                     Docker CLI context create/update/activate
+│   │   │   ├── plugins.go                     Detect/repair broken buildx/compose CLI plugins
 │   │   │   └── manager.go                     Background context manager loop
 │   │   ├── oauth/dockerhub/
 │   │   │   └── device.go                      Docker Hub OAuth2 device-code flow client, PAT generation
@@ -161,7 +162,7 @@ calf/
 │   │   ├── config/config_test.go
 │   │   ├── config/logger_test.go
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
-│   │   ├── dockercli/context_test.go
+│   │   ├── dockercli/context_test.go + plugins_test.go
 │   │   ├── dockerhub/device_test.go
 │   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
@@ -324,7 +325,8 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 ### `internal/dockercli/`
 Docker CLI context management for pointing `docker` at the calf socket.
 
-- `context.go` — context create/update/activate and status probes.
+- `context.go` — context create/update/activate and status probes (also triggers plugin repair).
+- `plugins.go` — detect/repair broken `docker-buildx` / `docker-compose` under `~/.docker/cli-plugins/` (common after Docker Desktop uninstall).
 - `manager.go` — `Manager` background loop; `Status` and `Activate`.
 
 ### `internal/utils/`

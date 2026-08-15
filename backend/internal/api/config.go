@@ -28,6 +28,9 @@ type configView struct {
 	DockerContextActive     bool   `json:"docker_context_active"`
 	DockerContextName       string `json:"docker_context_name"`
 	DockerCLIAvailable      bool   `json:"docker_cli_available"`
+	DockerBuildxAvailable   bool   `json:"docker_buildx_available"`
+	DockerComposeAvailable  bool   `json:"docker_compose_available"`
+	DockerPluginsHint       string `json:"docker_plugins_hint,omitempty"`
 	Rootless                bool   `json:"rootless"`
 	HTTPProxy               string `json:"http_proxy"`
 	HTTPSProxy              string `json:"https_proxy"`
@@ -64,6 +67,9 @@ func (g *Gateway) buildConfigView() configView {
 		DockerContextActive:     cliStatus.CalfActive,
 		DockerContextName:       cliStatus.CurrentContext,
 		DockerCLIAvailable:      cliStatus.Available,
+		DockerBuildxAvailable:   cliStatus.BuildxAvailable,
+		DockerComposeAvailable:  cliStatus.ComposeAvailable,
+		DockerPluginsHint:       cliStatus.PluginsHint,
 		Rootless:                cfg.Rootless,
 		HTTPProxy:               cfg.HTTPProxy,
 		HTTPSProxy:              cfg.HTTPSProxy,

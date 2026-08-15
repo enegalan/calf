@@ -1626,6 +1626,9 @@ class Config {
     this.dockerContextActive = false,
     this.dockerContextName = '',
     this.dockerCliAvailable = false,
+    this.dockerBuildxAvailable = false,
+    this.dockerComposeAvailable = false,
+    this.dockerPluginsHint = '',
     this.rootless = false,
     this.httpProxy = '',
     this.httpsProxy = '',
@@ -1648,6 +1651,9 @@ class Config {
   final bool dockerContextActive;
   final String dockerContextName;
   final bool dockerCliAvailable;
+  final bool dockerBuildxAvailable;
+  final bool dockerComposeAvailable;
+  final String dockerPluginsHint;
   final bool rootless;
   final String httpProxy;
   final String httpsProxy;
@@ -1691,6 +1697,10 @@ class Config {
       dockerContextActive: json['docker_context_active'] as bool? ?? false,
       dockerContextName: json['docker_context_name'] as String? ?? '',
       dockerCliAvailable: json['docker_cli_available'] as bool? ?? false,
+      dockerBuildxAvailable: json['docker_buildx_available'] as bool? ?? false,
+      dockerComposeAvailable:
+          json['docker_compose_available'] as bool? ?? false,
+      dockerPluginsHint: json['docker_plugins_hint'] as String? ?? '',
       rootless: json['rootless'] as bool? ?? false,
       httpProxy: json['http_proxy'] as String? ?? '',
       httpsProxy: json['https_proxy'] as String? ?? '',
@@ -1717,6 +1727,9 @@ class Config {
     bool? dockerContextActive,
     String? dockerContextName,
     bool? dockerCliAvailable,
+    bool? dockerBuildxAvailable,
+    bool? dockerComposeAvailable,
+    String? dockerPluginsHint,
     bool? rootless,
     String? httpProxy,
     String? httpsProxy,
@@ -1739,6 +1752,11 @@ class Config {
       dockerContextActive: dockerContextActive ?? this.dockerContextActive,
       dockerContextName: dockerContextName ?? this.dockerContextName,
       dockerCliAvailable: dockerCliAvailable ?? this.dockerCliAvailable,
+      dockerBuildxAvailable:
+          dockerBuildxAvailable ?? this.dockerBuildxAvailable,
+      dockerComposeAvailable:
+          dockerComposeAvailable ?? this.dockerComposeAvailable,
+      dockerPluginsHint: dockerPluginsHint ?? this.dockerPluginsHint,
       rootless: rootless ?? this.rootless,
       httpProxy: httpProxy ?? this.httpProxy,
       httpsProxy: httpsProxy ?? this.httpsProxy,

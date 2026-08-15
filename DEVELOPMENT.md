@@ -56,15 +56,38 @@ sudo apt-get install -y clang cmake ninja-build pkg-config \
 
 ## Migrating from Docker Desktop
 
-1. Export images you need:
+1. Export images you need (while Docker Desktop is still running):
 
 ```bash
 docker save my-image:latest -o my-image.tar
 ```
 
-2. Stop Docker Desktop.
+2. Stop Docker Desktop. Prefer quitting it from the menu, then uninstall — do not only drag `Docker.app` to Trash if you can avoid it.
 
-3. On macOS, install the krunkit stack and ensure a guest disk exists (`make guest-disk` or first-run download from GitHub Releases):
+3. Install the host Docker CLI + plugins (required; calf does not bundle them):
+
+```bash
+brew install docker docker-compose docker-buildx
+```
+
+Uninstalling Docker Desktop often leaves **broken** symlinks in `~/.docker/cli-plugins/` pointing at `/Applications/Docker.app/...`. Without working `docker-buildx`, `docker compose up --build` falls back to the classic builder and fails. calf repairs those links automatically when it finds Homebrew, OrbStack, or PATH copies of the plugins. You can also fix them by hand:
+
+```bash
+rm -f ~/.docker/cli-plugins/docker-buildx ~/.docker/cli-plugins/docker-compose
+brew install docker-buildx docker-compose
+# or, if you keep OrbStack's CLI:
+# ln -sfn /Applications/OrbStack.app/Contents/MacOS/xbin/docker-buildx ~/.docker/cli-plugins/docker-buildx
+# ln -sfn /Applications/OrbStack.app/Contents/MacOS/xbin/docker-compose ~/.docker/cli-plugins/docker-compose
+```
+
+Verify:
+
+```bash
+docker buildx version
+docker compose version
+```
+
+4. On macOS, install the krunkit stack and ensure a guest disk exists (`make guest-disk` or first-run download from GitHub Releases):
 
 ```bash
 brew tap libkrun/krun
@@ -76,13 +99,13 @@ make krunkit-stack   # ~/.config/calf/krunkit (required for local macOS engine +
 
 Known limit: Docker attach/stdout over vsock can be empty; the fair bench suite reads calf `dd` logs from the host share.
 
-4. Start calf:
+5. Start calf:
 
 ```bash
 make dev-backend
 ```
 
-5. Point your tools at calf:
+Or open the installed calf app. Leave **Use calf for Docker CLI** on in Settings (or set `DOCKER_HOST`):
 
 ```bash
 export DOCKER_HOST=unix://$HOME/.config/calf/docker.sock
@@ -98,6 +121,7 @@ docker load -i my-image.tar
 
 ```bash
 docker run hello-world
+docker compose version
 ```
 
 Or run the full P0 smoke test (daemon must already be running):
