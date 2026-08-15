@@ -176,6 +176,27 @@ func TestContainersReturnsList(t *testing.T) {
 	}
 }
 
+func TestContainersEmptyListIsJSONArray(t *testing.T) {
+	mock := runtime.NewMock()
+	mock.Containers = nil
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	response, err := http.Get(server.URL + "/v1/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/containers error: %v", err)
+	}
+	defer response.Body.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error: %v", err)
+	}
+	if string(body) != "[]\n" {
+		t.Fatalf("expected empty JSON array, got %q", body)
+	}
+}
+
 func TestContainerInspectAndMounts(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()

@@ -4,14 +4,28 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 )
 
 // WriteJSON encodes payload as JSON and writes it with the given HTTP status.
+// Nil slices encode as [] so list endpoints never return JSON null.
 func WriteJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+	_ = json.NewEncoder(w).Encode(nonNilJSONPayload(payload))
+}
+
+// nonNilJSONPayload replaces a nil slice with an empty slice of the same type.
+func nonNilJSONPayload(payload any) any {
+	if payload == nil {
+		return payload
+	}
+	value := reflect.ValueOf(payload)
+	if value.Kind() != reflect.Slice || !value.IsNil() {
+		return payload
+	}
+	return reflect.MakeSlice(value.Type(), 0, 0).Interface()
 }
 
 // WriteError writes a JSON error response with the given status and message.

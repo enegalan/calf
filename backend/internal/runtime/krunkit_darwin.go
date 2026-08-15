@@ -177,10 +177,13 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	}
 	lifeCtx := k.resetLifecycle()
 	if k.dockerAPIReady(ctx) && k.krunkitAlive() && k.gvproxyAlive() {
+		k.pruneStaleGuestCmds(ctx)
+		k.pruneCorruptContainerEntries(ctx)
 		k.ensureHostMountSymlink(ctx)
 		k.ensureKrunkitDAXMount(ctx)
 		k.ensureHostHomeShare(ctx)
 		k.ensureGuestNetwork(ctx)
+		k.pruneStaleGuestCmds(ctx)
 		k.ensureBuildxAsync(lifeCtx)
 		if os.Getenv("CALF_BENCHMARK") != "1" {
 			go func() {
@@ -278,10 +281,13 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		_ = k.stopKrunkitStack()
 		return err
 	}
+	k.pruneStaleGuestCmds(ctx)
+	k.pruneCorruptContainerEntries(ctx)
 	k.ensureHostMountSymlink(ctx)
 	k.ensureKrunkitDAXMount(ctx)
 	k.ensureHostHomeShare(ctx)
 	k.ensureGuestNetwork(ctx)
+	k.pruneStaleGuestCmds(ctx)
 	k.ensureBuildxAsync(lifeCtx)
 	if os.Getenv("CALF_BENCHMARK") != "1" {
 		go func() {

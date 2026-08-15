@@ -86,7 +86,11 @@ func (s *Core) startDockerSocketProxy() {
 	if public == "" || engine == "" || public == engine {
 		return
 	}
-	proxy := newDockerSocketProxy(s.Logger, public, engine, s.lifecycleCtx, s.EnsureRuntimeRunning)
+	var gater engineConnGater
+	if g, ok := s.Runtime.(engineConnGater); ok {
+		gater = g
+	}
+	proxy := newDockerSocketProxy(s.Logger, public, engine, s.lifecycleCtx, s.EnsureRuntimeRunning, gater)
 	if err := proxy.Start(); err != nil {
 		s.Logger.Warn("docker socket proxy failed to start", "error", err)
 		return

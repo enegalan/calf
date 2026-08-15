@@ -162,6 +162,10 @@ func ParseContainerLines(output []byte) ([]Container, error) {
 		if strings.TrimSpace(row.Names) == "" {
 			continue
 		}
+		// Ephemeral guest helpers must not clutter Containers (or survive as ghosts).
+		if strings.HasPrefix(strings.TrimSpace(row.Names), "calf-guestcmd-") {
+			continue
+		}
 		if _, exists := seen[row.ID]; exists {
 			continue
 		}

@@ -1,6 +1,7 @@
 package daemon_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -181,5 +183,227 @@ func TestDockerSocketProxyRebindRepairsBrokenSymlink(t *testing.T) {
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
 		t.Fatalf("public path still a symlink after repair")
+	}
+}
+
+// TestDockerSocketProxyQueuesUnderLoad verifies parallel CLI calls queue and
+// complete when many clients hit the public proxy at once.
+func TestDockerSocketProxyQueuesUnderLoad(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	public := filepath.Join(dir, "docker.sock")
+	engine := filepath.Join(dir, "engine.sock")
+
+	ln, err := net.Listen("unix", engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				_, _ = c.Read(buf)
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"))
+			}(conn)
+		}
+	}()
+
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy := daemon.NewDockerSocketProxyForTest(public, engine, life, func(context.Context) error {
+		return nil
+	})
+	if err := proxy.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer proxy.Stop()
+
+	const parallel = 24
+	var wg sync.WaitGroup
+	var okCount atomic.Int32
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", public)
+			},
+			DisableKeepAlives: true,
+			MaxIdleConns:      parallel,
+		},
+	}
+	for i := 0; i < parallel; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, err := client.Get("http://localhost/_ping")
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode == http.StatusOK && string(body) == "OK" {
+				okCount.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if okCount.Load() != parallel {
+		t.Fatalf("ok=%d want %d", okCount.Load(), parallel)
+	}
+}
+
+// TestProxyUnixConnectionKeepsEngineSideOpenAfterClientWriteEOF verifies that
+// when the CLI half-closes after an attach upgrade, the proxy still forwards
+// engine→client bytes (vsock cannot tolerate CloseWrite on the engine socket).
+func TestProxyUnixConnectionKeepsEngineSideOpenAfterClientWriteEOF(t *testing.T) {
+	clientLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientLn.Close()
+	serverLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverLn.Close()
+
+	clientAccepted := make(chan net.Conn, 1)
+	serverAccepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := clientLn.Accept()
+		if err == nil {
+			clientAccepted <- c
+		}
+	}()
+	go func() {
+		c, err := serverLn.Accept()
+		if err == nil {
+			serverAccepted <- c
+		}
+	}()
+
+	clientDial, err := net.Dial("tcp", clientLn.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer clientDial.Close()
+	serverDial, err := net.Dial("tcp", serverLn.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer serverDial.Close()
+
+	clientProxy := <-clientAccepted
+	serverProxy := <-serverAccepted
+
+	done := make(chan struct{})
+	go func() {
+		daemon.ProxyUnixConnectionForTest(clientProxy, serverProxy)
+		close(done)
+	}()
+
+	attachReq := "" +
+		"POST /v1.51/containers/x/attach?stdout=1&stream=1 HTTP/1.1\r\n" +
+		"Host: localhost\r\n" +
+		"Connection: Upgrade\r\n" +
+		"Upgrade: tcp\r\n" +
+		"\r\n"
+	if _, err := clientDial.Write([]byte(attachReq)); err != nil {
+		t.Fatalf("client write: %v", err)
+	}
+	reqBuf := make([]byte, len(attachReq)+64)
+	_ = serverDial.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := io.ReadFull(serverDial, reqBuf[:len(attachReq)])
+	if err != nil {
+		t.Fatalf("server read request: %v", err)
+	}
+	if !bytes.Contains(bytes.ToLower(reqBuf[:n]), []byte("upgrade: tcp")) {
+		t.Fatalf("engine did not receive upgrade request: %q", reqBuf[:n])
+	}
+
+	tcpClient, ok := clientDial.(*net.TCPConn)
+	if !ok {
+		t.Fatal("expected TCP conn")
+	}
+	if err := tcpClient.CloseWrite(); err != nil {
+		t.Fatalf("CloseWrite: %v", err)
+	}
+
+	// Engine still responds after the client write half-close.
+	time.Sleep(50 * time.Millisecond)
+	if _, err := serverDial.Write([]byte("STDOUT")); err != nil {
+		t.Fatalf("server write after client CloseWrite: %v", err)
+	}
+	_ = serverDial.Close()
+
+	buf := make([]byte, 16)
+	_ = clientDial.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err = clientDial.Read(buf)
+	if err != nil {
+		t.Fatalf("client read: %v", err)
+	}
+	if string(buf[:n]) != "STDOUT" {
+		t.Fatalf("got %q, want STDOUT", buf[:n])
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy did not finish after engine closed")
+	}
+}
+
+// TestProxyUnixConnectionForcesConnectionCloseOnPlainHTTP ensures keep-alive
+// plain requests become Connection: close so the engine frees the vsock slot.
+func TestProxyUnixConnectionForcesConnectionCloseOnPlainHTTP(t *testing.T) {
+	clientA, clientB := net.Pipe()
+	serverA, serverB := net.Pipe()
+
+	done := make(chan struct{})
+	go func() {
+		daemon.ProxyUnixConnectionForTest(clientA, serverA)
+		close(done)
+	}()
+
+	req := "GET /_ping HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive\r\n\r\n"
+	if _, err := clientB.Write([]byte(req)); err != nil {
+		t.Fatalf("client write: %v", err)
+	}
+	go func() { _, _ = io.Copy(io.Discard, clientB) }()
+
+	buf := make([]byte, 512)
+	_ = serverB.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := serverB.Read(buf)
+	if err != nil {
+		t.Fatalf("server read: %v", err)
+	}
+	got := string(buf[:n])
+	if !bytes.Contains(bytes.ToLower(buf[:n]), []byte("connection: close")) {
+		t.Fatalf("missing Connection: close in %q", got)
+	}
+	if bytes.Contains(bytes.ToLower(buf[:n]), []byte("connection: keep-alive")) {
+		t.Fatalf("keep-alive still present in %q", got)
+	}
+
+	if _, err := serverB.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")); err != nil {
+		t.Fatalf("server write: %v", err)
+	}
+	_ = serverB.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxy did not finish after plain HTTP response")
 	}
 }

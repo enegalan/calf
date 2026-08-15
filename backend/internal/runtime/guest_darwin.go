@@ -52,6 +52,10 @@ type Guest struct {
 	listInflight      chan struct{}
 	listInflightErr   error
 	listInflightValue []Container
+
+	// engineConnGate limits concurrent dials into krunkit vsock (shared with the
+	// public docker.sock proxy). virtio-vsock collapses under higher fan-out.
+	engineConnGate chan struct{}
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -98,6 +102,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 		dataDir:        dataDir,
 		localhostProxy: newLocalhostProxies(),
 		ownerCtx:       context.Background(),
+		engineConnGate: make(chan struct{}, engineConnMaxConcurrent),
 	}
 	v.localhostProxy.setReservedPorts(apiListenPort)
 	v.cliOps = cliOps{status: v.Status, runLocal: v.runLocal, runLocalWithStdin: v.runLocalWithStdin}
@@ -109,6 +114,32 @@ func (v *Guest) DockerSocket() string { return v.dockerSocket }
 
 // EngineDockerSocket returns the krunkit vsock-backed socket path (not the public CLI path).
 func (v *Guest) EngineDockerSocket() string { return v.engineSocket }
+
+const engineConnMaxConcurrent = 8
+
+// AcquireEngineConn reserves a slot for a vsock-backed Docker API connection.
+func (v *Guest) AcquireEngineConn(ctx context.Context) error {
+	if v == nil || v.engineConnGate == nil {
+		return nil
+	}
+	select {
+	case v.engineConnGate <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// ReleaseEngineConn frees a slot taken by AcquireEngineConn.
+func (v *Guest) ReleaseEngineConn() {
+	if v == nil || v.engineConnGate == nil {
+		return
+	}
+	select {
+	case <-v.engineConnGate:
+	default:
+	}
+}
 
 func (v *Guest) diskPath() string { return v.diskImage }
 func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
@@ -169,16 +200,22 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 
 // ensureHostMountSymlink makes host ~/.config/calf/mounts resolve inside the guest via /mnt/calf.
 // Skipped when $HOME is already the calf-home virtiofs share (see ensureHostHomeShare).
+// Uses runGuestRoot (labeled helper) instead of bare `docker run --rm`, which left anonymous
+// alpine leftovers when vsock EOF interrupted AutoRemove.
 func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return
 	}
 	hostMounts := filepath.Join(home, ".config", "calf", "mounts")
-	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && " +
-		"if [ -L \"/host" + home + "\" ] && [ \"$(readlink \"/host" + home + "\")\" = \"/mnt/calf-home\" ]; then exit 0; fi && " +
-		"ln -sfn /mnt/calf \"/host" + hostMounts + "\""
-	_, _ = v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "-v", "/:/host", "alpine:3.20", "sh", "-c", script)
+	// Paths are guest-root paths (nsenter into pid 1), not /host-prefixed docker bind mounts.
+	script := fmt.Sprintf(
+		`mkdir -p /mnt/calf && mkdir -p %q && `+
+			`if [ -L %q ] && [ "$(readlink %q)" = "/mnt/calf-home" ]; then exit 0; fi && `+
+			`ln -sfn /mnt/calf %q`,
+		filepath.Dir(hostMounts), home, home, hostMounts,
+	)
+	_, _ = v.runGuestRoot(ctx, script)
 }
 
 // runGuestRoot runs a shell script in the guest init mount/network namespace.
@@ -187,6 +224,7 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 	name := fmt.Sprintf("calf-guestcmd-%d", time.Now().UnixNano())
 	createOut, err := v.runLocal(ctx, "docker", "create",
 		"--name", name,
+		"--label", "calf.guestcmd=1",
 		"--privileged",
 		"--pid=host",
 		constants.AlpineSmokeImage,
@@ -194,15 +232,14 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		"bash", "-lc", script,
 	)
 	if err != nil {
+		v.removeGuestCmdContainer(context.WithoutCancel(ctx), "", name)
 		return nil, fmt.Errorf("guest create: %w", err)
 	}
 	containerID := strings.TrimSpace(string(createOut))
 	if containerID == "" {
 		containerID = name
 	}
-	defer func() {
-		_, _ = v.runLocal(context.WithoutCancel(ctx), "docker", "rm", "-f", containerID)
-	}()
+	defer v.removeGuestCmdContainer(context.WithoutCancel(ctx), containerID, name)
 
 	if _, err := v.runLocal(ctx, "docker", "start", containerID); err != nil {
 		return nil, fmt.Errorf("guest start: %w", err)
@@ -232,6 +269,81 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		return nil, fmt.Errorf("guest logs: %w", logsErr)
 	}
 	return logs, nil
+}
+
+// removeGuestCmdContainer force-removes a calf guest helper container, retrying briefly
+// so a transient vsock blip cannot leave calf-guestcmd-* leftovers behind.
+func (v *Guest) removeGuestCmdContainer(ctx context.Context, id, name string) {
+	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	targets := make([]string, 0, 2)
+	if strings.TrimSpace(id) != "" {
+		targets = append(targets, strings.TrimSpace(id))
+	}
+	if name = strings.TrimSpace(name); name != "" && name != id {
+		targets = append(targets, name)
+	}
+	if len(targets) == 0 {
+		return
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		for _, target := range targets {
+			if _, err := v.runLocal(cleanupCtx, "docker", "rm", "-f", target); err == nil || isNoSuchContainerError(err) {
+				return
+			}
+		}
+		select {
+		case <-cleanupCtx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+// pruneStaleGuestCmds removes leftover calf-guestcmd helpers from interrupted guest scripts.
+func (v *Guest) pruneStaleGuestCmds(ctx context.Context) {
+	for _, filter := range []string{
+		"label=calf.guestcmd=1",
+		"name=calf-guestcmd-",
+	} {
+		out, err := v.runLocal(ctx, "docker", "ps", "-aq", "--filter", filter)
+		if err != nil || strings.TrimSpace(string(out)) == "" {
+			continue
+		}
+		for _, id := range strings.Fields(string(out)) {
+			_, _ = v.runLocal(ctx, "docker", "rm", "-f", id)
+		}
+	}
+}
+
+// pruneCorruptContainerEntries deletes engine metadata ghosts that appear in `docker ps`
+// with an empty name (and fail `inspect`/`rm`). They are absent from containerd, so calf
+// removes their /var/lib/docker/containers dirs and schedules a docker restart.
+func (v *Guest) pruneCorruptContainerEntries(ctx context.Context) {
+	out, err := v.runLocal(ctx, "docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}")
+	if err != nil || strings.TrimSpace(string(out)) == "" {
+		return
+	}
+	corrupt := CollectEmptyNameContainerIDs(string(out))
+	if len(corrupt) == 0 {
+		return
+	}
+
+	_, _ = v.runGuestRoot(ctx, CorruptContainerWipeScript(corrupt))
+
+	deadline := time.Now().Add(45 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, pingErr := v.runLocal(ctx, "docker", "info"); pingErr == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 // guestCommandRunner adapts guest root shells and docker CLI for shared helpers (proxy, buildx install).
@@ -401,6 +513,13 @@ func (v *Guest) waitForDockerAPI(ctx context.Context) error {
 }
 
 func (v *Guest) dockerAPIReady(ctx context.Context) bool {
+	acquireCtx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
+	defer cancel()
+	if err := v.AcquireEngineConn(acquireCtx); err != nil {
+		return false
+	}
+	defer v.ReleaseEngineConn()
+
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -423,6 +542,11 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 // runLocal executes a command against the guest's Docker socket, retrying transient nerdctl
 // failures. nerdctl is remapped to docker since the guest exposes a Docker-API socket.
 func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return nil, err
+	}
+	defer v.ReleaseEngineConn()
+
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -437,6 +561,11 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 // runLocalWithStdin executes a command against the guest's Docker socket with stdin, retrying
 // nerdctl on transient errors.
 func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return nil, err
+	}
+	defer v.ReleaseEngineConn()
+
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -611,6 +740,11 @@ func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(str
 
 // streamLogsFollow runs docker logs -f and pipes lines to output.
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return err
+	}
+	defer v.ReleaseEngineConn()
+
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return streamCommandLogs(ctx, command, output)
@@ -621,6 +755,11 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return err
+	}
+	defer v.ReleaseEngineConn()
+
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
