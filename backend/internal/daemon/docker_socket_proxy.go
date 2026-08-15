@@ -16,11 +16,22 @@ import (
 )
 
 const (
-	dockerProxyMaxConcurrent   = 16
+	// dockerProxyMaxConcurrent caps simultaneous dials into krunkit vsock.
+	// Keep this modest: high fan-out floods virtio-vsock. Too low deadlocks
+	// clients (e.g. docker CLI) that open more than one connection per command.
+	dockerProxyMaxConcurrent   = 8
 	dockerProxyReclaimInterval = 2 * time.Second
+	dockerProxyDialProbe       = 2 * time.Second
+	dockerProxyDialAfterWake   = 30 * time.Second
 
 	dockerProxyModeListen int32 = 0
 )
+
+// engineConnGater limits concurrent use of the guest Docker engine socket (vsock).
+type engineConnGater interface {
+	AcquireEngineConn(ctx context.Context) error
+	ReleaseEngineConn()
+}
 
 // dockerSocketProxy listens on the public Docker CLI socket and forwards to the
 // engine vsock socket. When the engine is stopped (Resource Saver), the first
@@ -35,6 +46,7 @@ type dockerSocketProxy struct {
 	engine    string
 	wake      func(context.Context) error
 	lifecycle context.Context
+	gater     engineConnGater
 	gate      chan struct{}
 	mode      atomic.Int32
 	switchMu  sync.Mutex
@@ -52,13 +64,14 @@ type engineDockerSocketer interface {
 }
 
 // newDockerSocketProxy builds a wake-on-connect proxy when public and engine paths differ.
-func newDockerSocketProxy(logger *slog.Logger, public, engine string, lifecycle context.Context, wake func(context.Context) error) *dockerSocketProxy {
+func newDockerSocketProxy(logger *slog.Logger, public, engine string, lifecycle context.Context, wake func(context.Context) error, gater engineConnGater) *dockerSocketProxy {
 	return &dockerSocketProxy{
 		logger:    logger,
 		public:    public,
 		engine:    engine,
 		wake:      wake,
 		lifecycle: lifecycle,
+		gater:     gater,
 		gate:      make(chan struct{}, dockerProxyMaxConcurrent),
 		stopCh:    make(chan struct{}),
 		doneCh:    make(chan struct{}),
@@ -287,24 +300,22 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 	if p.lifecycle != nil {
 		parent = p.lifecycle
 	}
-	select {
-	case p.gate <- struct{}{}:
-		defer func() { <-p.gate }()
-	case <-parent.Done():
+	if err := p.acquireConn(parent); err != nil {
 		return
 	}
+	defer p.releaseConn()
 
 	ctx, cancel := context.WithTimeout(parent, constants.GuestDiskFetchTimeout+3*time.Minute)
 	defer cancel()
 
-	server, err := p.dialEngine(ctx, 400*time.Millisecond)
+	server, err := p.dialEngine(ctx, dockerProxyDialProbe)
 	if err != nil {
 		p.logger.Info("docker CLI connected while engine stopped; waking")
 		if wakeErr := p.wake(ctx); wakeErr != nil {
 			p.logger.Warn("docker socket wake failed", "error", wakeErr)
 			return
 		}
-		server, err = p.dialEngine(ctx, 30*time.Second)
+		server, err = p.dialEngine(ctx, dockerProxyDialAfterWake)
 		if err != nil {
 			p.logger.Warn("docker socket dial engine failed", "error", err)
 			return
@@ -313,6 +324,31 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 	defer server.Close()
 
 	proxyUnixConnection(client, server)
+}
+
+// acquireConn takes a shared vsock slot (or the local gate when no gater is set).
+func (p *dockerSocketProxy) acquireConn(ctx context.Context) error {
+	if p.gater != nil {
+		return p.gater.AcquireEngineConn(ctx)
+	}
+	select {
+	case p.gate <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// releaseConn frees the slot taken by acquireConn.
+func (p *dockerSocketProxy) releaseConn() {
+	if p.gater != nil {
+		p.gater.ReleaseEngineConn()
+		return
+	}
+	select {
+	case <-p.gate:
+	default:
+	}
 }
 
 // dialEngine connects to the krunkit vsock socket, retrying until timeout.
@@ -341,34 +377,25 @@ func (p *dockerSocketProxy) dialEngine(ctx context.Context, timeout time.Duratio
 	return nil, lastErr
 }
 
-// proxyUnixConnection copies bytes both ways and half-closes on EOF.
+// proxyUnixConnection copies bytes both ways. When either direction ends, both
+// connections are fully closed so a stuck vsock half-close cannot leak FDs.
 func proxyUnixConnection(client, server net.Conn) {
 	done := make(chan struct{}, 2)
 
 	go func() {
 		_, _ = io.Copy(server, client)
-		closeWriteConn(server)
 		done <- struct{}{}
 	}()
 
 	go func() {
 		_, _ = io.Copy(client, server)
-		closeWriteConn(client)
 		done <- struct{}{}
 	}()
 
 	<-done
+	_ = client.Close()
+	_ = server.Close()
 	<-done
-}
-
-// closeWriteConn half-closes the write side when the connection type supports it.
-func closeWriteConn(conn net.Conn) {
-	type closeWriter interface {
-		CloseWrite() error
-	}
-	if cw, ok := conn.(closeWriter); ok {
-		_ = cw.CloseWrite()
-	}
 }
 
 // resolveEngineDockerSocket returns the vsock path when the runtime exposes one.
@@ -383,8 +410,13 @@ func resolveEngineDockerSocket(rt interface{ DockerSocket() string }) string {
 
 // NewDockerSocketProxyForTest constructs a wake-on-connect proxy for unit tests.
 func NewDockerSocketProxyForTest(public, engine string, lifecycle context.Context, wake func(context.Context) error) *DockerSocketProxy {
-	inner := newDockerSocketProxy(slog.Default(), public, engine, lifecycle, wake)
+	inner := newDockerSocketProxy(slog.Default(), public, engine, lifecycle, wake, nil)
 	return &DockerSocketProxy{inner: inner}
+}
+
+// ProxyUnixConnectionForTest exposes proxyUnixConnection for leak-regression tests.
+func ProxyUnixConnectionForTest(client, server net.Conn) {
+	proxyUnixConnection(client, server)
 }
 
 // DockerSocketProxy is the exported test/handle surface for the public Docker CLI socket proxy.

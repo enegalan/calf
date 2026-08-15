@@ -52,6 +52,10 @@ type Guest struct {
 	listInflight      chan struct{}
 	listInflightErr   error
 	listInflightValue []Container
+
+	// engineConnGate limits concurrent dials into krunkit vsock (shared with the
+	// public docker.sock proxy). virtio-vsock collapses under higher fan-out.
+	engineConnGate chan struct{}
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -98,6 +102,7 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 		dataDir:        dataDir,
 		localhostProxy: newLocalhostProxies(),
 		ownerCtx:       context.Background(),
+		engineConnGate: make(chan struct{}, engineConnMaxConcurrent),
 	}
 	v.localhostProxy.setReservedPorts(apiListenPort)
 	v.cliOps = cliOps{status: v.Status, runLocal: v.runLocal, runLocalWithStdin: v.runLocalWithStdin}
@@ -109,6 +114,32 @@ func (v *Guest) DockerSocket() string { return v.dockerSocket }
 
 // EngineDockerSocket returns the krunkit vsock-backed socket path (not the public CLI path).
 func (v *Guest) EngineDockerSocket() string { return v.engineSocket }
+
+const engineConnMaxConcurrent = 8
+
+// AcquireEngineConn reserves a slot for a vsock-backed Docker API connection.
+func (v *Guest) AcquireEngineConn(ctx context.Context) error {
+	if v == nil || v.engineConnGate == nil {
+		return nil
+	}
+	select {
+	case v.engineConnGate <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// ReleaseEngineConn frees a slot taken by AcquireEngineConn.
+func (v *Guest) ReleaseEngineConn() {
+	if v == nil || v.engineConnGate == nil {
+		return
+	}
+	select {
+	case <-v.engineConnGate:
+	default:
+	}
+}
 
 func (v *Guest) diskPath() string { return v.diskImage }
 func (v *Guest) efiPath() string  { return filepath.Join(v.dataDir, "efi-store") }
@@ -401,6 +432,13 @@ func (v *Guest) waitForDockerAPI(ctx context.Context) error {
 }
 
 func (v *Guest) dockerAPIReady(ctx context.Context) bool {
+	acquireCtx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
+	defer cancel()
+	if err := v.AcquireEngineConn(acquireCtx); err != nil {
+		return false
+	}
+	defer v.ReleaseEngineConn()
+
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -423,6 +461,11 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 // runLocal executes a command against the guest's Docker socket, retrying transient nerdctl
 // failures. nerdctl is remapped to docker since the guest exposes a Docker-API socket.
 func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return nil, err
+	}
+	defer v.ReleaseEngineConn()
+
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -437,6 +480,11 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 // runLocalWithStdin executes a command against the guest's Docker socket with stdin, retrying
 // nerdctl on transient errors.
 func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return nil, err
+	}
+	defer v.ReleaseEngineConn()
+
 	if command == "nerdctl" {
 		command = "docker"
 	}
@@ -611,6 +659,11 @@ func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(str
 
 // streamLogsFollow runs docker logs -f and pipes lines to output.
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return err
+	}
+	defer v.ReleaseEngineConn()
+
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return streamCommandLogs(ctx, command, output)
@@ -621,6 +674,11 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return err
+	}
+	defer v.ReleaseEngineConn()
+
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
 	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)

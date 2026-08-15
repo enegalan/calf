@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -182,4 +183,118 @@ func TestDockerSocketProxyRebindRepairsBrokenSymlink(t *testing.T) {
 	if info.Mode()&os.ModeSymlink != 0 {
 		t.Fatalf("public path still a symlink after repair")
 	}
+}
+
+// TestDockerSocketProxyQueuesUnderLoad verifies parallel CLI calls queue and
+// complete when many clients hit the public proxy at once.
+func TestDockerSocketProxyQueuesUnderLoad(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "calf-dsp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	public := filepath.Join(dir, "docker.sock")
+	engine := filepath.Join(dir, "engine.sock")
+
+	ln, err := net.Listen("unix", engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				_, _ = c.Read(buf)
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"))
+			}(conn)
+		}
+	}()
+
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy := daemon.NewDockerSocketProxyForTest(public, engine, life, func(context.Context) error {
+		return nil
+	})
+	if err := proxy.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer proxy.Stop()
+
+	const parallel = 24
+	var wg sync.WaitGroup
+	var okCount atomic.Int32
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", public)
+			},
+			DisableKeepAlives: true,
+			MaxIdleConns:      parallel,
+		},
+	}
+	for i := 0; i < parallel; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			resp, err := client.Get("http://localhost/_ping")
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode == http.StatusOK && string(body) == "OK" {
+				okCount.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	if okCount.Load() != parallel {
+		t.Fatalf("ok=%d want %d", okCount.Load(), parallel)
+	}
+}
+
+// TestProxyUnixConnectionUnblocksWhenPeerIgnoresHalfClose ensures a peer that
+// never EOFs after CloseWrite cannot wedge the proxy forever (vsock leak).
+func TestProxyUnixConnectionUnblocksWhenPeerIgnoresHalfClose(t *testing.T) {
+	clientA, clientB := net.Pipe()
+	serverA, serverB := net.Pipe()
+
+	var ignoreHalfClose sync.WaitGroup
+	ignoreHalfClose.Add(1)
+	go func() {
+		defer ignoreHalfClose.Done()
+		buf := make([]byte, 32)
+		// Read until the proxy fully closes the connection (not merely CloseWrite).
+		for {
+			_, err := serverB.Read(buf)
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	done := make(chan struct{})
+	go func() {
+		daemon.ProxyUnixConnectionForTest(clientA, serverA)
+		close(done)
+	}()
+
+	_, _ = clientB.Write([]byte("ping"))
+	_ = clientB.Close()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("proxyUnixConnection stuck after client close (half-close leak)")
+	}
+	ignoreHalfClose.Wait()
 }

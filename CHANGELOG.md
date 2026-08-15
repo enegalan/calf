@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Docker CLI EOF on macOS** — parallel `docker` / Compose calls no longer leave stuck engine-socket connections that make later commands fail with EOF. calf closes both sides of the proxy as soon as either direction finishes, and limits concurrent vsock use so the guest socket stays responsive.
+
 ## [1.0.6] - 2026-08-15
 
 ### Changed
