@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`docker compose up --build` EOF on macOS** — newer host Docker CLIs (API 1.55+) talk to calf without “client version too new” / EOF. calf clamps the API version on `docker.sock` and finishes each plain API call cleanly so buildx/compose parallel probes no longer wedge the engine socket.
+
 ## [1.0.8] - 2026-08-16
 
 ### Fixed
