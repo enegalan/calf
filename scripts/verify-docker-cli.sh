@@ -54,6 +54,24 @@ require_command() {
   fi
 }
 
+# resolve_compose_cmd picks `docker compose` or standalone `docker-compose`.
+resolve_compose_cmd() {
+  if docker compose version >/dev/null 2>&1; then
+    COMPOSE=(docker compose)
+    return 0
+  fi
+  if command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE=(docker-compose)
+    return 0
+  fi
+  echo "neither 'docker compose' nor 'docker-compose' is available" >&2
+  return 1
+}
+
+compose() {
+  "${COMPOSE[@]}" "$@"
+}
+
 output_contains() {
   local pattern="$1"
   shift
@@ -84,10 +102,10 @@ cleanup() {
   docker volume rm "$VOLUME" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
   docker rmi "$BUILD_TAG" >/dev/null 2>&1 || true
-  if [[ -d "$EXAMPLE_DIR" ]]; then
+  if [[ -d "$EXAMPLE_DIR" ]] && [[ -n "${COMPOSE:-}" ]]; then
     (
       cd "$EXAMPLE_DIR"
-      docker compose -p "$COMPOSE_PROJECT" down -v --remove-orphans >/dev/null 2>&1 || true
+      compose -p "$COMPOSE_PROJECT" down -v --remove-orphans >/dev/null 2>&1 || true
     )
   fi
 }
@@ -95,6 +113,7 @@ cleanup() {
 trap cleanup EXIT
 
 require_command docker
+resolve_compose_cmd
 
 if [[ ! -d "$EXAMPLE_DIR" ]]; then
   echo "missing example project: $EXAMPLE_DIR" >&2
@@ -102,6 +121,7 @@ if [[ ! -d "$EXAMPLE_DIR" ]]; then
 fi
 
 log "using DOCKER_HOST=$DOCKER_HOST"
+log "using compose: ${COMPOSE[*]}"
 log "preflight: docker info"
 if ! wait_for_docker; then
   exit 1
@@ -135,12 +155,21 @@ run_step "docker build" docker build -t "$BUILD_TAG" "$EXAMPLE_DIR"
 run_step "docker rmi built image" docker rmi "$BUILD_TAG"
 BUILD_TAG="${RUN_ID}-removed"
 
-(
-  cd "$EXAMPLE_DIR"
-  run_step "docker compose up" docker compose -p "$COMPOSE_PROJECT" up -d --build
-  run_step "docker compose ps" output_contains 'app' docker compose -p "$COMPOSE_PROJECT" ps --services
-  run_step "docker compose down" docker compose -p "$COMPOSE_PROJECT" down -v --remove-orphans
-)
+compose_up() {
+  cd "$EXAMPLE_DIR" && compose -p "$COMPOSE_PROJECT" up -d --build
+}
+
+compose_ps() {
+  cd "$EXAMPLE_DIR" && output_contains 'app' compose -p "$COMPOSE_PROJECT" ps --services
+}
+
+compose_down() {
+  cd "$EXAMPLE_DIR" && compose -p "$COMPOSE_PROJECT" down -v --remove-orphans
+}
+
+run_step "docker compose up" compose_up
+run_step "docker compose ps" compose_ps
+run_step "docker compose down" compose_down
 
 run_step "docker rmi hello-world" docker rmi hello-world
 
