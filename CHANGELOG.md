@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Empty `docker run` / `docker exec` output on macOS** — attach streams keep working through `docker.sock`. calf does not half-close the engine vsock after the CLI finishes sending a hijacked request, and plain API calls use `Connection: close` so keep-alive cannot wedge the socket under load.
 - **Empty resource lists** — Containers, Images, Volumes, and similar API lists return `[]` when empty instead of `null`.
 - **Guest helper leftovers** — interrupted guest setup commands no longer leave behind `calf-guestcmd-*` containers; calf retries cleanup and prunes them on engine start.
+- **Anonymous alpine leftovers on macOS** — guest mount setup no longer uses bare `docker run --rm` helpers that could survive a socket blip as nameless containers. Corrupt engine entries that show in `docker ps` but cannot be inspected are removed via containerd on engine start.
 
 ### Changed
 

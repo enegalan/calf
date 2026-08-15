@@ -122,6 +122,7 @@ calf/
 │   │   │   ├── cli_ops.go                      Shared container/image/volume/network/registry ops embedded by Native and Guest
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── guest_darwin.go                 Shared guest disk/EFI/vsock helpers (embedded by Krunkit)
+│   │   │   ├── container_ghosts.go             Detect/wipe corrupt empty-name docker leftovers on macOS guest
 │   │   │   ├── guest_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
 │   │   │   ├── buildx.go                       Docker buildx build --load args, builder bootstrap
@@ -166,7 +167,7 @@ calf/
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -358,6 +359,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs.
+- `container_ghosts.go` — detect empty-name corrupt container leftovers and build the guest wipe/restart script used on engine start.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
 - `guest_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-guest-disk-<arch>.raw.zst`.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.

@@ -200,16 +200,22 @@ func (v *Guest) ensureGuestDisk(ctx context.Context) error {
 
 // ensureHostMountSymlink makes host ~/.config/calf/mounts resolve inside the guest via /mnt/calf.
 // Skipped when $HOME is already the calf-home virtiofs share (see ensureHostHomeShare).
+// Uses runGuestRoot (labeled helper) instead of bare `docker run --rm`, which left anonymous
+// alpine leftovers when vsock EOF interrupted AutoRemove.
 func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return
 	}
 	hostMounts := filepath.Join(home, ".config", "calf", "mounts")
-	script := "mkdir -p /mnt/calf && mkdir -p \"/host" + filepath.Dir(hostMounts) + "\" && " +
-		"if [ -L \"/host" + home + "\" ] && [ \"$(readlink \"/host" + home + "\")\" = \"/mnt/calf-home\" ]; then exit 0; fi && " +
-		"ln -sfn /mnt/calf \"/host" + hostMounts + "\""
-	_, _ = v.runLocal(ctx, "docker", "run", "--rm", "--privileged", "-v", "/:/host", "alpine:3.20", "sh", "-c", script)
+	// Paths are guest-root paths (nsenter into pid 1), not /host-prefixed docker bind mounts.
+	script := fmt.Sprintf(
+		`mkdir -p /mnt/calf && mkdir -p %q && `+
+			`if [ -L %q ] && [ "$(readlink %q)" = "/mnt/calf-home" ]; then exit 0; fi && `+
+			`ln -sfn /mnt/calf %q`,
+		filepath.Dir(hostMounts), home, home, hostMounts,
+	)
+	_, _ = v.runGuestRoot(ctx, script)
 }
 
 // runGuestRoot runs a shell script in the guest init mount/network namespace.
@@ -284,7 +290,7 @@ func (v *Guest) removeGuestCmdContainer(ctx context.Context, id, name string) {
 
 	for attempt := 0; attempt < 3; attempt++ {
 		for _, target := range targets {
-			if _, err := v.runLocal(cleanupCtx, "docker", "rm", "-f", target); err == nil {
+			if _, err := v.runLocal(cleanupCtx, "docker", "rm", "-f", target); err == nil || isNoSuchContainerError(err) {
 				return
 			}
 		}
@@ -308,6 +314,34 @@ func (v *Guest) pruneStaleGuestCmds(ctx context.Context) {
 		}
 		for _, id := range strings.Fields(string(out)) {
 			_, _ = v.runLocal(ctx, "docker", "rm", "-f", id)
+		}
+	}
+}
+
+// pruneCorruptContainerEntries deletes engine metadata ghosts that appear in `docker ps`
+// with an empty name (and fail `inspect`/`rm`). They are absent from containerd, so calf
+// removes their /var/lib/docker/containers dirs and schedules a docker restart.
+func (v *Guest) pruneCorruptContainerEntries(ctx context.Context) {
+	out, err := v.runLocal(ctx, "docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}")
+	if err != nil || strings.TrimSpace(string(out)) == "" {
+		return
+	}
+	corrupt := CollectEmptyNameContainerIDs(string(out))
+	if len(corrupt) == 0 {
+		return
+	}
+
+	_, _ = v.runGuestRoot(ctx, CorruptContainerWipeScript(corrupt))
+
+	deadline := time.Now().Add(45 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, pingErr := v.runLocal(ctx, "docker", "info"); pingErr == nil {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(500 * time.Millisecond):
 		}
 	}
 }
