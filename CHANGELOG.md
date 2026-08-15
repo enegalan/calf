@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Docker CLI EOF on macOS** — parallel `docker` / Compose calls no longer leave stuck engine-socket connections that make later commands fail with EOF. calf closes both sides of the proxy as soon as either direction finishes, and limits concurrent vsock use so the guest socket stays responsive.
+- **Docker CLI EOF on macOS** — parallel `docker` / Compose calls no longer leave stuck engine-socket connections that make later commands fail with EOF. calf limits concurrent vsock use so the guest socket stays responsive under load.
+- **Empty `docker run` / `docker exec` output on macOS** — attach streams keep working through `docker.sock`. calf does not half-close the engine vsock after the CLI finishes sending a hijacked request, and plain API calls use `Connection: close` so keep-alive cannot wedge the socket under load.
 - **Empty resource lists** — Containers, Images, Volumes, and similar API lists return `[]` when empty instead of `null`.
 - **Guest helper leftovers** — interrupted guest setup commands no longer leave behind `calf-guestcmd-*` containers; calf retries cleanup and prunes them on engine start.
 

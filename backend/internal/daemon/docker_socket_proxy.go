@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ const (
 	dockerProxyReclaimInterval = 2 * time.Second
 	dockerProxyDialProbe       = 2 * time.Second
 	dockerProxyDialAfterWake   = 30 * time.Second
+	dockerProxyMaxHTTPHeader   = 1 << 20
 
 	dockerProxyModeListen int32 = 0
 )
@@ -377,25 +379,108 @@ func (p *dockerSocketProxy) dialEngine(ctx context.Context, timeout time.Duratio
 	return nil, lastErr
 }
 
-// proxyUnixConnection copies bytes both ways. When either direction ends, both
-// connections are fully closed so a stuck vsock half-close cannot leak FDs.
+// proxyUnixConnection forwards one Docker API connection.
+//
+// Plain HTTP requests get Connection: close so dockerd ends the response and
+// frees the vsock slot (keep-alive would wedge after the CLI half-closes).
+// Hijacked streams (Upgrade: tcp) keep both directions open without
+// CloseWrite on the engine side — vsock treats half-close as full teardown,
+// which drops `docker run`/`exec` stdout.
 func proxyUnixConnection(client, server net.Conn) {
-	done := make(chan struct{}, 2)
+	head, rest, upgrade, err := readDockerAPIRequestHead(client)
+	if err != nil {
+		return
+	}
+	if !upgrade {
+		head = forceHTTPConnectionClose(head)
+	}
+	if _, err := server.Write(head); err != nil {
+		return
+	}
 
+	clientReader := io.Reader(client)
+	if len(rest) > 0 {
+		clientReader = io.MultiReader(bytes.NewReader(rest), client)
+	}
+
+	done := make(chan struct{}, 2)
 	go func() {
-		_, _ = io.Copy(server, client)
+		_, _ = io.Copy(server, clientReader)
 		done <- struct{}{}
 	}()
-
 	go func() {
 		_, _ = io.Copy(client, server)
 		done <- struct{}{}
 	}()
 
-	<-done
+	if upgrade {
+		<-done
+		<-done
+	} else {
+		<-done
+		_ = client.Close()
+		_ = server.Close()
+		<-done
+	}
 	_ = client.Close()
 	_ = server.Close()
-	<-done
+}
+
+// readDockerAPIRequestHead reads until the end of HTTP headers (or EOF).
+func readDockerAPIRequestHead(r io.Reader) (head, rest []byte, upgrade bool, err error) {
+	buf := make([]byte, 0, 4096)
+	tmp := make([]byte, 2048)
+	for {
+		if len(buf) > dockerProxyMaxHTTPHeader {
+			return nil, nil, false, fmt.Errorf("docker API headers exceed %d bytes", dockerProxyMaxHTTPHeader)
+		}
+		n, readErr := r.Read(tmp)
+		if n > 0 {
+			buf = append(buf, tmp[:n]...)
+			if idx := bytes.Index(buf, []byte("\r\n\r\n")); idx >= 0 {
+				head = buf[:idx+4]
+				rest = buf[idx+4:]
+				return head, rest, httpRequestHeadIsUpgrade(head), nil
+			}
+		}
+		if readErr != nil {
+			if len(buf) == 0 {
+				return nil, nil, false, readErr
+			}
+			if readErr == io.EOF {
+				return buf, nil, httpRequestHeadIsUpgrade(buf), nil
+			}
+			return nil, nil, false, readErr
+		}
+	}
+}
+
+// httpRequestHeadIsUpgrade reports a Docker API hijack (attach/exec/raw stream).
+func httpRequestHeadIsUpgrade(head []byte) bool {
+	return bytes.Contains(bytes.ToLower(head), []byte("\r\nupgrade:"))
+}
+
+// forceHTTPConnectionClose strips Connection headers and adds Connection: close.
+func forceHTTPConnectionClose(head []byte) []byte {
+	if len(head) == 0 {
+		return head
+	}
+	trimmed := bytes.TrimSuffix(head, []byte("\r\n\r\n"))
+	lines := bytes.Split(trimmed, []byte("\r\n"))
+	out := make([][]byte, 0, len(lines)+1)
+	for i, line := range lines {
+		if i == 0 {
+			out = append(out, line)
+			continue
+		}
+		lower := bytes.ToLower(line)
+		if bytes.HasPrefix(lower, []byte("connection:")) {
+			continue
+		}
+		out = append(out, line)
+	}
+	out = append(out, []byte("Connection: close"))
+	return append(bytes.Join(out, []byte("\r\n")), []byte("\r\n\r\n")...)
 }
 
 // resolveEngineDockerSocket returns the vsock path when the runtime exposes one.
