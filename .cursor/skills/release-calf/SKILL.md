@@ -38,8 +38,8 @@ Release calf:
 - [ ] 5. Merge PR into main (only when user allows / asks)
 - [ ] 6. Wait Release workflow on main; fix failures; re-run / follow-up PR
 - [ ] 7. Publish draft GitHub release v<version> (needs DMG asset)
-- [ ] 8. Update Homebrew cask
-- [ ] 9. Commit/push tap only if user asks
+- [ ] 8. Update Homebrew cask, commit, and push tap
+- [ ] 9. Done report
 ```
 
 Do not skip ahead. Do not invent versions, sha256, or release assets.
@@ -153,7 +153,7 @@ gh release edit "vX.Y.Z" --draft=false
 
 Only after user confirmation if the release notes or assets look wrong. If guest disk assets are missing and user cares, note they are attached manually (`make guest-disk`) — do not block Homebrew on guest disk unless user says so.
 
-### 8. Homebrew
+### 8. Homebrew (generate + commit + push)
 
 Preconditions: published `vX.Y.Z` with `calf-X.Y.Z.dmg`; versions already match in this repo.
 
@@ -169,19 +169,23 @@ TAP="${CALF_HOMEBREW_TAP:-../calf-homebrew}"
 ./scripts/update-homebrew.sh "$TAP"
 ```
 
-Verify:
+Verify, then commit and push immediately:
 
 ```bash
 cd "$TAP"
 git diff Casks/calf.rb
 # version, sha256 (from real DMG), url v#{version}/calf-#{version}.dmg
+
+git add Casks/calf.rb
+git commit -m "$(cat <<EOF
+chore: update calf cask to version ${VERSION} with new sha256 checksum
+
+EOF
+)"
+git push origin HEAD
 ```
 
-Never guess sha256. Commit/push tap only when user asks. Message style:
-
-```
-chore: update calf cask to version X.Y.Z with new sha256 checksum
-```
+Never guess sha256. If `update-calf-homebrew` is used for this step, treat commit+push as required (same as above) — do not stop after generating the cask.
 
 ### 9. Done report
 
@@ -190,12 +194,13 @@ Tell user:
 - Version shipped
 - PR URL + merge status
 - Release URL (`https://github.com/enegalan/calf/releases/tag/vX.Y.Z`)
-- Homebrew tap status (committed / pushed / pending user ask)
+- Homebrew tap status (committed and pushed; include tap commit / remote URL if useful)
 - Any remaining manual steps (e.g. guest disk attach)
 
 ## Rules
 
-- Commit / merge / push only per user git rules (explicit ask, or this skill invoked as a full release that already includes those steps — still confirm before destructive/irreversible ops if ambiguous).
+- Commit / merge / push for the **calf** app repo only per user git rules (explicit ask, or this skill invoked as a full release that already includes those steps — still confirm before destructive/irreversible ops if ambiguous).
+- For the **Homebrew tap** during a full release: always commit and push after a successful cask update — no extra confirmation.
 - Never bump Homebrew before the GitHub release DMG URL returns 200.
 - Never guess sha256.
 - Keep backend/UI versions identical.
