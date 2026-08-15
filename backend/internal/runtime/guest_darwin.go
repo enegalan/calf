@@ -218,6 +218,7 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 	name := fmt.Sprintf("calf-guestcmd-%d", time.Now().UnixNano())
 	createOut, err := v.runLocal(ctx, "docker", "create",
 		"--name", name,
+		"--label", "calf.guestcmd=1",
 		"--privileged",
 		"--pid=host",
 		constants.AlpineSmokeImage,
@@ -225,15 +226,14 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		"bash", "-lc", script,
 	)
 	if err != nil {
+		v.removeGuestCmdContainer(context.WithoutCancel(ctx), "", name)
 		return nil, fmt.Errorf("guest create: %w", err)
 	}
 	containerID := strings.TrimSpace(string(createOut))
 	if containerID == "" {
 		containerID = name
 	}
-	defer func() {
-		_, _ = v.runLocal(context.WithoutCancel(ctx), "docker", "rm", "-f", containerID)
-	}()
+	defer v.removeGuestCmdContainer(context.WithoutCancel(ctx), containerID, name)
 
 	if _, err := v.runLocal(ctx, "docker", "start", containerID); err != nil {
 		return nil, fmt.Errorf("guest start: %w", err)
@@ -263,6 +263,53 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		return nil, fmt.Errorf("guest logs: %w", logsErr)
 	}
 	return logs, nil
+}
+
+// removeGuestCmdContainer force-removes a calf guest helper container, retrying briefly
+// so a transient vsock blip cannot leave calf-guestcmd-* leftovers behind.
+func (v *Guest) removeGuestCmdContainer(ctx context.Context, id, name string) {
+	cleanupCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	targets := make([]string, 0, 2)
+	if strings.TrimSpace(id) != "" {
+		targets = append(targets, strings.TrimSpace(id))
+	}
+	if name = strings.TrimSpace(name); name != "" && name != id {
+		targets = append(targets, name)
+	}
+	if len(targets) == 0 {
+		return
+	}
+
+	for attempt := 0; attempt < 3; attempt++ {
+		for _, target := range targets {
+			if _, err := v.runLocal(cleanupCtx, "docker", "rm", "-f", target); err == nil {
+				return
+			}
+		}
+		select {
+		case <-cleanupCtx.Done():
+			return
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+// pruneStaleGuestCmds removes leftover calf-guestcmd helpers from interrupted guest scripts.
+func (v *Guest) pruneStaleGuestCmds(ctx context.Context) {
+	for _, filter := range []string{
+		"label=calf.guestcmd=1",
+		"name=calf-guestcmd-",
+	} {
+		out, err := v.runLocal(ctx, "docker", "ps", "-aq", "--filter", filter)
+		if err != nil || strings.TrimSpace(string(out)) == "" {
+			continue
+		}
+		for _, id := range strings.Fields(string(out)) {
+			_, _ = v.runLocal(ctx, "docker", "rm", "-f", id)
+		}
+	}
 }
 
 // guestCommandRunner adapts guest root shells and docker CLI for shared helpers (proxy, buildx install).

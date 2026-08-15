@@ -177,6 +177,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	}
 	lifeCtx := k.resetLifecycle()
 	if k.dockerAPIReady(ctx) && k.krunkitAlive() && k.gvproxyAlive() {
+		k.pruneStaleGuestCmds(ctx)
 		k.ensureHostMountSymlink(ctx)
 		k.ensureKrunkitDAXMount(ctx)
 		k.ensureHostHomeShare(ctx)
@@ -278,6 +279,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		_ = k.stopKrunkitStack()
 		return err
 	}
+	k.pruneStaleGuestCmds(ctx)
 	k.ensureHostMountSymlink(ctx)
 	k.ensureKrunkitDAXMount(ctx)
 	k.ensureHostHomeShare(ctx)
