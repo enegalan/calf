@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.19] - 2026-08-17
+
+### Fixed
+
+- **Container actions across screens** — Start, Stop, Restart, and Delete stay disabled in container and compose-group detail while the same command is already running from the list, including Stop all.
+
 ## [1.0.18] - 2026-08-17
 
 ### Fixed

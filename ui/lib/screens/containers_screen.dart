@@ -145,10 +145,10 @@ class _ContainersScreenState extends State<ContainersScreen>
     showCalfSnackBar(context, hints, kind: CalfToastKind.error);
   }
 
-  /// Returns whether [id] currently has an in-flight list action.
+  /// Returns whether [id] currently has an in-flight action.
   bool _isLocked(String id) => _lockedIds.contains(id);
 
-  /// Runs [body] with [ids] locked so row buttons stay disabled across rebuilds.
+  /// Runs [body] with [ids] locked so buttons stay disabled across list and detail.
   Future<bool> _withLockedIds(
     Iterable<String> ids,
     Future<bool> Function() body,
@@ -451,6 +451,8 @@ class _ContainersScreenState extends State<ContainersScreen>
         apiClient: widget.apiClient,
         onBack: _closeContainerDetail,
         onChanged: _loadContainers,
+        locked: _isLocked(_detailContainer!.id),
+        withLockedIds: _withLockedIds,
       );
     }
 
@@ -465,6 +467,8 @@ class _ContainersScreenState extends State<ContainersScreen>
         onOpenContainer: _openContainer,
         onOpenImage: (imageReference) =>
             widget.onOpenImage?.call(imageReference),
+        lockedIds: _lockedIds,
+        withLockedIds: _withLockedIds,
       );
     }
 
