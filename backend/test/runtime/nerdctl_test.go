@@ -1,10 +1,27 @@
 package runtime_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
+
+// TestContainerListFormatOmitsSize verifies listContainers does not request Size.
+func TestContainerListFormatOmitsSize(t *testing.T) {
+	format := runtime.ContainerListFormat
+	if format == "{{json .}}" {
+		t.Fatal("format must not dump the whole object (docker CLI then requests size)")
+	}
+	if strings.Contains(format, ".Size") || strings.Contains(format, `"Size"`) {
+		t.Fatalf("format must omit Size: %q", format)
+	}
+	for _, field := range []string{".ID", ".Names", ".Image", ".State", ".Status", ".Ports", ".CreatedAt", ".Labels"} {
+		if !strings.Contains(format, field) {
+			t.Fatalf("format missing %s: %q", field, format)
+		}
+	}
+}
 
 func TestParseContainerLines(t *testing.T) {
 	t.Helper()

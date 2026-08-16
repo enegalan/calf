@@ -58,9 +58,14 @@ type commandRunner func(ctx context.Context, command string, args ...string) ([]
 // stdinCommandRunner is a function that runs a command with stdin and returns the output.
 type stdinCommandRunner func(ctx context.Context, stdin, command string, args ...string) ([]byte, error)
 
+// ContainerListFormat is the docker/nerdctl ps --format used by listContainers.
+// Fields match ParseContainerLines. Size is omitted so a missing overlay snapshot
+// cannot fail the entire list (docker CLI maps {{json .}} / .Size to size=1).
+const ContainerListFormat = `{"ID":{{json .ID}},"Names":{{json .Names}},"Image":{{json .Image}},"State":{{json .State}},"Status":{{json .Status}},"Ports":{{json .Ports}},"CreatedAt":{{json .CreatedAt}},"Labels":{{json .Labels}}}`
+
 // listContainers runs nerdctl ps and parses JSON lines into Container values.
 func listContainers(ctx context.Context, run commandRunner) ([]Container, error) {
-	output, err := run(ctx, "nerdctl", "ps", "-a", "--format", "{{json .}}")
+	output, err := run(ctx, "nerdctl", "ps", "-a", "--format", ContainerListFormat)
 	if err != nil {
 		return nil, err
 	}

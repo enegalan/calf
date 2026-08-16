@@ -556,7 +556,7 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 		command = "docker"
 	}
 	env := os.Environ()
-	env = dockerHostEnvFrom(env, v.engineSocket)
+	env = dockerGuestEngineEnvFrom(env, v.engineSocket)
 	if v.proxy != (ProxyConfig{}) {
 		env = proxyEnvFrom(env, v.proxy)
 	}
@@ -574,7 +574,7 @@ func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, ar
 	if command == "nerdctl" {
 		command = "docker"
 	}
-	env := dockerHostEnvFrom(os.Environ(), v.engineSocket)
+	env := dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
@@ -751,7 +751,7 @@ func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output f
 	defer v.ReleaseEngineConn()
 
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
+	command.Env = dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
 	return streamCommandLogs(ctx, command, output)
 }
 
@@ -766,7 +766,7 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	defer v.ReleaseEngineConn()
 
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
-	command.Env = dockerHostEnvFrom(os.Environ(), v.engineSocket)
+	command.Env = dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 

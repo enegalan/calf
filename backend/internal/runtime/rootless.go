@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // ResolveNativeDockerSocket picks the Docker API socket for the Linux native runtime.
@@ -99,6 +101,18 @@ func dockerHostEnv(socket string) []string {
 // dockerHostEnvFrom sets DOCKER_HOST on a copy of env.
 func dockerHostEnvFrom(env []string, socket string) []string {
 	return setEnvVar(env, "DOCKER_HOST", "unix://"+socket)
+}
+
+// dockerGuestEngineEnvFrom sets DOCKER_HOST and DOCKER_API_VERSION for the macOS guest engine.
+// Native Linux must not use this: only the guest dockerd is capped at GuestDockerAPIVersion.
+func dockerGuestEngineEnvFrom(env []string, socket string) []string {
+	env = dockerHostEnvFrom(env, socket)
+	return setEnvVar(env, "DOCKER_API_VERSION", constants.GuestDockerAPIVersion)
+}
+
+// DockerGuestEngineEnvForTest exposes dockerGuestEngineEnvFrom for unit tests.
+func DockerGuestEngineEnvForTest(env []string, socket string) []string {
+	return dockerGuestEngineEnvFrom(env, socket)
 }
 
 // proxyEnvFrom sets HTTP(S)_PROXY variables on a copy of env for rootless engines.
