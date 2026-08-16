@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
@@ -40,7 +39,6 @@ class _ImagesScreenState extends State<ImagesScreen>
   ImageItem? _selectedImage;
   List<ImageLayer>? _layers;
   bool _layersLoading = false;
-  String? _layersError;
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -89,7 +87,6 @@ class _ImagesScreenState extends State<ImagesScreen>
           _resourceSaverActive = status.resourceSaverActive;
           _images = images;
           listLoading = false;
-          listError = null;
           _syncSelectedImage(images);
         });
         _openInitialImageIfNeeded(images);
@@ -113,7 +110,6 @@ class _ImagesScreenState extends State<ImagesScreen>
 
     _selectedImage = null;
     _layers = null;
-    _layersError = null;
     _layersLoading = false;
   }
 
@@ -168,7 +164,6 @@ class _ImagesScreenState extends State<ImagesScreen>
       _selectedImage = image;
       _layers = null;
       _layersLoading = true;
-      _layersError = null;
     });
 
     try {
@@ -184,10 +179,8 @@ class _ImagesScreenState extends State<ImagesScreen>
       if (!mounted || _selectedImage?.id != image.id) {
         return;
       }
-      setState(() {
-        _layersError = formatAsyncError(error);
-        _layersLoading = false;
-      });
+      setState(() => _layersLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -196,7 +189,6 @@ class _ImagesScreenState extends State<ImagesScreen>
     setState(() {
       _selectedImage = null;
       _layers = null;
-      _layersError = null;
       _layersLoading = false;
     });
   }
@@ -213,22 +205,18 @@ class _ImagesScreenState extends State<ImagesScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    try {
-      await widget.apiClient.removeImage(image.reference);
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Deleted image "${image.reference}"');
-      if (_selectedImage?.id == image.id) {
-        _closeImage();
-      }
-      await _loadImages();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
+    final ok = await runCalfToastAction(
+      pending: 'Deleting "${image.reference}"...',
+      done: 'Deleted image "${image.reference}"',
+      action: () => widget.apiClient.removeImage(image.reference),
+    );
+    if (!ok || !mounted) {
+      return;
     }
+    if (_selectedImage?.id == image.id) {
+      _closeImage();
+    }
+    await _loadImages();
   }
 
   /// Runs the given async action and refreshes the list on success.
@@ -253,17 +241,13 @@ class _ImagesScreenState extends State<ImagesScreen>
 
   /// Starts the container engine when the list is empty and runtime is stopped.
   Future<void> _startEngine() async {
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadImages();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -275,7 +259,6 @@ class _ImagesScreenState extends State<ImagesScreen>
         image: _selectedImage!,
         layers: _layers,
         layersLoading: _layersLoading,
-        layersError: _layersError,
         onBack: _closeImage,
         onRun: () => _runImage(_selectedImage!),
         onPull: () => _pullImage(_selectedImage!),
@@ -305,7 +288,6 @@ class _ImagesScreenState extends State<ImagesScreen>
       title: 'Images',
       searchController: listSearchController,
       loading: listLoading,
-      error: listError,
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No images match "$listSearchQuery".'
@@ -357,7 +339,6 @@ class _ImageDetailView extends StatefulWidget {
     required this.image,
     required this.layers,
     required this.layersLoading,
-    required this.layersError,
     required this.onBack,
     required this.onRun,
     required this.onPull,
@@ -368,7 +349,6 @@ class _ImageDetailView extends StatefulWidget {
   final ImageItem image;
   final List<ImageLayer>? layers;
   final bool layersLoading;
-  final String? layersError;
   final VoidCallback onBack;
   final Future<void> Function() onRun;
   final Future<void> Function() onPull;
@@ -383,8 +363,6 @@ class _ImageDetailView extends StatefulWidget {
 class _ImageDetailViewState extends State<_ImageDetailView> {
   final _menuButtonKey = GlobalKey();
   bool _busy = false;
-  String? _actionMessage;
-  String? _actionError;
 
   /// Navigates to or opens the selected actionsmenu.
   Future<void> _openActionsMenu() async {
@@ -422,40 +400,30 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
 
     switch (selected) {
       case 'pull':
-        await _runAction(widget.onPull, 'Image pulled');
+        await _runAction(
+          widget.onPull,
+          pending: 'Pulling image...',
+          done: 'Image pulled',
+        );
       case 'push':
-        await _runAction(widget.onPush, 'Image pushed');
+        await _runAction(
+          widget.onPush,
+          pending: 'Pushing image...',
+          done: 'Image pushed',
+        );
     }
   }
 
-  /// Runs an image action and shows a success or error message.
+  /// Runs an image action and shows a progress then success or error toast.
   Future<void> _runAction(
-    Future<void> Function() action,
-    String successMessage,
-  ) async {
-    setState(() {
-      _busy = true;
-      _actionError = null;
-      _actionMessage = null;
-    });
-
-    try {
-      await action();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _actionMessage = successMessage;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _actionError = formatAsyncError(error);
-      });
+    Future<void> Function() action, {
+    required String pending,
+    required String done,
+  }) async {
+    setState(() => _busy = true);
+    await runCalfToastAction(pending: pending, done: done, action: action);
+    if (mounted) {
+      setState(() => _busy = false);
     }
   }
 
@@ -466,7 +434,6 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     final image = widget.image;
     final layers = widget.layers;
     final layersLoading = widget.layersLoading;
-    final layersError = widget.layersError;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -545,8 +512,11 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
               children: [
                 CalfButton(
                   enabled: !_busy,
-                  onPressed: () =>
-                      _runAction(widget.onRun, 'Container started'),
+                  onPressed: () => _runAction(
+                    widget.onRun,
+                    pending: 'Starting container...',
+                    done: 'Container started',
+                  ),
                   child: const Text('Run'),
                 ),
                 CalfButton.outline(
@@ -585,30 +555,6 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
         Expanded(
           child: CustomScrollView(
             slivers: [
-              if (_actionMessage != null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _actionMessage!,
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ),
-              if (_actionError != null)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _actionError!,
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ),
               SliverToBoxAdapter(
                 child: Text(
                   'Layers (${layers?.length ?? 0})',
@@ -618,7 +564,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
 
               /// Creates a [_ImageDetailViewState] widget.
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
-              _buildLayersSliver(theme, layers, layersLoading, layersError),
+              _buildLayersSliver(theme, layers, layersLoading),
             ],
           ),
         ),
@@ -631,22 +577,10 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
     ThemeData theme,
     List<ImageLayer>? layers,
     bool layersLoading,
-    String? layersError,
   ) {
     if (layersLoading) {
       return SliverToBoxAdapter(
         child: Text('Loading layers...', style: CalfTheme.muted(theme)),
-      );
-    }
-
-    if (layersError != null) {
-      return SliverToBoxAdapter(
-        child: Text(
-          layersError,
-          style: theme.textTheme.titleMedium!.copyWith(
-            color: theme.colorScheme.error,
-          ),
-        ),
       );
     }
 

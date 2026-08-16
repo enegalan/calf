@@ -220,7 +220,7 @@ calf/
 │   │       ├── release_notes_markdown.dart     Markdown renderer for GitHub release notes
 │   │       ├── calf_button.dart                Themed button (default/.outline/.ghost/.destructive) + CalfButtonGroup
 │   │       ├── calf_popup_menu.dart            Bordered popup menus (showCalfMenu, CalfPopupMenuButton, CalfPopupMenuRow)
-│   │       ├── calf_snack_bar.dart             Toast layer (OverlayPortal) + showCalfSnackBar
+│   │       ├── calf_snack_bar.dart             Toast layer (OverlayPortal) + showCalfSnackBar / progress toasts
 │   │       ├── calf_tab_bar.dart               Shared detail-screen tab bar
 │   │       ├── confirm_dialog.dart             Confirm and prompt dialogs
 │   │       ├── detail_breadcrumb.dart          Detail view back navigation header
@@ -447,7 +447,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `release_notes_markdown.dart` — theme-styled markdown body for What's New / update dialogs; opens links externally.
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `calf_popup_menu.dart` — bordered overflow menus via `showCalfMenu`, `CalfPopupMenuButton` (three-dot trigger), and `CalfPopupMenuRow`.
-- `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` for stacked bottom-right action toasts.
+- `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` / progress toasts (info, success, error, in-progress).
 - `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
 - `global_search_dialog.dart` — ⌘K / Ctrl+K command palette to search and open resources.
 - `hover_list_row.dart` — hover-state row wrapper.

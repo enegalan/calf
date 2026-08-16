@@ -32,7 +32,6 @@ class DiskCleanupScreen extends StatefulWidget {
 
 class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
   PrunePreview? _preview;
-  String? _error;
   bool _loading = true;
   bool _busy = false;
   bool _runtimeStopped = false;
@@ -56,7 +55,6 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
   Future<void> _loadPreview() async {
     setState(() {
       _loading = true;
-      _error = null;
       _runtimeStopped = false;
       _runtimeStarting = false;
     });
@@ -95,43 +93,36 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
         _loading = false;
         _runtimeStopped = runtimeStopped;
         _runtimeStarting = runtimeStarting;
-        _error = error.message;
         _preview = null;
       });
+      if (!runtimeStopped && !runtimeStarting) {
+        showCalfErrorSnackBar(context, error);
+      }
     } on TimeoutException {
       if (!mounted) {
         return;
       }
       setState(() {
         _loading = false;
-        _error = 'Request timed out';
         _preview = null;
       });
+      showCalfSnackBar(context, 'Request timed out', kind: CalfToastKind.error);
     }
   }
 
   /// Starts the container engine then reloads the preview.
   Future<void> _startEngine() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadPreview();
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _error = error.message);
-      showCalfSnackBar(context, error.message);
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
+    }
+    if (mounted) {
+      setState(() => _busy = false);
     }
   }
 
@@ -193,6 +184,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
     }
 
     setState(() => _busy = true);
+    final toast = showCalfProgressToast('Removing unused data...');
     try {
       final result = await widget.apiClient.prune(
         containers: _containers,
@@ -201,26 +193,16 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
         networks: _networks,
         buildCache: _buildCache,
       );
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(
-        context,
+      toast.complete(
         result.reclaimedSize == '0 B'
             ? 'Unused data removed'
             : 'Reclaimed ${result.reclaimedSize}',
       );
-      await _loadPreview();
-    } on ApiException catch (error) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        await _loadPreview();
       }
-      showCalfSnackBar(context, error.message);
-    } on TimeoutException {
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Action timed out');
+    } catch (error) {
+      toast.fail(formatAsyncError(error));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -280,13 +262,16 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
               ),
             ),
           )
-        else if (_error != null)
+        else if (preview == null)
           Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ErrorText(error: _error!),
+                  Text(
+                    'Could not load unused data.',
+                    style: CalfTheme.muted(theme),
+                  ),
                   const SizedBox(height: 12),
                   CalfButton.outline(
                     onPressed: _busy ? null : () => unawaited(_loadPreview()),
@@ -296,7 +281,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
               ),
             ),
           )
-        else if (preview != null) ...[
+        else ...[
           _selectedSpaceSummary(theme, preview),
           if (preview.diskUsage.rows.isNotEmpty) ...[
             const SizedBox(height: 8),

@@ -601,7 +601,6 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   /// Consecutive transient polling failures allowed before giving up.
   static const _maxConsecutiveFailures = 5;
 
-  String? _error;
   int _consecutiveFailures = 0;
 
   /// Starts polling for login completion; the browser opens only via the button.
@@ -648,10 +647,6 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
           }
           return;
         }
-
-        if (_error != null) {
-          setState(() => _error = null);
-        }
       } on TimeoutException catch (error) {
         if (!_recordTransientFailure(error.toString())) {
           return;
@@ -688,7 +683,13 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
       return false;
     }
 
-    setState(() => _error = 'Connection issue, retrying… ($message)');
+    if (_consecutiveFailures == 1) {
+      showCalfSnackBar(
+        context,
+        'Connection issue, retrying…',
+        kind: CalfToastKind.error,
+      );
+    }
     return true;
   }
 
@@ -822,15 +823,6 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
                 ],
               ),
             ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            ],
           ],
         ),
       ),

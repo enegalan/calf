@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/screens/volume_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
@@ -126,7 +125,6 @@ class _VolumesScreenState extends State<VolumesScreen>
             _resourceSaverActive = status.resourceSaverActive;
             _volumes = volumes;
             listLoading = false;
-            listError = null;
           });
         }
         _openInitialVolumeIfNeeded(volumes);
@@ -230,18 +228,13 @@ class _VolumesScreenState extends State<VolumesScreen>
       return;
     }
 
-    try {
-      await widget.apiClient.cloneVolume(volume.name, destination);
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Cloned volume to "$destination"');
+    final ok = await runCalfToastAction(
+      pending: 'Cloning "${volume.name}"...',
+      done: 'Cloned volume to "$destination"',
+      action: () => widget.apiClient.cloneVolume(volume.name, destination),
+    );
+    if (ok && mounted) {
       await _loadVolumes();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -257,18 +250,13 @@ class _VolumesScreenState extends State<VolumesScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    try {
-      await widget.apiClient.removeVolume(volume.name);
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Deleted volume "${volume.name}"');
+    final ok = await runCalfToastAction(
+      pending: 'Deleting "${volume.name}"...',
+      done: 'Deleted volume "${volume.name}"',
+      action: () => widget.apiClient.removeVolume(volume.name),
+    );
+    if (ok && mounted) {
       await _loadVolumes();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -298,7 +286,6 @@ class _VolumesScreenState extends State<VolumesScreen>
       title: 'Volumes',
       searchController: listSearchController,
       loading: listLoading,
-      error: listError,
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No volumes match "$listSearchQuery".'
@@ -372,17 +359,13 @@ class _VolumesScreenState extends State<VolumesScreen>
 
   /// Starts the container engine when the list is empty and runtime is stopped.
   Future<void> _startEngine() async {
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadVolumes();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 }

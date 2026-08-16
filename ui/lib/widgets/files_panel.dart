@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/utils/format.dart';
@@ -30,9 +31,7 @@ class _FilesPanelState extends State<FilesPanel> {
   final Map<String, List<ContainerFileEntry>> _cache = {};
   final Set<String> _expanded = {};
   final Set<String> _loading = {};
-  final Map<String, String> _errors = {};
   bool _rootLoading = true;
-  String? _rootError;
 
   /// Loads the root directory when the panel is first shown.
   @override
@@ -47,10 +46,8 @@ class _FilesPanelState extends State<FilesPanel> {
     setState(() {
       if (isRoot) {
         _rootLoading = true;
-        _rootError = null;
       } else {
         _loading.add(path);
-        _errors.remove(path);
       }
     });
 
@@ -73,13 +70,12 @@ class _FilesPanelState extends State<FilesPanel> {
       }
       setState(() {
         if (isRoot) {
-          _rootError = error.toString();
           _rootLoading = false;
         } else {
           _loading.remove(path);
-          _errors[path] = error.toString();
         }
       });
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -119,13 +115,6 @@ class _FilesPanelState extends State<FilesPanel> {
       theme: theme,
       child: _rootLoading
           ? Text('Loading files...', style: CalfTheme.muted(theme))
-          : _rootError != null
-          ? Text(
-              _rootError!,
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -166,18 +155,6 @@ class _FilesPanelState extends State<FilesPanel> {
             theme: widget.theme,
             depth: depth + 1,
             message: 'Loading...',
-          ),
-        );
-        continue;
-      }
-
-      if (_errors.containsKey(entry.path)) {
-        rows.add(
-          FilesPanelStatusRow(
-            theme: widget.theme,
-            depth: depth + 1,
-            message: _errors[entry.path]!,
-            isError: true,
           ),
         );
         continue;

@@ -13,6 +13,7 @@ import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/detail_breadcrumb.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/files_panel.dart';
 import 'package:ui/widgets/host_port_links.dart';
 import 'package:ui/theme/calf_theme.dart';
@@ -55,7 +56,6 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
   bool _containersLoading = false;
   bool _exportsLoading = false;
   bool _schedulesLoading = false;
-  String? _detailError;
   String? _containersError;
   String? _exportsError;
   String? _schedulesError;
@@ -74,10 +74,7 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
 
   /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
-    setState(() {
-      _detailLoading = true;
-      _detailError = null;
-    });
+    setState(() => _detailLoading = true);
 
     try {
       final detail = await widget.apiClient.fetchVolumeDetail(
@@ -94,10 +91,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _detailError = error.toString();
-        _detailLoading = false;
-      });
+      setState(() => _detailLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -142,10 +137,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _containersError = error.toString();
-        _containersLoading = false;
-      });
+      setState(() => _containersLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -171,10 +164,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _exportsError = error.toString();
-        _exportsLoading = false;
-      });
+      setState(() => _exportsLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -200,10 +191,8 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _schedulesError = error.toString();
-        _schedulesLoading = false;
-      });
+      setState(() => _schedulesLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -219,28 +208,21 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     if (!confirmed || !mounted) {
       return;
     }
-    setState(() {
-      _busy = true;
-    });
-
-    try {
-      await widget.apiClient.removeVolume(widget.volumeName);
-      if (!mounted) {
-        return;
-      }
-      setState(() => _busy = false);
-      showCalfSnackBar(context, 'Deleted volume "${widget.volumeName}"');
-      await widget.onRemoved();
-      widget.onBack();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _detailError = error.toString();
-      });
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Deleting "${widget.volumeName}"...',
+      done: 'Deleted volume "${widget.volumeName}"',
+      action: () => widget.apiClient.removeVolume(widget.volumeName),
+    );
+    if (!mounted) {
+      return;
     }
+    setState(() => _busy = false);
+    if (!ok) {
+      return;
+    }
+    await widget.onRemoved();
+    widget.onBack();
   }
 
   /// Navigates to or opens the selected quickexport.
@@ -292,30 +274,21 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     VolumeExportScheduleItem schedule,
     bool enabled,
   ) async {
-    setState(() {
-      _togglingScheduleId = schedule.id;
-      _schedulesError = null;
-    });
-
-    try {
-      await widget.apiClient.updateVolumeExportSchedule(
+    setState(() => _togglingScheduleId = schedule.id);
+    final ok = await runCalfToastAction(
+      pending: enabled ? 'Enabling schedule...' : 'Disabling schedule...',
+      done: enabled ? 'Schedule enabled' : 'Schedule disabled',
+      action: () => widget.apiClient.updateVolumeExportSchedule(
         volumeName: widget.volumeName,
         scheduleId: schedule.id,
         enabled: enabled,
-      );
-      if (!mounted) {
-        return;
-      }
+      ),
+    );
+    if (ok && mounted) {
       await _loadSchedules();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _schedulesError = error.toString());
-    } finally {
-      if (mounted) {
-        setState(() => _togglingScheduleId = null);
-      }
+    }
+    if (mounted) {
+      setState(() => _togglingScheduleId = null);
     }
   }
 
@@ -347,24 +320,24 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
         return;
       }
 
-      final bytes = await widget.apiClient.downloadVolumeExport(
-        widget.volumeName,
-        export.id,
-      );
-      await File(location.path).writeAsBytes(bytes);
-      if (!mounted) {
-        return;
+      final toast = showCalfProgressToast('Saving export...');
+      try {
+        final bytes = await widget.apiClient.downloadVolumeExport(
+          widget.volumeName,
+          export.id,
+        );
+        await File(location.path).writeAsBytes(bytes);
+        toast.complete('Export saved');
+      } catch (error) {
+        toast.fail(formatAsyncError(error));
       }
-      setState(() => _downloadingExportId = null);
-      showCalfSnackBar(context, 'Export saved');
     } catch (error) {
-      if (!mounted) {
-        return;
+      if (mounted) {
+        showCalfErrorSnackBar(context, error);
       }
-      setState(() {
-        _downloadingExportId = null;
-        _downloadError = error.toString();
-      });
+    }
+    if (mounted) {
+      setState(() => _downloadingExportId = null);
     }
   }
 
@@ -435,13 +408,6 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                   const SizedBox(height: 8),
                   if (_detailLoading)
                     Text('Loading...', style: CalfTheme.muted(theme))
-                  else if (_detailError != null)
-                    Text(
-                      _detailError!,
-                      style: theme.textTheme.bodySmall!.copyWith(
-                        color: theme.colorScheme.error,
-                      ),
-                    )
                   else if (detail != null) ...[
                     Row(
                       children: [
@@ -594,13 +560,6 @@ class _ExportsTab extends StatelessWidget {
           ),
           child: schedulesLoading
               ? Text('Loading schedules...', style: CalfTheme.muted(theme))
-              : schedulesError != null
-              ? Text(
-                  schedulesError!,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                )
               : schedules.isEmpty
               ? Column(
                   children: [
@@ -660,13 +619,6 @@ class _ExportsTab extends StatelessWidget {
           ),
           child: loading
               ? Text('Loading exports...', style: CalfTheme.muted(theme))
-              : error != null
-              ? Text(
-                  error!,
-                  style: theme.textTheme.bodySmall!.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                )
               : exports.isEmpty
               ? Column(
                   children: [
@@ -697,17 +649,6 @@ class _ExportsTab extends StatelessWidget {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (downloadError != null) ...[
-                      Text(
-                        downloadError!,
-                        style: theme.textTheme.bodySmall!.copyWith(
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-
-                      /// Creates a [_ExportsTab] widget.
-                      const SizedBox(height: 12),
-                    ],
                     for (final export in exports) ...[
                       _ExportHistoryRow(
                         theme: theme,
@@ -1213,15 +1154,6 @@ class _ContainersInUseTab extends StatelessWidget {
   Widget build(BuildContext context) {
     if (loading) {
       return Text('Loading containers...', style: CalfTheme.muted(theme));
-    }
-
-    if (error != null) {
-      return Text(
-        error!,
-        style: theme.textTheme.titleMedium!.copyWith(
-          color: theme.colorScheme.error,
-        ),
-      );
     }
 
     if (containers.isEmpty) {

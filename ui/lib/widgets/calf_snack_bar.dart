@@ -5,9 +5,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/widgets/error_text.dart';
 
 /// Default toast width for desktop layouts.
-const double _calfSnackBarWidth = 420;
+const double _calfSnackBarWidth = 440;
 
 /// Clears space above [AppBottomBar] (32px) plus a small gap.
 const double _calfSnackBarBottomInset = 48;
@@ -18,6 +19,27 @@ const double _calfSnackBarStackGap = 8;
 /// Enter/exit motion for each toast.
 const Duration _calfSnackBarMotion = Duration(milliseconds: 220);
 
+/// Auto-dismiss for info and success toasts.
+const Duration _calfSnackBarInfoDuration = Duration(milliseconds: 4000);
+
+/// Auto-dismiss for error toasts.
+const Duration _calfSnackBarErrorDuration = Duration(milliseconds: 6000);
+
+/// Visual kind for a calf toast.
+enum CalfToastKind {
+  /// Neutral status or copy confirmation.
+  info,
+
+  /// Completed user action.
+  success,
+
+  /// Failed user action or load error.
+  error,
+
+  /// In-progress user action; stays until completed or failed.
+  progress,
+}
+
 /// Shows a calf-styled floating toast stacked at the bottom-right.
 ///
 /// Requires [CalfToastLayer] above the app shell content.
@@ -25,11 +47,73 @@ void showCalfSnackBar(
   BuildContext context,
   String message, {
   Duration? duration,
+  CalfToastKind kind = CalfToastKind.info,
 }) {
   CalfToastController.instance.show(
     message: message,
-    duration: duration ?? const Duration(milliseconds: 4000),
+    kind: kind,
+    duration: duration ?? _durationForKind(kind),
   );
+}
+
+/// Shows an error toast using a user-facing message from [error].
+void showCalfErrorSnackBar(BuildContext context, Object error) {
+  showCalfSnackBar(context, formatAsyncError(error), kind: CalfToastKind.error);
+}
+
+/// Shows a sticky progress toast and returns a handle to finish it.
+CalfToastHandle showCalfProgressToast(String message) {
+  return CalfToastController.instance.showProgress(message);
+}
+
+/// Runs [action] with a progress toast, then success or error.
+Future<bool> runCalfToastAction({
+  required String pending,
+  required String done,
+  required Future<void> Function() action,
+}) async {
+  final toast = showCalfProgressToast(pending);
+  try {
+    await action();
+    toast.complete(done);
+    return true;
+  } catch (error) {
+    toast.fail(formatAsyncError(error));
+    return false;
+  }
+}
+
+/// Handle for a progress toast that can complete, fail, or dismiss.
+class CalfToastHandle {
+  /// Creates a handle for toast [id].
+  CalfToastHandle(this._id);
+
+  final int _id;
+
+  /// Turns the toast into a success message and auto-dismisses it.
+  void complete(String message) {
+    CalfToastController.instance.update(
+      _id,
+      message: message,
+      kind: CalfToastKind.success,
+      duration: _calfSnackBarInfoDuration,
+    );
+  }
+
+  /// Turns the toast into an error message and auto-dismisses it.
+  void fail(String message) {
+    CalfToastController.instance.update(
+      _id,
+      message: message,
+      kind: CalfToastKind.error,
+      duration: _calfSnackBarErrorDuration,
+    );
+  }
+
+  /// Starts the exit animation without a follow-up message.
+  void dismiss() {
+    CalfToastController.instance.dismiss(_id);
+  }
 }
 
 /// Shared controller for stacked calf toasts.
@@ -45,16 +129,48 @@ class CalfToastController extends ChangeNotifier {
   /// Whether any toast is currently visible or animating.
   bool get hasItems => _items.isNotEmpty;
 
-  /// Adds a toast to the stack.
-  void show({required String message, required Duration duration}) {
+  /// Adds a toast to the stack. A null [duration] keeps it until dismissed.
+  CalfToastHandle show({
+    required String message,
+    required CalfToastKind kind,
+    Duration? duration,
+  }) {
     final id = _nextId++;
     _items.add(
       _CalfToastItem(
         id: id,
         message: message,
-        timer: Timer(duration, () => dismiss(id)),
+        kind: kind,
+        timer: duration == null ? null : Timer(duration, () => dismiss(id)),
       ),
     );
+    notifyListeners();
+    return CalfToastHandle(id);
+  }
+
+  /// Adds a sticky progress toast.
+  CalfToastHandle showProgress(String message) {
+    return show(message: message, kind: CalfToastKind.progress);
+  }
+
+  /// Replaces an existing toast, or shows a new one if it was already dismissed.
+  void update(
+    int id, {
+    required String message,
+    required CalfToastKind kind,
+    Duration? duration,
+  }) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index < 0) {
+      show(message: message, kind: kind, duration: duration);
+      return;
+    }
+
+    final item = _items[index];
+    item.timer?.cancel();
+    item.message = message;
+    item.kind = kind;
+    item.timer = duration == null ? null : Timer(duration, () => dismiss(id));
     notifyListeners();
   }
 
@@ -70,7 +186,7 @@ class CalfToastController extends ChangeNotifier {
       return;
     }
 
-    item.timer.cancel();
+    item.timer?.cancel();
     item.dismissing = true;
     notifyListeners();
   }
@@ -83,7 +199,7 @@ class CalfToastController extends ChangeNotifier {
         return;
       }
 
-      _items[index].timer.cancel();
+      _items[index].timer?.cancel();
       _items.removeAt(index);
       notifyListeners();
     }
@@ -94,13 +210,26 @@ class CalfToastController extends ChangeNotifier {
   /// Cancels timers and clears all toasts (used after hot reload / remount).
   void clear() {
     for (final item in _items) {
-      item.timer.cancel();
+      item.timer?.cancel();
     }
     if (_items.isEmpty) {
       return;
     }
     _items.clear();
     notifyListeners();
+  }
+}
+
+/// Auto-dismiss duration for a non-progress [kind].
+Duration? _durationForKind(CalfToastKind kind) {
+  switch (kind) {
+    case CalfToastKind.progress:
+      return null;
+    case CalfToastKind.error:
+      return _calfSnackBarErrorDuration;
+    case CalfToastKind.info:
+    case CalfToastKind.success:
+      return _calfSnackBarInfoDuration;
   }
 }
 
@@ -179,6 +308,7 @@ class _CalfToastLayerState extends State<CalfToastLayer> {
                   _CalfToastCard(
                     key: ValueKey<int>(item.id),
                     message: item.message,
+                    kind: item.kind,
                     dismissing: item.dismissing,
                     showGapAbove: item.id != items.first.id,
                     onRequestDismiss: () =>
@@ -201,12 +331,14 @@ class _CalfToastItem {
   _CalfToastItem({
     required this.id,
     required this.message,
+    required this.kind,
     required this.timer,
   });
 
   final int id;
-  final String message;
-  final Timer timer;
+  String message;
+  CalfToastKind kind;
+  Timer? timer;
 
   /// Whether the exit animation has been requested.
   bool dismissing = false;
@@ -218,6 +350,7 @@ class _CalfToastCard extends StatefulWidget {
   const _CalfToastCard({
     super.key,
     required this.message,
+    required this.kind,
     required this.dismissing,
     required this.showGapAbove,
     required this.onRequestDismiss,
@@ -225,6 +358,7 @@ class _CalfToastCard extends StatefulWidget {
   });
 
   final String message;
+  final CalfToastKind kind;
 
   /// Snapshot of dismiss state for this build (must not share a mutable field).
   final bool dismissing;
@@ -309,11 +443,44 @@ class _CalfToastCardState extends State<_CalfToastCard>
     super.dispose();
   }
 
+  /// Accent color for the current toast kind.
+  Color _accentColor(ColorScheme colorScheme) {
+    switch (widget.kind) {
+      case CalfToastKind.success:
+        return CalfColors.success;
+      case CalfToastKind.error:
+        return colorScheme.error;
+      case CalfToastKind.progress:
+      case CalfToastKind.info:
+        return CalfColors.primary;
+    }
+  }
+
+  /// Leading icon or spinner for the current toast kind.
+  Widget _leading(Color accent) {
+    if (widget.kind == CalfToastKind.progress) {
+      return SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+      );
+    }
+
+    final icon = switch (widget.kind) {
+      CalfToastKind.success => LucideIcons.circleCheck,
+      CalfToastKind.error => LucideIcons.circleAlert,
+      CalfToastKind.info => LucideIcons.info,
+      CalfToastKind.progress => LucideIcons.info,
+    };
+    return Icon(icon, size: 18, color: accent);
+  }
+
   /// Builds the animated toast panel.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final accent = _accentColor(colorScheme);
 
     return FadeTransition(
       opacity: _fade,
@@ -324,9 +491,9 @@ class _CalfToastCardState extends State<_CalfToastCard>
             top: widget.showGapAbove ? _calfSnackBarStackGap : 0,
           ),
           child: Material(
-            color: colorScheme.surface,
-            elevation: 8,
-            shadowColor: colorScheme.onSurface.withValues(alpha: 0.18),
+            color: colorScheme.surfaceContainerHigh,
+            elevation: 12,
+            shadowColor: colorScheme.onSurface.withValues(alpha: 0.22),
             shape: RoundedRectangleBorder(
               borderRadius: CalfTheme.radius,
               side: BorderSide(color: colorScheme.outlineVariant),
@@ -336,15 +503,22 @@ class _CalfToastCardState extends State<_CalfToastCard>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(width: 4, color: CalfColors.primary),
+                  Container(width: 5, color: accent),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 14, 0, 14),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: _leading(accent),
+                    ),
+                  ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 12, 4, 12),
+                      padding: const EdgeInsets.fromLTRB(10, 14, 4, 14),
                       child: Text(
                         widget.message,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: colorScheme.onSurface,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

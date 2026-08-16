@@ -36,7 +36,6 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
   bool _imagesLoading = false;
   String? _imagesError;
   bool _busy = false;
-  String? _error;
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -75,10 +74,8 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _imagesError = error.toString();
-        _imagesLoading = false;
-      });
+      setState(() => _imagesLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -122,46 +119,38 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
 
       setState(() {
         _folderController.text = location;
-        _error = null;
       });
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _error = folderPickerErrorMessage(error));
+      final message = folderPickerErrorMessage(error);
+      if (message != null) {
+        showCalfSnackBar(context, message, kind: CalfToastKind.error);
+      }
     }
   }
 
   /// Submits the form and triggers the export via the API.
   Future<void> _save() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      await widget.apiClient.createVolumeExport(
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Starting export...',
+      done: 'Export started',
+      action: () => widget.apiClient.createVolumeExport(
         name: widget.volumeName,
         type: volumeQuickExportTypeToApi(_type),
         fileName: _fileNameController.text.trim(),
         folder: _folderController.text.trim(),
         imageRef: _imageRefController.text.trim(),
-      );
-
-      if (!mounted) {
-        return;
-      }
-
-      showCalfSnackBar(context, 'Export started');
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    if (ok) {
       widget.onCompleted();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _error = error.toString();
-      });
     }
   }
 
@@ -352,18 +341,6 @@ class _VolumeQuickExportViewState extends State<VolumeQuickExportView> {
             ),
           ),
         ),
-        if (_error != null) ...[
-          /// Creates a [_VolumeQuickExportViewState] widget.
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
-
-        /// Creates a [_VolumeQuickExportViewState] widget.
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.end,

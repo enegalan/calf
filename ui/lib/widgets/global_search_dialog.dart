@@ -8,6 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/build_row_icons.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 
 /// Kind of resource a global-search hit navigates to.
 enum GlobalSearchKind { container, image, volume, network, build }
@@ -61,7 +62,6 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
   List<GlobalSearchHit> _filtered = [];
   int _selectedIndex = 0;
   bool _loading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -86,10 +86,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
 
   /// Loads all resource lists for local filtering.
   Future<void> _loadResources() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _loading = true);
     try {
       final results = await Future.wait([
         widget.apiClient.fetchContainers(),
@@ -166,26 +163,20 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _loading = false;
-        _error = error.message;
-      });
+      setState(() => _loading = false);
+      showCalfErrorSnackBar(context, error);
     } on TimeoutException {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _loading = false;
-        _error = 'Request timed out';
-      });
+      setState(() => _loading = false);
+      showCalfSnackBar(context, 'Request timed out', kind: CalfToastKind.error);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _loading = false;
-        _error = error.toString();
-      });
+      setState(() => _loading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -298,19 +289,6 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
               Expanded(
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : _error != null
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Text(
-                            _error!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.error,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      )
                     : _filtered.isEmpty
                     ? Center(
                         child: Text(
