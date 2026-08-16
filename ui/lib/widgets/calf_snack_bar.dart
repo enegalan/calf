@@ -351,12 +351,6 @@ class _CalfToastCardState extends State<_CalfToastCard>
                   ),
                   IconButton(
                     tooltip: 'Dismiss',
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
                     onPressed: widget.dismissing
                         ? null
                         : widget.onRequestDismiss,
@@ -364,6 +358,14 @@ class _CalfToastCardState extends State<_CalfToastCard>
                       LucideIcons.x,
                       size: 16,
                       color: colorScheme.onSurfaceVariant,
+                    ),
+                    style: IconButton.styleFrom(
+                      shape: const CircleBorder(),
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(32, 32),
+                      fixedSize: const Size(32, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
                     ),
                   ),
                   const SizedBox(width: 4),
