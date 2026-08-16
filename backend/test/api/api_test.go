@@ -276,6 +276,153 @@ func TestContainersEmptyListIsJSONArray(t *testing.T) {
 	}
 }
 
+func TestResourceListsRemainDuringResourceSaver(t *testing.T) {
+	mock := runtime.NewMock()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+	apiServer := newTestGateway(cfg, slog.Default(), mock)
+	server := httptest.NewServer(apiServer.Handler())
+	t.Cleanup(func() {
+		apiServer.Shutdown(context.Background())
+		server.Close()
+	})
+
+	assertListLen := func(path string, want int) {
+		t.Helper()
+		response, err := http.Get(server.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s error: %v", path, err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s expected status 200, got %d", path, response.StatusCode)
+		}
+		var items []map[string]any
+		if err := json.NewDecoder(response.Body).Decode(&items); err != nil {
+			t.Fatalf("GET %s Decode() error: %v", path, err)
+		}
+		if len(items) != want {
+			t.Fatalf("GET %s expected %d items, got %d", path, want, len(items))
+		}
+	}
+
+	assertListLen("/v1/containers", 1)
+	assertListLen("/v1/images", 1)
+	assertListLen("/v1/volumes", 1)
+	assertListLen("/v1/networks", 1)
+
+	if err := apiServer.Backend().EnterResourceSaver(context.Background()); err != nil {
+		t.Fatalf("EnterResourceSaver: %v", err)
+	}
+
+	statusResp, err := http.Get(server.URL + "/v1/status")
+	if err != nil {
+		t.Fatalf("GET /v1/status error: %v", err)
+	}
+	defer statusResp.Body.Close()
+	var status map[string]any
+	if err := json.NewDecoder(statusResp.Body).Decode(&status); err != nil {
+		t.Fatalf("GET /v1/status Decode() error: %v", err)
+	}
+	if status["resource_saver_active"] != true {
+		t.Fatalf("expected resource_saver_active true, got %#v", status["resource_saver_active"])
+	}
+
+	assertListLen("/v1/containers", 1)
+	assertListLen("/v1/images", 1)
+	assertListLen("/v1/volumes", 1)
+	assertListLen("/v1/networks", 1)
+
+	killResp, err := http.Post(server.URL+"/v1/runtime/kill", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/runtime/kill error: %v", err)
+	}
+	defer killResp.Body.Close()
+	if killResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected kill status 200, got %d", killResp.StatusCode)
+	}
+
+	assertListLen("/v1/containers", 0)
+	assertListLen("/v1/images", 0)
+	assertListLen("/v1/volumes", 0)
+	assertListLen("/v1/networks", 0)
+}
+
+func TestStartContainerWakesResourceSaver(t *testing.T) {
+	mock := runtime.NewMock()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	cfg := config.Config{
+		ListenAddr: ":8765",
+		LogLevel:   "info",
+	}
+	apiServer := newTestGateway(cfg, slog.Default(), mock)
+	server := httptest.NewServer(apiServer.Handler())
+	t.Cleanup(func() {
+		apiServer.Shutdown(context.Background())
+		server.Close()
+	})
+
+	if err := apiServer.Backend().EnterResourceSaver(context.Background()); err != nil {
+		t.Fatalf("EnterResourceSaver: %v", err)
+	}
+	if mock.StatusValue.State == runtime.State("running") {
+		t.Fatal("expected runtime stopped after Resource Saver")
+	}
+
+	response, err := http.Post(server.URL+"/v1/containers/abc123/start", "application/json", nil)
+	if err != nil {
+		t.Fatalf("POST /v1/containers/abc123/start error: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Fatalf("expected start status 200, got %d body %s", response.StatusCode, body)
+	}
+
+	if apiServer.Backend().ResourceSaverActive() {
+		t.Fatal("expected Resource Saver inactive after starting a container")
+	}
+	if mock.StatusValue.State != runtime.State("running") {
+		t.Fatalf("expected runtime running after start, got %s", mock.StatusValue.State)
+	}
+
+	statusResp, err := http.Get(server.URL + "/v1/status")
+	if err != nil {
+		t.Fatalf("GET /v1/status error: %v", err)
+	}
+	defer statusResp.Body.Close()
+	var status map[string]any
+	if err := json.NewDecoder(statusResp.Body).Decode(&status); err != nil {
+		t.Fatalf("GET /v1/status Decode() error: %v", err)
+	}
+	if status["resource_saver_active"] != false {
+		t.Fatalf("expected resource_saver_active false, got %#v", status["resource_saver_active"])
+	}
+
+	listResp, err := http.Get(server.URL + "/v1/containers")
+	if err != nil {
+		t.Fatalf("GET /v1/containers error: %v", err)
+	}
+	defer listResp.Body.Close()
+	var containers []map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&containers); err != nil {
+		t.Fatalf("GET /v1/containers Decode() error: %v", err)
+	}
+	if len(containers) != 1 {
+		t.Fatalf("expected 1 container after wake, got %d", len(containers))
+	}
+	if containers[0]["state"] != "running" {
+		t.Fatalf("expected container running, got %#v", containers[0]["state"])
+	}
+}
+
 func TestContainerInspectAndMounts(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()

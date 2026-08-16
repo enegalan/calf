@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.14] - 2026-08-16
+
+### Fixed
+
+- **Resource Saver lists** — Containers, Images, Volumes, and Networks stay visible while Resource Saver has stopped the engine, instead of looking like a stopped engine with empty lists.
+- **Start from Resource Saver** — starting or restarting a container, or running an image, wakes the engine instead of failing with "runtime is not running".
+
 ## [1.0.13] - 2026-08-16
 
 ### Fixed

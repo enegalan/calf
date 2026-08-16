@@ -660,7 +660,10 @@ class ApiClient implements CalfClient {
   /// Starts a stopped container.
   @override
   Future<void> startContainer(String id) async {
-    await _postEmpty('/v1/containers/$id/start');
+    await _postEmpty(
+      '/v1/containers/$id/start',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
   }
 
   /// Stops a running container.
@@ -678,7 +681,10 @@ class ApiClient implements CalfClient {
   /// Restarts a container.
   @override
   Future<void> restartContainer(String id) async {
-    await _postEmpty('/v1/containers/$id/restart');
+    await _postEmpty(
+      '/v1/containers/$id/restart',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
   }
 
   /// Fetches raw inspect JSON for a container.
@@ -1009,10 +1015,11 @@ class ApiClient implements CalfClient {
   }
 
   /// Performs a POST request with no body and checks for success.
-  Future<void> _postEmpty(String path) async {
+  Future<void> _postEmpty(String path, {Duration? timeout}) async {
+    final requestTimeout = timeout ?? this.timeout;
     final response = await httpClient
         .post(Uri.parse('$baseUrl$path'))
-        .timeout(timeout);
+        .timeout(requestTimeout);
     if (response.statusCode != 200) {
       throw ApiException(
         _errorMessage(response),

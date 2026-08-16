@@ -35,6 +35,7 @@ class _NetworksScreenState extends State<NetworksScreen>
     with PollIntervalMixin, ResourceListPollMixin {
   List<NetworkItem> _networks = [];
   RuntimeStatus? _runtime;
+  bool _resourceSaverActive = false;
   String? _selectedNetwork;
 
   /// Initializes state and starts loading or subscriptions.
@@ -83,6 +84,7 @@ class _NetworksScreenState extends State<NetworksScreen>
         }
         setState(() {
           _runtime = status.runtime;
+          _resourceSaverActive = status.resourceSaverActive;
           _networks = networks;
           listLoading = false;
           listError = null;
@@ -177,7 +179,10 @@ class _NetworksScreenState extends State<NetworksScreen>
 
     final filtered = _filteredNetworks();
     final theme = Theme.of(context);
-    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStopped = showStoppedEngineEmpty(
+      _runtime,
+      resourceSaverActive: _resourceSaverActive,
+    );
     final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(

@@ -17,7 +17,7 @@ func (g *Gateway) handleContainers(w http.ResponseWriter, r *http.Request) {
 	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
 	defer cancel()
 
-	containers, err := g.backend.Runtime.ListContainers(r.Context())
+	containers, err := g.backend.ListContainers(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return
@@ -82,21 +82,21 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 			Segments: []string{"start"},
 			Method:   http.MethodPost,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
-				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.StartContainer)
+				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.StartContainer, true)
 			},
 		},
 		{
 			Segments: []string{"stop"},
 			Method:   http.MethodPost,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
-				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.StopContainer)
+				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.StopContainer, false)
 			},
 		},
 		{
 			Segments: []string{"restart"},
 			Method:   http.MethodPost,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
-				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.RestartContainer)
+				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.RestartContainer, true)
 			},
 		},
 	}, map[string]httpkit.PartsHandler{
@@ -117,9 +117,18 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 }
 
 // handleContainerLifecycle runs a container lifecycle action and writes the HTTP response.
-func (g *Gateway) handleContainerLifecycle(w http.ResponseWriter, r *http.Request, id string, action func(context.Context, string) error) {
-	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+// When wakeEngine is set, Resource Saver is exited and the engine is started first.
+func (g *Gateway) handleContainerLifecycle(w http.ResponseWriter, r *http.Request, id string, action func(context.Context, string) error, wakeEngine bool) {
+	timeout := constants.DefaultActionTimeout
+	if wakeEngine {
+		timeout = constants.RuntimeActionTimeout
+	}
+	r, cancel := httpkit.WithTimeout(r, timeout)
 	defer cancel()
+
+	if wakeEngine && !httpkit.EnsureRuntimeOrFail(w, r.Context(), g.backend) {
+		return
+	}
 
 	if err := action(r.Context(), id); err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)

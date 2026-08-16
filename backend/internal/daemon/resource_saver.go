@@ -59,6 +59,14 @@ func (r *resourceSaver) Clear() {
 	r.mu.Unlock()
 }
 
+// markActive records that Resource Saver now holds the engine stopped.
+func (r *resourceSaver) markActive() {
+	r.mu.Lock()
+	r.active = true
+	r.idleAt = time.Time{}
+	r.mu.Unlock()
+}
+
 // loop polls runtime and containers until stopCh closes.
 func (r *resourceSaver) loop() {
 	defer close(r.doneCh)
@@ -139,15 +147,11 @@ func (r *resourceSaver) tick() {
 
 	stopCtx, stopCancel := context.WithTimeout(r.core.lifecycleCtx, constants.DefaultActionTimeout)
 	defer stopCancel()
-	if err := r.core.ForceStopRuntime(stopCtx); err != nil {
+	if err := r.core.EnterResourceSaver(stopCtx); err != nil {
 		r.core.Logger.Warn("resource saver failed to stop runtime", "error", err)
 		return
 	}
 
-	r.mu.Lock()
-	r.active = true
-	r.idleAt = time.Time{}
-	r.mu.Unlock()
 	r.core.Logger.Info("entered resource saver mode", "idle_sec", timeoutSec)
 }
 

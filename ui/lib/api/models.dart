@@ -172,6 +172,14 @@ class DaemonStatus {
   }
 }
 
+/// Whether resource lists should show the stopped-engine empty state.
+bool showStoppedEngineEmpty(
+  RuntimeStatus? runtime, {
+  required bool resourceSaverActive,
+}) {
+  return runtime?.isStopped == true && !resourceSaverActive;
+}
+
 /// A single container as listed by the container engine.
 class ContainerItem {
   /// Creates a [ContainerItem] instance.

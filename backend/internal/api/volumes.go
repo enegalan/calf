@@ -14,7 +14,7 @@ func (g *Gateway) handleVolumesList(w http.ResponseWriter, r *http.Request) {
 	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
 	defer cancel()
 
-	volumes, err := g.backend.Runtime.ListVolumes(r.Context())
+	volumes, err := g.backend.ListVolumes(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return

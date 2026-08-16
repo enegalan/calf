@@ -14,7 +14,7 @@ func (g *Gateway) handleNetworksList(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
 	defer cancel()
 
-	networks, err := g.backend.Runtime.ListNetworks(ctx)
+	networks, err := g.backend.ListNetworks(ctx)
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return

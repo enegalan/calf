@@ -36,6 +36,7 @@ class _BuildsScreenState extends State<BuildsScreen>
     with PollIntervalMixin, ResourceListPollMixin {
   List<BuildItem> _builds = [];
   RuntimeStatus? _runtime;
+  bool _resourceSaverActive = false;
   String? _selectedBuildId;
 
   /// Initializes state and starts loading or subscriptions.
@@ -82,6 +83,7 @@ class _BuildsScreenState extends State<BuildsScreen>
         }
         setState(() {
           _runtime = status.runtime;
+          _resourceSaverActive = status.resourceSaverActive;
           _builds = builds;
           listLoading = false;
           listError = null;
@@ -140,7 +142,10 @@ class _BuildsScreenState extends State<BuildsScreen>
                     b.status.toLowerCase().contains(listSearchQuery),
               )
               .toList();
-    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStopped = showStoppedEngineEmpty(
+      _runtime,
+      resourceSaverActive: _resourceSaverActive,
+    );
     final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(
