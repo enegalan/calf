@@ -470,10 +470,7 @@ class _LoggedInCalfClient extends FakeCalfClient {
 }
 
 /// Builds a themed [AppBottomBar] for status-label widget tests.
-Widget _engineBottomBar({
-  DaemonStatus? status,
-  String pendingAction = '',
-}) {
+Widget _engineBottomBar({DaemonStatus? status, String pendingAction = ''}) {
   return MaterialApp(
     home: Scaffold(
       body: AppBottomBar(
