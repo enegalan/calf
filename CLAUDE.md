@@ -165,7 +165,7 @@ calf/
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go + plugins_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, virtiofs_guest, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -354,7 +354,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 ### `internal/runtime/` (core abstraction)
 - `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle including `ForceStop`/`ResourceUsage`, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `ResourceUsage`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWindowsUnsupported` on Windows.
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
-- `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; virtiofs for `~/.config/calf/mounts` and `$HOME`; DAX remount `dax=inode` by default).
+- `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; virtiofs for `~/.config/calf/mounts` and `$HOME`; DAX remount `dax=inode` by default; calf-home remounted with calf-mounts on every engine start).
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
 - `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.

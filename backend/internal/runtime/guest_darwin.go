@@ -220,7 +220,9 @@ func (v *Guest) ensureHostMountSymlink(ctx context.Context) {
 }
 
 // runGuestRoot runs a shell script in the guest init mount/network namespace.
-// Output is collected via docker logs because attach streams over vsock return empty.
+// Uses sh (not bash): alpine:3.20 has no bash, and busybox nsenter may look up the
+// shell before entering the guest. Output is collected via docker logs because
+// attach streams over vsock return empty.
 func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error) {
 	name := fmt.Sprintf("calf-guestcmd-%d", time.Now().UnixNano())
 	createOut, err := v.runLocal(ctx, "docker", "create",
@@ -230,7 +232,7 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		"--pid=host",
 		constants.AlpineSmokeImage,
 		"nsenter", "-t", "1", "-m", "-u", "-i", "-n", "--",
-		"bash", "-lc", script,
+		"sh", "-c", script,
 	)
 	if err != nil {
 		v.removeGuestCmdContainer(context.WithoutCancel(ctx), "", name)
