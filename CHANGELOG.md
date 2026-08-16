@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.13] - 2026-08-16
+
+### Fixed
+
+- **Quit from Dock** — quitting calf from the Dock or with Cmd+Q now stops the embedded engine instead of leaving it running after the window closes.
+
 ## [1.0.12] - 2026-08-16
 
 ### Fixed

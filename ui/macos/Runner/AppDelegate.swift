@@ -7,9 +7,8 @@ class AppDelegate: FlutterAppDelegate {
     return false
   }
 
-  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-    return .terminateNow
-  }
+  // Do not override applicationShouldTerminate. FlutterAppDelegate must ask
+  // Dart first so Dock Quit / Cmd+Q can stop calf-daemon before the UI exits.
 
   override func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
     if !flag {
