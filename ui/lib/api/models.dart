@@ -48,6 +48,12 @@ class RuntimeStatus {
   /// Whether the container engine reports as running.
   bool get isRunning => state == 'running';
 
+  /// Whether the container engine is currently booting.
+  bool get isStarting => state == 'starting';
+
+  /// Whether the container engine is fully stopped (not booting).
+  bool get isStopped => state == 'stopped';
+
   /// Creates a [RuntimeStatus] from a JSON map.
   factory RuntimeStatus.fromJson(Map<String, dynamic> json) {
     final conflictsJson = json['port_conflicts'];

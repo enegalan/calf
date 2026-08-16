@@ -503,7 +503,9 @@ class _ContainersScreenState extends State<ContainersScreen>
                   Text(
                     listSearchQuery.isNotEmpty
                         ? 'No containers match "$listSearchQuery".'
-                        : _runtime?.state == 'stopped'
+                        : _runtime?.isStarting == true
+                        ? 'Engine is starting…'
+                        : _runtime?.isStopped == true
                         ? 'No containers. Runtime is stopped.'
                         : _runningOnly
                         ? 'No running containers.'
@@ -511,7 +513,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     textAlign: TextAlign.center,
                     style: CalfTheme.muted(theme),
                   ),
-                  if (_runtime?.state == 'stopped' &&
+                  if (_runtime?.isStopped == true &&
                       listSearchQuery.isEmpty) ...[
                     const SizedBox(height: 16),
                     CalfButton(

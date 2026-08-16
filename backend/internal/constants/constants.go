@@ -74,11 +74,12 @@ const (
 	RuntimeModeNative = "native"
 )
 
-// RuntimeState values describe whether the container runtime is up, down, or unknown.
+// RuntimeState values describe whether the container runtime is up, down, booting, or unknown.
 const (
-	RuntimeStateRunning = "running"
-	RuntimeStateStopped = "stopped"
-	RuntimeStateUnknown = "unknown"
+	RuntimeStateRunning  = "running"
+	RuntimeStateStopped  = "stopped"
+	RuntimeStateStarting = "starting"
+	RuntimeStateUnknown  = "unknown"
 )
 
 // Docker CLI defaults control context naming and CLI operation timeouts.

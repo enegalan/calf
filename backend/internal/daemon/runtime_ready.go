@@ -35,6 +35,13 @@ func (s *Core) EnsureRuntimeRunning(ctx context.Context) error {
 	return waitRuntimeStart(ctx, inflight)
 }
 
+// RuntimeStarting reports whether EnsureRuntimeRunning is currently booting the engine.
+func (s *Core) RuntimeStarting() bool {
+	s.runtimeStartMu.Lock()
+	defer s.runtimeStartMu.Unlock()
+	return s.runtimeStartInflight != nil
+}
+
 // waitRuntimeStart returns when the shared start finishes or ctx is canceled.
 func waitRuntimeStart(ctx context.Context, inflight *runtimeStartResult) error {
 	select {

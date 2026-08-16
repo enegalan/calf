@@ -560,6 +560,28 @@ void main() {
     expect(find.text('Daemon logs'), findsOneWidget);
     expect(find.textContaining('runtime started'), findsOneWidget);
   });
+
+  testWidgets('shows engine starting in the status bar', (tester) async {
+    final apiClient = FakeCalfClient(
+      DaemonStatus(
+        uptimeSeconds: 1,
+        listenAddr: ':8765',
+        logLevel: 'info',
+        runtime: const RuntimeStatus(
+          mode: 'vm',
+          state: 'starting',
+          dockerSocket: '/tmp/calf.sock',
+          vmName: 'calf',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(MainApp(apiClient: apiClient));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Engine starting…'), findsWidgets);
+  });
 }
 
 class _ErrorCalfClient implements CalfClient {

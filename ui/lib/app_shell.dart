@@ -146,6 +146,11 @@ class _AppShellState extends State<AppShell> {
         if (status.version.isNotEmpty) {
           _appVersion = status.version;
         }
+        if (!_engineActionBusy &&
+            _enginePending == _EnginePendingAction.starting &&
+            !status.runtime.isStarting) {
+          _enginePending = _EnginePendingAction.none;
+        }
       });
     } on ApiException catch (error) {
       debugPrint('Failed to poll daemon status: ${error.message}');
@@ -212,6 +217,59 @@ class _AppShellState extends State<AppShell> {
       _EnginePendingAction.starting,
       () => widget.apiClient.startRuntime(),
     );
+  }
+
+  /// Restarts the calf daemon process, or the engine when the UI does not own the daemon.
+  Future<void> _restartCalf() async {
+    final restartDaemon = widget.onRestartDaemon;
+    if (restartDaemon == null) {
+      await _restartEngine();
+      return;
+    }
+    if (_engineActionBusy) {
+      return;
+    }
+    setState(() {
+      _engineActionBusy = true;
+      _enginePending = _EnginePendingAction.starting;
+      _daemonStatus = null;
+      _daemonStatusFailureCount = 0;
+    });
+    try {
+      await restartDaemon();
+      if (!mounted) {
+        return;
+      }
+      await _refreshDaemonStatus();
+    } on StateError catch (error) {
+      debugPrint('Daemon restart failed: ${error.message}');
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, error.message);
+    } on ApiException catch (error) {
+      debugPrint('Daemon restart failed: ${error.message}');
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, error.message);
+    } on TimeoutException catch (error) {
+      debugPrint('Daemon restart timed out: $error');
+      if (!mounted) {
+        return;
+      }
+      showCalfSnackBar(context, 'Engine action timed out');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _engineActionBusy = false;
+          final runtime = _daemonStatus?.runtime;
+          if (runtime != null && !runtime.isStarting) {
+            _enginePending = _EnginePendingAction.none;
+          }
+        });
+      }
+    }
   }
 
   /// Runs a start/stop action and refreshes status afterward.
@@ -761,8 +819,7 @@ class _AppShellState extends State<AppShell> {
                           ? TroubleshootScreen(
                               apiClient: widget.apiClient,
                               onClose: closeSettings,
-                              onRestart:
-                                  widget.onRestartDaemon ?? _restartEngine,
+                              onRestart: _restartCalf,
                               onQuit: CalfTrayStatus.quitApp,
                               usesExternalDaemon: widget.usesExternalDaemon,
                               onCleanUnusedData: openDiskCleanup,

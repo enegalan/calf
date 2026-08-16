@@ -140,7 +140,8 @@ class _BuildsScreenState extends State<BuildsScreen>
                     b.status.toLowerCase().contains(listSearchQuery),
               )
               .toList();
-    final runtimeStopped = _runtime?.state == 'stopped';
+    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(
       title: 'Builds',
@@ -150,6 +151,8 @@ class _BuildsScreenState extends State<BuildsScreen>
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No builds match "$listSearchQuery".'
+          : runtimeStarting
+          ? 'Engine is starting…'
           : runtimeStopped
           ? 'No builds yet. Runtime is stopped.'
           : 'No builds yet.',

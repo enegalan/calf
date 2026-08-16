@@ -36,6 +36,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
   bool _loading = true;
   bool _busy = false;
   bool _runtimeStopped = false;
+  bool _runtimeStarting = false;
 
   bool _containers = true;
   bool _images = true;
@@ -51,12 +52,13 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
     unawaited(_loadPreview());
   }
 
-  /// Loads the prune preview, or marks the runtime as stopped on 503.
+  /// Loads the prune preview, or marks the runtime as starting/stopped on 503.
   Future<void> _loadPreview() async {
     setState(() {
       _loading = true;
       _error = null;
       _runtimeStopped = false;
+      _runtimeStarting = false;
     });
     try {
       final preview = await widget.apiClient.fetchPrunePreview();
@@ -71,9 +73,28 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
       if (!mounted) {
         return;
       }
+      var runtimeStopped = error.statusCode == 503;
+      var runtimeStarting = false;
+      if (runtimeStopped) {
+        try {
+          final status = await widget.apiClient.fetchStatus();
+          if (!mounted) {
+            return;
+          }
+          runtimeStarting = status.runtime.isStarting;
+          runtimeStopped = status.runtime.isStopped;
+        } on ApiException {
+          runtimeStopped = true;
+        } on TimeoutException {
+          runtimeStopped = true;
+        } on FormatException {
+          runtimeStopped = true;
+        }
+      }
       setState(() {
         _loading = false;
-        _runtimeStopped = error.statusCode == 503;
+        _runtimeStopped = runtimeStopped;
+        _runtimeStarting = runtimeStarting;
         _error = error.message;
         _preview = null;
       });
@@ -236,18 +257,25 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
         const SizedBox(height: 16),
         if (_loading)
           const Expanded(child: Center(child: CircularProgressIndicator()))
-        else if (_runtimeStopped)
+        else if (_runtimeStarting || _runtimeStopped)
           Expanded(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Runtime is stopped.', style: CalfTheme.muted(theme)),
-                  const SizedBox(height: 12),
-                  CalfButton(
-                    onPressed: _busy ? null : () => unawaited(_startEngine()),
-                    child: const Text('Start engine'),
+                  Text(
+                    _runtimeStarting || _busy
+                        ? 'Engine is starting…'
+                        : 'Runtime is stopped.',
+                    style: CalfTheme.muted(theme),
                   ),
+                  if (!_runtimeStarting) ...[
+                    const SizedBox(height: 12),
+                    CalfButton(
+                      onPressed: _busy ? null : () => unawaited(_startEngine()),
+                      child: const Text('Start engine'),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -22,6 +22,7 @@ type Mock struct {
 	Volumes          []Volume
 	Networks         []Network
 	StartErr         error
+	StartHold        chan struct{}
 	StopErr          error
 	StatusErr        error
 	ContainersErr    error
@@ -80,14 +81,25 @@ func (m *Mock) DockerSocket() string {
 }
 
 // Start marks the mock runtime as started and running.
-func (m *Mock) Start(_ context.Context) error {
+func (m *Mock) Start(ctx context.Context) error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	hold := m.StartHold
+	startErr := m.StartErr
+	m.mu.Unlock()
 
-	if m.StartErr != nil {
-		return m.StartErr
+	if startErr != nil {
+		return startErr
+	}
+	if hold != nil {
+		select {
+		case <-hold:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.Started = true
 	m.StatusValue.State = State(constants.RuntimeStateRunning)
 	return nil
