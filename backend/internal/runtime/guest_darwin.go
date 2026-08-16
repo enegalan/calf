@@ -40,6 +40,7 @@ type Guest struct {
 	proxy          ProxyConfig
 	dataDir        string
 	started        atomic.Bool
+	starting       atomic.Bool
 	proxyResync    atomic.Bool
 	cmd            *exec.Cmd
 	localhostProxy *localhostProxies
@@ -468,6 +469,7 @@ func (v *Guest) Stop(ctx context.Context) error {
 	}
 	v.mu.Unlock()
 	v.localhostProxy.stopAll()
+	v.starting.Store(false)
 	v.started.Store(false)
 	return nil
 }
@@ -475,6 +477,7 @@ func (v *Guest) Stop(ctx context.Context) error {
 // Status reports whether the guest Docker API is reachable.
 // After Start succeeds, a brief ping failure still reports running so the UI
 // does not treat a vsock blip as a stopped engine (empty container list).
+// While Start is in progress and the API is not up yet, state is starting.
 func (v *Guest) Status(ctx context.Context) (Status, error) {
 	st := Status{Mode: Mode(constants.RuntimeModeVM), State: State(constants.RuntimeStateStopped), DockerSocket: v.dockerSocket, VMName: v.vmName}
 	if v.dockerAPIReady(ctx) {
@@ -485,6 +488,8 @@ func (v *Guest) Status(ctx context.Context) (Status, error) {
 		}
 	} else if v.started.Load() {
 		st.State = State(constants.RuntimeStateRunning)
+	} else if v.starting.Load() {
+		st.State = State(constants.RuntimeStateStarting)
 	}
 	st.PortConflicts = v.localhostProxy.conflictsSnapshot()
 	return st, nil

@@ -62,10 +62,14 @@ class AppBottomBar extends StatelessWidget {
     final running = runtime?.isRunning == true;
     final resourceSaver = status?.resourceSaverActive == true;
     final resources = status?.resources ?? const EngineResources();
-    final pending = pendingAction.isNotEmpty;
-    final label = pending
+    final starting = runtime?.isStarting == true;
+    final pending = pendingAction.isNotEmpty || starting;
+    final label = pendingAction.isNotEmpty
         ? pendingAction
+        : starting
+        ? 'Engine starting…'
         : _engineLabel(runtime, resourceSaver: resourceSaver);
+    final actionsEnabled = !busy && !pending;
     final activeBadge = pending || running || resourceSaver;
     final badgeColor = activeBadge
         ? CalfColors.primary
@@ -127,7 +131,7 @@ class AppBottomBar extends StatelessWidget {
                           icon: LucideIcons.pause,
                           tooltip: 'Stop engine',
                           color: badgeForeground,
-                          enabled: !busy,
+                          enabled: actionsEnabled,
                           onPressed: onStop,
                         )
                       else
@@ -135,12 +139,12 @@ class AppBottomBar extends StatelessWidget {
                           icon: LucideIcons.play,
                           tooltip: 'Start engine',
                           color: badgeForeground,
-                          enabled: !busy,
+                          enabled: actionsEnabled,
                           onPressed: onStart,
                         ),
                       CalfPopupMenuButton<String>(
                         tooltip: 'Engine menu',
-                        enabled: !busy,
+                        enabled: actionsEnabled,
                         iconSize: 14,
                         iconColor: badgeForeground,
                         style: IconButton.styleFrom(
@@ -353,10 +357,13 @@ class AppBottomBar extends StatelessWidget {
     if (runtime == null) {
       return 'Engine unknown';
     }
+    if (runtime.isStarting) {
+      return 'Engine starting…';
+    }
     if (runtime.isRunning) {
       return 'Engine running';
     }
-    if (runtime.state == 'stopped') {
+    if (runtime.isStopped) {
       return 'Engine stopped';
     }
     return 'Engine ${runtime.state}';
@@ -370,14 +377,17 @@ class AppBottomBar extends StatelessWidget {
     if (resourceSaver) {
       return 'Running in Resource Saver mode';
     }
-    if (runtime?.isRunning == true) {
-      return 'Engine running';
-    }
-    if (runtime?.state == 'stopped') {
-      return 'Engine stopped';
-    }
     if (runtime == null) {
       return 'Engine unknown';
+    }
+    if (runtime.isStarting) {
+      return 'Engine starting…';
+    }
+    if (runtime.isRunning) {
+      return 'Engine running';
+    }
+    if (runtime.isStopped) {
+      return 'Engine stopped';
     }
     return 'Engine ${runtime.state}';
   }

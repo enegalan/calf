@@ -293,7 +293,8 @@ class _ImagesScreenState extends State<ImagesScreen>
                     img.id.toLowerCase().contains(listSearchQuery),
               )
               .toList();
-    final runtimeStopped = _runtime?.state == 'stopped';
+    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(
       title: 'Images',
@@ -303,6 +304,8 @@ class _ImagesScreenState extends State<ImagesScreen>
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No images match "$listSearchQuery".'
+          : runtimeStarting
+          ? 'Engine is starting…'
           : runtimeStopped
           ? 'No images. Runtime is stopped.'
           : 'No local images.',

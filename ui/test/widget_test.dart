@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/main.dart';
+import 'package:ui/widgets/app_bottom_bar.dart';
 
 class FakeCalfClient implements CalfClient {
   FakeCalfClient(this.status);
@@ -467,6 +469,34 @@ class _LoggedInCalfClient extends FakeCalfClient {
       );
 }
 
+/// Builds a themed [AppBottomBar] for status-label widget tests.
+Widget _engineBottomBar({DaemonStatus? status, String pendingAction = ''}) {
+  return MaterialApp(
+    home: Scaffold(
+      body: AppBottomBar(
+        status: status,
+        appVersion: '1.0.10',
+        busy: false,
+        pendingAction: pendingAction,
+        loggedIn: false,
+        signInPending: false,
+        updateAvailable: false,
+        onStart: () {},
+        onStop: () {},
+        onOpenSettings: () {},
+        onOpenAbout: () {},
+        onSignIn: () {},
+        onSignOut: () {},
+        onTroubleshoot: () {},
+        onOpenDockerHub: () {},
+        onDownloadUpdate: () {},
+        onRestart: () {},
+        onQuit: () {},
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('opens containers screen on launch', (tester) async {
     final apiClient = FakeCalfClient(
@@ -559,6 +589,48 @@ void main() {
 
     expect(find.text('Daemon logs'), findsOneWidget);
     expect(find.textContaining('runtime started'), findsOneWidget);
+  });
+
+  testWidgets('shows engine starting in the status bar', (tester) async {
+    final apiClient = FakeCalfClient(
+      DaemonStatus(
+        uptimeSeconds: 1,
+        listenAddr: ':8765',
+        logLevel: 'info',
+        runtime: const RuntimeStatus(
+          mode: 'vm',
+          state: 'starting',
+          dockerSocket: '/tmp/calf.sock',
+          vmName: 'calf',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(MainApp(apiClient: apiClient));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Engine starting…'), findsWidgets);
+  });
+
+  testWidgets('null engine status is unknown, not starting', (tester) async {
+    await tester.pumpWidget(_engineBottomBar(status: null));
+    await tester.pump();
+
+    expect(find.text('Engine unknown'), findsOneWidget);
+    expect(find.text('Engine starting…'), findsNothing);
+  });
+
+  testWidgets('pending start with null status still shows starting', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _engineBottomBar(status: null, pendingAction: 'Engine starting…'),
+    );
+    await tester.pump();
+
+    expect(find.text('Engine starting…'), findsOneWidget);
+    expect(find.text('Engine unknown'), findsNothing);
   });
 }
 

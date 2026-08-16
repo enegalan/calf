@@ -153,6 +153,9 @@ func pidfileAlive(path string) bool {
 
 // Start launches gvproxy + krunkit and waits for Docker /_ping on the vsock socket.
 func (k *Krunkit) Start(ctx context.Context) error {
+	k.starting.Store(true)
+	defer k.starting.Store(false)
+
 	krunkitBin := resolveKrunkitBinary()
 	if krunkitBin == "" {
 		return fmt.Errorf("krunkit not found: run make krunkit-stack, or install a release that bundles it (CALF_KRUNKIT_BIN overrides)")
@@ -695,6 +698,7 @@ func (k *Krunkit) Stop(ctx context.Context) error {
 	}
 	k.mu.Unlock()
 	k.localhostProxy.stopAll()
+	k.starting.Store(false)
 	k.started.Store(false)
 	if k.vmKeepAlive && os.Getenv("CALF_BENCHMARK") != "1" {
 		return nil
@@ -714,6 +718,7 @@ func (k *Krunkit) ForceStop(ctx context.Context) error {
 	}
 	k.mu.Unlock()
 	k.localhostProxy.stopAll()
+	k.starting.Store(false)
 	k.started.Store(false)
 	_ = k.stopKrunkitStack()
 	_ = os.Remove(k.engineSocket)

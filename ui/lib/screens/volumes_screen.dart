@@ -286,7 +286,8 @@ class _VolumesScreenState extends State<VolumesScreen>
 
     final theme = Theme.of(context);
     final filtered = _filteredVolumes();
-    final runtimeStopped = _runtime?.state == 'stopped';
+    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(
       title: 'Volumes',
@@ -296,6 +297,8 @@ class _VolumesScreenState extends State<VolumesScreen>
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No volumes match "$listSearchQuery".'
+          : runtimeStarting
+          ? 'Engine is starting…'
           : runtimeStopped
           ? 'No volumes. Runtime is stopped.'
           : _runningOnly

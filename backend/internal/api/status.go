@@ -52,6 +52,10 @@ func (g *Gateway) handleStatus(w http.ResponseWriter, r *http.Request) {
 		resources.DiskUsedBytes = usage.DiskUsedBytes
 	}
 
+	if g.backend.RuntimeStarting() && runtimeStatus.State != runtime.State(constants.RuntimeStateRunning) {
+		runtimeStatus.State = runtime.State(constants.RuntimeStateStarting)
+	}
+
 	httpkit.WriteJSON(w, http.StatusOK, statusResponse{
 		Version:             version.Version,
 		UptimeSeconds:       int64(time.Since(g.backend.StartTime).Seconds()),

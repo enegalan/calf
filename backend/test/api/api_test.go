@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -107,6 +108,84 @@ func TestStatusReturnsMetadata(t *testing.T) {
 		if _, ok := resources[key]; !ok {
 			t.Fatalf("expected resources.%q in response", key)
 		}
+	}
+}
+
+func TestStatusReportsStartingWhileStartInFlight(t *testing.T) {
+	mock := runtime.NewMock()
+	mock.Started = false
+	mock.StatusValue.State = "stopped"
+	hold := make(chan struct{})
+	mock.StartHold = hold
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(hold) }) }
+
+	startDone := make(chan struct{})
+	go func() {
+		defer close(startDone)
+		resp, err := http.Post(server.URL+"/v1/runtime/start", "application/json", nil)
+		if err != nil {
+			t.Errorf("POST /v1/runtime/start error: %v", err)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("expected start status 200, got %d", resp.StatusCode)
+		}
+	}()
+	defer func() {
+		release()
+		<-startDone
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var state string
+	for time.Now().Before(deadline) {
+		response, err := http.Get(server.URL + "/v1/status")
+		if err != nil {
+			t.Fatalf("GET /v1/status error: %v", err)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+			response.Body.Close()
+			t.Fatalf("Decode() error: %v", err)
+		}
+		response.Body.Close()
+		runtimePayload, ok := payload["runtime"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected runtime object, got %T", payload["runtime"])
+		}
+		state, _ = runtimePayload["state"].(string)
+		if state == "starting" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if state != "starting" {
+		t.Fatalf("expected runtime state starting while Start is in flight, got %q", state)
+	}
+
+	release()
+	<-startDone
+
+	response, err := http.Get(server.URL + "/v1/status")
+	if err != nil {
+		t.Fatalf("GET /v1/status after start error: %v", err)
+	}
+	defer response.Body.Close()
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+	runtimePayload, ok := payload["runtime"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime object, got %T", payload["runtime"])
+	}
+	if got, _ := runtimePayload["state"].(string); got != "running" {
+		t.Fatalf("expected runtime state running after Start, got %q", got)
 	}
 }
 

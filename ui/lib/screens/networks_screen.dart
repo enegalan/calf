@@ -177,7 +177,8 @@ class _NetworksScreenState extends State<NetworksScreen>
 
     final filtered = _filteredNetworks();
     final theme = Theme.of(context);
-    final runtimeStopped = _runtime?.state == 'stopped';
+    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(
       title: 'Networks',
@@ -187,6 +188,8 @@ class _NetworksScreenState extends State<NetworksScreen>
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No networks match "$listSearchQuery".'
+          : runtimeStarting
+          ? 'Engine is starting…'
           : runtimeStopped
           ? 'No networks. Runtime is stopped.'
           : 'No networks.',
