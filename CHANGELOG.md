@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Engine starting** — the status bar shows Engine starting while the container engine is booting, including the first launch and after Restart.
+- **Engine starting** — the status bar shows Engine starting while the container engine is booting, including the first launch and after Restart. A lost daemon connection shows as unknown, not as starting.
 
 ## [1.0.9] - 2026-08-16
 

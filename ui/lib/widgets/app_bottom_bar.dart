@@ -62,7 +62,7 @@ class AppBottomBar extends StatelessWidget {
     final running = runtime?.isRunning == true;
     final resourceSaver = status?.resourceSaverActive == true;
     final resources = status?.resources ?? const EngineResources();
-    final starting = runtime == null || runtime.isStarting;
+    final starting = runtime?.isStarting == true;
     final pending = pendingAction.isNotEmpty || starting;
     final label = pendingAction.isNotEmpty
         ? pendingAction
@@ -354,7 +354,10 @@ class AppBottomBar extends StatelessWidget {
     if (resourceSaver) {
       return 'Resource Saver';
     }
-    if (runtime == null || runtime.isStarting) {
+    if (runtime == null) {
+      return 'Engine unknown';
+    }
+    if (runtime.isStarting) {
       return 'Engine starting…';
     }
     if (runtime.isRunning) {
@@ -374,7 +377,10 @@ class AppBottomBar extends StatelessWidget {
     if (resourceSaver) {
       return 'Running in Resource Saver mode';
     }
-    if (runtime == null || runtime.isStarting) {
+    if (runtime == null) {
+      return 'Engine unknown';
+    }
+    if (runtime.isStarting) {
       return 'Engine starting…';
     }
     if (runtime.isRunning) {

@@ -169,7 +169,12 @@ class _AppShellState extends State<AppShell> {
   void _markDaemonStatusFailure() {
     _daemonStatusFailureCount++;
     if (_daemonStatusFailureCount >= 3 && mounted && _daemonStatus != null) {
-      setState(() => _daemonStatus = null);
+      setState(() {
+        _daemonStatus = null;
+        if (!_engineActionBusy) {
+          _enginePending = _EnginePendingAction.none;
+        }
+      });
     }
   }
 
@@ -263,10 +268,7 @@ class _AppShellState extends State<AppShell> {
       if (mounted) {
         setState(() {
           _engineActionBusy = false;
-          final runtime = _daemonStatus?.runtime;
-          if (runtime != null && !runtime.isStarting) {
-            _enginePending = _EnginePendingAction.none;
-          }
+          _enginePending = _EnginePendingAction.none;
         });
       }
     }
