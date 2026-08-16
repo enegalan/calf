@@ -1,3 +1,5 @@
+import 'dart:ui' show AppExitResponse;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -611,6 +613,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Engine starting…'), findsWidgets);
+  });
+
+  testWidgets('app exit request is accepted after shutdown', (tester) async {
+    final apiClient = FakeCalfClient(
+      DaemonStatus(
+        uptimeSeconds: 42,
+        listenAddr: ':8765',
+        logLevel: 'info',
+        runtime: const RuntimeStatus(
+          mode: 'vm',
+          state: 'running',
+          dockerSocket: '/tmp/calf.sock',
+          vmName: 'calf',
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(MainApp(apiClient: apiClient));
+    await tester.pump();
+
+    final response = await WidgetsBinding.instance.handleRequestAppExit();
+    expect(response, AppExitResponse.exit);
   });
 
   testWidgets('null engine status is unknown, not starting', (tester) async {

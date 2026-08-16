@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show AppExitResponse;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -301,6 +302,15 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.detached) {
       _stopDaemon();
     }
+  }
+
+  /// Stops the daemon before Flutter lets macOS finish Dock Quit / Cmd+Q.
+  @override
+  Future<AppExitResponse> didRequestAppExit() async {
+    _appQuitting = true;
+    await _stopDaemon();
+    CalfTrayStatus.dispose();
+    return AppExitResponse.exit;
   }
 
   /// Releases resources when the widget is removed.
