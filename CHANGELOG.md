@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Close to menu bar / tray** — closing the main window keeps calf running in the background. Use Quit from the menu-bar or system-tray icon to exit (or calf → Quit on macOS).
+
 ## [1.0.10] - 2026-08-16
 
 ### Fixed

@@ -20,6 +20,12 @@ Timer? _daemonRestartTimer;
 int _daemonRestartAttempts = 0;
 const _maxDaemonRestarts = 5;
 
+/// True after Quit is chosen; the close button then destroys the window.
+bool _appQuitting = false;
+
+/// Intercepts the window close button so calf hides to the tray.
+final _calfWindowListener = _CalfWindowListener();
+
 /// When true, `make dev-ui-*` connects to an already-running `make dev-backend`.
 const _externalDaemon = bool.fromEnvironment('CALF_EXTERNAL_DAEMON');
 
@@ -189,11 +195,48 @@ Future<void> _openCalfWindow() async {
   await windowManager.focus();
 }
 
+/// Hides the main window without stopping the daemon.
+Future<void> _hideCalfWindow() async {
+  try {
+    await windowManager.hide();
+  } on PlatformException catch (e, stack) {
+    stderr.writeln('failed to hide calf window: $e');
+    stderr.writeln(stack);
+  } on MissingPluginException catch (e, stack) {
+    stderr.writeln('failed to hide calf window: $e');
+    stderr.writeln(stack);
+  }
+}
+
 /// Quits the app from the tray menu (same as calf → Quit).
 Future<void> _quitCalfApp() async {
+  _appQuitting = true;
+  if (supportsTrayStatusIcon) {
+    try {
+      await windowManager.setPreventClose(false);
+    } on PlatformException catch (e, stack) {
+      stderr.writeln('failed to allow window close: $e');
+      stderr.writeln(stack);
+    } on MissingPluginException catch (e, stack) {
+      stderr.writeln('failed to allow window close: $e');
+      stderr.writeln(stack);
+    }
+  }
   await _stopDaemon();
   CalfTrayStatus.dispose();
   exit(0);
+}
+
+/// Hides the window on close so calf stays in the tray.
+class _CalfWindowListener with WindowListener {
+  /// Hides the main window instead of quitting when the close button is used.
+  @override
+  void onWindowClose() {
+    if (_appQuitting) {
+      return;
+    }
+    unawaited(_hideCalfWindow());
+  }
 }
 
 /// Application entry point; starts the daemon and runs the Flutter app.
@@ -201,6 +244,16 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (supportsTrayStatusIcon) {
     await windowManager.ensureInitialized();
+    windowManager.addListener(_calfWindowListener);
+    try {
+      await windowManager.setPreventClose(true);
+    } on PlatformException catch (e, stack) {
+      stderr.writeln('failed to prevent window close: $e');
+      stderr.writeln(stack);
+    } on MissingPluginException catch (e, stack) {
+      stderr.writeln('failed to prevent window close: $e');
+      stderr.writeln(stack);
+    }
   }
   CalfTrayStatus.install(
     onOpen: _openCalfWindow,

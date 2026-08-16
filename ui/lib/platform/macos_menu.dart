@@ -37,6 +37,7 @@ class MacosMenuScope extends StatelessWidget {
     required this.onReportIssue,
     required this.onOpenRepository,
     required this.onOpenTroubleshoot,
+    required this.onQuit,
   });
 
   final Widget child;
@@ -55,6 +56,7 @@ class MacosMenuScope extends StatelessWidget {
   final VoidCallback onReportIssue;
   final VoidCallback onOpenRepository;
   final VoidCallback onOpenTroubleshoot;
+  final VoidCallback onQuit;
 
   static const _sectionLabels = [
     'Containers',
@@ -96,7 +98,11 @@ class MacosMenuScope extends StatelessWidget {
           ?_platformMenu(PlatformProvidedMenuItemType.showAllApplications),
         ],
       ),
-      ?_platformMenu(PlatformProvidedMenuItemType.quit),
+      PlatformMenuItem(
+        label: 'Quit calf',
+        shortcut: const SingleActivator(LogicalKeyboardKey.keyQ, meta: true),
+        onSelected: onQuit,
+      ),
     ];
 
     final viewMenuItems = <PlatformMenuItem>[
