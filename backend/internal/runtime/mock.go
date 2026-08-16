@@ -160,6 +160,10 @@ func (m *Mock) ListContainers(_ context.Context) ([]Container, error) {
 		return nil, m.ContainersErr
 	}
 
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return []Container{}, nil
+	}
+
 	return append([]Container(nil), m.Containers...), nil
 }
 
@@ -170,6 +174,10 @@ func (m *Mock) ListImages(_ context.Context) ([]Image, error) {
 
 	if m.ImagesErr != nil {
 		return nil, m.ImagesErr
+	}
+
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return []Image{}, nil
 	}
 
 	return append([]Image(nil), m.Images...), nil

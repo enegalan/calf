@@ -40,6 +40,7 @@ class _VolumesScreenState extends State<VolumesScreen>
     with PollIntervalMixin, ResourceListPollMixin {
   List<VolumeItem> _volumes = [];
   RuntimeStatus? _runtime;
+  bool _resourceSaverActive = false;
   bool _runningOnly = false;
   String? _selectedVolume;
 
@@ -122,6 +123,7 @@ class _VolumesScreenState extends State<VolumesScreen>
             hadSilentFailure) {
           setState(() {
             _runtime = status.runtime;
+            _resourceSaverActive = status.resourceSaverActive;
             _volumes = volumes;
             listLoading = false;
             listError = null;
@@ -286,7 +288,10 @@ class _VolumesScreenState extends State<VolumesScreen>
 
     final theme = Theme.of(context);
     final filtered = _filteredVolumes();
-    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStopped = showStoppedEngineEmpty(
+      _runtime,
+      resourceSaverActive: _resourceSaverActive,
+    );
     final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(

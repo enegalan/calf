@@ -44,6 +44,7 @@ class _ContainersScreenState extends State<ContainersScreen>
     with PollIntervalMixin, ResourceListPollMixin {
   List<ContainerItem> _containers = [];
   RuntimeStatus? _runtime;
+  bool _resourceSaverActive = false;
   String? _selectedId;
   ContainerItem? _detailContainer;
   String? _detailProject;
@@ -96,6 +97,7 @@ class _ContainersScreenState extends State<ContainersScreen>
         }
         setState(() {
           _runtime = status.runtime;
+          _resourceSaverActive = status.resourceSaverActive;
           _containers = containers;
           listLoading = false;
           listError = null;
@@ -505,7 +507,10 @@ class _ContainersScreenState extends State<ContainersScreen>
                         ? 'No containers match "$listSearchQuery".'
                         : _runtime?.isStarting == true
                         ? 'Engine is starting…'
-                        : _runtime?.isStopped == true
+                        : showStoppedEngineEmpty(
+                            _runtime,
+                            resourceSaverActive: _resourceSaverActive,
+                          )
                         ? 'No containers. Runtime is stopped.'
                         : _runningOnly
                         ? 'No running containers.'
@@ -513,7 +518,10 @@ class _ContainersScreenState extends State<ContainersScreen>
                     textAlign: TextAlign.center,
                     style: CalfTheme.muted(theme),
                   ),
-                  if (_runtime?.isStopped == true &&
+                  if (showStoppedEngineEmpty(
+                        _runtime,
+                        resourceSaverActive: _resourceSaverActive,
+                      ) &&
                       listSearchQuery.isEmpty) ...[
                     const SizedBox(height: 16),
                     CalfButton(

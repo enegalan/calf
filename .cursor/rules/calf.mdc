@@ -104,6 +104,7 @@ calf/
 │   │   │   ├── migrate.go                     Docker Desktop migration runner
 │   │   │   ├── registry_login.go              Docker Hub device-flow session manager
 │   │   │   ├── resource_saver.go              Idle engine shutdown when no containers are running
+│   │   │   ├── resource_snapshot.go           Last resource lists served during Resource Saver
 │   │   │   ├── docker_socket_proxy.go         Public docker.sock wake-on-connect proxy (macOS)
 │   │   │   ├── runtime_ready.go               Start/wait for runtime (non-HTTP)
 │   │   │   ├── stats_history.go               In-memory rolling container stats ring buffer
@@ -320,6 +321,7 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `migrate.go` — Docker Desktop migration runner.
 - `registry_login.go` — Docker Hub device-flow session manager.
 - `resource_saver.go` — stops the engine after an idle period with no running containers when enabled in config.
+- `resource_snapshot.go` — last containers/images/volumes/networks lists served while Resource Saver holds the engine stopped.
 - `docker_socket_proxy.go` — public `docker.sock`: wake-on-connect listen when the engine is stopped; direct symlink to the guest vsock while running; periodic reclaim after upgrade races.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
 - `stats_history.go` — in-memory rolling stats samples per container (15m retention).

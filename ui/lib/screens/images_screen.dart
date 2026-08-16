@@ -36,6 +36,7 @@ class _ImagesScreenState extends State<ImagesScreen>
     with PollIntervalMixin, ResourceListPollMixin {
   List<ImageItem> _images = [];
   RuntimeStatus? _runtime;
+  bool _resourceSaverActive = false;
   ImageItem? _selectedImage;
   List<ImageLayer>? _layers;
   bool _layersLoading = false;
@@ -85,6 +86,7 @@ class _ImagesScreenState extends State<ImagesScreen>
         }
         setState(() {
           _runtime = status.runtime;
+          _resourceSaverActive = status.resourceSaverActive;
           _images = images;
           listLoading = false;
           listError = null;
@@ -293,7 +295,10 @@ class _ImagesScreenState extends State<ImagesScreen>
                     img.id.toLowerCase().contains(listSearchQuery),
               )
               .toList();
-    final runtimeStopped = _runtime?.isStopped == true;
+    final runtimeStopped = showStoppedEngineEmpty(
+      _runtime,
+      resourceSaverActive: _resourceSaverActive,
+    );
     final runtimeStarting = _runtime?.isStarting == true;
 
     return ResourceListScaffold(

@@ -41,6 +41,7 @@ func (s *Core) PurgeData(ctx context.Context) error {
 	s.BuildsMu.Unlock()
 
 	s.ClearResourceSaver()
+	s.clearResourceSnapshot()
 	s.Logger.Info("purged engine data", "guest_dir", guestDir)
 	return nil
 }
@@ -82,6 +83,7 @@ func (s *Core) FactoryReset(ctx context.Context) error {
 	s.BuildsMu.Unlock()
 
 	s.ClearResourceSaver()
+	s.clearResourceSnapshot()
 	config.SetLogLevel(defaults.LogLevel)
 	config.ReopenLogFile()
 	s.Logger.Info("factory reset complete", "config_dir", cfgDir)

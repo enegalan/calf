@@ -13,7 +13,7 @@ func (g *Gateway) handleImagesList(w http.ResponseWriter, r *http.Request) {
 	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
 	defer cancel()
 
-	images, err := g.backend.Runtime.ListImages(r.Context())
+	images, err := g.backend.ListImages(r.Context())
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return
@@ -117,6 +117,10 @@ func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !httpkit.RequireNonEmpty(w, "reference", payload.Reference) {
+		return
+	}
+
+	if !httpkit.EnsureRuntimeOrFail(w, r.Context(), g.backend) {
 		return
 	}
 

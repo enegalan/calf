@@ -36,6 +36,7 @@ type Core struct {
 	runtimeStartMu        sync.Mutex
 	runtimeStartInflight  *runtimeStartResult
 	resourceSaver         *resourceSaver
+	snapshot              resourceSnapshot
 	dockerSocketProxy     *dockerSocketProxy
 	historyArtifactSkip   sync.Map
 }
