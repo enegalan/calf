@@ -578,8 +578,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                       pending: 'Stopping containers...',
                       done: 'Containers stopped',
                     ),
-                    onRemoveAll: () =>
-                        unawaited(_confirmRemoveAll(group.value)),
+                    onRemoveAll: () => _confirmRemoveAll(group.value),
                     onOpen: _openContainer,
                     onOpenImage: _openImage,
                     onOpenPort: openPort,
@@ -599,8 +598,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                       pending: 'Stopping "${container.displayName}"...',
                       done: 'Stopped "${container.displayName}"',
                     ),
-                    onRemove: () =>
-                        unawaited(_confirmRemoveContainer(container)),
+                    onRemove: () => _confirmRemoveContainer(container),
                     onOpen: () => _openContainer(container),
                     onOpenImage: () => _openImage(container),
                     onOpenPort: openPort,
@@ -652,9 +650,9 @@ class _ComposeGroupTile extends StatelessWidget {
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
-  final VoidCallback onStartAll;
-  final VoidCallback onStopAll;
-  final VoidCallback onRemoveAll;
+  final Future<void> Function() onStartAll;
+  final Future<void> Function() onStopAll;
+  final Future<void> Function() onRemoveAll;
   final void Function(ContainerItem container) onOpen;
   final void Function(ContainerItem container) onOpenImage;
   final void Function(int port) onOpenPort;
@@ -772,9 +770,9 @@ class _ContainerTile extends StatelessWidget {
   final ThemeData theme;
   final bool selected;
   final bool indented;
-  final VoidCallback onStart;
-  final VoidCallback onStop;
-  final VoidCallback onRemove;
+  final Future<void> Function() onStart;
+  final Future<void> Function() onStop;
+  final Future<void> Function() onRemove;
   final VoidCallback onOpen;
   final VoidCallback onOpenImage;
   final void Function(int port) onOpenPort;
@@ -1017,7 +1015,7 @@ class _ActionIcon extends StatelessWidget {
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final Future<void> Function() onPressed;
 
   /// Builds the widget tree for the current screen state.
   @override

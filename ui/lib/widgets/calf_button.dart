@@ -1,10 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:ui/theme/calf_theme.dart';
 
+/// Blocks a second press until the first callback finishes.
+mixin _GuardedPressMixin<T extends StatefulWidget> on State<T> {
+  bool _pressRunning = false;
+
+  /// Whether a press handler is currently running.
+  bool get pressRunning => _pressRunning;
+
+  /// Runs [action] once; later calls return until it completes.
+  Future<void> runGuardedPress(FutureOr<void> Function()? action) async {
+    if (_pressRunning || action == null) {
+      return;
+    }
+    setState(() => _pressRunning = true);
+    try {
+      await action();
+    } finally {
+      _pressRunning = false;
+      if (mounted) {
+        setState(() {});
+      }
+    }
+  }
+}
+
 enum _CalfButtonVariant { primary, outline, ghost, destructive }
 
-class CalfButton extends StatelessWidget {
+class CalfButton extends StatefulWidget {
   /// Creates a primary-themed action button.
   const CalfButton({
     super.key,
@@ -55,56 +81,16 @@ class CalfButton extends StatelessWidget {
 
   final _CalfButtonVariant _variant;
   final Widget? child;
-  final VoidCallback? onPressed;
+  final FutureOr<void> Function()? onPressed;
   final bool enabled;
   final double? width;
   final double? height;
   final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
 
-  /// Builds the button for the configured variant and size constraints.
+  /// Creates the mutable state that ignores extra taps while [onPressed] runs.
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final effectiveOnPressed = enabled ? onPressed : null;
-    final style = _buttonStyle(theme);
-
-    Widget button;
-    switch (_variant) {
-      case _CalfButtonVariant.primary:
-        button = FilledButton(
-          onPressed: effectiveOnPressed,
-          style: style,
-          child: child ?? const SizedBox.shrink(),
-        );
-      case _CalfButtonVariant.outline:
-        button = OutlinedButton(
-          onPressed: effectiveOnPressed,
-          style: style,
-          child: child ?? const SizedBox.shrink(),
-        );
-      case _CalfButtonVariant.destructive:
-        button = FilledButton(
-          onPressed: effectiveOnPressed,
-          style: style,
-          child: child ?? const SizedBox.shrink(),
-        );
-      case _CalfButtonVariant.ghost:
-        button = TextButton(
-          onPressed: effectiveOnPressed,
-          style: style,
-          child: child ?? const SizedBox.shrink(),
-        );
-    }
-
-    if (width != null) {
-      button = SizedBox(width: width, height: height, child: button);
-    } else if (height != null) {
-      button = SizedBox(height: height, child: button);
-    }
-
-    return button;
-  }
+  State<CalfButton> createState() => _CalfButtonState();
 
   /// Returns the Material button style for the current variant and theme.
   ButtonStyle _buttonStyle(ThemeData theme) {
@@ -198,6 +184,62 @@ class CalfButton extends StatelessWidget {
   }
 }
 
+class _CalfButtonState extends State<CalfButton> with _GuardedPressMixin {
+  /// Invokes [CalfButton.onPressed] and ignores further taps until it finishes.
+  Future<void> _handlePressed() => runGuardedPress(widget.onPressed);
+
+  /// Builds the button for the configured variant and size constraints.
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final effectiveOnPressed =
+        widget.enabled && !pressRunning && widget.onPressed != null
+        ? _handlePressed
+        : null;
+    final style = widget._buttonStyle(theme);
+
+    Widget button;
+    switch (widget._variant) {
+      case _CalfButtonVariant.primary:
+        button = FilledButton(
+          onPressed: effectiveOnPressed,
+          style: style,
+          child: widget.child ?? const SizedBox.shrink(),
+        );
+      case _CalfButtonVariant.outline:
+        button = OutlinedButton(
+          onPressed: effectiveOnPressed,
+          style: style,
+          child: widget.child ?? const SizedBox.shrink(),
+        );
+      case _CalfButtonVariant.destructive:
+        button = FilledButton(
+          onPressed: effectiveOnPressed,
+          style: style,
+          child: widget.child ?? const SizedBox.shrink(),
+        );
+      case _CalfButtonVariant.ghost:
+        button = TextButton(
+          onPressed: effectiveOnPressed,
+          style: style,
+          child: widget.child ?? const SizedBox.shrink(),
+        );
+    }
+
+    if (widget.width != null) {
+      button = SizedBox(
+        width: widget.width,
+        height: widget.height,
+        child: button,
+      );
+    } else if (widget.height != null) {
+      button = SizedBox(height: widget.height, child: button);
+    }
+
+    return button;
+  }
+}
+
 /// One icon action inside a [CalfButtonGroup].
 class CalfGroupAction {
   /// Creates a grouped icon action with optional [tooltip] and [selected] state.
@@ -210,7 +252,7 @@ class CalfGroupAction {
   });
 
   final IconData icon;
-  final VoidCallback? onPressed;
+  final FutureOr<void> Function()? onPressed;
   final bool enabled;
   final String? tooltip;
 
@@ -219,7 +261,7 @@ class CalfGroupAction {
 }
 
 /// Joined icon-action strip (e.g. stop / start / restart).
-class CalfButtonGroup extends StatelessWidget {
+class CalfButtonGroup extends StatefulWidget {
   /// Creates a segmented control from [actions].
   const CalfButtonGroup({super.key, required this.actions, this.size = 40});
 
@@ -229,12 +271,19 @@ class CalfButtonGroup extends StatelessWidget {
   /// Horizontal inset around each segment icon.
   static const double _segmentPad = 12;
 
+  /// Creates the mutable state that locks the strip while an action runs.
+  @override
+  State<CalfButtonGroup> createState() => _CalfButtonGroupState();
+}
+
+class _CalfButtonGroupState extends State<CalfButtonGroup>
+    with _GuardedPressMixin {
   /// Builds the bordered strip with per-segment ink targets.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final radius = BorderRadius.circular(size / 2);
-    final segmentWidth = size + _segmentPad;
+    final radius = BorderRadius.circular(widget.size / 2);
+    final segmentWidth = widget.size + CalfButtonGroup._segmentPad;
     final borderColor = theme.colorScheme.outline;
 
     return Material(
@@ -246,22 +295,37 @@ class CalfButtonGroup extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
-        height: size,
+        height: widget.size,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (var index = 0; index < actions.length; index++) ...[
+            for (var index = 0; index < widget.actions.length; index++) ...[
               if (index > 0)
-                Container(width: 1, height: size, color: borderColor),
-              _CalfButtonGroupSegment(
-                action: actions[index],
+                Container(width: 1, height: widget.size, color: borderColor),
+              _segment(
+                widget.actions[index],
                 width: segmentWidth,
-                height: size,
+                height: widget.size,
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+
+  /// Builds one segment that shares the group's in-flight lock.
+  Widget _segment(
+    CalfGroupAction action, {
+    required double width,
+    required double height,
+  }) {
+    return _CalfButtonGroupSegment(
+      action: action,
+      width: width,
+      height: height,
+      groupRunning: pressRunning,
+      onPressed: () => runGuardedPress(action.onPressed),
     );
   }
 }
@@ -272,17 +336,21 @@ class _CalfButtonGroupSegment extends StatelessWidget {
     required this.action,
     required this.width,
     required this.height,
+    required this.groupRunning,
+    required this.onPressed,
   });
 
   final CalfGroupAction action;
   final double width;
   final double height;
+  final bool groupRunning;
+  final Future<void> Function() onPressed;
 
   /// Builds the segment background, icon, and optional tooltip.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final enabled = action.enabled && action.onPressed != null;
+    final enabled = action.enabled && action.onPressed != null && !groupRunning;
     final highlighted = action.selected ?? enabled;
     final Color background;
     final Color foreground;
@@ -301,7 +369,7 @@ class _CalfButtonGroupSegment extends StatelessWidget {
       animationDuration: CalfTheme.materialAnimationDuration,
       color: background,
       child: InkWell(
-        onTap: enabled ? action.onPressed : null,
+        onTap: enabled ? onPressed : null,
         child: SizedBox(
           width: width,
           height: height,

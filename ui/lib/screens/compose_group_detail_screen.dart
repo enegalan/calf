@@ -539,9 +539,9 @@ class _ComposeContainerRow extends StatelessWidget {
   final ContainerItem container;
   final VoidCallback onOpen;
   final VoidCallback onOpenImage;
-  final VoidCallback onStart;
-  final VoidCallback onStop;
-  final VoidCallback onRemove;
+  final Future<void> Function() onStart;
+  final Future<void> Function() onStop;
+  final Future<void> Function() onRemove;
   final void Function(int port) onOpenPort;
   final bool busy;
 
@@ -665,7 +665,7 @@ class _ComposeActionIcon extends StatelessWidget {
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onPressed;
+  final Future<void> Function() onPressed;
   final bool enabled;
 
   /// Builds the widget tree for the current screen state.
