@@ -1045,6 +1045,7 @@ class _AppShellState extends State<AppShell> {
           onReportIssue: () => openExternalUrl(calfReportIssueUrl),
           onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
           onOpenTroubleshoot: openTroubleshoot,
+          onQuit: () => unawaited(CalfTrayStatus.quitApp()),
           child: Scaffold(body: CalfToastLayer(child: shell)),
         ),
       ),

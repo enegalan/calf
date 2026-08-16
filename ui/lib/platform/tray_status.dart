@@ -9,9 +9,13 @@ import 'package:tray_manager/tray_manager.dart';
 bool get supportsTrayStatusIcon =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.windows);
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux);
 
-const _trayIconAsset = 'assets/tray/calf_tray_white.png';
+/// Asset path for the tray icon on the current platform.
+String get _trayIconAsset => Platform.isLinux
+    ? 'assets/tray/calf_tray.png'
+    : 'assets/tray/calf_tray_white.png';
 
 /// Callbacks invoked from the tray context menu.
 typedef CalfTrayOpenCallback = Future<void> Function();
@@ -55,7 +59,7 @@ class CalfTrayAppActions {
   final CalfTrayMenuSnapshotCallback snapshot;
 }
 
-/// Shows or hides the calf tray icon on macOS (menu bar) and Windows (system tray).
+/// Shows or hides the calf tray icon on macOS (menu bar) and Windows/Linux (system tray).
 class CalfTrayStatus {
   CalfTrayStatus._();
 
@@ -320,15 +324,13 @@ class _TrayHandler with TrayListener {
   /// Refreshes and opens the context menu when the tray icon is clicked.
   @override
   void onTrayIconMouseDown() {
-    if (Platform.isMacOS || Platform.isWindows) {
-      unawaited(CalfTrayStatus.popupContextMenu());
-    }
+    unawaited(CalfTrayStatus.popupContextMenu());
   }
 
-  /// Opens the context menu on right-click (Windows).
+  /// Opens the context menu on right-click (Windows / Linux).
   @override
   void onTrayIconRightMouseDown() {
-    if (Platform.isWindows) {
+    if (Platform.isWindows || Platform.isLinux) {
       unawaited(CalfTrayStatus.popupContextMenu());
     }
   }

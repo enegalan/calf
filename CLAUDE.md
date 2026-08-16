@@ -183,7 +183,7 @@ calf/
 │   │   │   └── calf_theme.dart                Material 3 light/dark ThemeData + muted text helper
 │   │   ├── platform/
 │   │   │   ├── macos_menu.dart                Native macOS menu bar (PlatformMenuBar)
-│   │   │   ├── tray_status.dart               macOS menu bar / Windows system tray status icon
+│   │   │   ├── tray_status.dart               macOS menu bar / Windows and Linux system tray icon
 │   │   │   ├── launch_at_login.dart           Optional open-at-login registration (macOS/Linux/Windows)
 │   │   │   └── open_url.dart                  Platform-specific URL / file-manager opener (Docker Hub, bind mounts)
 │   │   ├── storage/
@@ -404,7 +404,7 @@ Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`
 
 ### `platform/`
 - `macos_menu.dart` — wraps the app shell with a native macOS menu bar (Settings, navigation shortcuts, Docker Hub sign-in, updates, help links) via `PlatformMenuBar`.
-- `tray_status.dart` — shows a calf status icon in the macOS menu bar and Windows system tray while the app is running; removed on quit.
+- `tray_status.dart` — shows a calf status icon in the macOS menu bar and the Windows or Linux system tray while the app is running, including after the main window is closed; removed on Quit.
 - `launch_at_login.dart` — optional open-at-login registration for macOS (LaunchAgent), Linux (XDG autostart), and Windows (Run registry key).
 - `open_url.dart` — platform-specific "open URL" / "open path in file manager" helpers (Docker Hub sign-in, bind mount host paths).
 
