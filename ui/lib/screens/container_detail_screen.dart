@@ -34,12 +34,24 @@ class ContainerDetailView extends StatefulWidget {
     required this.apiClient,
     required this.onBack,
     required this.onChanged,
+    required this.locked,
+    required this.withLockedIds,
   });
 
   final ContainerItem container;
   final CalfClient apiClient;
   final VoidCallback onBack;
   final Future<void> Function() onChanged;
+
+  /// True while this container already has an in-flight action from another panel.
+  final bool locked;
+
+  /// Locks container ids on the parent list so buttons stay disabled across screens.
+  final Future<bool> Function(
+    Iterable<String> ids,
+    Future<bool> Function() body,
+  )
+  withLockedIds;
 
   /// Creates the mutable state for [ContainerDetailView].
   @override
@@ -49,7 +61,6 @@ class ContainerDetailView extends StatefulWidget {
 class _ContainerDetailViewState extends State<ContainerDetailView> {
   late ContainerItem _container;
   _ContainerDetailTab _tab = _ContainerDetailTab.logs;
-  bool _busy = false;
 
   final List<LogLine> _logLines = [];
   String? _logsError;
@@ -116,10 +127,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
     Future<void> Function() action, {
     required String pending,
     required String done,
-  }) async {
-    setState(() => _busy = true);
-
-    try {
+  }) {
+    return widget.withLockedIds([_container.id], () async {
       final ok = await runCalfToastAction(
         pending: pending,
         done: done,
@@ -147,11 +156,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       });
       _loadTabData();
       return true;
-    } finally {
-      if (mounted) {
-        setState(() => _busy = false);
-      }
-    }
+    });
   }
 
   /// Switches the active tab and loads tab-specific data.
@@ -476,7 +481,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         CalfGroupAction(
                           icon: LucideIcons.square,
                           tooltip: 'Stop',
-                          enabled: !_busy && _container.isRunning,
+                          enabled: !widget.locked && _container.isRunning,
                           onPressed: () => _runAction(
                             () => widget.apiClient.stopContainer(_container.id),
                             pending: 'Stopping "${_container.displayName}"...',
@@ -486,7 +491,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         CalfGroupAction(
                           icon: LucideIcons.play,
                           tooltip: 'Start',
-                          enabled: !_busy && !_container.isRunning,
+                          enabled: !widget.locked && !_container.isRunning,
                           onPressed: () => _runAction(
                             () =>
                                 widget.apiClient.startContainer(_container.id),
@@ -497,7 +502,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         CalfGroupAction(
                           icon: LucideIcons.rotateCw,
                           tooltip: 'Restart',
-                          enabled: !_busy,
+                          enabled: !widget.locked,
                           onPressed: () => _runAction(
                             () => widget.apiClient.restartContainer(
                               _container.id,
@@ -511,7 +516,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     ),
                     const SizedBox(width: 8),
                     CalfButton.destructive(
-                      enabled: !_busy,
+                      enabled: !widget.locked,
                       width: 40,
                       height: 40,
                       onPressed: () async {

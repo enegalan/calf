@@ -38,6 +38,8 @@ class ComposeGroupDetailView extends StatefulWidget {
     required this.onChanged,
     required this.onOpenContainer,
     required this.onOpenImage,
+    required this.lockedIds,
+    required this.withLockedIds,
   });
 
   final String project;
@@ -47,6 +49,16 @@ class ComposeGroupDetailView extends StatefulWidget {
   final Future<void> Function() onChanged;
   final void Function(ContainerItem container) onOpenContainer;
   final void Function(String imageReference) onOpenImage;
+
+  /// Container ids that already have an in-flight action from another panel.
+  final Set<String> lockedIds;
+
+  /// Locks container ids on the parent list so buttons stay disabled across screens.
+  final Future<bool> Function(
+    Iterable<String> ids,
+    Future<bool> Function() body,
+  )
+  withLockedIds;
 
   /// Creates the mutable state for [ComposeGroupDetailView].
   @override
@@ -60,7 +72,6 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   final Set<String> _subscribedContainerIds = {};
   final Map<String, Color> _containerColors = {};
   final _logsScrollController = ScrollController();
-  bool _busy = false;
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -225,25 +236,20 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     Future<void> Function() action, {
     required String pending,
     required String done,
-  }) async {
-    setState(() => _busy = true);
-    final ok = await runCalfToastAction(
-      pending: pending,
-      done: done,
-      action: action,
-    );
-    if (!ok) {
-      if (mounted) {
-        setState(() => _busy = false);
+    required Iterable<String> lockIds,
+  }) {
+    return widget.withLockedIds(lockIds, () async {
+      final ok = await runCalfToastAction(
+        pending: pending,
+        done: done,
+        action: action,
+      );
+      if (!ok) {
+        return false;
       }
-      return false;
-    }
-    await widget.onChanged();
-    if (!mounted) {
-      return false;
-    }
-    setState(() => _busy = false);
-    return true;
+      await widget.onChanged();
+      return true;
+    });
   }
 
   /// Runs an action across compose group containers, filtered by running state.
@@ -268,6 +274,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
       },
       pending: pending,
       done: done,
+      lockIds: _containers.map((container) => container.id),
     );
   }
 
@@ -278,6 +285,9 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     final running = _containers
         .where((container) => container.isRunning)
         .length;
+    final groupLocked = _containers.any(
+      (container) => widget.lockedIds.contains(container.id),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -316,7 +326,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 CalfGroupAction(
                   icon: LucideIcons.square,
                   tooltip: 'Stop all',
-                  enabled: !_busy && running > 0,
+                  enabled: !groupLocked && running > 0,
                   onPressed: () => _runGroupAction(
                     widget.apiClient.stopContainer,
                     runningOnly: true,
@@ -327,7 +337,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 CalfGroupAction(
                   icon: LucideIcons.play,
                   tooltip: 'Start all',
-                  enabled: !_busy && running < _containers.length,
+                  enabled: !groupLocked && running < _containers.length,
                   onPressed: () => _runGroupAction(
                     widget.apiClient.startContainer,
                     stoppedOnly: true,
@@ -339,7 +349,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             ),
             const SizedBox(width: 8),
             CalfButton.destructive(
-              enabled: !_busy,
+              enabled: !groupLocked,
               width: 40,
               height: 40,
               onPressed: () async {
@@ -398,6 +408,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                       () => widget.apiClient.startContainer(id),
                       pending: 'Starting "$name"...',
                       done: 'Started "$name"',
+                      lockIds: [id],
                     );
                   },
                   onStop: (id) {
@@ -411,6 +422,7 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                       () => widget.apiClient.stopContainer(id),
                       pending: 'Stopping "$name"...',
                       done: 'Stopped "$name"',
+                      lockIds: [id],
                     );
                   },
                   onRemove: (id) async {
@@ -435,10 +447,11 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                       () => widget.apiClient.removeContainer(id),
                       pending: 'Deleting "${match.name}"...',
                       done: 'Deleted container "${match.name}"',
+                      lockIds: [id],
                     );
                   },
                   onOpenPort: openPort,
-                  busy: _busy,
+                  lockedIds: widget.lockedIds,
                 ),
               ),
 
@@ -471,7 +484,7 @@ class _ComposeContainerList extends StatelessWidget {
     required this.onStop,
     required this.onRemove,
     required this.onOpenPort,
-    required this.busy,
+    required this.lockedIds,
   });
 
   final ThemeData theme;
@@ -482,7 +495,7 @@ class _ComposeContainerList extends StatelessWidget {
   final Future<void> Function(String id) onStop;
   final Future<void> Function(String id) onRemove;
   final void Function(int port) onOpenPort;
-  final bool busy;
+  final Set<String> lockedIds;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -513,7 +526,7 @@ class _ComposeContainerList extends StatelessWidget {
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
               onOpenPort: onOpenPort,
-              busy: busy,
+              busy: lockedIds.contains(container.id),
             ),
         ],
       ),
