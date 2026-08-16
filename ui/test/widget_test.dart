@@ -7,6 +7,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/main.dart';
 import 'package:ui/widgets/app_bottom_bar.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 
 class FakeCalfClient implements CalfClient {
   FakeCalfClient(this.status);
@@ -500,6 +501,8 @@ Widget _engineBottomBar({DaemonStatus? status, String pendingAction = ''}) {
 }
 
 void main() {
+  tearDown(CalfToastController.instance.clear);
+
   testWidgets('opens containers screen on launch', (tester) async {
     final apiClient = FakeCalfClient(
       DaemonStatus(
@@ -554,17 +557,19 @@ void main() {
     expect(find.text('Docker Hub'), findsOneWidget);
   });
 
-  testWidgets('shows error when containers fetch fails', (tester) async {
+  testWidgets('shows a toast when containers fetch fails', (tester) async {
     final apiClient = _ErrorCalfClient();
 
     await tester.pumpWidget(MainApp(apiClient: apiClient));
     await tester.pump();
     expect(find.text('Loading...'), findsOneWidget);
 
-    await tester.pumpAndSettle();
+    await tester.pump(Duration.zero);
+    await tester.pump();
 
     expect(find.text('Loading...'), findsNothing);
     expect(find.text('daemon unavailable'), findsOneWidget);
+    CalfToastController.instance.clear();
   });
 
   testWidgets('shows debug log button when log level is debug', (tester) async {

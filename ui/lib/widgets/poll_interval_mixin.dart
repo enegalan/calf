@@ -4,7 +4,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
-import 'package:ui/widgets/error_text.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 
 mixin PollIntervalMixin<T extends StatefulWidget> on State<T> {
   Timer? pollTimer;
@@ -50,7 +50,6 @@ mixin ResourceListPollMixin<T extends StatefulWidget> on State<T> {
   bool refreshInFlight = false;
   int consecutiveSilentFailures = 0;
   bool listLoading = true;
-  String? listError;
   final listSearchController = TextEditingController();
   String listSearchQuery = '';
 
@@ -68,21 +67,18 @@ mixin ResourceListPollMixin<T extends StatefulWidget> on State<T> {
     listSearchController.dispose();
   }
 
-  /// Marks a non-silent load as in progress and clears [listError].
+  /// Marks a non-silent load as in progress.
   void beginListLoad({required bool silent}) {
     if (!silent) {
-      setState(() {
-        listLoading = true;
-        listError = null;
-      });
+      setState(() => listLoading = true);
     }
   }
 
   /// Runs [body] with in-flight guarding and the 3-failure silent-error rule.
   ///
-  /// [body] should fetch data and call [setState] on success (including clearing
-  /// [listError] and setting [listLoading] to false). Callers may skip setState
-  /// when a silent poll finds no visible changes.
+  /// [body] should fetch data and call [setState] on success (including
+  /// setting [listLoading] to false). Callers may skip setState when a silent
+  /// poll finds no visible changes.
   Future<void> runListLoad({
     required bool silent,
     required Future<void> Function() body,
@@ -104,16 +100,13 @@ mixin ResourceListPollMixin<T extends StatefulWidget> on State<T> {
       if (!mounted) {
         return;
       }
-      final message = formatAsyncError(error);
       if (!silent) {
-        setState(() {
-          listError = message;
-          listLoading = false;
-        });
+        setState(() => listLoading = false);
+        showCalfErrorSnackBar(context, error);
       } else {
         consecutiveSilentFailures++;
-        if (consecutiveSilentFailures >= _silentFailureThreshold) {
-          setState(() => listError = message);
+        if (consecutiveSilentFailures == _silentFailureThreshold) {
+          showCalfErrorSnackBar(context, error);
         }
       }
     } finally {

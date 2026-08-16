@@ -240,30 +240,24 @@ class _AppShellState extends State<AppShell> {
       _daemonStatus = null;
       _daemonStatusFailureCount = 0;
     });
+    final toast = showCalfProgressToast('Restarting engine...');
     try {
       await restartDaemon();
       if (!mounted) {
+        toast.dismiss();
         return;
       }
       await _refreshDaemonStatus();
+      toast.complete('Engine started');
     } on StateError catch (error) {
       debugPrint('Daemon restart failed: ${error.message}');
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, error.message);
+      toast.fail(error.message);
     } on ApiException catch (error) {
       debugPrint('Daemon restart failed: ${error.message}');
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, error.message);
+      toast.fail(error.message);
     } on TimeoutException catch (error) {
       debugPrint('Daemon restart timed out: $error');
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Engine action timed out');
+      toast.fail('Engine action timed out');
     } finally {
       if (mounted) {
         setState(() {
@@ -284,9 +278,18 @@ class _AppShellState extends State<AppShell> {
       _engineActionBusy = true;
       _enginePending = pending;
     });
+    final pendingLabel = switch (pending) {
+      _EnginePendingAction.starting => 'Starting engine...',
+      _EnginePendingAction.stopping => 'Stopping engine...',
+      _EnginePendingAction.none => 'Working...',
+    };
+    final toast = showCalfProgressToast(pendingLabel);
     try {
       final runtime = await action();
-      if (!mounted) return;
+      if (!mounted) {
+        toast.dismiss();
+        return;
+      }
       setState(() {
         final current = _daemonStatus;
         if (current != null) {
@@ -302,23 +305,26 @@ class _AppShellState extends State<AppShell> {
         }
       });
       await _refreshDaemonStatus();
-      if (!mounted) return;
+      if (!mounted) {
+        toast.dismiss();
+        return;
+      }
       final successMessage = switch (pending) {
         _EnginePendingAction.starting => 'Engine started',
         _EnginePendingAction.stopping => 'Engine stopped',
         _EnginePendingAction.none => null,
       };
       if (successMessage != null) {
-        showCalfSnackBar(context, successMessage);
+        toast.complete(successMessage);
+      } else {
+        toast.dismiss();
       }
     } on ApiException catch (error) {
       debugPrint('Engine action failed: ${error.message}');
-      if (!mounted) return;
-      showCalfSnackBar(context, error.message);
+      toast.fail(error.message);
     } on TimeoutException catch (error) {
       debugPrint('Engine action timed out: $error');
-      if (!mounted) return;
-      showCalfSnackBar(context, 'Engine action timed out');
+      toast.fail('Engine action timed out');
     } finally {
       if (mounted) {
         setState(() {
@@ -420,7 +426,7 @@ class _AppShellState extends State<AppShell> {
       }
     } else if (force) {
       if (result.error != null && result.error!.isNotEmpty) {
-        showCalfSnackBar(context, result.error!);
+        showCalfSnackBar(context, result.error!, kind: CalfToastKind.error);
       } else {
         showCalfSnackBar(context, "You're up to date.");
       }
@@ -484,7 +490,7 @@ class _AppShellState extends State<AppShell> {
           if (!mounted) return;
           setState(() => _registryBrowserLoginPending = false);
           if (message.isNotEmpty) {
-            showCalfSnackBar(context, message);
+            showCalfSnackBar(context, message, kind: CalfToastKind.error);
           }
         },
       );
@@ -499,6 +505,7 @@ class _AppShellState extends State<AppShell> {
         error is ApiException
             ? error.message
             : 'Could not start Docker Hub sign-in',
+        kind: CalfToastKind.error,
       );
     }
   }
@@ -518,6 +525,7 @@ class _AppShellState extends State<AppShell> {
         error is ApiException
             ? error.message
             : 'Could not sign out of Docker Hub',
+        kind: CalfToastKind.error,
       );
     }
   }

@@ -50,7 +50,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   late ContainerItem _container;
   _ContainerDetailTab _tab = _ContainerDetailTab.logs;
   bool _busy = false;
-  String? _error;
 
   final List<LogLine> _logLines = [];
   String? _logsError;
@@ -113,14 +112,22 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<bool> _runAction(Future<void> Function() action) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+  Future<bool> _runAction(
+    Future<void> Function() action, {
+    required String pending,
+    required String done,
+  }) async {
+    setState(() => _busy = true);
 
     try {
-      await action();
+      final ok = await runCalfToastAction(
+        pending: pending,
+        done: done,
+        action: action,
+      );
+      if (!ok) {
+        return false;
+      }
       await widget.onChanged();
       final containers = await widget.apiClient.fetchContainers();
       ContainerItem? updated;
@@ -134,22 +141,16 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
         return false;
       }
       setState(() {
-        _busy = false;
         if (updated != null) {
           _container = updated;
         }
       });
       _loadTabData();
       return true;
-    } catch (error) {
-      if (!mounted) {
-        return false;
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
       }
-      setState(() {
-        _busy = false;
-        _error = error.toString();
-      });
-      return false;
     }
   }
 
@@ -229,7 +230,7 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             if (!mounted) {
               return;
             }
-            setState(() => _logsError = error.toString());
+            showCalfErrorSnackBar(context, error);
           },
         );
   }
@@ -255,10 +256,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _inspectError = error.toString();
-        _inspectLoading = false;
-      });
+      setState(() => _inspectLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -283,10 +282,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _mountsError = error.toString();
-        _mountsLoading = false;
-      });
+      setState(() => _mountsLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -358,10 +355,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
       if (!mounted || generation != _statsRefreshGeneration) {
         return;
       }
-      setState(() {
-        _statsError = error.toString();
-        _statsLoading = false;
-      });
+      setState(() => _statsLoading = false);
+      showCalfErrorSnackBar(context, error);
     } finally {
       _statsRefreshInFlight = false;
     }
@@ -484,6 +479,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           enabled: !_busy && _container.isRunning,
                           onPressed: () => _runAction(
                             () => widget.apiClient.stopContainer(_container.id),
+                            pending: 'Stopping "${_container.displayName}"...',
+                            done: 'Stopped "${_container.displayName}"',
                           ),
                         ),
                         CalfGroupAction(
@@ -493,6 +490,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                           onPressed: () => _runAction(
                             () =>
                                 widget.apiClient.startContainer(_container.id),
+                            pending: 'Starting "${_container.displayName}"...',
+                            done: 'Started "${_container.displayName}"',
                           ),
                         ),
                         CalfGroupAction(
@@ -503,6 +502,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                             () => widget.apiClient.restartContainer(
                               _container.id,
                             ),
+                            pending: 'Restarting "${_container.displayName}"...',
+                            done: 'Restarted "${_container.displayName}"',
                           ),
                         ),
                       ],
@@ -526,11 +527,12 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                         }
                         final ok = await _runAction(
                           () => widget.apiClient.removeContainer(_container.id),
+                          pending: 'Deleting "$name"...',
+                          done: 'Deleted container "$name"',
                         );
                         if (!ok || !context.mounted) {
                           return;
                         }
-                        showCalfSnackBar(context, 'Deleted container "$name"');
                         widget.onBack();
                       },
                       child: Icon(
@@ -545,16 +547,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
             ),
           ],
         ),
-        if (_error != null) ...[
-          /// Creates a [_ContainerDetailViewState] widget.
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
 
         /// Creates a [_ContainerDetailViewState] widget.
         const SizedBox(height: 16),

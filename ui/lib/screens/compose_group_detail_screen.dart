@@ -60,7 +60,6 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   final Set<String> _subscribedContainerIds = {};
   final Map<String, Color> _containerColors = {};
   final _logsScrollController = ScrollController();
-  String? _error;
   bool _busy = false;
 
   /// Initializes state and starts loading or subscriptions.
@@ -222,30 +221,29 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
   }
 
   /// Runs the given async action and refreshes the list on success.
-  Future<bool> _runAction(Future<void> Function() action) async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      await action();
-      await widget.onChanged();
-      if (!mounted) {
-        return false;
+  Future<bool> _runAction(
+    Future<void> Function() action, {
+    required String pending,
+    required String done,
+  }) async {
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: pending,
+      done: done,
+      action: action,
+    );
+    if (!ok) {
+      if (mounted) {
+        setState(() => _busy = false);
       }
-      setState(() => _busy = false);
-      return true;
-    } catch (error) {
-      if (!mounted) {
-        return false;
-      }
-      setState(() {
-        _busy = false;
-        _error = error.toString();
-      });
       return false;
     }
+    await widget.onChanged();
+    if (!mounted) {
+      return false;
+    }
+    setState(() => _busy = false);
+    return true;
   }
 
   /// Runs an action across compose group containers, filtered by running state.
@@ -253,18 +251,24 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
     Future<void> Function(String id) action, {
     bool runningOnly = false,
     bool stoppedOnly = false,
+    required String pending,
+    required String done,
   }) async {
-    return _runAction(() async {
-      for (final container in _containers) {
-        if (runningOnly && !container.isRunning) {
-          continue;
+    return _runAction(
+      () async {
+        for (final container in _containers) {
+          if (runningOnly && !container.isRunning) {
+            continue;
+          }
+          if (stoppedOnly && container.isRunning) {
+            continue;
+          }
+          await action(container.id);
         }
-        if (stoppedOnly && container.isRunning) {
-          continue;
-        }
-        await action(container.id);
-      }
-    });
+      },
+      pending: pending,
+      done: done,
+    );
   }
 
   /// Builds the widget tree for the current screen state.
@@ -316,6 +320,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   onPressed: () => _runGroupAction(
                     widget.apiClient.stopContainer,
                     runningOnly: true,
+                    pending: 'Stopping containers...',
+                    done: 'Containers stopped',
                   ),
                 ),
                 CalfGroupAction(
@@ -325,6 +331,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   onPressed: () => _runGroupAction(
                     widget.apiClient.startContainer,
                     stoppedOnly: true,
+                    pending: 'Starting containers...',
+                    done: 'Containers started',
                   ),
                 ),
               ],
@@ -349,11 +357,12 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                 }
                 final ok = await _runGroupAction(
                   widget.apiClient.removeContainer,
+                  pending: 'Deleting containers...',
+                  done: 'Deleted $count containers',
                 );
                 if (!ok || !context.mounted) {
                   return;
                 }
-                showCalfSnackBar(context, 'Deleted $count containers');
                 widget.onBack();
               },
               child: Icon(
@@ -364,16 +373,6 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
             ),
           ],
         ),
-        if (_error != null) ...[
-          /// Creates a [_ComposeGroupDetailViewState] widget.
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
 
         /// Creates a [_ComposeGroupDetailViewState] widget.
         const SizedBox(height: 16),
@@ -388,10 +387,30 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   containers: _containers,
                   onOpen: widget.onOpenContainer,
                   onOpenImage: widget.onOpenImage,
-                  onStart: (id) =>
-                      _runAction(() => widget.apiClient.startContainer(id)),
-                  onStop: (id) =>
-                      _runAction(() => widget.apiClient.stopContainer(id)),
+                  onStart: (id) {
+                    final name = _containers
+                            .where((c) => c.id == id)
+                            .firstOrNull
+                            ?.displayName ??
+                        id;
+                    return _runAction(
+                      () => widget.apiClient.startContainer(id),
+                      pending: 'Starting "$name"...',
+                      done: 'Started "$name"',
+                    );
+                  },
+                  onStop: (id) {
+                    final name = _containers
+                            .where((c) => c.id == id)
+                            .firstOrNull
+                            ?.displayName ??
+                        id;
+                    return _runAction(
+                      () => widget.apiClient.stopContainer(id),
+                      pending: 'Stopping "$name"...',
+                      done: 'Stopped "$name"',
+                    );
+                  },
                   onRemove: (id) async {
                     final match = _containers
                         .where((c) => c.id == id)
@@ -410,15 +429,10 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                     if (!confirmed || !mounted) {
                       return;
                     }
-                    final ok = await _runAction(
+                    await _runAction(
                       () => widget.apiClient.removeContainer(id),
-                    );
-                    if (!ok || !context.mounted) {
-                      return;
-                    }
-                    showCalfSnackBar(
-                      context,
-                      'Deleted container "${match.name}"',
+                      pending: 'Deleting "${match.name}"...',
+                      done: 'Deleted container "${match.name}"',
                     );
                   },
                   onOpenPort: openPort,

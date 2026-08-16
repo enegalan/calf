@@ -45,7 +45,6 @@ class TroubleshootScreen extends StatefulWidget {
 
 class _TroubleshootScreenState extends State<TroubleshootScreen> {
   bool _busy = false;
-  String? _statusMessage;
 
   /// Runs [action] with busy state and snackbar feedback.
   Future<void> _runAction(
@@ -56,37 +55,25 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     if (_busy) {
       return;
     }
-    setState(() {
-      _busy = true;
-      _statusMessage = busyLabel;
-    });
+    setState(() => _busy = true);
+    final toast = showCalfProgressToast(busyLabel);
     try {
       await action();
       if (!mounted) {
+        toast.dismiss();
         return;
       }
-      setState(() => _statusMessage = successMessage);
       if (successMessage != null) {
-        showCalfSnackBar(context, successMessage);
+        toast.complete(successMessage);
+      } else {
+        toast.dismiss();
       }
     } on ApiException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _statusMessage = null);
-      showCalfSnackBar(context, error.message);
+      toast.fail(error.message);
     } on TimeoutException {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _statusMessage = null);
-      showCalfSnackBar(context, 'Action timed out');
+      toast.fail('Action timed out');
     } on StateError catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _statusMessage = error.message);
-      showCalfSnackBar(context, error.message);
+      toast.fail(error.message);
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -102,8 +89,7 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     if (widget.usesExternalDaemon) {
       const message =
           'Development mode is active. Restart the backend manually.';
-      setState(() => _statusMessage = message);
-      showCalfSnackBar(context, message);
+      showCalfSnackBar(context, message, kind: CalfToastKind.error);
       return;
     }
     await _runAction(
@@ -120,7 +106,11 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       return;
     }
     if (!opened) {
-      showCalfSnackBar(context, 'Could not open support page');
+      showCalfSnackBar(
+        context,
+        'Could not open support page',
+        kind: CalfToastKind.error,
+      );
     }
   }
 
@@ -244,10 +234,6 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
             ),
           ],
         ),
-        if (_statusMessage != null) ...[
-          const SizedBox(height: 12),
-          Text(_statusMessage!, style: CalfTheme.muted(theme)),
-        ],
         const SizedBox(height: 16),
         Expanded(
           child: ListView(

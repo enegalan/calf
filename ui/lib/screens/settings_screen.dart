@@ -47,7 +47,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   Config? _config;
   bool _configLoading = true;
-  String? _configError;
   bool _saving = false;
   double _draftCpus = 4;
   double _draftMemory = 4;
@@ -148,10 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Loads daemon configuration into the settings form.
   Future<void> loadConfig() async {
-    setState(() {
-      _configLoading = true;
-      _configError = null;
-    });
+    setState(() => _configLoading = true);
 
     try {
       final config = await widget.apiClient.fetchConfig();
@@ -179,10 +175,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _configError = error.toString();
-        _configLoading = false;
-      });
+      setState(() => _configLoading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -227,16 +221,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             .toList();
         _httpProxyError = null;
         _httpsProxyError = null;
-        _configError = null;
         _saving = false;
       });
-      showCalfSnackBar(context, 'Settings saved');
+      showCalfSnackBar(context, 'Settings saved', kind: CalfToastKind.success);
     } catch (error) {
       if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _configError = error.toString();
-      });
+      setState(() => _saving = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -405,8 +396,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _dockerContextManaged = current.dockerContextManaged;
         _dockerContextSaving = false;
-        _configError = error.toString();
       });
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -435,10 +426,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _debugSaving = false;
-        _configError = error.toString();
-      });
+      setState(() => _debugSaving = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -683,13 +672,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 12),
           if (_configLoading)
             Text('Loading config...', style: CalfTheme.muted(theme))
-          else if (_configError != null)
-            Text(
-              _configError!,
-              style: theme.textTheme.titleMedium!.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            )
           else if (_config != null) ...[
             _sliderRow(
               'Memory limit',

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
@@ -87,7 +86,6 @@ class _NetworksScreenState extends State<NetworksScreen>
           _resourceSaverActive = status.resourceSaverActive;
           _networks = networks;
           listLoading = false;
-          listError = null;
         });
         _openInitialNetworkIfNeeded(networks);
       },
@@ -147,22 +145,18 @@ class _NetworksScreenState extends State<NetworksScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    try {
-      await widget.apiClient.removeNetwork(network.name);
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Deleted network "${network.name}"');
-      if (_selectedNetwork == network.name) {
-        _closeNetwork();
-      }
-      await _loadNetworks();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
+    final ok = await runCalfToastAction(
+      pending: 'Deleting "${network.name}"...',
+      done: 'Deleted network "${network.name}"',
+      action: () => widget.apiClient.removeNetwork(network.name),
+    );
+    if (!ok || !mounted) {
+      return;
     }
+    if (_selectedNetwork == network.name) {
+      _closeNetwork();
+    }
+    await _loadNetworks();
   }
 
   /// Builds the widget tree for the current screen state.
@@ -189,7 +183,6 @@ class _NetworksScreenState extends State<NetworksScreen>
       title: 'Networks',
       searchController: listSearchController,
       loading: listLoading,
-      error: listError,
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No networks match "$listSearchQuery".'
@@ -237,17 +230,13 @@ class _NetworksScreenState extends State<NetworksScreen>
 
   /// Starts the container engine when the list is empty and runtime is stopped.
   Future<void> _startEngine() async {
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadNetworks();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 }
@@ -274,7 +263,6 @@ class NetworkDetailView extends StatefulWidget {
 
 class _NetworkDetailViewState extends State<NetworkDetailView> {
   NetworkDetail? _detail;
-  String? _error;
   bool _loading = true;
 
   /// Initializes state and starts loading or subscriptions.
@@ -286,10 +274,7 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
 
   /// Fetches Detail from the API and updates state.
   Future<void> _loadDetail() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    setState(() => _loading = true);
 
     try {
       final detail = await widget.apiClient.fetchNetworkDetail(
@@ -306,10 +291,8 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _error = formatAsyncError(error);
-        _loading = false;
-      });
+      setState(() => _loading = false);
+      showCalfErrorSnackBar(context, error);
     }
   }
 
@@ -325,20 +308,16 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
     if (!confirmed || !mounted) {
       return;
     }
-    try {
-      await widget.apiClient.removeNetwork(widget.networkName);
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Deleted network "${widget.networkName}"');
-      await widget.onRemoved();
-      widget.onBack();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _error = formatAsyncError(error));
+    final ok = await runCalfToastAction(
+      pending: 'Deleting "${widget.networkName}"...',
+      done: 'Deleted network "${widget.networkName}"',
+      action: () => widget.apiClient.removeNetwork(widget.networkName),
+    );
+    if (!ok || !mounted) {
+      return;
     }
+    await widget.onRemoved();
+    widget.onBack();
   }
 
   /// Builds the widget tree for the current screen state.
@@ -384,13 +363,6 @@ class _NetworkDetailViewState extends State<NetworkDetailView> {
         const SizedBox(height: 24),
         if (_loading)
           Text('Loading...', style: theme.textTheme.titleMedium)
-        else if (_error != null)
-          Text(
-            _error!.replaceAll(r'\n', ' ').trim(),
-            style: theme.textTheme.titleMedium!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          )
         else if (_detail != null)
           Expanded(
             child: SingleChildScrollView(

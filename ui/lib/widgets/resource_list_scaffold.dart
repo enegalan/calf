@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/theme/calf_theme.dart';
 
 class ResourceListScaffold extends StatelessWidget {
-  /// Lays out a searchable resource list with loading, error, and empty states.
+  /// Lays out a searchable resource list with loading and empty states.
   const ResourceListScaffold({
     super.key,
     required this.title,
     required this.searchController,
     required this.loading,
-    required this.error,
     required this.empty,
     required this.emptyMessage,
     required this.itemCount,
@@ -20,14 +18,12 @@ class ResourceListScaffold extends StatelessWidget {
     this.filter,
     this.headerActions,
     this.emptyAction,
-    this.errorAllowsList = false,
   });
 
   final String title;
   final String? subtitle;
   final TextEditingController searchController;
   final bool loading;
-  final Object? error;
   final bool empty;
   final String emptyMessage;
   final int itemCount;
@@ -35,7 +31,6 @@ class ResourceListScaffold extends StatelessWidget {
   final Widget? filter;
   final Widget? headerActions;
   final Widget? emptyAction;
-  final bool errorAllowsList;
 
   /// Builds the list scaffold with search, filter, and content area.
   @override
@@ -80,8 +75,6 @@ class ResourceListScaffold extends StatelessWidget {
               Text('Loading...', style: CalfTheme.muted(theme)),
             ],
           )
-        else if (error != null && !errorAllowsList)
-          ErrorText(error: error!)
         else if (empty)
           Expanded(
             child: Center(
@@ -108,10 +101,6 @@ class ResourceListScaffold extends StatelessWidget {
               itemBuilder: itemBuilder,
             ),
           ),
-        if (error != null && errorAllowsList) ...[
-          const SizedBox(height: 12),
-          ErrorText(error: error!),
-        ],
       ],
     );
   }

@@ -56,7 +56,6 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
   bool _imagesLoading = false;
   String? _imagesError;
   bool _busy = false;
-  String? _error;
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -303,15 +302,15 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
         return;
       }
 
-      setState(() {
-        _folderController.text = location;
-        _error = null;
-      });
+      setState(() => _folderController.text = location);
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _error = folderPickerErrorMessage(error));
+      final message = folderPickerErrorMessage(error);
+      if (message != null) {
+        showCalfSnackBar(context, message, kind: CalfToastKind.error);
+      }
     }
   }
 
@@ -377,59 +376,53 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
 
   /// Validates and persists schedule changes via the API.
   Future<void> _applyChanges() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _busy = true);
+    final fields = _scheduleFields();
+    final dayTimes = fields['dayTimes'] as List<VolumeExportDayTimes>;
+    if (dayTimes.isEmpty) {
+      setState(() => _busy = false);
+      showCalfSnackBar(
+        context,
+        'Select at least one day and export time.',
+        kind: CalfToastKind.error,
+      );
+      return;
+    }
 
-    try {
-      final fields = _scheduleFields();
-      final dayTimes = fields['dayTimes'] as List<VolumeExportDayTimes>;
-      if (dayTimes.isEmpty) {
-        setState(() {
-          _busy = false;
-          _error = 'Select at least one day and export time.';
-        });
-        return;
-      }
-
-      if (widget.isEditing) {
-        await widget.apiClient.updateVolumeExportSchedule(
-          volumeName: widget.volumeName,
-          scheduleId: widget.existingSchedule!.id,
-          enabled: _persistEnabled,
-          dayTimes: fields['dayTimes'] as List<VolumeExportDayTimes>,
-          type: fields['type'] as String,
-          fileName: fields['fileName'] as String,
-          folder: fields['folder'] as String,
-          imageRef: fields['imageRef'] as String,
-        );
-      } else {
-        await widget.apiClient.createVolumeExportSchedule(
-          name: widget.volumeName,
-          enabled: true,
-          type: fields['type'] as String,
-          dayTimes: fields['dayTimes'] as List<VolumeExportDayTimes>,
-          fileName: fields['fileName'] as String,
-          folder: fields['folder'] as String,
-          imageRef: fields['imageRef'] as String,
-        );
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      showCalfSnackBar(context, 'Schedule saved');
+    final ok = await runCalfToastAction(
+      pending: 'Saving schedule...',
+      done: 'Schedule saved',
+      action: () async {
+        if (widget.isEditing) {
+          await widget.apiClient.updateVolumeExportSchedule(
+            volumeName: widget.volumeName,
+            scheduleId: widget.existingSchedule!.id,
+            enabled: _persistEnabled,
+            dayTimes: fields['dayTimes'] as List<VolumeExportDayTimes>,
+            type: fields['type'] as String,
+            fileName: fields['fileName'] as String,
+            folder: fields['folder'] as String,
+            imageRef: fields['imageRef'] as String,
+          );
+        } else {
+          await widget.apiClient.createVolumeExportSchedule(
+            name: widget.volumeName,
+            enabled: true,
+            type: fields['type'] as String,
+            dayTimes: fields['dayTimes'] as List<VolumeExportDayTimes>,
+            fileName: fields['fileName'] as String,
+            folder: fields['folder'] as String,
+            imageRef: fields['imageRef'] as String,
+          );
+        }
+      },
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    if (ok) {
       widget.onCompleted();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _error = error.toString();
-      });
     }
   }
 
@@ -453,29 +446,21 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
       return;
     }
 
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-
-    try {
-      await widget.apiClient.deleteVolumeExportSchedule(
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Deleting schedule...',
+      done: 'Deleted export schedule',
+      action: () => widget.apiClient.deleteVolumeExportSchedule(
         widget.volumeName,
         schedule.id,
-      );
-      if (!mounted) {
-        return;
-      }
-      showCalfSnackBar(context, 'Deleted export schedule');
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    if (ok) {
       widget.onCompleted();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _busy = false;
-        _error = error.toString();
-      });
     }
   }
 
@@ -861,18 +846,6 @@ class _VolumeScheduleExportViewState extends State<VolumeScheduleExportView> {
             ),
           ),
         ),
-        if (_error != null) ...[
-          /// Creates a [_VolumeScheduleExportViewState] widget.
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            style: theme.textTheme.bodySmall!.copyWith(
-              color: theme.colorScheme.error,
-            ),
-          ),
-        ],
-
-        /// Creates a [_VolumeScheduleExportViewState] widget.
         const SizedBox(height: 16),
         Row(
           children: [

@@ -11,7 +11,6 @@ import 'package:ui/screens/container_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/running_filter_switch.dart';
@@ -50,6 +49,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   String? _detailProject;
   List<ContainerItem>? _detailGroupContainers;
   bool _runningOnly = false;
+  String? _toastedPortConflicts;
   final Map<String, bool> _expandedGroups = {};
 
   /// Initializes state and starts loading or subscriptions.
@@ -100,7 +100,6 @@ class _ContainersScreenState extends State<ContainersScreen>
           _resourceSaverActive = status.resourceSaverActive;
           _containers = containers;
           listLoading = false;
-          listError = null;
           if (_detailContainer != null) {
             for (final container in containers) {
               if (container.id == _detailContainer!.id) {
@@ -124,26 +123,40 @@ class _ContainersScreenState extends State<ContainersScreen>
           }
         });
         _openInitialContainerIfNeeded(containers);
+        _toastPortConflicts(status.runtime);
       },
     );
   }
 
-  /// Runs the given async action and refreshes the list on success.
-  Future<bool> _runAction(Future<void> Function() action) async {
-    try {
-      await action();
-      if (mounted) {
-        setState(() => listError = null);
-      }
-      await _loadContainers();
-      return true;
-    } catch (error) {
-      if (!mounted) {
-        return false;
-      }
-      setState(() => listError = formatAsyncError(error));
-      return false;
+  /// Toasts new host port conflicts once per distinct hint set.
+  void _toastPortConflicts(RuntimeStatus runtime) {
+    final hints = runtime.portConflicts.map((conflict) => conflict.hint).join('\n');
+    if (hints.isEmpty) {
+      _toastedPortConflicts = null;
+      return;
     }
+    if (hints == _toastedPortConflicts) {
+      return;
+    }
+    _toastedPortConflicts = hints;
+    showCalfSnackBar(context, hints, kind: CalfToastKind.error);
+  }
+
+  /// Runs the given async action and refreshes the list on success.
+  Future<bool> _runAction(
+    Future<void> Function() action, {
+    required String pending,
+    required String done,
+  }) async {
+    final ok = await runCalfToastAction(
+      pending: pending,
+      done: done,
+      action: action,
+    );
+    if (ok && mounted) {
+      await _loadContainers();
+    }
+    return ok;
   }
 
   /// Confirms then removes a single container.
@@ -158,12 +171,11 @@ class _ContainersScreenState extends State<ContainersScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    final ok = await _runAction(
+    await _runAction(
       () => widget.apiClient.removeContainer(container.id),
+      pending: 'Deleting "${container.name}"...',
+      done: 'Deleted container "${container.name}"',
     );
-    if (ok && mounted) {
-      showCalfSnackBar(context, 'Deleted container "${container.name}"');
-    }
   }
 
   /// Confirms then removes every container in [containers].
@@ -179,28 +191,23 @@ class _ContainersScreenState extends State<ContainersScreen>
     if (!confirmed || !mounted) {
       return;
     }
-    final ok = await _runGroupAction(
+    await _runGroupAction(
       containers,
       widget.apiClient.removeContainer,
+      pending: 'Deleting containers...',
+      done: 'Deleted ${containers.length} containers',
     );
-    if (ok && mounted) {
-      showCalfSnackBar(context, 'Deleted ${containers.length} containers');
-    }
   }
 
   /// Starts the container engine when the list is empty and runtime is stopped.
   Future<void> _startEngine() async {
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadContainers();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 
@@ -210,29 +217,24 @@ class _ContainersScreenState extends State<ContainersScreen>
     Future<void> Function(String id) action, {
     bool runningOnly = false,
     bool stoppedOnly = false,
+    required String pending,
+    required String done,
   }) async {
-    try {
-      for (final container in containers) {
-        if (runningOnly && !container.isRunning) {
-          continue;
+    return _runAction(
+      () async {
+        for (final container in containers) {
+          if (runningOnly && !container.isRunning) {
+            continue;
+          }
+          if (stoppedOnly && container.isRunning) {
+            continue;
+          }
+          await action(container.id);
         }
-        if (stoppedOnly && container.isRunning) {
-          continue;
-        }
-        await action(container.id);
-      }
-      if (mounted) {
-        setState(() => listError = null);
-      }
-      await _loadContainers();
-      return true;
-    } catch (error) {
-      if (!mounted) {
-        return false;
-      }
-      setState(() => listError = formatAsyncError(error));
-      return false;
-    }
+      },
+      pending: pending,
+      done: done,
+    );
   }
 
   /// Navigates to or opens the selected container.
@@ -464,23 +466,6 @@ class _ContainersScreenState extends State<ContainersScreen>
 
         /// Creates a [_ContainersScreenState] widget.
         const SizedBox(height: 16),
-        if (_runtime?.portConflicts.isNotEmpty == true)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(
-              _runtime!.portConflicts
-                  .map((conflict) => conflict.hint)
-                  .join('\n'),
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
-        if (listError != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: ErrorText(error: listError!),
-          ),
         if (listLoading)
           Row(
             children: [
@@ -547,10 +532,28 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onToggle: () => _toggleGroup(group.key),
                     onOpenGroup: () =>
                         _openComposeGroup(group.key, group.value),
-                    onStart: (id) =>
-                        _runAction(() => widget.apiClient.startContainer(id)),
-                    onStop: (id) =>
-                        _runAction(() => widget.apiClient.stopContainer(id)),
+                    onStart: (id) {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      final name = match?.displayName ?? id;
+                      return _runAction(
+                        () => widget.apiClient.startContainer(id),
+                        pending: 'Starting "$name"...',
+                        done: 'Started "$name"',
+                      );
+                    },
+                    onStop: (id) {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      final name = match?.displayName ?? id;
+                      return _runAction(
+                        () => widget.apiClient.stopContainer(id),
+                        pending: 'Stopping "$name"...',
+                        done: 'Stopped "$name"',
+                      );
+                    },
                     onRemove: (id) async {
                       final match = group.value
                           .where((c) => c.id == id)
@@ -563,11 +566,15 @@ class _ContainersScreenState extends State<ContainersScreen>
                       group.value,
                       widget.apiClient.startContainer,
                       stoppedOnly: true,
+                      pending: 'Starting containers...',
+                      done: 'Containers started',
                     ),
                     onStopAll: () => _runGroupAction(
                       group.value,
                       widget.apiClient.stopContainer,
                       runningOnly: true,
+                      pending: 'Stopping containers...',
+                      done: 'Containers stopped',
                     ),
                     onRemoveAll: () =>
                         unawaited(_confirmRemoveAll(group.value)),
@@ -582,9 +589,13 @@ class _ContainersScreenState extends State<ContainersScreen>
                     selected: _selectedId == container.id,
                     onStart: () => _runAction(
                       () => widget.apiClient.startContainer(container.id),
+                      pending: 'Starting "${container.displayName}"...',
+                      done: 'Started "${container.displayName}"',
                     ),
                     onStop: () => _runAction(
                       () => widget.apiClient.stopContainer(container.id),
+                      pending: 'Stopping "${container.displayName}"...',
+                      done: 'Stopped "${container.displayName}"',
                     ),
                     onRemove: () =>
                         unawaited(_confirmRemoveContainer(container)),

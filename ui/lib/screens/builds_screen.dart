@@ -5,9 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/utils/format.dart';
-import 'package:ui/widgets/error_text.dart';
 import 'package:ui/screens/build_detail_screen.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
@@ -86,7 +86,6 @@ class _BuildsScreenState extends State<BuildsScreen>
           _resourceSaverActive = status.resourceSaverActive;
           _builds = builds;
           listLoading = false;
-          listError = null;
         });
         _openInitialBuildIfNeeded(builds);
       },
@@ -152,7 +151,6 @@ class _BuildsScreenState extends State<BuildsScreen>
       title: 'Builds',
       searchController: listSearchController,
       loading: listLoading,
-      error: listError,
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No builds match "$listSearchQuery".'
@@ -215,17 +213,13 @@ class _BuildsScreenState extends State<BuildsScreen>
 
   /// Starts the container engine when the list is empty and runtime is stopped.
   Future<void> _startEngine() async {
-    try {
-      await widget.apiClient.startRuntime();
-      if (!mounted) {
-        return;
-      }
+    final ok = await runCalfToastAction(
+      pending: 'Starting engine...',
+      done: 'Engine started',
+      action: widget.apiClient.startRuntime,
+    );
+    if (ok && mounted) {
       await _loadBuilds();
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => listError = formatAsyncError(error));
     }
   }
 }
