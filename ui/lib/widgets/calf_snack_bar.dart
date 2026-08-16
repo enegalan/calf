@@ -58,11 +58,7 @@ void showCalfSnackBar(
 
 /// Shows an error toast using a user-facing message from [error].
 void showCalfErrorSnackBar(BuildContext context, Object error) {
-  showCalfSnackBar(
-    context,
-    formatAsyncError(error),
-    kind: CalfToastKind.error,
-  );
+  showCalfSnackBar(context, formatAsyncError(error), kind: CalfToastKind.error);
 }
 
 /// Shows a sticky progress toast and returns a handle to finish it.
@@ -154,10 +150,7 @@ class CalfToastController extends ChangeNotifier {
 
   /// Adds a sticky progress toast.
   CalfToastHandle showProgress(String message) {
-    return show(
-      message: message,
-      kind: CalfToastKind.progress,
-    );
+    return show(message: message, kind: CalfToastKind.progress);
   }
 
   /// Replaces an existing toast, or shows a new one if it was already dismissed.
@@ -469,10 +462,7 @@ class _CalfToastCardState extends State<_CalfToastCard>
       return SizedBox(
         width: 18,
         height: 18,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: accent,
-        ),
+        child: CircularProgressIndicator(strokeWidth: 2, color: accent),
       );
     }
 

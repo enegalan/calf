@@ -502,7 +502,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                             () => widget.apiClient.restartContainer(
                               _container.id,
                             ),
-                            pending: 'Restarting "${_container.displayName}"...',
+                            pending:
+                                'Restarting "${_container.displayName}"...',
                             done: 'Restarted "${_container.displayName}"',
                           ),
                         ),

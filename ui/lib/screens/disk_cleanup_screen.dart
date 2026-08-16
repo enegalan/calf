@@ -106,11 +106,7 @@ class _DiskCleanupScreenState extends State<DiskCleanupScreen> {
         _loading = false;
         _preview = null;
       });
-      showCalfSnackBar(
-        context,
-        'Request timed out',
-        kind: CalfToastKind.error,
-      );
+      showCalfSnackBar(context, 'Request timed out', kind: CalfToastKind.error);
     }
   }
 

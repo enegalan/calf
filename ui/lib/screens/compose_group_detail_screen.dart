@@ -388,7 +388,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                   onOpen: widget.onOpenContainer,
                   onOpenImage: widget.onOpenImage,
                   onStart: (id) {
-                    final name = _containers
+                    final name =
+                        _containers
                             .where((c) => c.id == id)
                             .firstOrNull
                             ?.displayName ??
@@ -400,7 +401,8 @@ class _ComposeGroupDetailViewState extends State<ComposeGroupDetailView> {
                     );
                   },
                   onStop: (id) {
-                    final name = _containers
+                    final name =
+                        _containers
                             .where((c) => c.id == id)
                             .firstOrNull
                             ?.displayName ??

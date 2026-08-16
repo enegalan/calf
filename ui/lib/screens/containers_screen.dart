@@ -130,7 +130,9 @@ class _ContainersScreenState extends State<ContainersScreen>
 
   /// Toasts new host port conflicts once per distinct hint set.
   void _toastPortConflicts(RuntimeStatus runtime) {
-    final hints = runtime.portConflicts.map((conflict) => conflict.hint).join('\n');
+    final hints = runtime.portConflicts
+        .map((conflict) => conflict.hint)
+        .join('\n');
     if (hints.isEmpty) {
       _toastedPortConflicts = null;
       return;

@@ -170,11 +170,7 @@ class _GlobalSearchDialogState extends State<GlobalSearchDialog> {
         return;
       }
       setState(() => _loading = false);
-      showCalfSnackBar(
-        context,
-        'Request timed out',
-        kind: CalfToastKind.error,
-      );
+      showCalfSnackBar(context, 'Request timed out', kind: CalfToastKind.error);
     } catch (error) {
       if (!mounted) {
         return;
