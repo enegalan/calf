@@ -93,23 +93,29 @@ provision:
         > /etc/systemd/system/docker-vsock-proxy.service
       systemctl enable --now docker-vsock-proxy
 
-      mkdir -p /mnt/calf
+      mkdir -p /mnt/calf /mnt/calf-home
       cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'
       #!/bin/sh
       set -e
-      mkdir -p /mnt/calf
-      if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
-        exit 0
+      mkdir -p /mnt/calf /mnt/calf-home
+      if ! mountpoint -q /mnt/calf 2>/dev/null; then
+        if err=$(mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>&1); then
+          :
+        else
+          case "$err" in
+            *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
+              mount -t virtiofs -o noatime calf-mounts /mnt/calf
+              ;;
+            *)
+              echo "$err" >&2
+              exit 1
+              ;;
+          esac
+        fi
       fi
-      case "$err" in
-        *dax*|*Invalid*argument*|*invalid*argument*|*Operation*not*supported*|*operation*not*supported*)
-          exec mount -t virtiofs -o noatime calf-mounts /mnt/calf
-          ;;
-        *)
-          echo "$err" >&2
-          exit 1
-          ;;
-      esac
+      if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
+        mount -t virtiofs -o noatime calf-home /mnt/calf-home || echo "calf-home virtiofs not available" >&2
+      fi
       EOF
       chmod +x /usr/local/sbin/calf-mount-virtiofs
       printf '%s\n' \
@@ -123,6 +129,7 @@ provision:
         'Type=oneshot' \
         'RemainAfterExit=yes' \
         'ExecStart=/usr/local/sbin/calf-mount-virtiofs' \
+        'ExecStop=/bin/umount -l /mnt/calf-home' \
         'ExecStop=/bin/umount -l /mnt/calf' \
         '' \
         '[Install]' \

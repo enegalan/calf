@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.16] - 2026-08-16
+
+### Fixed
+
+- **File bind mounts on macOS** — Compose binds like `./file.conf:/etc/file.conf` no longer fail with "not a directory" after an engine restart. calf remounts your home folder into the VM on every start so those paths stay real files.
+
 ## [1.0.15] - 2026-08-16
 
 ### Changed

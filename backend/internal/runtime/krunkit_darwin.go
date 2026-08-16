@@ -182,9 +182,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	if k.dockerAPIReady(ctx) && k.krunkitAlive() && k.gvproxyAlive() {
 		k.pruneStaleGuestCmds(ctx)
 		k.pruneCorruptContainerEntries(ctx)
-		k.ensureHostMountSymlink(ctx)
-		k.ensureKrunkitDAXMount(ctx)
-		k.ensureHostHomeShare(ctx)
+		k.ensureGuestVirtiofsShares(ctx)
 		k.ensureGuestNetwork(ctx)
 		k.pruneStaleGuestCmds(ctx)
 		k.ensureBuildxAsync(lifeCtx)
@@ -286,9 +284,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 	}
 	k.pruneStaleGuestCmds(ctx)
 	k.pruneCorruptContainerEntries(ctx)
-	k.ensureHostMountSymlink(ctx)
-	k.ensureKrunkitDAXMount(ctx)
-	k.ensureHostHomeShare(ctx)
+	k.ensureGuestVirtiofsShares(ctx)
 	k.ensureGuestNetwork(ctx)
 	k.pruneStaleGuestCmds(ctx)
 	k.ensureBuildxAsync(lifeCtx)
@@ -612,80 +608,151 @@ func (k *Krunkit) gvproxyUnexpose(ctx context.Context, client *http.Client, port
 	return nil
 }
 
-// ensureHostHomeShare mounts calf-home and replaces stub $HOME on the guest with a symlink.
-// Without this, docker -v /Users/... creates empty dirs on the guest disk and file binds fail.
-func (k *Krunkit) ensureHostHomeShare(ctx context.Context) {
+// ensureGuestVirtiofsShares remounts calf-mounts (DAX) and calf-home in one guest helper.
+// Home share used to be a second docker run that often failed during boot, leaving
+// /Users/$USER pointing at guest-disk stub directories so file bind mounts failed.
+func (k *Krunkit) ensureGuestVirtiofsShares(ctx context.Context) {
 	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return
+	if err != nil {
+		home = ""
 	}
-	// Escape for embedding in a single-quoted shell string.
+	daxEnv := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX"))
+	daxMode := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX_MODE"))
+	script := VirtiofsGuestSetupScript(home, daxEnv, daxMode)
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		_, err := k.runGuestRoot(ctx, script)
+		if err == nil {
+			return
+		}
+		lastErr = err
+		if attempt == 3 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			slog.Default().Warn("guest virtiofs setup failed (non-fatal)", "error", lastErr)
+			return
+		case <-time.After(400 * time.Millisecond):
+		}
+	}
+	slog.Default().Warn("guest virtiofs setup failed (non-fatal)", "error", lastErr)
+}
+
+// VirtiofsGuestSetupScript builds the guest init script that remounts virtiofs shares,
+// points $HOME at calf-home, and persists a systemd unit so the next boot remounts both.
+func VirtiofsGuestSetupScript(home, daxEnv, daxMode string) string {
+	if daxMode == "" {
+		daxMode = "inode"
+	}
 	homeq := strings.ReplaceAll(home, "'", `'\''`)
-	script := `
-set -e
+	modeq := strings.ReplaceAll(daxMode, "'", `'\''`)
+	hostMounts := ""
+	if home != "" {
+		hostMounts = strings.ReplaceAll(filepath.Join(home, ".config", "calf", "mounts"), "'", `'\''`)
+	}
+
+	var b strings.Builder
+	b.WriteString("set -e\n")
+	if daxEnv == "0" {
+		b.WriteString(`umount /mnt/calf 2>/dev/null || true
+mkdir -p /mnt/calf
+mount -t virtiofs -o noatime calf-mounts /mnt/calf
+`)
+	} else {
+		b.WriteString("umount /mnt/calf 2>/dev/null || true\n")
+		b.WriteString("mkdir -p /mnt/calf\n")
+		b.WriteString("MODE='" + modeq + "'\n")
+		b.WriteString(`case "$MODE" in
+inode)
+  if ! mount -t virtiofs -o dax=inode,noatime calf-mounts /mnt/calf 2>/dev/null; then
+    mount -t virtiofs -o noatime calf-mounts /mnt/calf || exit 1
+  fi
+  ;;
+always|*)
+  if ! mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>/dev/null; then
+    mount -t virtiofs -o noatime calf-mounts /mnt/calf || exit 1
+  fi
+  ;;
+esac
+`)
+	}
+	b.WriteString(`dev=$(stat -c '%d' /mnt/calf 2>/dev/null || true)
+if [ -n "$dev" ] && [ -w "/sys/class/bdi/0:${dev}/read_ahead_kb" ]; then
+  echo 16384 > "/sys/class/bdi/0:${dev}/read_ahead_kb" 2>/dev/null || true
+fi
 mkdir -p /mnt/calf-home
 if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
-  if ! mount -t virtiofs -o noatime calf-home /mnt/calf-home 2>/dev/null; then
+  if ! mount -t virtiofs -o noatime calf-home /mnt/calf-home; then
     echo "calf-home virtiofs mount failed" >&2
     exit 1
   fi
 fi
-HOME_PATH='` + homeq + `'
-PARENT=$(dirname "$HOME_PATH")
+`)
+	if home != "" {
+		b.WriteString("HOME_PATH='" + homeq + "'\n")
+		b.WriteString(`PARENT=$(dirname "$HOME_PATH")
 mkdir -p "$PARENT"
-# Replace docker-created stub trees so bind mounts see real host files.
-if [ -e "$HOME_PATH" ] && [ ! -L "$HOME_PATH" ]; then
+if [ -L "$HOME_PATH" ]; then
+  ln -sfn /mnt/calf-home "$HOME_PATH"
+elif [ -e "$HOME_PATH" ]; then
+  if mountpoint -q "$HOME_PATH" 2>/dev/null; then
+    echo "refusing to replace mounted $HOME_PATH" >&2
+    exit 1
+  fi
   rm -rf "$HOME_PATH"
+  ln -sfn /mnt/calf-home "$HOME_PATH"
+else
+  ln -sfn /mnt/calf-home "$HOME_PATH"
 fi
-ln -sfn /mnt/calf-home "$HOME_PATH"
-`
-	if _, err := k.runGuestRoot(ctx, script); err != nil {
-		slog.Default().Warn("host home share setup failed (non-fatal)", "error", err)
+`)
+		if hostMounts != "" {
+			b.WriteString("HOST_MOUNTS='" + hostMounts + "'\n")
+			b.WriteString(`if [ -L "$HOME_PATH" ] && [ "$(readlink "$HOME_PATH")" = "/mnt/calf-home" ]; then
+  :
+else
+  mkdir -p "$(dirname "$HOST_MOUNTS")"
+  ln -sfn /mnt/calf "$HOST_MOUNTS"
+fi
+`)
+		}
 	}
-}
-
-// ensureKrunkitDAXMount remounts calf-mounts with DAX virtiofs.
-// Default: dax=inode. CALF_KRUN_DAX=0 forces plain virtiofs.
-// CALF_KRUN_DAX_MODE=always maximizes bind-write (~4 GB/s) but weakens cold bind-read (~600 MiB/s).
-func (k *Krunkit) ensureKrunkitDAXMount(ctx context.Context) {
-	env := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX"))
-	if env == "0" {
-		script := `umount /mnt/calf 2>/dev/null || true
-mkdir -p /mnt/calf
-mount -t virtiofs -o noatime calf-mounts /mnt/calf
-dev=$(stat -c '%d' /mnt/calf 2>/dev/null || true)
-if [ -n "$dev" ] && [ -w "/sys/class/bdi/0:${dev}/read_ahead_kb" ]; then
-	echo 16384 > "/sys/class/bdi/0:${dev}/read_ahead_kb" 2>/dev/null || true
-fi`
-		_, _ = k.runGuestRoot(ctx, script)
-		return
-	}
-	mode := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX_MODE"))
-	if mode == "" {
-		mode = "inode"
-	}
-	script := `umount /mnt/calf 2>/dev/null || true
-mkdir -p /mnt/calf
-MODE='` + mode + `'
-	case "$MODE" in
-	inode)
-		if ! mount -t virtiofs -o dax=inode,noatime calf-mounts /mnt/calf 2>/dev/null; then
-			mount -t virtiofs -o noatime calf-mounts /mnt/calf || exit 1
-		fi
-		;;
-	always|*)
-		if ! mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>/dev/null; then
-			mount -t virtiofs -o noatime calf-mounts /mnt/calf || exit 1
-		fi
-		;;
-esac
-# Grow virtiofs BDI readahead past the 128KiB FUSE default so sequential cold reads
-# issue larger READ requests (matches libkrun max_write / max_readahead).
-dev=$(stat -c '%d' /mnt/calf 2>/dev/null || true)
-if [ -n "$dev" ] && [ -w "/sys/class/bdi/0:${dev}/read_ahead_kb" ]; then
-	echo 16384 > "/sys/class/bdi/0:${dev}/read_ahead_kb" 2>/dev/null || true
-fi`
-	_, _ = k.runGuestRoot(ctx, script)
+	b.WriteString(`mkdir -p /usr/local/sbin
+cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'
+#!/bin/sh
+set -e
+mkdir -p /mnt/calf /mnt/calf-home
+if ! mountpoint -q /mnt/calf 2>/dev/null; then
+  if ! mount -t virtiofs -o dax=always,noatime calf-mounts /mnt/calf 2>/dev/null; then
+    mount -t virtiofs -o noatime calf-mounts /mnt/calf
+  fi
+fi
+if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
+  mount -t virtiofs -o noatime calf-home /mnt/calf-home || echo "calf-home virtiofs not available" >&2
+fi
+EOF
+chmod +x /usr/local/sbin/calf-mount-virtiofs
+printf '%s\n' \
+  '[Unit]' \
+  'Description=Mount calf virtiofs shares' \
+  'DefaultDependencies=no' \
+  'After=local-fs.target' \
+  'Before=docker.service' \
+  '' \
+  '[Service]' \
+  'Type=oneshot' \
+  'RemainAfterExit=yes' \
+  'ExecStart=/usr/local/sbin/calf-mount-virtiofs' \
+  'ExecStop=/bin/umount -l /mnt/calf-home' \
+  'ExecStop=/bin/umount -l /mnt/calf' \
+  '' \
+  '[Install]' \
+  'WantedBy=multi-user.target' \
+  > /etc/systemd/system/calf-virtiofs.service
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable calf-virtiofs.service >/dev/null 2>&1 || true
+`)
+	return b.String()
 }
 
 // Stop kills krunkit and gvproxy unless vm_keep_alive is enabled.
