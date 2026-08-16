@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.18] - 2026-08-17
+
+### Fixed
+
+- **List action buttons** — Start, Stop, Delete, and similar row actions stay disabled until the command finishes, even if the pointer leaves the row.
+
 ## [1.0.17] - 2026-08-16
 
 ### Fixed

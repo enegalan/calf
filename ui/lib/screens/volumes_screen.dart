@@ -42,6 +42,7 @@ class _VolumesScreenState extends State<VolumesScreen>
   bool _resourceSaverActive = false;
   bool _runningOnly = false;
   String? _selectedVolume;
+  final Set<String> _lockedNames = {};
 
   /// Loads volumes and wires the search field to filter updates.
   /// Initializes state and starts loading or subscriptions.
@@ -180,83 +181,103 @@ class _VolumesScreenState extends State<VolumesScreen>
 
   /// Prompts for a destination name and clones [volume] via the API.
   Future<void> _cloneVolume(VolumeItem volume) async {
-    final nameController = TextEditingController(text: '${volume.name}-copy');
-    final theme = Theme.of(context);
+    if (_lockedNames.contains(volume.name)) {
+      return;
+    }
+    setState(() => _lockedNames.add(volume.name));
+    try {
+      final nameController = TextEditingController(text: '${volume.name}-copy');
+      final theme = Theme.of(context);
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Clone volume'),
-        content: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Create a copy of "${volume.name}".'),
-            const SizedBox(height: 16),
-            Text(
-              'Volume name',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Clone volume'),
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Create a copy of "${volume.name}".'),
+              const SizedBox(height: 16),
+              Text(
+                'Volume name',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
 
-            /// Creates a [_VolumesScreenState] widget.
-            const SizedBox(height: 8),
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(hintText: 'Volume name'),
+              /// Creates a [_VolumesScreenState] widget.
+              const SizedBox(height: 8),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(hintText: 'Volume name'),
+              ),
+            ],
+          ),
+          actions: [
+            CalfButton.outline(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            CalfButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Clone'),
             ),
           ],
         ),
-        actions: [
-          CalfButton.outline(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
-          ),
-          CalfButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Clone'),
-          ),
-        ],
-      ),
-    );
+      );
 
-    final destination = nameController.text.trim();
-    nameController.dispose();
+      final destination = nameController.text.trim();
+      nameController.dispose();
 
-    if (confirmed != true || destination.isEmpty || !mounted) {
-      return;
-    }
+      if (confirmed != true || destination.isEmpty || !mounted) {
+        return;
+      }
 
-    final ok = await runCalfToastAction(
-      pending: 'Cloning "${volume.name}"...',
-      done: 'Cloned volume to "$destination"',
-      action: () => widget.apiClient.cloneVolume(volume.name, destination),
-    );
-    if (ok && mounted) {
-      await _loadVolumes();
+      final ok = await runCalfToastAction(
+        pending: 'Cloning "${volume.name}"...',
+        done: 'Cloned volume to "$destination"',
+        action: () => widget.apiClient.cloneVolume(volume.name, destination),
+      );
+      if (ok && mounted) {
+        await _loadVolumes();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _lockedNames.remove(volume.name));
+      }
     }
   }
 
   /// Removes [volume] via the API and refreshes the list.
   Future<void> _removeVolume(VolumeItem volume) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Remove volume',
-      description: 'Remove "${volume.name}"? This cannot be undone.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) {
+    if (_lockedNames.contains(volume.name)) {
       return;
     }
-    final ok = await runCalfToastAction(
-      pending: 'Deleting "${volume.name}"...',
-      done: 'Deleted volume "${volume.name}"',
-      action: () => widget.apiClient.removeVolume(volume.name),
-    );
-    if (ok && mounted) {
-      await _loadVolumes();
+    setState(() => _lockedNames.add(volume.name));
+    try {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Remove volume',
+        description: 'Remove "${volume.name}"? This cannot be undone.',
+        confirmLabel: 'Remove',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) {
+        return;
+      }
+      final ok = await runCalfToastAction(
+        pending: 'Deleting "${volume.name}"...',
+        done: 'Deleted volume "${volume.name}"',
+        action: () => widget.apiClient.removeVolume(volume.name),
+      );
+      if (ok && mounted) {
+        await _loadVolumes();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _lockedNames.remove(volume.name));
+      }
     }
   }
 
@@ -335,6 +356,7 @@ class _VolumesScreenState extends State<VolumesScreen>
               Tooltip(
                 message: 'Clone',
                 child: CalfButton.outline(
+                  enabled: !_lockedNames.contains(volume.name),
                   width: 36,
                   height: 36,
                   onPressed: () => _cloneVolume(volume),
@@ -347,6 +369,7 @@ class _VolumesScreenState extends State<VolumesScreen>
               ),
               const SizedBox(width: 8),
               CalfButton.outline(
+                enabled: !_lockedNames.contains(volume.name),
                 onPressed: () => _removeVolume(volume),
                 child: const Text('Remove'),
               ),

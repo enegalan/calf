@@ -36,6 +36,7 @@ class _NetworksScreenState extends State<NetworksScreen>
   RuntimeStatus? _runtime;
   bool _resourceSaverActive = false;
   String? _selectedNetwork;
+  final Set<String> _lockedNames = {};
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -135,28 +136,38 @@ class _NetworksScreenState extends State<NetworksScreen>
 
   /// Removes the selected resource via the API after confirmation.
   Future<void> _removeNetwork(NetworkItem network) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Remove network',
-      description: 'Remove "${network.name}"? This cannot be undone.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) {
+    if (_lockedNames.contains(network.name)) {
       return;
     }
-    final ok = await runCalfToastAction(
-      pending: 'Deleting "${network.name}"...',
-      done: 'Deleted network "${network.name}"',
-      action: () => widget.apiClient.removeNetwork(network.name),
-    );
-    if (!ok || !mounted) {
-      return;
+    setState(() => _lockedNames.add(network.name));
+    try {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Remove network',
+        description: 'Remove "${network.name}"? This cannot be undone.',
+        confirmLabel: 'Remove',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) {
+        return;
+      }
+      final ok = await runCalfToastAction(
+        pending: 'Deleting "${network.name}"...',
+        done: 'Deleted network "${network.name}"',
+        action: () => widget.apiClient.removeNetwork(network.name),
+      );
+      if (!ok || !mounted) {
+        return;
+      }
+      if (_selectedNetwork == network.name) {
+        _closeNetwork();
+      }
+      await _loadNetworks();
+    } finally {
+      if (mounted) {
+        setState(() => _lockedNames.remove(network.name));
+      }
     }
-    if (_selectedNetwork == network.name) {
-      _closeNetwork();
-    }
-    await _loadNetworks();
   }
 
   /// Builds the widget tree for the current screen state.
@@ -218,6 +229,7 @@ class _NetworksScreenState extends State<NetworksScreen>
                 ),
               ),
               CalfButton.outline(
+                enabled: !_lockedNames.contains(network.name),
                 onPressed: () => _removeNetwork(network),
                 child: const Text('Remove'),
               ),
