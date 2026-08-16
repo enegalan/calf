@@ -39,6 +39,7 @@ class _ImagesScreenState extends State<ImagesScreen>
   ImageItem? _selectedImage;
   List<ImageLayer>? _layers;
   bool _layersLoading = false;
+  final Set<String> _lockedRefs = {};
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -195,28 +196,38 @@ class _ImagesScreenState extends State<ImagesScreen>
 
   /// Removes the selected resource via the API after confirmation.
   Future<void> _removeImage(ImageItem image) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Remove image',
-      description: 'Remove "${image.reference}"? This cannot be undone.',
-      confirmLabel: 'Remove',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) {
+    if (_lockedRefs.contains(image.reference)) {
       return;
     }
-    final ok = await runCalfToastAction(
-      pending: 'Deleting "${image.reference}"...',
-      done: 'Deleted image "${image.reference}"',
-      action: () => widget.apiClient.removeImage(image.reference),
-    );
-    if (!ok || !mounted) {
-      return;
+    setState(() => _lockedRefs.add(image.reference));
+    try {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Remove image',
+        description: 'Remove "${image.reference}"? This cannot be undone.',
+        confirmLabel: 'Remove',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) {
+        return;
+      }
+      final ok = await runCalfToastAction(
+        pending: 'Deleting "${image.reference}"...',
+        done: 'Deleted image "${image.reference}"',
+        action: () => widget.apiClient.removeImage(image.reference),
+      );
+      if (!ok || !mounted) {
+        return;
+      }
+      if (_selectedImage?.id == image.id) {
+        _closeImage();
+      }
+      await _loadImages();
+    } finally {
+      if (mounted) {
+        setState(() => _lockedRefs.remove(image.reference));
+      }
     }
-    if (_selectedImage?.id == image.id) {
-      _closeImage();
-    }
-    await _loadImages();
   }
 
   /// Runs the given async action and refreshes the list on success.
@@ -322,6 +333,7 @@ class _ImagesScreenState extends State<ImagesScreen>
                 ),
               ),
               CalfButton.outline(
+                enabled: !_lockedRefs.contains(image.reference),
                 onPressed: () => _removeImage(image),
                 child: const Text('Remove'),
               ),

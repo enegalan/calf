@@ -51,6 +51,7 @@ class _ContainersScreenState extends State<ContainersScreen>
   bool _runningOnly = false;
   String? _toastedPortConflicts;
   final Map<String, bool> _expandedGroups = {};
+  final Set<String> _lockedIds = {};
 
   /// Initializes state and starts loading or subscriptions.
   @override
@@ -144,61 +145,106 @@ class _ContainersScreenState extends State<ContainersScreen>
     showCalfSnackBar(context, hints, kind: CalfToastKind.error);
   }
 
+  /// Returns whether [id] currently has an in-flight list action.
+  bool _isLocked(String id) => _lockedIds.contains(id);
+
+  /// Runs [body] with [ids] locked so row buttons stay disabled across rebuilds.
+  Future<bool> _withLockedIds(
+    Iterable<String> ids,
+    Future<bool> Function() body,
+  ) async {
+    final lockIds = ids.toList();
+    if (lockIds.any(_lockedIds.contains)) {
+      return false;
+    }
+    setState(() => _lockedIds.addAll(lockIds));
+    try {
+      return await body();
+    } finally {
+      if (mounted) {
+        setState(() {
+          for (final id in lockIds) {
+            _lockedIds.remove(id);
+          }
+        });
+      }
+    }
+  }
+
   /// Runs the given async action and refreshes the list on success.
   Future<bool> _runAction(
     Future<void> Function() action, {
     required String pending,
     required String done,
-  }) async {
-    final ok = await runCalfToastAction(
-      pending: pending,
-      done: done,
-      action: action,
-    );
-    if (ok && mounted) {
-      await _loadContainers();
-    }
-    return ok;
+    required Iterable<String> lockIds,
+  }) {
+    return _withLockedIds(lockIds, () async {
+      final ok = await runCalfToastAction(
+        pending: pending,
+        done: done,
+        action: action,
+      );
+      if (ok && mounted) {
+        await _loadContainers();
+      }
+      return ok;
+    });
   }
 
   /// Confirms then removes a single container.
   Future<void> _confirmRemoveContainer(ContainerItem container) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Delete container',
-      description: 'Delete "${container.name}"? This cannot be undone.',
-      confirmLabel: 'Delete',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) {
-      return;
-    }
-    await _runAction(
-      () => widget.apiClient.removeContainer(container.id),
-      pending: 'Deleting "${container.name}"...',
-      done: 'Deleted container "${container.name}"',
-    );
+    await _withLockedIds([container.id], () async {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Delete container',
+        description: 'Delete "${container.name}"? This cannot be undone.',
+        confirmLabel: 'Delete',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) {
+        return false;
+      }
+      final ok = await runCalfToastAction(
+        pending: 'Deleting "${container.name}"...',
+        done: 'Deleted container "${container.name}"',
+        action: () => widget.apiClient.removeContainer(container.id),
+      );
+      if (ok && mounted) {
+        await _loadContainers();
+      }
+      return ok;
+    });
   }
 
   /// Confirms then removes every container in [containers].
   Future<void> _confirmRemoveAll(List<ContainerItem> containers) async {
-    final confirmed = await confirmDialog(
-      context,
-      title: 'Delete all containers',
-      description:
-          'Delete ${containers.length} containers in this group? This cannot be undone.',
-      confirmLabel: 'Delete all',
-      destructive: true,
-    );
-    if (!confirmed || !mounted) {
-      return;
-    }
-    await _runGroupAction(
-      containers,
-      widget.apiClient.removeContainer,
-      pending: 'Deleting containers...',
-      done: 'Deleted ${containers.length} containers',
-    );
+    final ids = containers.map((container) => container.id);
+    await _withLockedIds(ids, () async {
+      final confirmed = await confirmDialog(
+        context,
+        title: 'Delete all containers',
+        description:
+            'Delete ${containers.length} containers in this group? This cannot be undone.',
+        confirmLabel: 'Delete all',
+        destructive: true,
+      );
+      if (!confirmed || !mounted) {
+        return false;
+      }
+      final ok = await runCalfToastAction(
+        pending: 'Deleting containers...',
+        done: 'Deleted ${containers.length} containers',
+        action: () async {
+          for (final container in containers) {
+            await widget.apiClient.removeContainer(container.id);
+          }
+        },
+      );
+      if (ok && mounted) {
+        await _loadContainers();
+      }
+      return ok;
+    });
   }
 
   /// Starts the container engine when the list is empty and runtime is stopped.
@@ -236,6 +282,7 @@ class _ContainersScreenState extends State<ContainersScreen>
       },
       pending: pending,
       done: done,
+      lockIds: containers.map((container) => container.id),
     );
   }
 
@@ -534,6 +581,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                     onToggle: () => _toggleGroup(group.key),
                     onOpenGroup: () =>
                         _openComposeGroup(group.key, group.value),
+                    lockedIds: _lockedIds,
                     onStart: (id) {
                       final match = group.value
                           .where((c) => c.id == id)
@@ -543,6 +591,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                         () => widget.apiClient.startContainer(id),
                         pending: 'Starting "$name"...',
                         done: 'Started "$name"',
+                        lockIds: [id],
                       );
                     },
                     onStop: (id) {
@@ -554,6 +603,7 @@ class _ContainersScreenState extends State<ContainersScreen>
                         () => widget.apiClient.stopContainer(id),
                         pending: 'Stopping "$name"...',
                         done: 'Stopped "$name"',
+                        lockIds: [id],
                       );
                     },
                     onRemove: (id) async {
@@ -588,15 +638,18 @@ class _ContainersScreenState extends State<ContainersScreen>
                     container: container,
                     theme: theme,
                     selected: _selectedId == container.id,
+                    locked: _isLocked(container.id),
                     onStart: () => _runAction(
                       () => widget.apiClient.startContainer(container.id),
                       pending: 'Starting "${container.displayName}"...',
                       done: 'Started "${container.displayName}"',
+                      lockIds: [container.id],
                     ),
                     onStop: () => _runAction(
                       () => widget.apiClient.stopContainer(container.id),
                       pending: 'Stopping "${container.displayName}"...',
                       done: 'Stopped "${container.displayName}"',
+                      lockIds: [container.id],
                     ),
                     onRemove: () => _confirmRemoveContainer(container),
                     onOpen: () => _openContainer(container),
@@ -638,6 +691,7 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.onOpen,
     required this.onOpenImage,
     required this.onOpenPort,
+    required this.lockedIds,
   });
 
   final String project;
@@ -656,11 +710,15 @@ class _ComposeGroupTile extends StatelessWidget {
   final void Function(ContainerItem container) onOpen;
   final void Function(ContainerItem container) onOpenImage;
   final void Function(int port) onOpenPort;
+  final Set<String> lockedIds;
 
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
     final running = containers.where((container) => container.isRunning).length;
+    final groupLocked = containers.any(
+      (container) => lockedIds.contains(container.id),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -716,17 +774,20 @@ class _ComposeGroupTile extends StatelessWidget {
                 _ActionIcon(
                   icon: LucideIcons.square,
                   tooltip: 'Stop all',
+                  enabled: !groupLocked,
                   onPressed: onStopAll,
                 )
               else
                 _ActionIcon(
                   icon: LucideIcons.play,
                   tooltip: 'Start all',
+                  enabled: !groupLocked,
                   onPressed: onStartAll,
                 ),
               _ActionIcon(
                 icon: LucideIcons.trash2,
                 tooltip: 'Delete all',
+                enabled: !groupLocked,
                 onPressed: onRemoveAll,
               ),
             ],
@@ -739,6 +800,7 @@ class _ComposeGroupTile extends StatelessWidget {
               theme: theme,
               selected: selectedId == container.id,
               indented: true,
+              locked: lockedIds.contains(container.id),
               onStart: () => onStart(container.id),
               onStop: () => onStop(container.id),
               onRemove: () => onRemove(container.id),
@@ -764,12 +826,14 @@ class _ContainerTile extends StatelessWidget {
     required this.onOpenImage,
     required this.onOpenPort,
     this.indented = false,
+    this.locked = false,
   });
 
   final ContainerItem container;
   final ThemeData theme;
   final bool selected;
   final bool indented;
+  final bool locked;
   final Future<void> Function() onStart;
   final Future<void> Function() onStop;
   final Future<void> Function() onRemove;
@@ -827,17 +891,20 @@ class _ContainerTile extends StatelessWidget {
             _ActionIcon(
               icon: LucideIcons.square,
               tooltip: 'Stop',
+              enabled: !locked,
               onPressed: onStop,
             )
           else
             _ActionIcon(
               icon: LucideIcons.play,
               tooltip: 'Start',
+              enabled: !locked,
               onPressed: onStart,
             ),
           _ActionIcon(
             icon: LucideIcons.trash2,
             tooltip: 'Delete',
+            enabled: !locked,
             onPressed: onRemove,
           ),
         ],
@@ -1011,11 +1078,13 @@ class _ActionIcon extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.enabled = true,
   });
 
   final IconData icon;
   final String tooltip;
   final Future<void> Function() onPressed;
+  final bool enabled;
 
   /// Builds the widget tree for the current screen state.
   @override
@@ -1023,10 +1092,11 @@ class _ActionIcon extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: CalfButton.ghost(
+        enabled: enabled,
         width: 32,
         height: 32,
         padding: EdgeInsets.zero,
-        onPressed: onPressed,
+        onPressed: enabled ? onPressed : null,
         child: Icon(icon, size: 16),
       ),
     );
