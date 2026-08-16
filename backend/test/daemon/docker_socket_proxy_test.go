@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/daemon"
 )
 
@@ -412,22 +413,22 @@ func TestProxyUnixConnectionForcesConnectionCloseOnPlainHTTP(t *testing.T) {
 // guest max so newer host Docker CLIs work against the guest engine.
 func TestClampDockerAPIVersionDowngradesNewerClientPaths(t *testing.T) {
 	req := "GET /v1.55/containers/buildx_buildkit_default/json HTTP/1.1\r\nHost: localhost\r\n\r\n"
-	got := daemon.ClampDockerAPIVersionForTest([]byte(req), "1.52")
-	if !bytes.Contains(got, []byte("GET /v1.52/containers/buildx_buildkit_default/json HTTP/1.1")) {
+	got := daemon.ClampDockerAPIVersionForTest([]byte(req), constants.GuestDockerAPIVersion)
+	if !bytes.Contains(got, []byte("GET /v"+constants.GuestDockerAPIVersion+"/containers/buildx_buildkit_default/json HTTP/1.1")) {
 		t.Fatalf("clamp failed: %q", got)
 	}
 	if bytes.Contains(got, []byte("/v1.55/")) {
 		t.Fatalf("old version still present: %q", got)
 	}
 
-	same := "GET /v1.52/version HTTP/1.1\r\nHost: localhost\r\n\r\n"
-	out := daemon.ClampDockerAPIVersionForTest([]byte(same), "1.52")
+	same := "GET /v" + constants.GuestDockerAPIVersion + "/version HTTP/1.1\r\nHost: localhost\r\n\r\n"
+	out := daemon.ClampDockerAPIVersionForTest([]byte(same), constants.GuestDockerAPIVersion)
 	if !bytes.Equal(out, []byte(same)) {
 		t.Fatalf("same version mutated: %q", out)
 	}
 
 	older := "GET /v1.44/_ping HTTP/1.1\r\nHost: localhost\r\n\r\n"
-	out = daemon.ClampDockerAPIVersionForTest([]byte(older), "1.52")
+	out = daemon.ClampDockerAPIVersionForTest([]byte(older), constants.GuestDockerAPIVersion)
 	if !bytes.Equal(out, []byte(older)) {
 		t.Fatalf("older version mutated: %q", out)
 	}
@@ -458,7 +459,7 @@ func TestProxyUnixConnectionClampsAPIVersionAndCloses(t *testing.T) {
 		t.Fatalf("server read: %v", err)
 	}
 	got := buf[:n]
-	if !bytes.Contains(got, []byte("GET /v1.52/containers/json HTTP/1.1")) {
+	if !bytes.Contains(got, []byte("GET /v"+constants.GuestDockerAPIVersion+"/containers/json HTTP/1.1")) {
 		t.Fatalf("missing clamped path in %q", got)
 	}
 	if !bytes.Contains(bytes.ToLower(got), []byte("connection: close")) {
@@ -511,7 +512,7 @@ func TestProxyUnixConnectionForwardsRequestBody(t *testing.T) {
 			t.Fatalf("server read: %v (got %q)", err, got)
 		}
 	}
-	if !bytes.Contains(got, []byte("POST /v1.52/containers/create HTTP/1.1")) {
+	if !bytes.Contains(got, []byte("POST /v"+constants.GuestDockerAPIVersion+"/containers/create HTTP/1.1")) {
 		t.Fatalf("missing clamped path in %q", got)
 	}
 

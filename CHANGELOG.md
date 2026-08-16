@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.12] - 2026-08-16
+
+### Fixed
+
+- **Container list after engine wake** — listing containers no longer fails when a leftover disk snapshot is missing. On macOS, calf talks to the guest engine with an API version it can serve, so the engine stays up instead of cycling between idle shutdown and wake.
+
 ## [1.0.11] - 2026-08-16
 
 ### Changed

@@ -28,11 +28,6 @@ const (
 	dockerProxyDialAfterWake   = 30 * time.Second
 	dockerProxyMaxHTTPHeader   = 1 << 20
 
-	// dockerProxyGuestMaxAPIVersion is the highest Docker Engine API the guest
-	// dockerd accepts. Newer host CLIs (e.g. 29.7 → API 1.55) must be clamped
-	// or buildx/compose fail with EOF / "client version too new".
-	dockerProxyGuestMaxAPIVersion = "1.52"
-
 	dockerProxyModeListen int32 = 0
 )
 
@@ -411,7 +406,7 @@ func proxyUnixConnection(client, server net.Conn) {
 		return
 	}
 
-	head = clampDockerAPIVersion(head, dockerProxyGuestMaxAPIVersion)
+	head = clampDockerAPIVersion(head, constants.GuestDockerAPIVersion)
 	head = forceHTTPConnectionClose(head)
 	if _, err := server.Write(head); err != nil {
 		return

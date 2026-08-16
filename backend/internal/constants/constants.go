@@ -66,6 +66,9 @@ const (
 	DockerAPIReadyPollBase = 200 * time.Millisecond
 	// DockerAPIReadyPollMax caps exponential backoff while waiting for the Docker HTTP API.
 	DockerAPIReadyPollMax = 2 * time.Second
+	// GuestDockerAPIVersion is the highest Docker Engine API the macOS guest dockerd accepts.
+	// Host CLIs (e.g. 29.x) default to 1.55; unclamped calls fail with EOF or "client version too new".
+	GuestDockerAPIVersion = "1.52"
 )
 
 // RuntimeMode values identify whether calf runs containers in a VM guest or on the host.
