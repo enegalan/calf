@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-08-16
+
+### Fixed
+
+- **Engine starting** — the status bar shows Engine starting while the container engine is booting, including the first launch and after Restart.
+
 ## [1.0.9] - 2026-08-16
 
 ### Fixed
