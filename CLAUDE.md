@@ -239,6 +239,7 @@ calf/
 │   │   ├── utils/
 │   │   │   └── format.dart                     Duration and file-size formatters
 │   ├── test/widget_test.dart                  Flutter widget test
+│   ├── test/calf_button_test.dart             In-flight tap lock for CalfButton / CalfButtonGroup
 │   ├── pubspec.yaml                           Dependencies, Dart SDK ^3.12.2
 │   └── analysis_options.yaml                  flutter_lints, no custom overrides
 ├── examples/hello-world/                   Reference smoke-test project
