@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.21] - 2026-08-17
+
+### Fixed
+
+- **Build setup on Mac** — starting the engine no longer warns that build setup failed when the builder was already ready.
+
 ## [1.0.20] - 2026-08-17
 
 ### Fixed

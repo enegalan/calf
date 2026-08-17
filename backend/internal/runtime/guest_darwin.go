@@ -248,16 +248,13 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		return nil, fmt.Errorf("guest start: %w", err)
 	}
 
-	waitOut, waitErr := v.runLocal(ctx, "docker", "wait", containerID)
+	// docker wait is a long-lived HTTP request; the guest vsock drops it with broken
+	// pipe even after the process has already exited. Poll inspect instead.
+	exitCode, waitErr := v.pollGuestCmdExit(ctx, containerID)
 	logs, logsErr := v.runLocal(ctx, "docker", "logs", containerID)
 	if waitErr != nil {
-		if logsErr == nil && len(logs) > 0 {
-			return logs, fmt.Errorf("guest wait: %w: %s", waitErr, FormatCommandError(string(logs)))
-		}
-		return nil, fmt.Errorf("guest wait: %w", waitErr)
+		return logs, WrapGuestWaitError(waitErr, logs)
 	}
-
-	exitCode := strings.TrimSpace(string(waitOut))
 	if exitCode != "0" {
 		message := FormatCommandError(string(logs))
 		if message == "" {
@@ -272,6 +269,46 @@ func (v *Guest) runGuestRoot(ctx context.Context, script string) ([]byte, error)
 		return nil, fmt.Errorf("guest logs: %w", logsErr)
 	}
 	return logs, nil
+}
+
+// pollGuestCmdExit waits until a helper container has exited by polling inspect.
+func (v *Guest) pollGuestCmdExit(ctx context.Context, containerID string) (string, error) {
+	delay := constants.DefaultCommandRetryDelay
+	var lastErr error
+	for {
+		out, err := v.runLocal(ctx, "docker", "inspect", "-f", "{{.State.Status}} {{.State.ExitCode}}", containerID)
+		if err == nil {
+			status, code, ok := ParseInspectStateLine(string(out))
+			if ok && InspectStateExited(status) {
+				return code, nil
+			}
+			lastErr = nil
+		} else {
+			lastErr = err
+			if isNoSuchContainerError(err) {
+				return "", err
+			}
+			if !IsTransientCommandError(err) {
+				return "", err
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			if lastErr != nil {
+				return "", lastErr
+			}
+			return "", ctx.Err()
+		case <-time.After(delay):
+		}
+
+		if delay < constants.DockerAPIReadyPollMax {
+			delay *= 2
+			if delay > constants.DockerAPIReadyPollMax {
+				delay = constants.DockerAPIReadyPollMax
+			}
+		}
+	}
 }
 
 // removeGuestCmdContainer force-removes a calf guest helper container, retrying briefly
