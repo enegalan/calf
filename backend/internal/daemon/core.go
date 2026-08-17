@@ -87,8 +87,8 @@ func (s *Core) startDockerSocketProxy() {
 	if public == "" || engine == "" || public == engine {
 		return
 	}
-	var gater engineConnGater
-	if g, ok := s.Runtime.(engineConnGater); ok {
+	var gater EngineConnGater
+	if g, ok := s.Runtime.(EngineConnGater); ok {
 		gater = g
 	}
 	proxy := newDockerSocketProxy(s.Logger, public, engine, s.lifecycleCtx, s.EnsureRuntimeRunning, gater)

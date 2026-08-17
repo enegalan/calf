@@ -54,9 +54,14 @@ type Guest struct {
 	listInflightErr   error
 	listInflightValue []Container
 
-	// engineConnGate limits concurrent dials into krunkit vsock (shared with the
+	// engineConnGate limits concurrent vsock connections (shared with the
 	// public docker.sock proxy). virtio-vsock collapses under higher fan-out.
 	engineConnGate chan struct{}
+	// dialMu serializes Dial into krunkit vsock. Parallel dials collapse the
+	// backend even when the connection gate still has free slots.
+	dialMu    sync.Mutex
+	gatedSock string
+	gatedLn   net.Listener
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -104,9 +109,13 @@ func NewGuest(vmName, dockerSocket string, cpus, memoryGB, _, diskGB int, diskIm
 		localhostProxy: newLocalhostProxies(),
 		ownerCtx:       context.Background(),
 		engineConnGate: make(chan struct{}, engineConnMaxConcurrent),
+		gatedSock:      filepath.Join(dataDir, "docker-gated.sock"),
 	}
 	v.localhostProxy.setReservedPorts(apiListenPort)
 	v.cliOps = cliOps{status: v.Status, runLocal: v.runLocal, runLocalWithStdin: v.runLocalWithStdin}
+	if err := v.startGatedEngineProxy(); err != nil {
+		slog.Default().Warn("gated engine proxy failed to start", "error", err)
+	}
 	return v
 }
 
@@ -129,6 +138,136 @@ func (v *Guest) AcquireEngineConn(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// DialEngineSocket opens one connection to the krunkit vsock, serialized with other dials.
+func (v *Guest) DialEngineSocket(ctx context.Context) (net.Conn, error) {
+	if v == nil {
+		return nil, fmt.Errorf("guest runtime is nil")
+	}
+	v.dialMu.Lock()
+	defer v.dialMu.Unlock()
+	var d net.Dialer
+	return d.DialContext(ctx, "unix", v.engineSocket)
+}
+
+// startGatedEngineProxy listens on gatedSock and splices each client to vsock
+// so daemon docker CLI dials share DialEngineSocket with the public proxy.
+func (v *Guest) startGatedEngineProxy() error {
+	if v.gatedSock == "" {
+		return nil
+	}
+	if err := os.MkdirAll(filepath.Dir(v.gatedSock), 0o755); err != nil {
+		return fmt.Errorf("create gated engine socket dir: %w", err)
+	}
+	_ = os.Remove(v.gatedSock)
+	ln, err := net.Listen("unix", v.gatedSock)
+	if err != nil {
+		return fmt.Errorf("listen on gated engine socket: %w", err)
+	}
+	if err := os.Chmod(v.gatedSock, 0o600); err != nil {
+		_ = ln.Close()
+		_ = os.Remove(v.gatedSock)
+		return fmt.Errorf("chmod gated engine socket: %w", err)
+	}
+	v.mu.Lock()
+	v.gatedLn = ln
+	v.mu.Unlock()
+	go v.serveGatedEngineProxy(ln)
+	return nil
+}
+
+// stopGatedEngineProxy closes the daemon-only vsock splice listener.
+func (v *Guest) stopGatedEngineProxy() {
+	v.mu.Lock()
+	ln := v.gatedLn
+	v.gatedLn = nil
+	v.mu.Unlock()
+	if ln != nil {
+		_ = ln.Close()
+	}
+	if v.gatedSock != "" {
+		_ = os.Remove(v.gatedSock)
+	}
+}
+
+// serveGatedEngineProxy accepts daemon docker CLI connections until the listener closes.
+func (v *Guest) serveGatedEngineProxy(ln net.Listener) {
+	for {
+		client, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		go v.handleGatedEngineConn(client)
+	}
+}
+
+// handleGatedEngineConn takes a vsock slot, dials the engine, and splices bytes.
+func (v *Guest) handleGatedEngineConn(client net.Conn) {
+	defer client.Close()
+	ctx := v.ownerContext()
+	if err := v.AcquireEngineConn(ctx); err != nil {
+		return
+	}
+	defer v.ReleaseEngineConn()
+
+	server, err := v.DialEngineSocket(ctx)
+	if err != nil {
+		return
+	}
+	defer server.Close()
+	spliceUnixConns(client, server)
+}
+
+// ownerContext returns the daemon lifecycle context for background guest work.
+func (v *Guest) ownerContext() context.Context {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.ownerCtx != nil {
+		return v.ownerCtx
+	}
+	return context.Background()
+}
+
+// engineCLISocket is the docker CLI host path for daemon guest commands.
+func (v *Guest) engineCLISocket() string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.gatedLn != nil && v.gatedSock != "" {
+		return v.gatedSock
+	}
+	return v.engineSocket
+}
+
+// spliceUnixConns copies both directions until either side closes.
+func spliceUnixConns(a, b net.Conn) {
+	done := make(chan struct{}, 2)
+	go func() {
+		_, _ = io.Copy(b, a)
+		done <- struct{}{}
+	}()
+	go func() {
+		_, _ = io.Copy(a, b)
+		done <- struct{}{}
+	}()
+	<-done
+	_ = a.Close()
+	_ = b.Close()
+	<-done
+}
+
+// StartGatedEngineProxyForTest starts the daemon CLI splice in front of engineSocket.
+func StartGatedEngineProxyForTest(engineSocket string) (string, func(), error) {
+	g := &Guest{
+		engineSocket:   engineSocket,
+		gatedSock:      filepath.Join(filepath.Dir(engineSocket), "docker-gated.sock"),
+		engineConnGate: make(chan struct{}, engineConnMaxConcurrent),
+		ownerCtx:       context.Background(),
+	}
+	if err := g.startGatedEngineProxy(); err != nil {
+		return "", nil, err
+	}
+	return g.gatedSock, g.stopGatedEngineProxy, nil
 }
 
 // ReleaseEngineConn frees a slot taken by AcquireEngineConn.
@@ -508,6 +647,7 @@ func (v *Guest) Stop(ctx context.Context) error {
 	}
 	v.mu.Unlock()
 	v.localhostProxy.stopAll()
+	v.stopGatedEngineProxy()
 	v.starting.Store(false)
 	v.started.Store(false)
 	return nil
@@ -566,8 +706,7 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 
 	client := &http.Client{Timeout: 400 * time.Millisecond, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var d net.Dialer
-			return d.DialContext(ctx, "unix", v.engineSocket)
+			return v.DialEngineSocket(ctx)
 		},
 		DisableKeepAlives: true,
 	}}
@@ -586,16 +725,19 @@ func (v *Guest) dockerAPIReady(ctx context.Context) bool {
 // runLocal executes a command against the guest's Docker socket, retrying transient nerdctl
 // failures. nerdctl is remapped to docker since the guest exposes a Docker-API socket.
 func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([]byte, error) {
-	if err := v.AcquireEngineConn(ctx); err != nil {
-		return nil, err
+	socket := v.engineCLISocket()
+	if socket != v.gatedSock {
+		if err := v.AcquireEngineConn(ctx); err != nil {
+			return nil, err
+		}
+		defer v.ReleaseEngineConn()
 	}
-	defer v.ReleaseEngineConn()
 
 	if command == "nerdctl" {
 		command = "docker"
 	}
 	env := os.Environ()
-	env = dockerGuestEngineEnvFrom(env, v.engineSocket)
+	env = dockerGuestEngineEnvFrom(env, socket)
 	if v.proxy != (ProxyConfig{}) {
 		env = proxyEnvFrom(env, v.proxy)
 	}
@@ -605,15 +747,18 @@ func (v *Guest) runLocal(ctx context.Context, command string, args ...string) ([
 // runLocalWithStdin executes a command against the guest's Docker socket with stdin, retrying
 // nerdctl on transient errors.
 func (v *Guest) runLocalWithStdin(ctx context.Context, stdin, command string, args ...string) ([]byte, error) {
-	if err := v.AcquireEngineConn(ctx); err != nil {
-		return nil, err
+	socket := v.engineCLISocket()
+	if socket != v.gatedSock {
+		if err := v.AcquireEngineConn(ctx); err != nil {
+			return nil, err
+		}
+		defer v.ReleaseEngineConn()
 	}
-	defer v.ReleaseEngineConn()
 
 	if command == "nerdctl" {
 		command = "docker"
 	}
-	env := dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
+	env := dockerGuestEngineEnvFrom(os.Environ(), socket)
 	return runCommandWithRetryEnv(ctx, constants.DefaultCommandRetries, constants.DefaultCommandRetryDelay, env, stdin, command, args...)
 }
 
@@ -784,13 +929,16 @@ func (v *Guest) StreamLogsFollow(ctx context.Context, id string, output func(str
 
 // streamLogsFollow runs docker logs -f and pipes lines to output.
 func (v *Guest) streamLogsFollow(ctx context.Context, id, since string, output func(string)) error {
-	if err := v.AcquireEngineConn(ctx); err != nil {
-		return err
+	socket := v.engineCLISocket()
+	if socket != v.gatedSock {
+		if err := v.AcquireEngineConn(ctx); err != nil {
+			return err
+		}
+		defer v.ReleaseEngineConn()
 	}
-	defer v.ReleaseEngineConn()
 
 	command := exec.CommandContext(ctx, "docker", "logs", "-f", "--since", since, id)
-	command.Env = dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
+	command.Env = dockerGuestEngineEnvFrom(os.Environ(), socket)
 	return streamCommandLogs(ctx, command, output)
 }
 
@@ -799,13 +947,16 @@ func (v *Guest) AttachExec(ctx context.Context, id string, stdin io.Reader, onOu
 	if err := requireRunning(ctx, v.Status); err != nil {
 		return err
 	}
-	if err := v.AcquireEngineConn(ctx); err != nil {
-		return err
+	socket := v.engineCLISocket()
+	if socket != v.gatedSock {
+		if err := v.AcquireEngineConn(ctx); err != nil {
+			return err
+		}
+		defer v.ReleaseEngineConn()
 	}
-	defer v.ReleaseEngineConn()
 
 	command := exec.CommandContext(ctx, "docker", interactiveExecArgs(id)...)
-	command.Env = dockerGuestEngineEnvFrom(os.Environ(), v.engineSocket)
+	command.Env = dockerGuestEngineEnvFrom(os.Environ(), socket)
 	return attachContainerExec(ctx, command, stdin, onOutput, resizeCh)
 }
 

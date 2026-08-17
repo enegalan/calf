@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.22] - 2026-08-17
+
+### Fixed
+
+- **Docker CLI on Mac** — `docker compose up --build` no longer fails with a connection error when calf is already talking to the engine.
+
 ## [1.0.21] - 2026-08-17
 
 ### Fixed

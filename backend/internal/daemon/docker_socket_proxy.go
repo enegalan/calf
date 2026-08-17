@@ -22,19 +22,21 @@ const (
 	// dockerProxyMaxConcurrent caps simultaneous dials into krunkit vsock.
 	// Keep this modest: high fan-out floods virtio-vsock. Too low deadlocks
 	// clients (e.g. docker CLI) that open more than one connection per command.
-	dockerProxyMaxConcurrent   = 8
-	dockerProxyReclaimInterval = 2 * time.Second
-	dockerProxyDialProbe       = 2 * time.Second
-	dockerProxyDialAfterWake   = 30 * time.Second
-	dockerProxyMaxHTTPHeader   = 1 << 20
+	dockerProxyMaxConcurrent     = 8
+	dockerProxyReclaimInterval   = 2 * time.Second
+	dockerProxyDialProbe         = 2 * time.Second
+	dockerProxyDialAfterWake     = 30 * time.Second
+	dockerProxyHeaderReadTimeout = 30 * time.Second
+	dockerProxyMaxHTTPHeader     = 1 << 20
 
 	dockerProxyModeListen int32 = 0
 )
 
-// engineConnGater limits concurrent use of the guest Docker engine socket (vsock).
-type engineConnGater interface {
+// EngineConnGater limits concurrent vsock use and serializes Dial into the guest engine.
+type EngineConnGater interface {
 	AcquireEngineConn(ctx context.Context) error
 	ReleaseEngineConn()
+	DialEngineSocket(ctx context.Context) (net.Conn, error)
 }
 
 // dockerSocketProxy listens on the public Docker CLI socket and forwards to the
@@ -50,7 +52,7 @@ type dockerSocketProxy struct {
 	engine    string
 	wake      func(context.Context) error
 	lifecycle context.Context
-	gater     engineConnGater
+	gater     EngineConnGater
 	gate      chan struct{}
 	mode      atomic.Int32
 	switchMu  sync.Mutex
@@ -71,7 +73,7 @@ type engineDockerSocketer interface {
 }
 
 // newDockerSocketProxy builds a wake-on-connect proxy when public and engine paths differ.
-func newDockerSocketProxy(logger *slog.Logger, public, engine string, lifecycle context.Context, wake func(context.Context) error, gater engineConnGater) *dockerSocketProxy {
+func newDockerSocketProxy(logger *slog.Logger, public, engine string, lifecycle context.Context, wake func(context.Context) error, gater EngineConnGater) *dockerSocketProxy {
 	return &dockerSocketProxy{
 		logger:    logger,
 		public:    public,
@@ -299,9 +301,18 @@ func (p *dockerSocketProxy) serve(listener net.Listener, doneCh chan struct{}) {
 	}
 }
 
-// handle wakes the engine when needed, then bidirectionally proxies to the engine socket.
+// handle reads the CLI request first, then dials vsock. Dialing on accept
+// (before any HTTP) spends a guest connection on idle Compose/buildx sockets
+// and the virtio-vsock backend starts returning EOF on later _ping calls.
 func (p *dockerSocketProxy) handle(client net.Conn) {
 	defer client.Close()
+
+	_ = client.SetReadDeadline(time.Now().Add(dockerProxyHeaderReadTimeout))
+	head, rest, upgrade, err := readDockerAPIRequestHead(client)
+	if err != nil {
+		return
+	}
+	_ = client.SetReadDeadline(time.Time{})
 
 	parent := context.Background()
 	if p.lifecycle != nil {
@@ -330,7 +341,7 @@ func (p *dockerSocketProxy) handle(client net.Conn) {
 	}
 	defer server.Close()
 
-	proxyUnixConnection(client, server)
+	proxyUnixConnectionWithHead(client, server, head, rest, upgrade)
 }
 
 // acquireConn takes a shared vsock slot (or the local gate when no gater is set).
@@ -360,16 +371,13 @@ func (p *dockerSocketProxy) releaseConn() {
 
 // dialEngine connects to the krunkit vsock socket, retrying until timeout.
 func (p *dockerSocketProxy) dialEngine(ctx context.Context, timeout time.Duration) (net.Conn, error) {
-	var d net.Dialer
 	var lastErr error
 	deadline := time.Now().Add(timeout)
 	if t, ok := ctx.Deadline(); ok && t.Before(deadline) {
 		deadline = t
 	}
 	for time.Now().Before(deadline) {
-		p.dialMu.Lock()
-		conn, err := d.DialContext(ctx, "unix", p.engine)
-		p.dialMu.Unlock()
+		conn, err := p.dialEngineOnce(ctx)
 		if err == nil {
 			return conn, nil
 		}
@@ -384,6 +392,17 @@ func (p *dockerSocketProxy) dialEngine(ctx context.Context, timeout time.Duratio
 		lastErr = fmt.Errorf("engine socket not ready at %s", p.engine)
 	}
 	return nil, lastErr
+}
+
+// dialEngineOnce opens one engine connection, using the guest dialer when set.
+func (p *dockerSocketProxy) dialEngineOnce(ctx context.Context) (net.Conn, error) {
+	if p.gater != nil {
+		return p.gater.DialEngineSocket(ctx)
+	}
+	p.dialMu.Lock()
+	defer p.dialMu.Unlock()
+	var d net.Dialer
+	return d.DialContext(ctx, "unix", p.engine)
 }
 
 // proxyUnixConnection forwards one Docker API connection.
@@ -401,6 +420,11 @@ func proxyUnixConnection(client, server net.Conn) {
 	if err != nil {
 		return
 	}
+	proxyUnixConnectionWithHead(client, server, head, rest, upgrade)
+}
+
+// proxyUnixConnectionWithHead forwards an already-read Docker API request.
+func proxyUnixConnectionWithHead(client, server net.Conn, head, rest []byte, upgrade bool) {
 	if upgrade {
 		proxyUnixUpgrade(client, server, head, rest)
 		return
@@ -627,6 +651,12 @@ func resolveEngineDockerSocket(rt interface{ DockerSocket() string }) string {
 		}
 	}
 	return rt.DockerSocket()
+}
+
+// NewDockerSocketProxyWithGaterForTest constructs a proxy that dials the engine through gater.
+func NewDockerSocketProxyWithGaterForTest(public, engine string, lifecycle context.Context, wake func(context.Context) error, gater EngineConnGater) *DockerSocketProxy {
+	inner := newDockerSocketProxy(slog.Default(), public, engine, lifecycle, wake, gater)
+	return &DockerSocketProxy{inner: inner}
 }
 
 // NewDockerSocketProxyForTest constructs a wake-on-connect proxy for unit tests.
