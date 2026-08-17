@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/config"
@@ -99,7 +100,7 @@ func (g *Gateway) buildConfigView() configView {
 		ShellCompletions:        cfg.ShellCompletions,
 		DefaultDockerSocket:     cfg.DefaultDockerSocket,
 		PrivilegedPorts:         cfg.PrivilegedPorts,
-		FileShares:              cfg.FileShares,
+		FileShares:              config.EffectiveFileShares(cfg),
 		HostNetworking:          cfg.HostNetworking,
 		DaemonJSON:              cfg.DaemonJSON,
 		DockerSubnet:            cfg.DockerSubnet,
@@ -141,7 +142,9 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 			}
 		}
 	}
+	managedChanged := false
 	if req.DockerContextManaged != nil {
+		managedChanged = *req.DockerContextManaged != g.backend.Cfg.DockerContextManaged
 		g.backend.Cfg.DockerContextManaged = *req.DockerContextManaged
 	}
 	if req.Rootless != nil {
@@ -174,14 +177,18 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 	if req.ShellCompletions != nil {
 		g.backend.Cfg.ShellCompletions = *req.ShellCompletions
 	}
-	if req.DefaultDockerSocket != nil {
+	if managedChanged {
+		g.backend.Cfg.DefaultDockerSocket = g.backend.Cfg.DockerContextManaged
+	} else if req.DefaultDockerSocket != nil {
 		g.backend.Cfg.DefaultDockerSocket = *req.DefaultDockerSocket
 	}
 	if req.PrivilegedPorts != nil {
 		g.backend.Cfg.PrivilegedPorts = *req.PrivilegedPorts
 	}
 	if req.FileShares != nil {
-		g.backend.Cfg.FileShares = *req.FileShares
+		shareHome, extras := config.ParseFileShareList(*req.FileShares)
+		g.backend.Cfg.ShareHome = shareHome
+		g.backend.Cfg.FileShares = extras
 	}
 	if req.HostNetworking != nil {
 		g.backend.Cfg.HostNetworking = *req.HostNetworking
@@ -254,7 +261,8 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	g.backend.CfgMu.RLock()
-	proxyChanged := config.ProxyUpdateChanged(req, g.backend.Cfg)
+	prev := g.backend.Cfg
+	proxyChanged := config.ProxyUpdateChanged(req, prev)
 	g.backend.CfgMu.RUnlock()
 	saved, err := g.applyConfigUpdate(req)
 	if err != nil {
@@ -263,91 +271,96 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpkit.WriteJSON(w, http.StatusOK, g.buildConfigView())
+	if flusher, ok := w.(http.Flusher); ok {
+		flusher.Flush()
+	}
 
+	go g.applyConfigSideEffects(prev, saved, proxyChanged)
+}
+
+// applyConfigSideEffects runs slow post-save work after the HTTP response is flushed.
+func (g *Gateway) applyConfigSideEffects(prev, saved config.Config, proxyChanged bool) {
 	if proxyChanged {
-		go func() {
-			proxyCfg := runtime.ProxyConfig{
-				HTTPProxy:  saved.HTTPProxy,
-				HTTPSProxy: saved.HTTPSProxy,
-				NoProxy:    saved.NoProxy,
-			}
-			proxyCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DockerCLITimeout)
-			defer cancel()
-			if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				if !errors.Is(err, runtime.ErrRuntimeNotRunning) {
-					g.logger.Warn("failed to apply proxy settings", "error", err)
-					return
-				}
+		proxyCfg := runtime.ProxyConfig{
+			HTTPProxy:  saved.HTTPProxy,
+			HTTPSProxy: saved.HTTPSProxy,
+			NoProxy:    saved.NoProxy,
+		}
+		proxyCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DockerCLITimeout)
+		defer cancel()
+		if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, runtime.ErrRuntimeNotRunning) {
+				g.logger.Warn("failed to apply proxy settings", "error", err)
+			} else if errors.Is(err, runtime.ErrRuntimeNotRunning) {
 				if startErr := g.backend.EnsureRuntimeRunning(proxyCtx); startErr != nil {
-					if errors.Is(startErr, context.Canceled) {
-						return
+					if !errors.Is(startErr, context.Canceled) {
+						g.logger.Warn("failed to start runtime for proxy settings", "error", startErr)
 					}
-					g.logger.Warn("failed to start runtime for proxy settings", "error", startErr)
-					return
-				}
-				if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil {
-					if errors.Is(err, context.Canceled) {
-						return
-					}
+				} else if err := g.backend.Runtime.ApplyProxy(proxyCtx, proxyCfg); err != nil && !errors.Is(err, context.Canceled) {
 					g.logger.Warn("failed to apply proxy settings after runtime start", "error", err)
 				}
 			}
-		}()
+		}
 	}
 
-	if req.DockerContextManaged != nil && !saved.DockerContextManaged {
-		deactivateCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
+	if saved.DockerContextManaged != prev.DockerContextManaged {
+		cliCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
 		defer cancel()
-		if err := g.backend.DockerCLI.Deactivate(deactivateCtx); err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
+		if !saved.DockerContextManaged {
+			if err := g.backend.DockerCLI.Deactivate(cliCtx); err != nil && !errors.Is(err, context.Canceled) {
+				g.logger.Warn("failed to deactivate docker context", "error", err)
 			}
-			g.logger.Warn("failed to deactivate docker context", "error", err)
-		}
-	} else if saved.DockerContextManaged {
-		activateCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
-		defer cancel()
-		if err := g.backend.DockerCLI.Activate(activateCtx); err != nil {
-			if errors.Is(err, context.Canceled) {
-				return
-			}
+		} else if err := g.backend.DockerCLI.Activate(cliCtx); err != nil && !errors.Is(err, context.Canceled) {
 			g.logger.Warn("failed to activate docker context", "error", err)
 		}
 	}
 
-	if req.ShellCompletions != nil {
+	if saved.DefaultDockerSocket != prev.DefaultDockerSocket {
+		g.applyDefaultSocket(saved.DefaultDockerSocket)
+	}
+
+	if saved.ShellCompletions != prev.ShellCompletions {
 		if saved.ShellCompletions {
 			if err := dockercli.EnsureShellCompletions(); err != nil {
 				g.logger.Warn("failed to write shell completions", "error", err)
 			}
-		} else {
-			if err := dockercli.RemoveShellCompletions(); err != nil {
-				g.logger.Warn("failed to remove shell completions", "error", err)
-			}
+		} else if err := dockercli.RemoveShellCompletions(); err != nil {
+			g.logger.Warn("failed to remove shell completions", "error", err)
 		}
 	}
-	if req.DefaultDockerSocket != nil {
-		if saved.DefaultDockerSocket {
-			if err := dockercli.EnableDefaultSocket(g.backend.Runtime.DockerSocket()); err != nil {
-				g.logger.Warn("failed to enable default docker socket", "error", err)
-			}
-		} else {
-			if err := dockercli.DisableDefaultSocket(g.backend.Runtime.DockerSocket()); err != nil {
-				g.logger.Warn("failed to disable default docker socket", "error", err)
-			}
-		}
-	}
-	if req.PrivilegedPorts != nil && saved.PrivilegedPorts {
+
+	if saved.PrivilegedPorts && !prev.PrivilegedPorts {
 		if exe, err := os.Executable(); err == nil {
 			if err := dockercli.InstallPrivilegedHelper(exe); err != nil {
 				g.logger.Warn("failed to install privileged ports helper", "error", err)
 			}
 		}
 	}
-	g.backend.Runtime.ApplyEngineSettings(engineSettingsFrom(saved))
+
+	if engineOverlayChanged(prev, saved) {
+		g.backend.Runtime.ApplyEngineSettings(engineSettingsFrom(saved))
+	}
+}
+
+// applyDefaultSocket creates or removes /var/run/docker.sock so apps that ignore Docker context still reach calf.
+func (g *Gateway) applyDefaultSocket(enabled bool) {
+	socket := g.backend.Runtime.DockerSocket()
+	if enabled {
+		if err := dockercli.EnableDefaultSocket(socket); err != nil {
+			g.logger.Warn("failed to enable default docker socket", "error", err)
+			g.backend.CfgMu.Lock()
+			g.backend.Cfg.DefaultDockerSocket = false
+			cfg := g.backend.Cfg
+			g.backend.CfgMu.Unlock()
+			if saveErr := config.Save(cfg); saveErr != nil {
+				g.logger.Warn("failed to revert default docker socket flag", "error", saveErr)
+			}
+		}
+		return
+	}
+	if err := dockercli.DisableDefaultSocket(socket); err != nil {
+		g.logger.Warn("failed to disable default docker socket", "error", err)
+	}
 }
 
 // engineSettingsFrom copies guest overlay fields from persisted config.
@@ -358,6 +371,7 @@ func engineSettingsFrom(cfg config.Config) runtime.EngineSettings {
 	}
 	return runtime.EngineSettings{
 		FileShares:           shares,
+		OmitHomeShare:        !cfg.ShareHome,
 		HostNetworking:       cfg.HostNetworking,
 		DaemonJSON:           cfg.DaemonJSON,
 		DockerSubnet:         cfg.DockerSubnet,
@@ -365,4 +379,16 @@ func engineSettingsFrom(cfg config.Config) runtime.EngineSettings {
 		EnableAmd64Emulation: cfg.EnableAmd64Emulation,
 		PrivilegedPorts:      cfg.PrivilegedPorts,
 	}
+}
+
+// engineOverlayChanged reports whether guest overlay fields differ.
+func engineOverlayChanged(prev, next config.Config) bool {
+	return prev.HostNetworking != next.HostNetworking ||
+		prev.ShareHome != next.ShareHome ||
+		prev.DaemonJSON != next.DaemonJSON ||
+		prev.DockerSubnet != next.DockerSubnet ||
+		prev.BindLocalhostOnly != next.BindLocalhostOnly ||
+		prev.EnableAmd64Emulation != next.EnableAmd64Emulation ||
+		prev.PrivilegedPorts != next.PrivilegedPorts ||
+		!slices.Equal(prev.FileShares, next.FileShares)
 }

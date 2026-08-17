@@ -201,12 +201,28 @@ class MixedLogsPanel extends StatefulWidget {
     required this.scrollController,
     required this.runningCount,
     required this.onClear,
+    this.showChrome = true,
+    this.showTimestampOverride,
+    this.wrapLinesOverride,
+    this.highlightPattern,
   });
 
   final List<MixedLogBlock> blocks;
   final ScrollController scrollController;
   final int runningCount;
   final VoidCallback onClear;
+
+  /// When false, hides the side toolbar and in-panel search bar.
+  final bool showChrome;
+
+  /// When set, overrides the persisted timestamp preference.
+  final bool? showTimestampOverride;
+
+  /// When set, overrides the persisted wrap-lines preference.
+  final bool? wrapLinesOverride;
+
+  /// When set, highlights matching ranges even if [showChrome] is false.
+  final RegExp? highlightPattern;
 
   /// Creates the state for this multi-container log panel.
   @override
@@ -254,7 +270,10 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
       lines.addAll(block.lines);
     }
 
-    return _findLogMatchesInLines(lines, searchPattern());
+    return _findLogMatchesInLines(
+      lines,
+      widget.highlightPattern ?? searchPattern(),
+    );
   }
 
   /// Copies the visible log text to the clipboard.
@@ -276,15 +295,108 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
     return offset;
   }
 
+  /// Timestamp visibility, using the parent override when provided.
+  bool get _showTimestamp => widget.showTimestampOverride ?? showTimestamp;
+
+  /// Line wrapping, using the parent override when provided.
+  bool get _wrapLines => widget.wrapLinesOverride ?? wrapLines;
+
   /// Builds the multi-container log viewer UI.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final matches = activeMatches();
-    syncMatchIndex(matches);
+    final matches = widget.highlightPattern != null
+        ? findLogMatches()
+        : widget.showChrome
+        ? activeMatches()
+        : const <_LogMatch>[];
+    if (widget.showChrome) {
+      syncMatchIndex(matches);
+    }
     final displayIndex = displayMatchIndex(matches);
 
     final emptyMessage = widget.runningCount == 0 ? '' : null;
+    final logBody = emptyMessage != null
+        ? Align(
+            alignment: Alignment.topLeft,
+            child: Text(emptyMessage, style: CalfTheme.muted(theme)),
+          )
+        : widget.blocks.isEmpty
+        ? const SizedBox.shrink()
+        : ListView.builder(
+            controller: widget.scrollController,
+            itemCount: widget.blocks.length,
+            itemBuilder: (context, index) {
+              final block = widget.blocks[index];
+              final lineOffset = _lineOffsetForBlock(index);
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index == widget.blocks.length - 1 ? 0 : 12,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 96,
+                      child: Text(
+                        block.containerName,
+                        style: theme.textTheme.bodySmall!.copyWith(
+                          color: block.color,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            left: 8,
+                            top: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 3,
+                              decoration: BoxDecoration(
+                                color: block.color,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 19),
+                            child: _LogTextView(
+                              theme: theme,
+                              logLines: block.lines,
+                              showTimestamp: _showTimestamp,
+                              wrapLines: _wrapLines,
+                              matches: matches,
+                              currentMatchIndex: displayIndex,
+                              lineOffset: lineOffset,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+
+    if (!widget.showChrome) {
+      return Container(
+        alignment: Alignment.topLeft,
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          borderRadius: CalfTheme.radius,
+          color: logsPanelBackground(theme),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: logBody,
+      );
+    }
 
     return _LogsViewerChrome(
       theme: theme,
@@ -300,79 +412,12 @@ class _MixedLogsPanelState extends State<MixedLogsPanel>
       onNextMatch: matches.isEmpty ? null : () => goToMatch(1, matches),
       onCopy: _copyToClipboard,
       onClear: widget.onClear,
-      showTimestamp: showTimestamp,
-      wrapLines: wrapLines,
+      showTimestamp: _showTimestamp,
+      wrapLines: _wrapLines,
       onShowTimestampChanged: setLogViewerShowTimestamp,
       onWrapLinesChanged: setLogViewerWrapLines,
       scrollController: widget.scrollController,
-      scrollableContent: emptyMessage != null
-          ? Align(
-              alignment: Alignment.topLeft,
-              child: Text(emptyMessage, style: CalfTheme.muted(theme)),
-            )
-          : widget.blocks.isEmpty
-          ? const SizedBox.shrink()
-          : ListView.builder(
-              controller: widget.scrollController,
-              itemCount: widget.blocks.length,
-              itemBuilder: (context, index) {
-                final block = widget.blocks[index];
-                final lineOffset = _lineOffsetForBlock(index);
-
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: index == widget.blocks.length - 1 ? 0 : 12,
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 96,
-                        child: Text(
-                          block.containerName,
-                          style: theme.textTheme.bodySmall!.copyWith(
-                            color: block.color,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              left: 8,
-                              top: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 3,
-                                decoration: BoxDecoration(
-                                  color: block.color,
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(left: 19),
-                              child: _LogTextView(
-                                theme: theme,
-                                logLines: block.lines,
-                                showTimestamp: showTimestamp,
-                                wrapLines: wrapLines,
-                                matches: matches,
-                                currentMatchIndex: displayIndex,
-                                lineOffset: lineOffset,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+      scrollableContent: logBody,
       primaryListView: emptyMessage == null && widget.blocks.isNotEmpty,
     );
   }

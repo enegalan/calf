@@ -38,6 +38,7 @@ type Config struct {
 	DefaultDockerSocket     bool     `yaml:"default_docker_socket"`
 	PrivilegedPorts         bool     `yaml:"privileged_ports"`
 	FileShares              []string `yaml:"file_shares"`
+	ShareHome               bool     `yaml:"share_home"`
 	HostNetworking          bool     `yaml:"host_networking"`
 	DaemonJSON              string   `yaml:"daemon_json"`
 	DockerSubnet            string   `yaml:"docker_subnet"`
@@ -109,6 +110,9 @@ func Load() (Config, error) {
 	}
 	if _, ok := raw["resource_saver_timeout_sec"]; !ok {
 		cfg.ResourceSaverTimeoutSec = defaultFromYAML().ResourceSaverTimeoutSec
+	}
+	if _, ok := raw["share_home"]; !ok {
+		cfg.ShareHome = true
 	}
 
 	cfg = withDefaults(cfg)

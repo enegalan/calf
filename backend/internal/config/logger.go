@@ -57,6 +57,26 @@ func NormalizeLogLevel(level string) (string, error) {
 	}
 }
 
+// ClearLogFile removes the daemon log and rotated backup so a later failure can be captured cleanly.
+func ClearLogFile() error {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+	if logFile != nil {
+		return logFile.Clear()
+	}
+	path, err := LogFilePath()
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(path + ".1"); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
 // ReopenLogFile closes and reopens the daemon log file after it was deleted.
 func ReopenLogFile() io.Writer {
 	logFileMu.Lock()

@@ -6,11 +6,18 @@ import (
 	"strings"
 )
 
-// MergeDaemonJSON overlays user JSON onto the baked guest daemon.json (buildkit + DNS).
+// MergeDaemonJSON overlays user JSON onto the baked guest daemon.json defaults.
 func MergeDaemonJSON(overlay string, dockerSubnet string) (string, error) {
 	base := map[string]any{
 		"features": map[string]any{"buildkit": true},
 		"dns":      []any{"1.1.1.1", "8.8.8.8"},
+		"builder": map[string]any{
+			"gc": map[string]any{
+				"defaultKeepStorage": "20GB",
+				"enabled":            true,
+			},
+		},
+		"experimental": false,
 	}
 	overlay = strings.TrimSpace(overlay)
 	if overlay != "" {

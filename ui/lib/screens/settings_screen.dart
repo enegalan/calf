@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:path/path.dart' as p;
@@ -14,17 +16,165 @@ import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/calf_tab_bar.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 
-/// Settings categories matching Docker Desktop's sidebar.
-enum _SettingsTab {
-  general,
-  resources,
-  engine,
-  builders,
-  updates,
-  advanced,
+/// Option titles in [entries] that contain [query] (case-insensitive).
+List<String> matchingSettingTitles(List<String> entries, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) {
+    return const [];
+  }
+  return [
+    for (final title in entries)
+      if (title.toLowerCase().contains(q)) title,
+  ];
 }
+
+/// Text spans that bold the first case-insensitive match of [query] in [text].
+List<InlineSpan> highlightSearchQuery(String text, String query) {
+  final q = query.trim();
+  if (q.isEmpty) {
+    return [TextSpan(text: text)];
+  }
+  final index = text.toLowerCase().indexOf(q.toLowerCase());
+  if (index < 0) {
+    return [TextSpan(text: text)];
+  }
+  final end = index + q.length;
+  return [
+    if (index > 0) TextSpan(text: text.substring(0, index)),
+    TextSpan(
+      text: text.substring(index, end),
+      style: const TextStyle(fontWeight: FontWeight.w700),
+    ),
+    if (end < text.length) TextSpan(text: text.substring(end)),
+  ];
+}
+
+/// Last path component used as the file-share row label.
+String fileShareLabel(String path) {
+  final name = p.basename(normalizeFileSharePath(path));
+  return name.isEmpty ? path.trim() : name;
+}
+
+/// Whether [path] is an absolute host path suitable as an extra file share.
+bool isValidFileSharePath(String path) {
+  final trimmed = path.trim();
+  if (trimmed.isEmpty) {
+    return false;
+  }
+  return p.isAbsolute(trimmed);
+}
+
+/// Trims and normalizes a file-share path for storage and comparison.
+String normalizeFileSharePath(String path) {
+  return p.normalize(path.trim());
+}
+
+/// Whether HTTP, HTTPS, and no-proxy are all unset.
+bool proxyConfigIsEmpty(String httpProxy, String httpsProxy, String noProxy) {
+  return httpProxy.trim().isEmpty &&
+      httpsProxy.trim().isEmpty &&
+      noProxy.trim().isEmpty;
+}
+
+/// Default bridge CIDR when docker_subnet is unset in config.
+const defaultDockerSubnet = '172.17.0.0/16';
+
+/// Returns the Docker subnet value shown in Settings.
+String displayDockerSubnet(String saved) {
+  final trimmed = saved.trim();
+  return trimmed.isEmpty ? defaultDockerSubnet : trimmed;
+}
+
+/// Normalizes the Docker subnet draft for save and dirty checks.
+String normalizeDockerSubnetForSave(String draft) {
+  final trimmed = draft.trim();
+  if (trimmed.isEmpty || trimmed == defaultDockerSubnet) {
+    return '';
+  }
+  return trimmed;
+}
+
+/// dockerd CLI reference for daemon.json options.
+const dockerdReferenceUrl = 'https://docs.docker.com/reference/cli/dockerd/';
+
+/// Default daemon.json overlay shown in Settings (matches Docker Desktop).
+const defaultDaemonJsonOverlay =
+    '{\n'
+    '  "builder": {\n'
+    '    "gc": {\n'
+    '      "defaultKeepStorage": "20GB",\n'
+    '      "enabled": true\n'
+    '    }\n'
+    '  },\n'
+    '  "experimental": false\n'
+    '}';
+
+/// Returns the daemon.json overlay shown in Settings.
+String displayDaemonJson(String saved) {
+  final trimmed = saved.trim();
+  return trimmed.isEmpty ? defaultDaemonJsonOverlay : trimmed;
+}
+
+/// Whether two daemon.json strings decode to the same JSON value.
+bool daemonJsonEquivalent(String left, String right) {
+  try {
+    final decodedLeft = jsonDecode(left.trim());
+    final decodedRight = jsonDecode(right.trim());
+    return jsonEncode(decodedLeft) == jsonEncode(decodedRight);
+  } on FormatException {
+    return false;
+  }
+}
+
+/// Normalizes the daemon.json draft for save and dirty checks.
+String normalizeDaemonJsonForSave(String draft) {
+  final trimmed = draft.trim();
+  if (trimmed.isEmpty ||
+      daemonJsonEquivalent(trimmed, defaultDaemonJsonOverlay)) {
+    return '';
+  }
+  return trimmed;
+}
+
+/// Resources sub-pane matching Docker Desktop's Advanced / File sharing / Proxies / Network tabs.
+enum ResourcesPane { advanced, fileSharing, proxies, network }
+
+/// Proxy UI mode: hide fields, or edit HTTP/HTTPS/no-proxy manually.
+enum _ProxyMode { none, manual }
+
+/// Resources sub-pane for a Settings option title.
+ResourcesPane resourcesPaneForSetting(String title) {
+  switch (title) {
+    case 'File sharing':
+      return ResourcesPane.fileSharing;
+    case 'Proxies':
+    case 'calf proxy':
+    case 'Containers proxy':
+    case 'Engine proxy':
+    case 'Proxy mode':
+    case 'No proxy':
+    case 'Manual configuration':
+    case 'System proxy':
+    case 'HTTP proxy':
+    case 'HTTPS proxy':
+    case 'Bypass proxy settings':
+      return ResourcesPane.proxies;
+    case 'Network':
+    case 'Enable host networking':
+    case 'Bind published ports to localhost':
+    case 'Docker subnet':
+    case 'Port binding behavior':
+      return ResourcesPane.network;
+    default:
+      return ResourcesPane.advanced;
+  }
+}
+
+/// Settings categories matching Docker Desktop's sidebar.
+enum _SettingsTab { general, resources, engine, builders, updates, advanced }
 
 /// One sidebar row in Settings.
 class _SettingsNavItem {
@@ -34,12 +184,23 @@ class _SettingsNavItem {
     required this.label,
     required this.icon,
     required this.keywords,
+    required this.entries,
   });
 
   final _SettingsTab tab;
   final String label;
   final IconData icon;
   final List<String> keywords;
+  final List<String> entries;
+}
+
+/// A Settings category plus nested option titles that matched search.
+class _SettingsSearchGroup {
+  /// Creates a [_SettingsSearchGroup].
+  const _SettingsSearchGroup({required this.item, this.hits = const []});
+
+  final _SettingsNavItem item;
+  final List<String> hits;
 }
 
 /// Settings screen with a Docker Desktop-style sidebar and described options.
@@ -86,19 +247,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _diskImageController = TextEditingController();
   final _httpProxyController = TextEditingController();
   final _httpsProxyController = TextEditingController();
-  final _noProxyInputController = TextEditingController();
+  final _noProxyController = TextEditingController();
   final _daemonJsonController = TextEditingController();
-  final _fileSharesController = TextEditingController();
+  final _fileShareInputController = TextEditingController();
   final _dockerSubnetController = TextEditingController();
-  List<String> _noProxyEntries = [];
+  List<String> _fileShares = [];
   List<BuilderInfo> _builders = [];
   String? _httpProxyError;
   String? _httpsProxyError;
+  _ProxyMode _proxyMode = _ProxyMode.none;
+  ResourcesPane _resourcesPane = ResourcesPane.advanced;
   bool _migrating = false;
   MigrationStatus? _migrationStatus;
   bool _dockerContextManaged = true;
-  bool _dockerContextSaving = false;
-  bool _debugSaving = false;
+  bool _draftShellCompletions = false;
+  bool _draftEnableAmd64Emulation = false;
+  bool _draftHostNetworking = false;
+  bool _draftBindLocalhostOnly = false;
+  bool _draftDefaultDockerSocket = false;
+  bool _draftPrivilegedPorts = false;
+  bool _draftDebug = false;
   bool? _launchAtLoginEnabled;
   bool _launchAtLoginLoading = true;
   bool _launchAtLoginSaving = false;
@@ -130,6 +298,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'emulation',
         'migration',
       ],
+      entries: [
+        'Start calf when you sign in to your computer',
+        'Open the dashboard when calf starts',
+        'Choose theme for calf',
+        'Light',
+        'Dark',
+        'Use system settings',
+        'Use calf for Docker CLI',
+        'Configure shell completions',
+        'Use Rosetta for x86_64/amd64 emulation on Apple Silicon',
+        'Enable amd64 emulation',
+        'Import from Docker Desktop',
+        'Migrate from Docker Desktop',
+      ],
     ),
     _SettingsNavItem(
       tab: _SettingsTab.resources,
@@ -149,32 +331,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'host networking',
         'localhost',
       ],
+      entries: [
+        'CPU limit',
+        'Memory limit',
+        'Swap',
+        'Disk usage limit',
+        'Disk image location',
+        'File sharing',
+        'Network',
+        'Enable host networking',
+        'Bind published ports to localhost',
+        'Docker subnet',
+        'Port binding behavior',
+        'Resource Saver',
+        'Enable Resource Saver',
+        'Proxies',
+        'calf proxy',
+        'Containers proxy',
+        'System proxy',
+        'Proxy mode',
+        'No proxy',
+        'Manual configuration',
+        'HTTP proxy',
+        'HTTPS proxy',
+        'Bypass proxy settings',
+      ],
     ),
     _SettingsNavItem(
       tab: _SettingsTab.engine,
       label: 'Docker Engine',
       icon: LucideIcons.container,
-      keywords: ['daemon', 'json', 'engine', 'dockerd'],
+      keywords: ['daemon', 'json', 'engine', 'dockerd', 'registry', 'mirror'],
+      entries: [
+        'Docker daemon configuration',
+        'registry-mirrors',
+        'insecure-registries',
+        'dockerd command reference',
+      ],
     ),
     _SettingsNavItem(
       tab: _SettingsTab.builders,
       label: 'Builders',
       icon: LucideIcons.hammer,
       keywords: ['buildx', 'builder', 'build'],
+      entries: ['Selected builder', 'Available builders'],
     ),
     _SettingsNavItem(
       tab: _SettingsTab.updates,
       label: 'Software updates',
       icon: LucideIcons.download,
       keywords: ['update', 'version', 'release'],
+      entries: ['Software updates preferences', 'Check for updates'],
     ),
     _SettingsNavItem(
       tab: _SettingsTab.advanced,
       label: 'Advanced',
       icon: LucideIcons.shield,
       keywords: ['socket', 'privileged', 'ports', 'debug', 'password'],
+      entries: [
+        'Allow the default Docker socket to be used (requires password)',
+        'Allow privileged port mapping (requires password)',
+        'Debug',
+      ],
     ),
   ];
+
+  /// Whether proxy fields differ from the saved config.
+  bool get _proxyDirty {
+    final config = _config;
+    if (config == null) {
+      return false;
+    }
+    final savedEmpty = proxyConfigIsEmpty(
+      config.httpProxy,
+      config.httpsProxy,
+      config.noProxy,
+    );
+    if (_proxyMode == _ProxyMode.none) {
+      return !savedEmpty;
+    }
+    return _httpProxyController.text.trim() != config.httpProxy ||
+        _httpsProxyController.text.trim() != config.httpsProxy ||
+        _noProxyController.text.trim() != config.noProxy;
+  }
 
   /// Whether any settings differ from the saved config.
   bool get _dirty =>
@@ -184,14 +423,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _draftSwap.toInt() != _config!.memorySwapGB ||
           _draftDisk.toInt() != _config!.diskGB ||
           _diskImageController.text.trim() != _config!.diskImage ||
-          _httpProxyController.text.trim() != _config!.httpProxy ||
-          _httpsProxyController.text.trim() != _config!.httpsProxy ||
-          _noProxyEntries.join(',') != _config!.noProxy ||
+          _proxyDirty ||
           _draftResourceSaverEnabled != _config!.resourceSaverEnabled ||
           _draftResourceSaverTimeoutSec != _config!.resourceSaverTimeoutSec ||
-          _daemonJsonController.text.trim() != _config!.daemonJSON ||
-          _fileSharesController.text.trim() != _config!.fileShares.join(', ') ||
-          _dockerSubnetController.text.trim() != _config!.dockerSubnet);
+          _dockerContextManaged != _config!.dockerContextManaged ||
+          _draftShellCompletions != _config!.shellCompletions ||
+          _draftEnableAmd64Emulation != _config!.enableAmd64Emulation ||
+          _draftHostNetworking != _config!.hostNetworking ||
+          _draftBindLocalhostOnly != _config!.bindLocalhostOnly ||
+          _draftDefaultDockerSocket != _config!.defaultDockerSocket ||
+          _draftPrivilegedPorts != _config!.privilegedPorts ||
+          _draftDebug != (_config!.logLevel == 'debug') ||
+          normalizeDaemonJsonForSave(_daemonJsonController.text) !=
+              _config!.daemonJSON.trim() ||
+          !listEquals(_fileShares, _config!.fileShares) ||
+          normalizeDockerSubnetForSave(_dockerSubnetController.text) !=
+              _config!.dockerSubnet.trim());
 
   /// Releases resources when the widget is removed.
   @override
@@ -199,9 +446,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _diskImageController.dispose();
     _httpProxyController.dispose();
     _httpsProxyController.dispose();
-    _noProxyInputController.dispose();
+    _noProxyController.dispose();
     _daemonJsonController.dispose();
-    _fileSharesController.dispose();
+    _fileShareInputController.dispose();
     _dockerSubnetController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -276,20 +523,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftDisk = config.diskGB.toDouble();
         _draftResourceSaverEnabled = config.resourceSaverEnabled;
         _draftResourceSaverTimeoutSec = config.resourceSaverTimeoutSec;
+        _dockerContextManaged = config.dockerContextManaged;
+        _draftShellCompletions = config.shellCompletions;
+        _draftEnableAmd64Emulation = config.enableAmd64Emulation;
+        _draftHostNetworking = config.hostNetworking;
+        _draftBindLocalhostOnly = config.bindLocalhostOnly;
+        _draftDefaultDockerSocket = config.defaultDockerSocket;
+        _draftPrivilegedPorts = config.privilegedPorts;
+        _draftDebug = config.logLevel == 'debug';
         _diskImageController.text = config.diskImage;
         _httpProxyController.text = config.httpProxy;
         _httpsProxyController.text = config.httpsProxy;
-        _daemonJsonController.text = config.daemonJSON;
-        _fileSharesController.text = config.fileShares.join(', ');
-        _dockerSubnetController.text = config.dockerSubnet;
-        _noProxyEntries = config.noProxy
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+        _proxyMode =
+            proxyConfigIsEmpty(
+              config.httpProxy,
+              config.httpsProxy,
+              config.noProxy,
+            )
+            ? _ProxyMode.none
+            : _ProxyMode.manual;
+        _daemonJsonController.text = displayDaemonJson(config.daemonJSON);
+        _fileShares = List<String>.from(config.fileShares);
+        _fileShareInputController.clear();
+        _dockerSubnetController.text = displayDockerSubnet(config.dockerSubnet);
+        _noProxyController.text = config.noProxy;
         _httpProxyError = null;
         _httpsProxyError = null;
-        _dockerContextManaged = config.dockerContextManaged;
         _configLoading = false;
       });
       unawaited(_loadBuilders());
@@ -315,48 +574,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Copies the VM disk image to a user-chosen path. The engine must be stopped.
-  Future<void> _copyDiskImage() async {
-    final location = await getSaveLocation(suggestedName: 'calf-disk.raw');
-    if (location == null || !mounted) {
-      return;
-    }
-    final ok = await runCalfToastAction(
-      pending: 'Copying disk image...',
-      done: 'Disk image copied',
-      action: () => widget.apiClient.copyDiskImage(location.path),
-    );
-    if (!ok && mounted) {
-      return;
-    }
-  }
-
-  /// PUTs a boolean config field and refreshes the view.
-  Future<void> _patchBool(Config Function(Config current) update) async {
-    final current = _config;
-    if (current == null) {
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      final updated = await widget.apiClient.updateConfig(update(current));
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _config = updated;
-        _saving = false;
-      });
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _saving = false);
-      showCalfErrorSnackBar(context, error);
-    }
-  }
-
-  /// Saves changed resource and proxy settings to the daemon.
+  /// Saves changed settings to the daemon.
   Future<void> applyConfig() async {
     final current = _config;
     if (current == null) return;
@@ -371,18 +589,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           memorySwapGB: _draftSwap.toInt(),
           diskGB: _draftDisk.toInt(),
           diskImage: _diskImageController.text.trim(),
-          httpProxy: _httpProxyController.text.trim(),
-          httpsProxy: _httpsProxyController.text.trim(),
-          noProxy: _noProxyEntries.join(','),
+          httpProxy: _proxyMode == _ProxyMode.none
+              ? ''
+              : _httpProxyController.text.trim(),
+          httpsProxy: _proxyMode == _ProxyMode.none
+              ? ''
+              : _httpsProxyController.text.trim(),
+          noProxy: _proxyMode == _ProxyMode.none
+              ? ''
+              : _noProxyController.text.trim(),
           resourceSaverEnabled: _draftResourceSaverEnabled,
           resourceSaverTimeoutSec: _draftResourceSaverTimeoutSec,
-          daemonJSON: _daemonJsonController.text.trim(),
-          dockerSubnet: _dockerSubnetController.text.trim(),
-          fileShares: _fileSharesController.text
-              .split(',')
-              .map((part) => part.trim())
-              .where((part) => part.isNotEmpty)
-              .toList(),
+          daemonJSON: normalizeDaemonJsonForSave(_daemonJsonController.text),
+          dockerSubnet: normalizeDockerSubnetForSave(
+            _dockerSubnetController.text,
+          ),
+          fileShares: List<String>.from(_fileShares),
+          dockerContextManaged: _dockerContextManaged,
+          shellCompletions: _draftShellCompletions,
+          enableAmd64Emulation: _draftEnableAmd64Emulation,
+          hostNetworking: _draftHostNetworking,
+          bindLocalhostOnly: _draftBindLocalhostOnly,
+          defaultDockerSocket: _draftDefaultDockerSocket,
+          privilegedPorts: _draftPrivilegedPorts,
+          logLevel: _draftDebug ? 'debug' : 'info',
         ),
       );
       if (!mounted) return;
@@ -394,21 +624,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _draftDisk = updated.diskGB.toDouble();
         _draftResourceSaverEnabled = updated.resourceSaverEnabled;
         _draftResourceSaverTimeoutSec = updated.resourceSaverTimeoutSec;
+        _dockerContextManaged = updated.dockerContextManaged;
+        _draftShellCompletions = updated.shellCompletions;
+        _draftEnableAmd64Emulation = updated.enableAmd64Emulation;
+        _draftHostNetworking = updated.hostNetworking;
+        _draftBindLocalhostOnly = updated.bindLocalhostOnly;
+        _draftDefaultDockerSocket = updated.defaultDockerSocket;
+        _draftPrivilegedPorts = updated.privilegedPorts;
+        _draftDebug = updated.logLevel == 'debug';
         _diskImageController.text = updated.diskImage;
         _httpProxyController.text = updated.httpProxy;
         _httpsProxyController.text = updated.httpsProxy;
-        _daemonJsonController.text = updated.daemonJSON;
-        _fileSharesController.text = updated.fileShares.join(', ');
-        _dockerSubnetController.text = updated.dockerSubnet;
-        _noProxyEntries = updated.noProxy
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+        _proxyMode =
+            proxyConfigIsEmpty(
+              updated.httpProxy,
+              updated.httpsProxy,
+              updated.noProxy,
+            )
+            ? _ProxyMode.none
+            : _ProxyMode.manual;
+        _daemonJsonController.text = displayDaemonJson(updated.daemonJSON);
+        _fileShares = List<String>.from(updated.fileShares);
+        _fileShareInputController.clear();
+        _dockerSubnetController.text = displayDockerSubnet(
+          updated.dockerSubnet,
+        );
+        _noProxyController.text = updated.noProxy;
         _httpProxyError = null;
         _httpsProxyError = null;
         _saving = false;
       });
+      widget.onDebugChanged?.call(updated.logLevel == 'debug');
       showCalfSnackBar(context, 'Settings saved', kind: CalfToastKind.success);
     } catch (error) {
       if (!mounted) return;
@@ -557,78 +803,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Toggles whether calf manages the Docker CLI context.
-  Future<void> setDockerContextManaged(bool value) async {
-    final current = _config;
-    if (current == null) return;
-
-    setState(() {
-      _dockerContextManaged = value;
-      _dockerContextSaving = true;
-    });
-
-    try {
-      final updated = await widget.apiClient.updateConfig(
-        current.copyWith(dockerContextManaged: value),
-      );
-      if (!mounted) return;
-      setState(() {
-        _config = updated;
-        _dockerContextManaged = updated.dockerContextManaged;
-        _dockerContextSaving = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _dockerContextManaged = current.dockerContextManaged;
-        _dockerContextSaving = false;
-      });
-      showCalfErrorSnackBar(context, error);
-    }
-  }
-
-  /// Toggles verbose daemon logging and the top-bar logs button.
-  Future<void> setDebugEnabled(bool value) async {
-    final current = _config;
-    if (current == null) {
-      return;
-    }
-
-    setState(() => _debugSaving = true);
-
-    try {
-      final updated = await widget.apiClient.updateLogLevel(
-        value ? 'debug' : 'info',
-      );
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _config = updated;
-        _debugSaving = false;
-      });
-      widget.onDebugChanged?.call(updated.logLevel == 'debug');
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() => _debugSaving = false);
-      showCalfErrorSnackBar(context, error);
-    }
-  }
-
-  /// Sidebar categories matching the current search query.
-  List<_SettingsNavItem> get _visibleNav {
-    final query = _searchQuery.trim().toLowerCase();
+  /// Sidebar categories matching the current search query, with nested option hits.
+  List<_SettingsSearchGroup> get _visibleGroups {
+    final query = _searchQuery.trim();
     if (query.isEmpty) {
-      return _navItems;
+      return [for (final item in _navItems) _SettingsSearchGroup(item: item)];
     }
-    return _navItems.where((item) {
-      if (item.label.toLowerCase().contains(query)) {
-        return true;
+    final q = query.toLowerCase();
+    final groups = <_SettingsSearchGroup>[];
+    for (final item in _navItems) {
+      final hits = matchingSettingTitles(item.entries, query);
+      final categoryMatch =
+          item.label.toLowerCase().contains(q) ||
+          item.keywords.any((keyword) => keyword.contains(q));
+      if (hits.isNotEmpty || categoryMatch) {
+        groups.add(_SettingsSearchGroup(item: item, hits: hits));
       }
-      return item.keywords.any((keyword) => keyword.contains(query));
-    }).toList();
+    }
+    return groups;
   }
 
   /// Builds the widget tree.
@@ -638,8 +830,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final canApply =
         _dirty &&
         !_saving &&
-        _httpProxyError == null &&
-        _httpsProxyError == null;
+        (_proxyMode == _ProxyMode.none ||
+            (_httpProxyError == null && _httpsProxyError == null));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -692,14 +884,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                             )
                           : SingleChildScrollView(
-                              padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
+                              padding: const EdgeInsets.fromLTRB(
+                                28,
+                                20,
+                                28,
+                                28,
+                              ),
                               child: _pageForTab(theme),
                             ),
                     ),
-                    Divider(
-                      height: 1,
-                      color: theme.colorScheme.outlineVariant,
-                    ),
+                    Divider(height: 1, color: theme.colorScheme.outlineVariant),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
                       child: Row(
@@ -731,7 +925,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// Builds the Settings category sidebar with search.
   Widget _sidebar(ThemeData theme) {
-    final visible = _visibleNav;
+    final groups = _visibleGroups;
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
       child: Column(
@@ -757,8 +951,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
               children: [
-                for (final item in visible) _navTile(theme, item),
-                if (visible.isEmpty)
+                for (final group in groups) ...[
+                  _navTile(theme, group.item, tight: group.hits.isNotEmpty),
+                  for (final hit in group.hits)
+                    _searchHitTile(theme, group.item, hit),
+                ],
+                if (groups.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
@@ -778,22 +976,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _onSearchChanged(String value) {
     setState(() {
       _searchQuery = value;
-      final visible = _visibleNav;
-      if (visible.isNotEmpty &&
-          !visible.any((item) => item.tab == _tab)) {
-        _tab = visible.first.tab;
+      final visible = _visibleGroups;
+      if (visible.isEmpty) {
+        return;
+      }
+      if (!visible.any((group) => group.item.tab == _tab)) {
+        _tab = visible.first.item.tab;
+      }
+      final selected = visible.firstWhere((group) => group.item.tab == _tab);
+      if (selected.item.tab == _SettingsTab.resources &&
+          selected.hits.isNotEmpty) {
+        _resourcesPane = resourcesPaneForSetting(selected.hits.first);
       }
     });
   }
 
   /// Builds one sidebar category row.
-  Widget _navTile(ThemeData theme, _SettingsNavItem item) {
+  Widget _navTile(
+    ThemeData theme,
+    _SettingsNavItem item, {
+    bool tight = false,
+  }) {
     final selected = item.tab == _tab;
+    final searching = _searchQuery.trim().isNotEmpty;
     final color = selected
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurface;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
+      padding: EdgeInsets.only(bottom: tight ? 2 : 8),
       child: Material(
         animationDuration: CalfTheme.materialAnimationDuration,
         color: selected
@@ -802,7 +1012,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: CalfTheme.radius,
         child: InkWell(
           borderRadius: CalfTheme.radius,
-          onTap: () => setState(() => _tab = item.tab),
+          onTap: () => _openSetting(item),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             child: Row(
@@ -810,11 +1020,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Icon(item.icon, size: 16, color: color),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    item.label,
-                    style: theme.textTheme.bodyMedium!.copyWith(
-                      color: color,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  child: Text.rich(
+                    TextSpan(
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: color,
+                        fontWeight: selected || searching
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                      children: highlightSearchQuery(item.label, _searchQuery),
                     ),
                   ),
                 ),
@@ -824,6 +1038,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Builds one nested option hit under a Settings category.
+  Widget _searchHitTile(ThemeData theme, _SettingsNavItem item, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 0, 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: CalfTheme.radius,
+          onTap: () => _openSetting(item, title),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            child: Text.rich(
+              TextSpan(
+                style: theme.textTheme.bodyMedium!.copyWith(
+                  color: theme.colorScheme.onSurface,
+                ),
+                children: highlightSearchQuery(title, _searchQuery),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Opens a Settings category, and a Resources sub-pane when [title] is set.
+  void _openSetting(_SettingsNavItem item, [String? title]) {
+    setState(() {
+      _tab = item.tab;
+      if (item.tab == _SettingsTab.resources && title != null) {
+        _resourcesPane = resourcesPaneForSetting(title);
+      }
+    });
   }
 
   /// Returns the content pane for the selected category.
@@ -904,22 +1153,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _option(
           title: 'Use calf for Docker CLI',
           description:
-              'Points the docker CLI at calf so docker and docker compose work in a terminal.',
+              'Uses calf for docker and docker compose in the terminal and in apps. Your password may be required once.',
           value: _dockerContextManaged,
-          onChanged: _dockerContextSaving ? null : setDockerContextManaged,
+          onChanged: (value) => setState(() => _dockerContextManaged = value),
         ),
         if (_config != null) ...[
-          Padding(
-            padding: const EdgeInsets.only(left: 40, bottom: 8),
-            child: Text(
-              _config!.dockerContextActive
-                  ? 'Active context: calf'
-                  : _config!.dockerContextName.isEmpty
-                  ? 'Docker CLI context is not set to calf'
-                  : 'Active context: ${_config!.dockerContextName}',
-              style: CalfTheme.muted(theme),
+          if (!_config!.dockerContextActive)
+            Padding(
+              padding: const EdgeInsets.only(left: 40, bottom: 8),
+              child: Text(
+                _config!.dockerContextName.isEmpty
+                    ? 'docker is not using calf yet'
+                    : 'docker is using ${_config!.dockerContextName}',
+                style: CalfTheme.muted(theme),
+              ),
             ),
-          ),
           if (!_config!.dockerCliAvailable ||
               _config!.dockerPluginsHint.isNotEmpty) ...[
             if (_config!.dockerPluginsHint.isNotEmpty)
@@ -951,47 +1199,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
-          for (final warning in _config!.hijackWarnings)
-            Padding(
-              padding: const EdgeInsets.only(left: 40, bottom: 8),
-              child: Text(warning.message, style: CalfTheme.muted(theme)),
-            ),
         ],
         _option(
           title: 'Configure shell completions',
           description:
               'Edits your shell configuration so Tab completes docker commands, flags, and objects.',
-          value: _config?.shellCompletions ?? false,
-          onChanged: _saving
-              ? null
-              : (value) => _patchBool(
-                  (cfg) => cfg.copyWith(shellCompletions: value),
-                ),
+          value: _draftShellCompletions,
+          onChanged: (value) => setState(() => _draftShellCompletions = value),
         ),
         if (theme.platform == TargetPlatform.macOS)
           _option(
-            title:
-                'Use Rosetta for x86_64/amd64 emulation on Apple Silicon',
+            title: 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon',
             description:
                 'Accelerate x86/AMD64 binary emulation on Apple Silicon.',
-            value: _config?.enableAmd64Emulation ?? false,
-            onChanged: _saving
-                ? null
-                : (value) => _patchBool(
-                    (cfg) => cfg.copyWith(enableAmd64Emulation: value),
-                  ),
+            value: _draftEnableAmd64Emulation,
+            onChanged: (value) =>
+                setState(() => _draftEnableAmd64Emulation = value),
           )
         else
           _option(
             title: 'Enable amd64 emulation',
-            description:
-                'Run images built for x86_64/amd64 on this machine.',
-            value: _config?.enableAmd64Emulation ?? false,
-            onChanged: _saving
-                ? null
-                : (value) => _patchBool(
-                    (cfg) => cfg.copyWith(enableAmd64Emulation: value),
-                  ),
+            description: 'Run images built for x86_64/amd64 on this machine.',
+            value: _draftEnableAmd64Emulation,
+            onChanged: (value) =>
+                setState(() => _draftEnableAmd64Emulation = value),
           ),
         const SizedBox(height: 12),
         _groupLabel(theme, 'Import from Docker Desktop'),
@@ -1035,15 +1266,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Builds the Resources pane: CPU, memory, disk, shares, network, proxy.
+  /// Builds the Resources pane with Advanced / File sharing / Proxies / Network tabs.
   Widget _resourcesPage(ThemeData theme) {
     if (_config == null) {
       return Text('Loading config...', style: CalfTheme.muted(theme));
     }
+    const panes = ResourcesPane.values;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _pageTitle(theme, 'Resources'),
+        _pageTitle(theme, 'Resources', bottom: 12),
+        CalfTabBar(
+          theme: theme,
+          labels: const ['Advanced', 'File sharing', 'Proxies', 'Network'],
+          selectedIndex: panes.indexOf(_resourcesPane),
+          onSelected: (index) => setState(() => _resourcesPane = panes[index]),
+        ),
+        const SizedBox(height: 20),
+        switch (_resourcesPane) {
+          ResourcesPane.advanced => _resourcesAdvancedPage(theme),
+          ResourcesPane.fileSharing => _fileSharingSection(theme),
+          ResourcesPane.proxies => _resourcesProxiesPage(theme),
+          ResourcesPane.network => _resourcesNetworkPage(theme),
+        },
+      ],
+    );
+  }
+
+  /// Builds CPU, memory, disk, and Resource Saver controls.
+  Widget _resourcesAdvancedPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         _sliderRow(
           'CPU limit',
           _draftCpus,
@@ -1087,99 +1341,194 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 20),
         _diskImageField(theme),
-        const SizedBox(height: 8),
-        CalfButton.outline(
-          onPressed: _saving ? null : _copyDiskImage,
-          child: const Text('Copy disk image'),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Copies the VM disk while the engine is stopped.',
-          style: CalfTheme.muted(theme),
-        ),
         const SizedBox(height: 28),
-        _groupLabel(theme, 'File sharing'),
+        _resourceSaverSection(theme),
+      ],
+    );
+  }
+
+  /// Builds calf and container proxy sections.
+  Widget _resourcesProxiesPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _groupLabel(theme, 'calf proxy'),
         Text(
-          'Share extra folders with Linux containers. Your home directory is already shared. '
-          'Add paths outside home if a bind mount is denied at runtime.',
+          'Used for calf host-level traffic: signing in to Docker Hub, software updates, and the calf application.',
           style: CalfTheme.muted(theme),
         ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _fileSharesController,
-          enabled: !_saving,
-          decoration: const InputDecoration(
-            hintText: '/tmp, /Volumes',
+        const SizedBox(height: 16),
+        Text(
+          'Proxy mode',
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          onChanged: (_) => setState(() {}),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
+        Text('System proxy', style: theme.textTheme.bodyLarge),
+        const SizedBox(height: 2),
         Text(
-          'Comma-separated paths. Apply, then restart the engine.',
+          'Use the proxy configured on the host. calf reads this automatically.',
           style: CalfTheme.muted(theme),
         ),
         const SizedBox(height: 28),
-        _groupLabel(theme, 'Network'),
+        _groupLabel(theme, 'Containers proxy'),
+        Text(
+          'Used for docker image pull and outbound traffic from running containers.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Proxy mode',
+          style: theme.textTheme.bodySmall!.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        RadioGroup<_ProxyMode>(
+          groupValue: _proxyMode,
+          onChanged: (mode) {
+            if (_saving || mode == null) {
+              return;
+            }
+            setState(() => _proxyMode = mode);
+          },
+          child: Wrap(
+            spacing: 24,
+            runSpacing: 4,
+            children: [
+              _proxyModeOption('No proxy', _ProxyMode.none),
+              _proxyModeOption('Manual configuration', _ProxyMode.manual),
+            ],
+          ),
+        ),
+        if (_proxyMode == _ProxyMode.manual) ...[
+          const SizedBox(height: 16),
+          _proxyField(
+            controller: _httpProxyController,
+            placeholder: 'Web Server (HTTP)',
+            theme: theme,
+            error: _httpProxyError,
+            onChanged: _validateHttpProxy,
+          ),
+          const SizedBox(height: 12),
+          _proxyField(
+            controller: _httpsProxyController,
+            placeholder: 'Secure Web Server (HTTPS)',
+            theme: theme,
+            error: _httpsProxyError,
+            onChanged: _validateHttpsProxy,
+          ),
+          const SizedBox(height: 12),
+          _proxyField(
+            controller: _noProxyController,
+            placeholder: 'Bypass proxy settings for these hosts & domains',
+            theme: theme,
+            helper: 'Example: registry-1.docker.com,*.docker.com,10.0.0.0/8',
+            onChanged: (_) {},
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Builds one proxy-mode radio plus label.
+  Widget _proxyModeOption(String title, _ProxyMode value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Radio<_ProxyMode>(
+          value: value,
+          enabled: !_saving,
+          visualDensity: VisualDensity.compact,
+        ),
+        InkWell(
+          onTap: _saving ? null : () => setState(() => _proxyMode = value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(title, style: Theme.of(context).textTheme.bodyLarge),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds Docker subnet, host networking, and port binding.
+  Widget _resourcesNetworkPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Configure the way Docker containers interact with the network.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 20),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: TextField(
+              controller: _dockerSubnetController,
+              enabled: !_saving,
+              decoration: const InputDecoration(
+                labelText: 'Docker subnet',
+                floatingLabelBehavior: FloatingLabelBehavior.always,
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text('default: $defaultDockerSubnet', style: CalfTheme.muted(theme)),
+        const SizedBox(height: 20),
         _option(
           title: 'Enable host networking',
           description:
-              'Lets containers use the host network stack. Restart the engine after changing this.',
-          value: _config?.hostNetworking ?? false,
-          onChanged: _saving
-              ? null
-              : (value) => _patchBool(
-                  (cfg) => cfg.copyWith(hostNetworking: value),
-                ),
+              'Host networking allows containers that are started with --net=host use localhost to connect to TCP and UDP services on the host. '
+              'It automatically allows software on the host to use localhost to connect to TCP and UDP services in the container.',
+          value: _draftHostNetworking,
+          onChanged: (value) => setState(() => _draftHostNetworking = value),
         ),
-        _option(
-          title: 'Bind published ports to localhost',
-          description:
-              'Published ports listen on 127.0.0.1 instead of all interfaces.',
-          value: _config?.bindLocalhostOnly ?? false,
-          onChanged: _saving
-              ? null
-              : (value) => _patchBool(
-                  (cfg) => cfg.copyWith(bindLocalhostOnly: value),
-                ),
-        ),
-        Text('Docker subnet', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
-        TextField(
-          controller: _dockerSubnetController,
-          enabled: !_saving,
-          decoration: const InputDecoration(hintText: '192.168.65.0/24'),
-          onChanged: (_) => setState(() {}),
+        Text('Port binding behavior', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: InputDecorator(
+              decoration: const InputDecoration(),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<bool>(
+                  value: _draftBindLocalhostOnly,
+                  isExpanded: true,
+                  isDense: true,
+                  items: const [
+                    DropdownMenuItem(
+                      value: false,
+                      child: Text('Open (Default)'),
+                    ),
+                    DropdownMenuItem(
+                      value: true,
+                      child: Text('Localhost only'),
+                    ),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _draftBindLocalhostOnly = value);
+                          }
+                        },
+                ),
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 28),
-        _resourceSaverSection(theme),
-        const SizedBox(height: 28),
-        _groupLabel(theme, 'Proxies'),
+        const SizedBox(height: 8),
         Text(
-          'HTTP and HTTPS proxy settings for image pulls inside the engine.',
+          'Controls how ports are bound to containers, either making them available on the local network (default) or only on localhost.',
           style: CalfTheme.muted(theme),
         ),
-        const SizedBox(height: 12),
-        _proxyField(
-          label: 'HTTP proxy',
-          controller: _httpProxyController,
-          placeholder: 'http://proxy.example.com:8080',
-          icon: LucideIcons.globe,
-          theme: theme,
-          error: _httpProxyError,
-          onChanged: _validateHttpProxy,
-        ),
-        const SizedBox(height: 12),
-        _proxyField(
-          label: 'HTTPS proxy',
-          controller: _httpsProxyController,
-          placeholder: 'http://proxy.example.com:8080',
-          icon: LucideIcons.lock,
-          theme: theme,
-          error: _httpsProxyError,
-          onChanged: _validateHttpsProxy,
-        ),
-        const SizedBox(height: 12),
-        _noProxySection(theme),
       ],
     );
   }
@@ -1217,27 +1566,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 16),
         Text(
-          'Configure the Docker daemon by typing a JSON Docker daemon configuration file.',
+          'Configure the Docker daemon using a JSON configuration file.',
           style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Proxy settings and the Docker subnet are configured under Resources and merged separately. '
+          'calf also enables BuildKit and default DNS on engine start.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              'For the full list of daemon.json options, see the ',
+              style: CalfTheme.muted(theme),
+            ),
+            InkWell(
+              onTap: () => openExternalUrl(dockerdReferenceUrl),
+              child: Text(
+                'dockerd command reference',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            Text('.', style: CalfTheme.muted(theme)),
+          ],
         ),
         const SizedBox(height: 12),
         TextField(
           controller: _daemonJsonController,
           enabled: !_saving,
           maxLines: 16,
-          style: const TextStyle(
-            fontFamily: CalfFonts.mono,
-            fontSize: 13,
-          ),
-          decoration: InputDecoration(
-            hintText: '{\n  "debug": true\n}',
+          style: const TextStyle(fontFamily: CalfFonts.mono, fontSize: 13),
+          decoration: const InputDecoration(
             alignLabelWithHint: true,
           ),
           onChanged: (_) => setState(() {}),
         ),
         const SizedBox(height: 8),
         Text(
-          'Merged with calf defaults on the next engine start. Select Apply to save.',
+          'Invalid JSON prevents the engine from starting. Select Apply, then restart the engine.',
           style: CalfTheme.muted(theme),
         ),
       ],
@@ -1389,9 +1760,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(width: 8),
               const Expanded(
-                child: Text(
-                  'To check for updates, select Check for updates.',
-                ),
+                child: Text('To check for updates, select Check for updates.'),
               ),
             ],
           ),
@@ -1421,9 +1790,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(width: 12),
               CalfButton(
                 onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
-                child: Text(
-                  'Download ${_updateCheckResult!.latest!.version}',
-                ),
+                child: Text('Download ${_updateCheckResult!.latest!.version}'),
               ),
             ],
           ],
@@ -1462,15 +1829,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 20),
         _option(
-          title: 'Allow the default Docker socket to be used (requires password)',
+          title:
+              'Allow the default Docker socket to be used (requires password)',
           description:
-              'Creates /var/run/docker.sock which some third-party clients may use to communicate with calf.',
-          value: _config?.defaultDockerSocket ?? false,
-          onChanged: _saving
-              ? null
-              : (value) => _patchBool(
-                  (cfg) => cfg.copyWith(defaultDockerSocket: value),
-                ),
+              'Lets editors and other apps talk to calf. Your password may be required once.',
+          value: _draftDefaultDockerSocket,
+          onChanged: (value) =>
+              setState(() => _draftDefaultDockerSocket = value),
         ),
         if ((_config?.defaultSocketHint ?? '').isNotEmpty)
           Padding(
@@ -1484,19 +1849,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           title: 'Allow privileged port mapping (requires password)',
           description:
               'Starts the privileged helper which binds published ports between 1 and 1024.',
-          value: _config?.privilegedPorts ?? false,
-          onChanged: _saving
-              ? null
-              : (value) => _patchBool(
-                  (cfg) => cfg.copyWith(privilegedPorts: value),
-                ),
+          value: _draftPrivilegedPorts,
+          onChanged: (value) => setState(() => _draftPrivilegedPorts = value),
         ),
         _option(
           title: 'Debug',
           description:
-              'Shows a bug button in the top bar so you can copy daemon logs when something goes wrong.',
-          value: _config?.logLevel == 'debug',
-          onChanged: _config == null || _debugSaving ? null : setDebugEnabled,
+              'Shows a bug button in the top bar so you can copy or clear daemon logs when something goes wrong.',
+          value: _draftDebug,
+          onChanged: (value) => setState(() => _draftDebug = value),
         ),
       ],
     );
@@ -1537,8 +1898,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Slider(
                   value: timeoutIndex.toDouble(),
                   min: 0,
-                  max: (CalfResourceSaver.timeoutSeconds.length - 1)
-                      .toDouble(),
+                  max: (CalfResourceSaver.timeoutSeconds.length - 1).toDouble(),
                   divisions: CalfResourceSaver.timeoutSeconds.length - 1,
                   label: CalfResourceSaver.labelForSeconds(
                     CalfResourceSaver.timeoutSeconds[timeoutIndex],
@@ -1578,9 +1938,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Builds a large pane heading.
-  Widget _pageTitle(ThemeData theme, String title) {
+  Widget _pageTitle(ThemeData theme, String title, {double bottom = 20}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.only(bottom: bottom),
       child: Text(
         title,
         style: theme.textTheme.headlineSmall!.copyWith(
@@ -1649,10 +2009,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   /// Builds a theme radio row. Must sit under a [RadioGroup].
-  Widget _radioOption({
-    required String title,
-    required ThemeMode value,
-  }) {
+  Widget _radioOption({required String title, required ThemeMode value}) {
     final theme = Theme.of(context);
     final enabled = widget.onThemeModeChanged != null;
     return Padding(
@@ -1780,6 +2137,174 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Builds the extra file-share list with per-path rows and an add field.
+  Widget _fileSharingSection(ThemeData theme) {
+    final draft = _fileShareInputController.text.trim();
+    final normalizedDraft = draft.isEmpty ? '' : normalizeFileSharePath(draft);
+    final draftValid = isValidFileSharePath(normalizedDraft);
+    final canAdd =
+        !_saving && draftValid && !_fileShares.contains(normalizedDraft);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'These locations will be made available to containers. '
+          'Apply, then restart the engine.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        for (final path in _fileShares)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _fileShareRow(
+              theme: theme,
+              path: path,
+              onRemove: _saving ? null : () => _removeFileShare(path),
+            ),
+          ),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _fileShareInputController,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  hintText: '/path/to/exported/directory',
+                  suffixIconConstraints: const BoxConstraints(
+                    minHeight: 0,
+                    minWidth: 0,
+                  ),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: _saving ? null : _browseFileShareDirectory,
+                      child: const Text('Browse'),
+                    ),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
+                onSubmitted: _addFileShare,
+              ),
+            ),
+            const SizedBox(width: 4),
+            _fileShareIconButton(
+              theme: theme,
+              icon: LucideIcons.plus,
+              tooltip: 'Add file share',
+              onPressed: canAdd ? () => _addFileShare(draft) : null,
+            ),
+          ],
+        ),
+        if (draft.isNotEmpty && !draftValid)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Must be an absolute path',
+              style: CalfTheme.muted(theme).copyWith(fontSize: 12),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Builds one existing file-share path with a remove control.
+  Widget _fileShareRow({
+    required ThemeData theme,
+    required String path,
+    required VoidCallback? onRemove,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: fileShareLabel(path),
+              floatingLabelBehavior: FloatingLabelBehavior.always,
+            ),
+            child: Text(
+              path,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        _fileShareIconButton(
+          theme: theme,
+          icon: LucideIcons.minus,
+          tooltip: 'Remove $path',
+          onPressed: onRemove,
+        ),
+      ],
+    );
+  }
+
+  /// Builds the plus/minus control next to a file-share field.
+  Widget _fileShareIconButton({
+    required ThemeData theme,
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      icon: Icon(
+        icon,
+        size: 18,
+        color: onPressed == null
+            ? theme.colorScheme.outline
+            : theme.colorScheme.primary,
+      ),
+    );
+  }
+
+  /// Adds a validated extra file-share path to the draft list.
+  void _addFileShare(String rawValue) {
+    final path = normalizeFileSharePath(rawValue);
+    if (!isValidFileSharePath(path) || _fileShares.contains(path)) {
+      return;
+    }
+    setState(() {
+      _fileShares.add(path);
+      _fileShareInputController.clear();
+    });
+  }
+
+  /// Removes [path] from the draft file-share list.
+  void _removeFileShare(String path) {
+    setState(() => _fileShares.remove(path));
+  }
+
+  /// Opens a folder picker and adds the chosen directory as a file share.
+  Future<void> _browseFileShareDirectory() async {
+    try {
+      final directory = await getDirectoryPath(confirmButtonText: 'Select');
+      if (directory == null || !mounted) {
+        return;
+      }
+      setState(() => _fileShareInputController.text = directory);
+      _addFileShare(directory);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      final message = folderPickerErrorMessage(error);
+      if (message == null) {
+        return;
+      }
+      showCalfSnackBar(context, message);
+    }
+  }
+
   /// Validates the HTTP proxy field and updates the error state.
   void _validateHttpProxy(String value) {
     setState(() => _httpProxyError = _validateProxyUrl(value, ['http']));
@@ -1809,190 +2334,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return null;
   }
 
-  /// Builds the no-proxy host list editor section.
-  Widget _noProxySection(ThemeData theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'No proxy',
-          style: theme.textTheme.bodySmall!.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (_noProxyEntries.isNotEmpty) ...[
-          Semantics(
-            container: true,
-            label: 'No proxy hosts',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final entry in _noProxyEntries)
-                  InputChip(
-                    label: Text(entry),
-                    labelStyle: theme.textTheme.bodyMedium!.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
-                    deleteIcon: const Padding(
-                      padding: EdgeInsets.all(3),
-                      child: Icon(LucideIcons.x, size: 12),
-                    ),
-                    deleteIconColor: theme.colorScheme.onSurfaceVariant,
-                    deleteButtonTooltipMessage:
-                        'Remove $entry from no proxy list',
-                    onDeleted: () {
-                      setState(() => _noProxyEntries.remove(entry));
-                    },
-                    side: BorderSide(color: theme.colorScheme.outline),
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: CalfTheme.radius,
-                    ),
-                    materialTapTargetSize: MaterialTapTargetSize.padded,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-        ],
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _noProxyInputController,
-                decoration: InputDecoration(
-                  hintText: 'localhost',
-                  prefixIcon: Icon(
-                    LucideIcons.ban,
-                    size: 16,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (value) {
-                  _addNoProxyEntry(value, theme);
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            CalfButton.outline(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              onPressed: _noProxyInputController.text.trim().isEmpty
-                  ? null
-                  : () => _addNoProxyEntry(_noProxyInputController.text, theme),
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-        if (_noProxyInputController.text.trim().isNotEmpty &&
-            !_isValidNoProxyEntry(_noProxyInputController.text.trim()))
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              'Must be a valid hostname or IP address',
-              style: CalfTheme.muted(theme).copyWith(fontSize: 12),
-            ),
-          ),
-      ],
-    );
-  }
-
-  /// Adds a validated host to the no-proxy list.
-  void _addNoProxyEntry(String rawValue, ThemeData theme) {
-    final value = rawValue.trim();
-    if (value.isEmpty || _noProxyEntries.contains(value)) return;
-    if (!_isValidNoProxyEntry(value)) return;
-    setState(() {
-      _noProxyEntries.add(value);
-      _noProxyInputController.clear();
-    });
-  }
-
-  /// Whether the entry is a valid hostname, IP, or host:port.
-  bool _isValidNoProxyEntry(String entry) {
-    if (entry.isEmpty) return false;
-    if (entry.contains('/')) return false;
-    final host = entry.startsWith('.') ? entry.substring(1) : entry;
-    if (_isIpAddress(host)) return true;
-    final colonIdx = host.lastIndexOf(':');
-    if (colonIdx > 0) {
-      final port = host.substring(colonIdx + 1);
-      if (RegExp(r'^\d+$').hasMatch(port)) {
-        return _isValidHostname(host.substring(0, colonIdx));
-      }
-    }
-    return _isValidHostname(host);
-  }
-
-  /// Whether [host] looks like an IPv4 address.
-  bool _isIpAddress(String host) {
-    return RegExp(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$').hasMatch(host);
-  }
-
-  /// Whether [host] is a valid DNS hostname.
-  bool _isValidHostname(String host) {
-    if (host.isEmpty || host.length > 253) return false;
-    final parts = host.split('.');
-    for (final part in parts) {
-      if (part.isEmpty || part.length > 63) return false;
-      if (part.startsWith('-') || part.endsWith('-')) return false;
-      if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(part)) return false;
-    }
-    return true;
-  }
-
-  /// Builds a labeled proxy URL input field.
+  /// Builds a proxy URL or bypass input field.
   Widget _proxyField({
-    required String label,
     required TextEditingController controller,
     required String placeholder,
-    required IconData icon,
     required ThemeData theme,
     String? error,
+    String? helper,
     required ValueChanged<String> onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.bodySmall!.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 8),
         TextField(
           controller: controller,
-          decoration: InputDecoration(
-            hintText: placeholder,
-            prefixIcon: Icon(
-              icon,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            suffixIcon: controller.text.isNotEmpty
-                ? IconButton(
-                    icon: Icon(
-                      LucideIcons.x,
-                      size: 14,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    onPressed: () {
-                      controller.clear();
-                      onChanged('');
-                    },
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
-                  )
-                : null,
-          ),
+          enabled: !_saving,
+          decoration: InputDecoration(hintText: placeholder),
           onChanged: (value) {
             setState(() {});
             onChanged(value);
@@ -2006,6 +2363,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: CalfTheme.muted(
                 theme,
               ).copyWith(fontSize: 12, color: theme.colorScheme.error),
+            ),
+          )
+        else if (helper != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              helper,
+              style: CalfTheme.muted(theme).copyWith(fontSize: 12),
             ),
           ),
       ],

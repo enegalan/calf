@@ -78,3 +78,89 @@ mixin LogViewerPreferencesMixin<T extends StatefulWidget> on State<T> {
     LogViewerPreferences.save(showTimestamp: showTimestamp, wrapLines: value);
   }
 }
+
+/// A named Logs search plus container filter snapshot.
+class SavedLogFilter {
+  /// Creates a saved Logs filter.
+  const SavedLogFilter({
+    required this.name,
+    required this.query,
+    required this.matchCase,
+    required this.containerNames,
+  });
+
+  final String name;
+  final String query;
+  final bool matchCase;
+  final List<String> containerNames;
+
+  /// Decodes a saved filter from JSON, or null when [name] is missing.
+  static SavedLogFilter? fromJson(Map<String, dynamic> json) {
+    final name = json['name'] as String? ?? '';
+    if (name.isEmpty) {
+      return null;
+    }
+
+    final names = <String>[];
+    final rawNames = json['container_names'];
+    if (rawNames is List) {
+      for (final value in rawNames) {
+        if (value is String && value.isNotEmpty) {
+          names.add(value);
+        }
+      }
+    }
+
+    return SavedLogFilter(
+      name: name,
+      query: json['query'] as String? ?? '',
+      matchCase: json['match_case'] == true,
+      containerNames: names,
+    );
+  }
+
+  /// Encodes this filter for disk storage.
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'query': query,
+      'match_case': matchCase,
+      'container_names': containerNames,
+    };
+  }
+}
+
+/// Loads and saves named Logs filters.
+class SavedLogFilters {
+  /// Loads saved Logs filters from disk.
+  static Future<List<SavedLogFilter>> load() async {
+    final raw = await CalfUiStorage.readMap(CalfStorageFiles.logsSavedFilters);
+    if (raw == null) {
+      return const [];
+    }
+
+    final items = raw['filters'];
+    if (items is! List) {
+      return const [];
+    }
+
+    final filters = <SavedLogFilter>[];
+    for (final item in items) {
+      if (item is! Map) {
+        continue;
+      }
+      final filter = SavedLogFilter.fromJson(Map<String, dynamic>.from(item));
+      if (filter != null) {
+        filters.add(filter);
+      }
+    }
+    return filters;
+  }
+
+  /// Persists [filters] to disk.
+  static Future<void> save(List<SavedLogFilter> filters) async {
+    await CalfUiStorage.writeMap(CalfStorageFiles.logsSavedFilters, {
+      'filters': [for (final filter in filters) filter.toJson()],
+    });
+  }
+}

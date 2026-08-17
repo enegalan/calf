@@ -16,3 +16,4 @@ vm_keep_alive: true
 rootless: true
 resource_saver_enabled: true
 resource_saver_timeout_sec: 300
+share_home: true

@@ -31,7 +31,7 @@ func ProbeDefaultSocket(calfSocket string) DefaultSocketStatus {
 	}
 	info, err := os.Lstat(config.DefaultSystemDockerSocket)
 	if err != nil {
-		status.Hint = "Not installed. Enable “Default Docker socket” in Settings (requires admin once)."
+		status.Hint = "Your password may be required once."
 		return status
 	}
 	if SocketPointsAtCalf(config.DefaultSystemDockerSocket, calfSocket) {
@@ -51,7 +51,7 @@ func ProbeDefaultSocket(calfSocket string) DefaultSocketStatus {
 		}
 	}
 	status.Target = target
-	status.Hint = "Points at " + target + ". Enable “Default Docker socket” to retarget it at calf."
+	status.Hint = "Another Docker engine is using it."
 	return status
 }
 
@@ -63,6 +63,10 @@ func EnableDefaultSocket(calfSocket string) error {
 	abs, err := filepath.Abs(calfSocket)
 	if err != nil {
 		return err
+	}
+	if SocketPointsAtCalf(config.DefaultSystemDockerSocket, abs) {
+		_ = os.Chmod(abs, 0o666)
+		return nil
 	}
 	if err := os.Chmod(abs, 0o666); err != nil {
 		return fmt.Errorf("chmod calf socket: %w", err)

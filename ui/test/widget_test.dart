@@ -13,6 +13,8 @@ class FakeCalfClient implements CalfClient {
   FakeCalfClient(this.status);
 
   final DaemonStatus status;
+  String daemonLogText =
+      'time=2026-08-14T12:00:00Z level=INFO msg="runtime started"';
 
   @override
   Future<DaemonStatus> fetchStatus() async => status;
@@ -105,7 +107,7 @@ class FakeCalfClient implements CalfClient {
       mode: '-rw-------',
       modified: '7 months ago',
     ),
-      ];
+  ];
 
   @override
   Future<void> writeVolumeFile(
@@ -393,10 +395,14 @@ class FakeCalfClient implements CalfClient {
       (await fetchConfig()).copyWith(logLevel: logLevel);
 
   @override
-  Future<DaemonLogs> fetchDaemonLogs() async => const DaemonLogs(
-    text: 'time=2026-08-14T12:00:00Z level=INFO msg="runtime started"',
-    path: '/tmp/calf.log',
-  );
+  Future<DaemonLogs> fetchDaemonLogs() async =>
+      DaemonLogs(text: daemonLogText, path: '/tmp/calf.log');
+
+  @override
+  Future<DaemonLogs> clearDaemonLogs() async {
+    daemonLogText = '';
+    return const DaemonLogs(text: '', path: '/tmp/calf.log');
+  }
 
   @override
   Future<MigrationStatus> fetchDockerDesktopMigration() async =>
@@ -517,9 +523,6 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<List<int>> downloadDiagnostics() async => const [];
-
-  @override
-  Future<void> copyDiskImage(String path) async {}
 
   @override
   Future<List<HubRepository>> fetchHubRepositories() async => const [];
@@ -664,6 +667,17 @@ void main() {
 
     expect(find.text('Daemon logs'), findsOneWidget);
     expect(find.textContaining('runtime started'), findsOneWidget);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text('Clear daemon logs?'), findsOneWidget);
+    await tester.tap(find.text('Clear logs'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('No logs yet. Reproduce the issue, then copy from here.'),
+      findsOneWidget,
+    );
+    CalfToastController.instance.clear();
   });
 
   testWidgets('shows engine starting in the status bar', (tester) async {
@@ -1049,6 +1063,12 @@ class _ErrorCalfClient implements CalfClient {
   }
 
   @override
+  Future<DaemonLogs> clearDaemonLogs() async {
+    await Future<void>.delayed(Duration.zero);
+    throw ApiException('daemon unavailable', statusCode: 503);
+  }
+
+  @override
   Future<MigrationStatus> fetchDockerDesktopMigration() async {
     await Future<void>.delayed(Duration.zero);
     throw ApiException('daemon unavailable', statusCode: 503);
@@ -1151,9 +1171,6 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<List<int>> downloadDiagnostics() async => const [];
-
-  @override
-  Future<void> copyDiskImage(String path) async {}
 
   @override
   Future<List<HubRepository>> fetchHubRepositories() async => const [];

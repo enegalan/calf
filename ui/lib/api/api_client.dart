@@ -174,24 +174,6 @@ class ApiClient implements CalfClient {
     return response.bodyBytes;
   }
 
-  /// Copies the VM disk image to [path] while the engine is stopped.
-  @override
-  Future<void> copyDiskImage(String path) async {
-    final response = await httpClient
-        .post(
-          Uri.parse('$baseUrl/v1/config/disk-image/copy'),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'path': path}),
-        )
-        .timeout(CalfDefaults.troubleshootActionTimeout);
-    if (response.statusCode != 200) {
-      throw ApiException(
-        _errorMessage(response),
-        statusCode: response.statusCode,
-      );
-    }
-  }
-
   /// Lists Docker Hub repositories for the signed-in user.
   @override
   Future<List<HubRepository>> fetchHubRepositories() async {
@@ -289,11 +271,7 @@ class ApiClient implements CalfClient {
 
   /// Writes a file inside a volume.
   @override
-  Future<void> writeVolumeFile(
-    String name,
-    String path,
-    String content,
-  ) async {
+  Future<void> writeVolumeFile(String name, String path, String content) async {
     final response = await httpClient
         .put(
           Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files'),
@@ -647,6 +625,31 @@ class ApiClient implements CalfClient {
   @override
   Future<DaemonLogs> fetchDaemonLogs() async {
     final json = await _getJson('/v1/debug/logs');
+    return DaemonLogs.fromJson(json);
+  }
+
+  /// Clears the daemon log file so a later failure can be captured cleanly.
+  @override
+  Future<DaemonLogs> clearDaemonLogs() async {
+    final response = await httpClient
+        .delete(Uri.parse('$baseUrl/v1/debug/logs'))
+        .timeout(timeout);
+
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+
+    final json = jsonDecode(response.body);
+    if (json is! Map<String, dynamic>) {
+      throw ApiException(
+        'Invalid response: expected JSON object',
+        statusCode: response.statusCode,
+      );
+    }
+
     return DaemonLogs.fromJson(json);
   }
 
@@ -1093,11 +1096,7 @@ class ApiClient implements CalfClient {
         .post(
           Uri.parse('$baseUrl/v1/networks'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'name': name,
-            'driver': driver,
-            'subnet': subnet,
-          }),
+          body: jsonEncode({'name': name, 'driver': driver, 'subnet': subnet}),
         )
         .timeout(timeout);
     if (response.statusCode != 200) {

@@ -27,3 +27,13 @@ func (g *Gateway) handleDebugLogs(w http.ResponseWriter, r *http.Request) {
 		Path: path,
 	})
 }
+
+// handleDebugLogsClear serves DELETE /v1/debug/logs by emptying the daemon log file.
+func (g *Gateway) handleDebugLogsClear(w http.ResponseWriter, r *http.Request) {
+	if err := config.ClearLogFile(); err != nil {
+		httpkit.WriteLoggedError(g.logger, w, http.StatusInternalServerError, "failed to clear daemon logs", err)
+		return
+	}
+
+	g.handleDebugLogs(w, r)
+}

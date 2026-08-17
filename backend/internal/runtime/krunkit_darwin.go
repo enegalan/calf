@@ -255,7 +255,9 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"--device", "virtio-blk,path=" + k.diskPath() + ",format=raw",
 		"--device", netDevice,
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts,permissionSemantics=simplified",
-		"--device", "virtio-fs,sharedDir=" + home + ",mountTag=calf-home,permissionSemantics=simplified",
+	}
+	if !k.engineSettingsCopy().OmitHomeShare {
+		args = append(args, "--device", "virtio-fs,sharedDir="+home+",mountTag=calf-home,permissionSemantics=simplified")
 	}
 	for _, share := range ExtraFileShareSpecs(home, k.engineSettingsCopy().FileShares) {
 		args = append(args, "--device", "virtio-fs,sharedDir="+share.HostPath+",mountTag="+share.Tag+",permissionSemantics=simplified")
@@ -646,7 +648,7 @@ func (k *Krunkit) ensureGuestVirtiofsShares(ctx context.Context) {
 	}
 	daxEnv := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX"))
 	daxMode := strings.TrimSpace(os.Getenv("CALF_KRUN_DAX_MODE"))
-	script := VirtiofsGuestSetupScript(home, daxEnv, daxMode)
+	script := VirtiofsGuestSetupScript(home, daxEnv, daxMode, !k.engineSettingsCopy().OmitHomeShare)
 	var lastErr error
 	for attempt := 1; attempt <= 3; attempt++ {
 		_, err := k.runGuestRoot(ctx, script)
@@ -668,8 +670,8 @@ func (k *Krunkit) ensureGuestVirtiofsShares(ctx context.Context) {
 }
 
 // VirtiofsGuestSetupScript builds the guest init script that remounts virtiofs shares,
-// points $HOME at calf-home, and persists a systemd unit so the next boot remounts both.
-func VirtiofsGuestSetupScript(home, daxEnv, daxMode string) string {
+// points $HOME at calf-home when shared, and persists a systemd unit so the next boot remounts them.
+func VirtiofsGuestSetupScript(home, daxEnv, daxMode string, shareHome bool) string {
 	if daxMode == "" {
 		daxMode = "inode"
 	}
@@ -709,7 +711,9 @@ esac
 if [ -n "$dev" ] && [ -w "/sys/class/bdi/0:${dev}/read_ahead_kb" ]; then
   echo 16384 > "/sys/class/bdi/0:${dev}/read_ahead_kb" 2>/dev/null || true
 fi
-mkdir -p /mnt/calf-home
+`)
+	if shareHome {
+		b.WriteString(`mkdir -p /mnt/calf-home
 if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
   if ! mount -t virtiofs -o noatime calf-home /mnt/calf-home; then
     echo "calf-home virtiofs mount failed" >&2
@@ -717,9 +721,9 @@ if ! mountpoint -q /mnt/calf-home 2>/dev/null; then
   fi
 fi
 `)
-	if home != "" {
-		b.WriteString("HOME_PATH='" + homeq + "'\n")
-		b.WriteString(`PARENT=$(dirname "$HOME_PATH")
+		if home != "" {
+			b.WriteString("HOME_PATH='" + homeq + "'\n")
+			b.WriteString(`PARENT=$(dirname "$HOME_PATH")
 mkdir -p "$PARENT"
 if [ -L "$HOME_PATH" ]; then
   ln -sfn /mnt/calf-home "$HOME_PATH"
@@ -734,16 +738,22 @@ else
   ln -sfn /mnt/calf-home "$HOME_PATH"
 fi
 `)
-		if hostMounts != "" {
-			b.WriteString("HOST_MOUNTS='" + hostMounts + "'\n")
-			b.WriteString(`if [ -L "$HOME_PATH" ] && [ "$(readlink "$HOME_PATH")" = "/mnt/calf-home" ]; then
+			if hostMounts != "" {
+				b.WriteString("HOST_MOUNTS='" + hostMounts + "'\n")
+				b.WriteString(`if [ -L "$HOME_PATH" ] && [ "$(readlink "$HOME_PATH")" = "/mnt/calf-home" ]; then
   :
 else
   mkdir -p "$(dirname "$HOST_MOUNTS")"
   ln -sfn /mnt/calf "$HOST_MOUNTS"
 fi
 `)
+			}
 		}
+	} else if hostMounts != "" {
+		b.WriteString("HOST_MOUNTS='" + hostMounts + "'\n")
+		b.WriteString(`mkdir -p "$(dirname "$HOST_MOUNTS")"
+ln -sfn /mnt/calf "$HOST_MOUNTS"
+`)
 	}
 	b.WriteString(`mkdir -p /usr/local/sbin
 cat > /usr/local/sbin/calf-mount-virtiofs <<'EOF'

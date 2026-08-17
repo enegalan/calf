@@ -74,6 +74,30 @@ func (w *rotatingFile) Close() error {
 	return err
 }
 
+// Clear truncates the active log and removes the rotated backup, then reopens the file.
+func (w *rotatingFile) Clear() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.f != nil {
+		if err := w.f.Close(); err != nil {
+			return err
+		}
+		w.f = nil
+	}
+	if err := os.Remove(w.path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.Remove(w.path + ".1"); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	f, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	w.f = f
+	return nil
+}
+
 // rotateLocked replaces the current file with a fresh one. Caller must hold w.mu.
 func (w *rotatingFile) rotateLocked() error {
 	if err := w.f.Close(); err != nil {

@@ -38,7 +38,9 @@ class _DaemonLogsDialog extends StatefulWidget {
 class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
   final _scrollController = ScrollController();
   Timer? _pollTimer;
+  int _loadGen = 0;
   bool _loading = true;
+  bool _clearing = false;
   String _text = '';
   String _path = '';
   String? _error;
@@ -63,9 +65,10 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
 
   /// Loads daemon logs from the API, keeping previous text on silent refresh errors.
   Future<void> _load({bool silent = false}) async {
+    final gen = _loadGen;
     try {
       final logs = await widget.apiClient.fetchDaemonLogs();
-      if (!mounted) {
+      if (!mounted || gen != _loadGen) {
         return;
       }
       setState(() {
@@ -75,7 +78,7 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
         _loading = false;
       });
     } on ApiException catch (error) {
-      if (!mounted) {
+      if (!mounted || gen != _loadGen) {
         return;
       }
       if (silent && _text.isNotEmpty) {
@@ -86,7 +89,7 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
         _loading = false;
       });
     } on TimeoutException catch (error) {
-      if (!mounted) {
+      if (!mounted || gen != _loadGen) {
         return;
       }
       if (silent && _text.isNotEmpty) {
@@ -112,6 +115,56 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
     showCalfSnackBar(context, 'Copied', duration: const Duration(seconds: 2));
   }
 
+  /// Empties the daemon log file after confirmation so a later failure can be captured cleanly.
+  Future<void> _clear() async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Clear daemon logs?',
+      description:
+          'Removes the current log file so you can capture a fresh trace.',
+      confirmLabel: 'Clear logs',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() {
+      _clearing = true;
+      _loadGen++;
+    });
+    final gen = _loadGen;
+    try {
+      final logs = await widget.apiClient.clearDaemonLogs();
+      if (!mounted || gen != _loadGen) {
+        return;
+      }
+      setState(() {
+        _text = logs.text;
+        _path = logs.path;
+        _error = null;
+        _loading = false;
+        _clearing = false;
+      });
+      showCalfSnackBar(
+        context,
+        'Logs cleared',
+        duration: const Duration(seconds: 2),
+      );
+    } on ApiException catch (error) {
+      if (!mounted || gen != _loadGen) {
+        return;
+      }
+      setState(() => _clearing = false);
+      showCalfErrorSnackBar(context, error);
+    } on TimeoutException catch (error) {
+      if (!mounted || gen != _loadGen) {
+        return;
+      }
+      setState(() => _clearing = false);
+      showCalfErrorSnackBar(context, error);
+    }
+  }
+
   /// Opens the daemon log file in the platform file manager.
   Future<void> _openFile() async {
     if (_path.isEmpty) {
@@ -125,7 +178,7 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
     await openInFileExplorer(directory);
   }
 
-  /// Builds the daemon logs dialog with copy and open-file actions.
+  /// Builds the daemon logs dialog with copy, clear, and open-file actions.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -147,7 +200,7 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'Copy these logs and send them when reporting a problem.',
+            'Copy these logs when reporting a problem. Clear them first to capture only the next failure.',
             style: CalfTheme.muted(theme),
           ),
           const SizedBox(height: 12),
@@ -193,6 +246,10 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
             onPressed: _openFile,
             child: const Text('Open log file'),
           ),
+        CalfButton.ghost(
+          onPressed: _loading || _clearing ? null : _clear,
+          child: const Text('Clear'),
+        ),
         CalfButton.outline(
           onPressed: canCopy ? _copy : null,
           child: Row(

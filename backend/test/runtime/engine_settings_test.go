@@ -35,11 +35,30 @@ func TestMergeDaemonJSONOverlayAndSubnet(t *testing.T) {
 	if !strings.Contains(merged, `"buildkit"`) {
 		t.Fatalf("missing baked buildkit: %s", merged)
 	}
+	if !strings.Contains(merged, `"defaultKeepStorage": "20GB"`) {
+		t.Fatalf("missing baked builder gc: %s", merged)
+	}
+	if !strings.Contains(merged, `"experimental": false`) {
+		t.Fatalf("missing baked experimental flag: %s", merged)
+	}
 	if !strings.Contains(merged, `"debug": true`) {
 		t.Fatalf("missing overlay debug: %s", merged)
 	}
 	if !strings.Contains(merged, `"bip": "192.168.215.1/24"`) {
 		t.Fatalf("missing subnet: %s", merged)
+	}
+}
+
+func TestMergeDaemonJSONDefaultBase(t *testing.T) {
+	merged, err := runtime.MergeDaemonJSON("", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(merged, `"buildkit"`) {
+		t.Fatalf("missing baked buildkit: %s", merged)
+	}
+	if !strings.Contains(merged, `"defaultKeepStorage": "20GB"`) {
+		t.Fatalf("missing baked builder gc: %s", merged)
 	}
 }
 

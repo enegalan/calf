@@ -158,6 +158,27 @@ abstract final class CalfTheme {
         overlayColor: colorScheme.primary.withValues(alpha: 0.12),
         showValueIndicator: ShowValueIndicator.onlyForDiscrete,
       ),
+      // M3 selected Switch hover paints the thumb with primaryContainer,
+      // which defaults to primary (same as the track) so the knob vanishes.
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            if (states.contains(WidgetState.selected)) {
+              return colorScheme.surface;
+            }
+            return colorScheme.onSurface.withValues(alpha: 0.38);
+          }
+          if (states.contains(WidgetState.selected)) {
+            return colorScheme.onPrimary;
+          }
+          if (states.contains(WidgetState.pressed) ||
+              states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.focused)) {
+            return colorScheme.onSurfaceVariant;
+          }
+          return colorScheme.outline;
+        }),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: radius),
         enabledBorder: OutlineInputBorder(

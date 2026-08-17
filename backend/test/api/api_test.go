@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1326,6 +1328,55 @@ func TestDebugLogsReturnsEmptyWhenMissing(t *testing.T) {
 	path, ok := payload["path"].(string)
 	if !ok || path == "" {
 		t.Fatalf("expected non-empty path, got %#v", payload["path"])
+	}
+}
+
+func TestDebugLogsDeleteClearsFile(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	path, err := config.LogFilePath()
+	if err != nil {
+		t.Fatalf("LogFilePath() error: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error: %v", err)
+	}
+	if err := os.WriteFile(path, []byte("old log line\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile log error: %v", err)
+	}
+	if err := os.WriteFile(path+".1", []byte("rotated\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile rotated backup error: %v", err)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, server.URL+"/v1/debug/logs", nil)
+	if err != nil {
+		t.Fatalf("NewRequest DELETE error: %v", err)
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("DELETE /v1/debug/logs error: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Fatalf("expected DELETE 200, got %d: %s", response.StatusCode, body)
+	}
+
+	var payload map[string]any
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+	text, ok := payload["text"].(string)
+	if !ok {
+		t.Fatalf("expected string text, got %T", payload["text"])
+	}
+	if strings.Contains(text, "old log line") {
+		t.Fatalf("expected cleared text, got %q", text)
+	}
+
+	if _, err := os.Stat(path + ".1"); !os.IsNotExist(err) {
+		t.Fatalf("expected rotated backup to be removed, got %v", err)
 	}
 }
 

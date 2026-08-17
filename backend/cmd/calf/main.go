@@ -64,6 +64,7 @@ func run() int {
 	)
 	rt.ApplyEngineSettings(runtime.EngineSettings{
 		FileShares:           cfg.FileShares,
+		OmitHomeShare:        !cfg.ShareHome,
 		HostNetworking:       cfg.HostNetworking,
 		DaemonJSON:           cfg.DaemonJSON,
 		DockerSubnet:         cfg.DockerSubnet,

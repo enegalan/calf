@@ -180,6 +180,7 @@ type Runtime interface {
 // EngineSettings is guest/engine overlay applied from calf config.
 type EngineSettings struct {
 	FileShares           []string
+	OmitHomeShare        bool
 	HostNetworking       bool
 	DaemonJSON           string
 	DockerSubnet         string

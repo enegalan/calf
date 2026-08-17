@@ -26,7 +26,6 @@ import 'package:ui/widgets/about_dialog.dart';
 import 'package:ui/widgets/app_bottom_bar.dart';
 import 'package:ui/widgets/app_top_bar.dart';
 import 'package:ui/widgets/build_row_icons.dart';
-import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/daemon_logs_dialog.dart';
 import 'package:ui/widgets/global_search_dialog.dart';
@@ -744,6 +743,12 @@ class _AppShellState extends State<AppShell> {
       (label: 'Builds', icon: LucideIcons.wrench, svgAsset: null),
     ];
 
+    const expandedSidebarWidth = 228.0;
+    const collapsedSidebarWidth = 72.0;
+    final sidebarWidth = _isCollapsed
+        ? collapsedSidebarWidth
+        : expandedSidebarWidth;
+
     final screenWidth = MediaQuery.of(context).size.width;
     final isSmallScreen = screenWidth < 1024;
 
@@ -789,54 +794,49 @@ class _AppShellState extends State<AppShell> {
                     child: AnimatedContainer(
                       duration: CalfTheme.animationDuration,
                       curve: CalfTheme.animationCurve,
-                      width: _isCollapsed ? 72 : 220,
+                      width: sidebarWidth,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.45),
                           border: Border(
                             right: BorderSide(
                               color: theme.colorScheme.outlineVariant,
                             ),
                           ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final isCurrentlyCollapsed =
-                                  constraints.maxWidth < 150;
-                              return Column(
-                                crossAxisAlignment: isCurrentlyCollapsed
-                                    ? CrossAxisAlignment.center
-                                    : CrossAxisAlignment.start,
-                                children: [
-                                  for (
-                                    var index = 0;
-                                    index < navItems.length;
-                                    index++
-                                  ) ...[
-                                    if (index > 0) const SizedBox(height: 8),
-                                    _NavItem(
-                                      label: navItems[index].label,
-                                      icon: navItems[index].icon,
-                                      svgAsset: navItems[index].svgAsset,
-                                      selected:
-                                          !_showSettings &&
-                                          !_showTroubleshoot &&
-                                          !_showDiskCleanup &&
-                                          _selectedIndex == index,
-                                      collapsed: isCurrentlyCollapsed,
-                                      onTap: () => setState(() {
-                                        _selectedIndex = index;
-                                        _showSettings = false;
-                                        _showTroubleshoot = false;
-                                        _showDiskCleanup = false;
-                                      }),
-                                    ),
-                                  ],
-                                ],
-                              );
-                            },
-                          ),
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isCurrentlyCollapsed =
+                                constraints.maxWidth < 150;
+                            return ListView(
+                              padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+                              children: [
+                                for (
+                                  var index = 0;
+                                  index < navItems.length;
+                                  index++
+                                )
+                                  _NavItem(
+                                    label: navItems[index].label,
+                                    icon: navItems[index].icon,
+                                    svgAsset: navItems[index].svgAsset,
+                                    selected:
+                                        !_showSettings &&
+                                        !_showTroubleshoot &&
+                                        !_showDiskCleanup &&
+                                        _selectedIndex == index,
+                                    collapsed: isCurrentlyCollapsed,
+                                    onTap: () => setState(() {
+                                      _selectedIndex = index;
+                                      _showSettings = false;
+                                      _showTroubleshoot = false;
+                                      _showDiskCleanup = false;
+                                    }),
+                                  ),
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -969,7 +969,7 @@ class _AppShellState extends State<AppShell> {
                 duration: CalfTheme.animationDuration,
                 curve: CalfTheme.animationCurve,
                 top: 16,
-                left: (_isCollapsed ? 72 : 220) - 18,
+                left: sidebarWidth - 18,
                 child: MouseRegion(
                   hitTestBehavior: HitTestBehavior.opaque,
                   onEnter: (_) => setState(() => _isHoveringToggle = true),
@@ -1113,45 +1113,54 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = selected
-        ? theme.colorScheme.onSecondaryContainer
+        ? theme.colorScheme.primary
         : theme.colorScheme.onSurface;
-    final effectivePadding = collapsed
-        ? const EdgeInsets.symmetric(horizontal: 0, vertical: 8)
-        : const EdgeInsets.symmetric(horizontal: 16, vertical: 8);
     final leading = svgAsset != null
         ? SvgPicture.asset(
             svgAsset!,
-            width: 18,
-            height: 18,
+            width: 16,
+            height: 16,
             colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
           )
-        : Icon(icon, size: 18, color: color);
+        : Icon(icon, size: 16, color: color);
 
-    final button = CalfButton.ghost(
-      width: double.infinity,
-      onPressed: onTap,
-      backgroundColor: selected ? theme.colorScheme.secondaryContainer : null,
-      padding: effectivePadding,
-      child: Align(
-        alignment: collapsed ? Alignment.center : Alignment.centerLeft,
-        child: Row(
-          mainAxisAlignment: collapsed
-              ? MainAxisAlignment.center
-              : MainAxisAlignment.start,
-          mainAxisSize: collapsed ? MainAxisSize.min : MainAxisSize.max,
-          children: [
-            leading,
-            if (!collapsed) ...[
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  label,
-                  style: theme.textTheme.bodySmall!.copyWith(color: color),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ],
+    final tile = Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        animationDuration: CalfTheme.materialAnimationDuration,
+        color: selected
+            ? theme.colorScheme.secondaryContainer
+            : Colors.transparent,
+        borderRadius: CalfTheme.radius,
+        child: InkWell(
+          borderRadius: CalfTheme.radius,
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              mainAxisAlignment: collapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                leading,
+                if (!collapsed) ...[
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: theme.textTheme.bodyMedium!.copyWith(
+                        color: color,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -1160,7 +1169,7 @@ class _NavItem extends StatelessWidget {
       label: label,
       button: true,
       selected: selected,
-      child: collapsed ? Tooltip(message: label, child: button) : button,
+      child: collapsed ? Tooltip(message: label, child: tile) : tile,
     );
   }
 }

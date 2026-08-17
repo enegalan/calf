@@ -101,7 +101,8 @@ func (g *Gateway) Handler() http.Handler {
 		http.MethodPut: g.handleConfigPut,
 	}))
 	mux.HandleFunc("/v1/debug/logs", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodGet: g.handleDebugLogs,
+		http.MethodGet:    g.handleDebugLogs,
+		http.MethodDelete: g.handleDebugLogsClear,
 	}))
 	mux.HandleFunc("/v1/migrate/docker-desktop", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet:  g.handleDockerDesktopMigrationStatus,
@@ -122,9 +123,6 @@ func (g *Gateway) Handler() http.Handler {
 	}))
 	mux.HandleFunc("/v1/troubleshoot/diagnose", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handleTroubleshootDiagnose,
-	}))
-	mux.HandleFunc("/v1/config/disk-image/copy", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodPost: g.handleDiskImageCopy,
 	}))
 	mux.HandleFunc("/v1/hub/repositories", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handleHubRepositories,

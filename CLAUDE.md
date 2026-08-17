@@ -201,7 +201,7 @@ calf/
 │   │   ├── storage/
 │   │   │   ├── calf_ui_storage.dart            Shared JSON file read/write helper (~/.config/calf/ui/*.json)
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
-│   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
+│   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles and saved log filters; LogViewerPreferencesMixin
 │   │   │   ├── sidebar_preferences.dart         Persists sidebar expanded/collapsed state
 │   │   │   ├── update_preferences.dart          Persists update-check cache and What's New notes
 │   │   │   └── window_preferences.dart          Open-window-on-launch preference
@@ -218,7 +218,7 @@ calf/
 │   │   │   ├── builds_screen.dart              Build list and polling
 │   │   │   ├── build_detail_screen.dart        Build detail tabs
 │   │   │   ├── networks_screen.dart            Network list and detail screens
-│   │   │   ├── unified_logs_screen.dart        Fan-in live logs from running containers
+│   │   │   ├── unified_logs_screen.dart        Fan-in live logs with search, container filters, saved filters, CSV export
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
@@ -280,7 +280,7 @@ calf/
 Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts. `cli.go` handles host commands (`status`, `start`, `stop`, `restart`, `logs`, `diagnose`). `helper.go` is the optional privileged helper for `/var/run/docker.sock` and published ports below 1024.
 
 ### `internal/config/`
-- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `disk_image`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
+- `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `disk_image`, `http_proxy`, `https_proxy`, `no_proxy`, `file_shares`, `share_home`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
 - `logger.go` — wraps `slog.NewTextHandler` writing to stdout and `~/.config/calf/logs/calf.log`, with a level parser (`debug`/`warn`/`error`, default `info`) that can change at runtime.
 - `log_file.go` — rotating daemon log file writer and tail reader used by Debug logs.
 
@@ -379,7 +379,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs. Daemon docker CLI talks through a gated listener that reads HTTP before dialing vsock (same as the public proxy). Status skips vsock ping once the engine is marked running.
 - `docker_http_proxy.go` — shared Docker API unix forwarder: clamp client API version, force Connection: close on plain HTTP, bidirectional splice for hijacked streams.
-- `file_shares.go` — extra virtiofs share specs; skips paths already under `$HOME`.
+- `file_shares.go` — extra virtiofs share specs; skips paths already under `$HOME`. Home itself can be omitted from the share list.
 - `daemon_json.go` — merge user daemon.json overlay while keeping baked buildkit and DNS.
 - `wsl.go` — Windows WSL 2 Linux-containers runtime (`wsl -d calf -- docker`); Resource Saver stops dockerd inside the distro.
 - `container_ghosts.go` — detect empty-name corrupt container leftovers and build the guest wipe/restart script used on engine start.
@@ -438,7 +438,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `calf_ui_storage.dart` — shared file read/write helper.
 - `window_preferences.dart` — persists whether the main window opens on launch.
 - `container_groups.dart` — persists expanded/collapsed UI groups.
-- `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles; exposes a `LogViewerPreferencesMixin` for screens to mix in.
+- `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles and saved log filters; exposes a `LogViewerPreferencesMixin` for screens to mix in.
 - `sidebar_preferences.dart` — persists sidebar expanded/collapsed state.
 - `update_preferences.dart` — persists update-check cache and What's New notes.
 
@@ -456,13 +456,13 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `builds_screen.dart` — build list with polling.
 - `build_detail_screen.dart` — build detail tabs (info, source, logs, history).
 - `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options); create from the list.
-- `unified_logs_screen.dart` — live fan-in of running container logs with per-container filters.
+- `unified_logs_screen.dart` — live fan-in of running container logs with log search, container filters, saved filters, and CSV export.
 - `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs; empty and import.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 - `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
 - `troubleshoot_screen.dart` — restart, support (diagnostics zip), clean unused data, purge engine data, factory reset, and uninstall.
-- `settings_screen.dart` — `SettingsScreen`: Desktop-style sidebar (General, Resources, Docker Engine, Builders, Software updates, Advanced) for resource limits, disk image copy, Docker CLI, file shares, daemon.json, builders, open-at-login, open-window-on-launch, debug logging, theme, updates, migration, and HTTP/HTTPS/no-proxy.
+- `settings_screen.dart` — `SettingsScreen`: Desktop-style sidebar (General, Resources, Docker Engine, Builders, Software updates, Advanced). Resources has Advanced / File sharing / Proxies / Network tabs for resource limits, disk image location, file shares, proxy mode, Docker subnet, host networking, and port binding. Also Docker CLI, daemon.json, builders, open-at-login, open-window-on-launch, debug logging, theme, updates, migration.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).

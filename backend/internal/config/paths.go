@@ -118,6 +118,62 @@ func EffectiveDiskImage(cfg Config) string {
 	return DefaultDiskImagePath(cfg.VMName)
 }
 
+// HostHomeDir returns the current user's home directory, or empty.
+func HostHomeDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Clean(home)
+}
+
+// ParseFileShareList splits a UI file-share list into home-share and extra paths.
+func ParseFileShareList(shares []string) (shareHome bool, extras []string) {
+	home := HostHomeDir()
+	seen := map[string]struct{}{}
+	for _, raw := range shares {
+		path := filepath.Clean(strings.TrimSpace(raw))
+		if path == "" || path == "." || !filepath.IsAbs(path) {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		if home != "" && path == home {
+			shareHome = true
+			continue
+		}
+		extras = append(extras, path)
+	}
+	return shareHome, extras
+}
+
+// EffectiveFileShares is the share list shown in Settings, including home when enabled.
+func EffectiveFileShares(cfg Config) []string {
+	home := HostHomeDir()
+	out := make([]string, 0, len(cfg.FileShares)+1)
+	if cfg.ShareHome && home != "" {
+		out = append(out, home)
+	}
+	seen := map[string]struct{}{}
+	if home != "" {
+		seen[home] = struct{}{}
+	}
+	for _, raw := range cfg.FileShares {
+		path := filepath.Clean(strings.TrimSpace(raw))
+		if path == "" || path == "." {
+			continue
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
+	}
+	return out
+}
+
 // LogsDir returns ~/.config/calf/logs.
 func LogsDir() (string, error) {
 	dir, err := ConfigDir()

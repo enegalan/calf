@@ -27,6 +27,10 @@ func TestLoadCreatesDefaultConfig(t *testing.T) {
 		t.Fatalf("expected log_level %q, got %q", defaults.LogLevel, cfg.LogLevel)
 	}
 
+	if !cfg.ShareHome {
+		t.Fatal("expected share_home true by default")
+	}
+
 	path := filepath.Join(dir, ".config", "calf", "config.yaml")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected config file at %s: %v", path, err)
@@ -85,5 +89,39 @@ func TestLoadMigratesAllInterfacesListenAddr(t *testing.T) {
 	want := config.Default().ListenAddr
 	if cfg.ListenAddr != want {
 		t.Fatalf("expected migrated listen_addr %q, got %q", want, cfg.ListenAddr)
+	}
+}
+
+func TestParseFileShareList(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	home := config.HostHomeDir()
+	shareHome, extras := config.ParseFileShareList([]string{home, "/tmp", home})
+	if !shareHome {
+		t.Fatal("expected home to be marked shared")
+	}
+	if len(extras) != 1 || extras[0] != "/tmp" {
+		t.Fatalf("extras: %v", extras)
+	}
+	shareHome, extras = config.ParseFileShareList([]string{"/Volumes"})
+	if shareHome {
+		t.Fatal("home was not in the list")
+	}
+	if len(extras) != 1 || extras[0] != "/Volumes" {
+		t.Fatalf("extras: %v", extras)
+	}
+}
+
+func TestEffectiveFileShares(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	home := config.HostHomeDir()
+	got := config.EffectiveFileShares(config.Config{ShareHome: true, FileShares: []string{"/tmp"}})
+	if len(got) != 2 || got[0] != home || got[1] != "/tmp" {
+		t.Fatalf("got %v want [%s /tmp]", got, home)
+	}
+	got = config.EffectiveFileShares(config.Config{ShareHome: false, FileShares: []string{"/tmp"}})
+	if len(got) != 1 || got[0] != "/tmp" {
+		t.Fatalf("got %v", got)
 	}
 }

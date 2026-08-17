@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/config"
-	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // HijackWarning describes another product holding the default Docker CLI path or socket.
@@ -86,7 +85,7 @@ func hijackAtPath(path string) (HijackWarning, bool) {
 	return HijackWarning{
 		Path:    path,
 		Owner:   owner,
-		Message: path + " currently points at " + owner + ". Enable “Use calf for Docker CLI” or fix the symlink so docker talks to calf.",
+		Message: "The docker command still opens " + owner + ".",
 	}, true
 }
 
@@ -107,7 +106,7 @@ func hijackAtSocket(systemSocket, calfSocket string) (HijackWarning, bool) {
 			return HijackWarning{
 				Path:    systemSocket,
 				Owner:   "unknown",
-				Message: systemSocket + " is a broken symlink. Enable the default Docker socket in Settings to point it at calf.",
+				Message: "Some apps still use another Docker engine.",
 			}, true
 		}
 		target = resolved
@@ -126,6 +125,6 @@ func hijackAtSocket(systemSocket, calfSocket string) (HijackWarning, bool) {
 	return HijackWarning{
 		Path:    systemSocket,
 		Owner:   owner,
-		Message: systemSocket + " is not calf's socket (" + constants.DockerContextName + "). IDEs that ignore DOCKER_HOST will miss calf.",
+		Message: "Some apps still use another Docker engine.",
 	}, true
 }

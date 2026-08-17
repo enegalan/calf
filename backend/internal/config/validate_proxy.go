@@ -206,6 +206,9 @@ func isValidDomain(host string) bool {
 	}
 
 	for _, part := range strings.Split(host, ".") {
+		if part == "*" {
+			continue
+		}
 		if part == "" || len(part) > 63 {
 			return false
 		}

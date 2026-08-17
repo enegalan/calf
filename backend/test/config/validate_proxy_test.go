@@ -38,6 +38,14 @@ func TestProxyUpdateChangedNilFields(t *testing.T) {
 	}
 }
 
+func TestValidateProxyUpdateNoProxyWildcard(t *testing.T) {
+	entry := "*.docker.com"
+	req := config.UpdateRequest{NoProxy: &entry}
+	if err := config.ValidateProxyUpdate(req); err != nil {
+		t.Fatalf("ValidateProxyUpdate() error: %v", err)
+	}
+}
+
 func TestValidateProxyUpdateNoProxyCIDR(t *testing.T) {
 	cidr := "192.168.0.0/16"
 	req := config.UpdateRequest{NoProxy: &cidr}

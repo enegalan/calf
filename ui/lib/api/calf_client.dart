@@ -180,7 +180,11 @@ abstract class CalfClient {
   Future<void> removeNetwork(String name);
 
   /// Creates a user-defined network.
-  Future<void> createNetwork(String name, {String driver = '', String subnet = ''});
+  Future<void> createNetwork(
+    String name, {
+    String driver = '',
+    String subnet = '',
+  });
 
   /// Triggers a new image build.
   Future<BuildItem> runBuild({
@@ -210,6 +214,9 @@ abstract class CalfClient {
 
   /// Fetches recent daemon logs for the Debug viewer.
   Future<DaemonLogs> fetchDaemonLogs();
+
+  /// Clears the daemon log file so a later failure can be captured cleanly.
+  Future<DaemonLogs> clearDaemonLogs();
 
   /// Fetches the current Docker Desktop migration status.
   Future<MigrationStatus> fetchDockerDesktopMigration();
@@ -282,9 +289,6 @@ abstract class CalfClient {
 
   /// Downloads a diagnostics zip as bytes.
   Future<List<int>> downloadDiagnostics();
-
-  /// Copies the VM disk image to [path] while the engine is stopped.
-  Future<void> copyDiskImage(String path);
 
   /// Lists Docker Hub repositories for the signed-in user.
   Future<List<HubRepository>> fetchHubRepositories();

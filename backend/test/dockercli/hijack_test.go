@@ -3,6 +3,7 @@ package dockercli_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/enegalan/calf/backend/internal/dockercli"
@@ -31,6 +32,15 @@ func TestDetectHijackIgnoresMissingDefaultSocket(t *testing.T) {
 	for _, warning := range warnings {
 		if warning.Path == "/var/run/docker.sock" && warning.Owner == "unknown" {
 			t.Fatalf("unexpected broken-symlink warning without a socket: %+v", warning)
+		}
+	}
+}
+
+func TestHijackMessagesOmitDockerHost(t *testing.T) {
+	warnings := dockercli.DetectHijack("/tmp/calf-does-not-exist.sock")
+	for _, warning := range warnings {
+		if strings.Contains(warning.Message, "DOCKER_HOST") {
+			t.Fatalf("hijack message still mentions DOCKER_HOST: %q", warning.Message)
 		}
 	}
 }

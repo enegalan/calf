@@ -239,7 +239,6 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 ## Phase 9 — Platform polish
 
 - [x] Diagnostics zip from Troubleshoot and `calf diagnose`
-- [x] Copy disk image while the engine is stopped
 - [x] Open window on launch
 - [x] About shows Compose and Buildx versions
 - [ ] Auto-install updates (blocked on Apple signing)

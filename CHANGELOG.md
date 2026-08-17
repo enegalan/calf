@@ -9,29 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Docker CLI** — Settings can install the CLI, write shell completions, and optionally expose the default Docker socket and privileged published ports. `calf status|start|stop|restart|logs|diagnose` work from a terminal.
+- **Docker CLI** — Settings can install the CLI, write shell completions, and optionally expose privileged published ports. Turning on “Use calf for Docker CLI” also points apps at calf. `calf status|start|stop|restart|logs|diagnose` work from a terminal.
 - **File shares and SSH** — extra folders can be shared into the engine; containers can use the host SSH agent. `gateway.docker.internal` resolves next to `host.docker.internal`.
 - **Engine settings** — daemon.json overlay, Docker subnet, host networking, bind published ports to localhost, and amd64 emulation.
 - **Containers and images** — pause and resume, run an image with name/ports/env/volumes, pull by name, and list Docker Hub repositories when signed in.
 - **Volumes and networks** — create from the list; empty or import a volume; save files in the file browser.
 - **Logs** — a Logs screen shows live output from running containers.
-- **Support** — Troubleshoot saves a diagnostics zip. Settings can copy the disk image while the engine is stopped. Open window on launch is a setting. About shows Compose and Buildx versions.
+- **Support** — Troubleshoot saves a diagnostics zip. Open window on launch is a setting. About shows Compose and Buildx versions. Daemon logs can be cleared from the debug viewer so the next failure is easier to capture.
 - **Windows** — Linux containers run through WSL 2.
 
 ### Changed
 
 - Copy `docker run` from a container's inspect view.
 - Dialogs use a smaller title and tighter layout.
-- **Settings** — Settings uses a sidebar of categories (General, Resources, Docker Engine, Builders, Software updates, Advanced). Each option has a title and a short explanation.
-- **Logs** — search and select containers to filter live output.
+- **Settings** — Settings uses a sidebar of categories (General, Resources, Docker Engine, Builders, Software updates, Advanced). Resources splits Advanced, File sharing, Proxies, and Network. Proxy mode is no proxy or manual HTTP, HTTPS, and bypass fields. Port binding is a menu. File sharing lists each folder on its own row, including your home folder, which you can remove. Each option has a title and a short explanation. “Use calf for Docker CLI” covers the terminal and apps; Settings no longer asks you to set extra environment variables. Search lists matching options under their category. Docker CLI, completions, emulation, network, and Advanced options wait for Apply.
+- **Logs** — search log lines (including regex), filter by container, save filters, and export to CSV.
+- **Sidebar** — the left navigation matches the Settings category list.
 
 ### Fixed
 
+- **Switches** — an on switch still shows its knob when the pointer hovers over it.
 - **Dialogs** — an invalid field no longer disappears when the pointer hovers over it.
 - **Pull image** — empty names and missing images show an error in the pull dialog instead of a generic failure.
 - **Hub** — if you are not signed in, Hub starts Sign in instead of asking you to sign in with a toast.
 - **Build detail** — opening a build no longer times out while calf fills in Docker history.
-- **Docker CLI** — turning off “Use calf for Docker CLI” switches docker back to the default context and stops path-conflict warnings.
+- **Logs** — the log panel keeps its size when a search matches no lines.
+- **Settings** — toggling General options no longer times out while calf applies them.
+- **Docker CLI** — turning off “Use calf for Docker CLI” switches docker back to the default context. Turning it on also points editors and other apps at calf.
 
 ## [1.0.23] - 2026-08-17
 
