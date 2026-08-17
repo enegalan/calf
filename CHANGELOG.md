@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.23] - 2026-08-17
+
+### Fixed
+
+- **Docker CLI on Mac** — recreating many Compose services at once no longer fails with a connection error while containers are stopping.
+- **Engine on Mac** — starting the engine after a heavy session no longer keeps restarting before Docker is ready.
+
 ## [1.0.22] - 2026-08-17
 
 ### Fixed

@@ -55,7 +55,8 @@ type Guest struct {
 	listInflightValue []Container
 
 	// engineConnGate limits concurrent vsock connections (shared with the
-	// public docker.sock proxy). virtio-vsock collapses under higher fan-out.
+	// public docker.sock proxy). virtio-vsock returns EOF under higher fan-out
+	// (large Compose recreate /stop).
 	engineConnGate chan struct{}
 	// dialMu serializes Dial into krunkit vsock. Parallel dials collapse the
 	// backend even when the connection gate still has free slots.
@@ -125,7 +126,7 @@ func (v *Guest) DockerSocket() string { return v.dockerSocket }
 // EngineDockerSocket returns the krunkit vsock-backed socket path (not the public CLI path).
 func (v *Guest) EngineDockerSocket() string { return v.engineSocket }
 
-const engineConnMaxConcurrent = 8
+const engineConnMaxConcurrent = 4
 
 // AcquireEngineConn reserves a slot for a vsock-backed Docker API connection.
 func (v *Guest) AcquireEngineConn(ctx context.Context) error {
@@ -151,8 +152,9 @@ func (v *Guest) DialEngineSocket(ctx context.Context) (net.Conn, error) {
 	return d.DialContext(ctx, "unix", v.engineSocket)
 }
 
-// startGatedEngineProxy listens on gatedSock and splices each client to vsock
-// so daemon docker CLI dials share DialEngineSocket with the public proxy.
+// startGatedEngineProxy listens on gatedSock and forwards each daemon docker CLI
+// request the same way as the public docker.sock proxy (read HTTP first, then
+// dial vsock) so idle CLI sockets do not consume guest connections.
 func (v *Guest) startGatedEngineProxy() error {
 	if v.gatedSock == "" {
 		return nil
@@ -202,9 +204,18 @@ func (v *Guest) serveGatedEngineProxy(ln net.Listener) {
 	}
 }
 
-// handleGatedEngineConn takes a vsock slot, dials the engine, and splices bytes.
+// handleGatedEngineConn reads the CLI request first, then takes a vsock slot and
+// forwards one Docker API call (or a hijacked stream) to the engine.
 func (v *Guest) handleGatedEngineConn(client net.Conn) {
 	defer client.Close()
+
+	_ = client.SetReadDeadline(time.Now().Add(DockerAPIHeaderReadTimeout))
+	head, rest, upgrade, err := ReadDockerAPIRequestHead(client)
+	if err != nil {
+		return
+	}
+	_ = client.SetReadDeadline(time.Time{})
+
 	ctx := v.ownerContext()
 	if err := v.AcquireEngineConn(ctx); err != nil {
 		return
@@ -216,7 +227,7 @@ func (v *Guest) handleGatedEngineConn(client net.Conn) {
 		return
 	}
 	defer server.Close()
-	spliceUnixConns(client, server)
+	ProxyDockerAPIWithHead(client, server, head, rest, upgrade)
 }
 
 // ownerContext returns the daemon lifecycle context for background guest work.
@@ -237,23 +248,6 @@ func (v *Guest) engineCLISocket() string {
 		return v.gatedSock
 	}
 	return v.engineSocket
-}
-
-// spliceUnixConns copies both directions until either side closes.
-func spliceUnixConns(a, b net.Conn) {
-	done := make(chan struct{}, 2)
-	go func() {
-		_, _ = io.Copy(b, a)
-		done <- struct{}{}
-	}()
-	go func() {
-		_, _ = io.Copy(a, b)
-		done <- struct{}{}
-	}()
-	<-done
-	_ = a.Close()
-	_ = b.Close()
-	<-done
 }
 
 // StartGatedEngineProxyForTest starts the daemon CLI splice in front of engineSocket.
@@ -654,21 +648,22 @@ func (v *Guest) Stop(ctx context.Context) error {
 }
 
 // Status reports whether the guest Docker API is reachable.
-// After Start succeeds, a brief ping failure still reports running so the UI
-// does not treat a vsock blip as a stopped engine (empty container list).
-// While Start is in progress and the API is not up yet, state is starting.
+// After Start succeeds, skip the vsock ping: UI status polls every few seconds
+// would otherwise steal guest connections from Compose (long container stops)
+// and virtio-vsock starts returning EOF. While Start is waiting for dockerd,
+// skip the ping too — UI /v1/status and /v1/containers would otherwise take
+// every vsock slot and the boot wait never sees a ready API. A dead krunkit
+// clears started via Wait.
 func (v *Guest) Status(ctx context.Context) (Status, error) {
 	st := Status{Mode: Mode(constants.RuntimeModeVM), State: State(constants.RuntimeStateStopped), DockerSocket: v.dockerSocket, VMName: v.vmName}
-	if v.dockerAPIReady(ctx) {
-		st.State = State(constants.RuntimeStateRunning)
-		if !v.started.Load() {
-			v.started.Store(true)
-			v.proxyResync.Store(true)
-		}
-	} else if v.started.Load() {
+	if v.started.Load() {
 		st.State = State(constants.RuntimeStateRunning)
 	} else if v.starting.Load() {
 		st.State = State(constants.RuntimeStateStarting)
+	} else if v.dockerAPIReady(ctx) {
+		st.State = State(constants.RuntimeStateRunning)
+		v.started.Store(true)
+		v.proxyResync.Store(true)
 	}
 	st.PortConflicts = v.localhostProxy.conflictsSnapshot()
 	return st, nil
