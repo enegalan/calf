@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -75,11 +74,7 @@ func runCommandOnceEnv(ctx context.Context, env []string, stdin, name string, ar
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		if formatted := FormatCommandError(string(output)); formatted != "" {
-			return nil, fmt.Errorf("%s", formatted)
-		}
-
-		return nil, fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
+		return nil, wrapCommandOutputError(name, args, string(output), err)
 	}
 
 	return output, nil

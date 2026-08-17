@@ -15,6 +15,10 @@ func TestIsTransientCommandError(t *testing.T) {
 		{"sudo: unable to execute /usr/local/bin/nerdctl: Text file busy", true},
 		{"connection refused", true},
 		{`error during connect: Get "http://%2FUsers%2Fegalan%2F.config%2Fcalf%2Fdocker.sock/_ping": EOF`, true},
+		{`Get "http://%2FUsers%2Fegalan%2F.config%2Fcalf%2Fdocker.sock/_ping": EOF`, true},
+		{"EOF: driver not connecting", true},
+		{"EOF", true},
+		{"exit status 1", false},
 		{"image not found", false},
 	}
 
@@ -31,6 +35,32 @@ func TestFormatCommandErrorPrefersUnknownCommand(t *testing.T) {
 	got := runtime.FormatCommandError(output)
 	if got != "docker: unknown command: docker buildx" {
 		t.Fatalf("FormatCommandError() = %q, want unknown-command line", got)
+	}
+}
+
+func TestFormatCommandErrorPrefersConnectErrorAfterContainerLogs(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		want   string
+	}{
+		{
+			name:   "connect without ERROR prefix",
+			output: "app started\nerror: ignored earlier log\nerror during connect: Get \"http://sock/v1.55/containers/x/logs\": EOF\n",
+			want:   "error during connect: Get \"http://sock/v1.55/containers/x/logs\": EOF",
+		},
+		{
+			name:   "docker ERROR prefix",
+			output: "app started\nerror: ignored earlier log\nERROR: error during connect: Get \"http://sock/v1.55/version\": EOF: driver not connecting\n",
+			want:   "ERROR: error during connect: Get \"http://sock/v1.55/version\": EOF: driver not connecting",
+		},
+	}
+
+	for _, testCase := range cases {
+		got := runtime.FormatCommandError(testCase.output)
+		if got != testCase.want {
+			t.Fatalf("%s: FormatCommandError() = %q, want %q", testCase.name, got, testCase.want)
+		}
 	}
 }
 
