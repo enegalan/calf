@@ -559,7 +559,9 @@ func containerState(status, state string) string {
 	}
 }
 
-// streamCommandLogs runs command and streams stdout lines to output until it exits.
+const commandErrorTailBytes = 4096
+
+// streamCommandLogs runs command and streams stdout and stderr lines to output until it exits.
 func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(string)) error {
 	stdout, err := command.StdoutPipe()
 	if err != nil {
@@ -575,6 +577,7 @@ func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(strin
 		return err
 	}
 
+	stderrTail := newLastBytesWriter(commandErrorTailBytes)
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {
@@ -583,7 +586,7 @@ func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(strin
 	}()
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(io.Discard, stderr)
+		pipeLines(io.TeeReader(stderr, stderrTail), output)
 	}()
 
 	waitErr := command.Wait()
@@ -593,7 +596,54 @@ func streamCommandLogs(ctx context.Context, command *exec.Cmd, output func(strin
 		return ctx.Err()
 	}
 
-	return waitErr
+	if waitErr == nil {
+		return nil
+	}
+
+	name := command.Path
+	args := command.Args
+	if len(args) > 0 {
+		name = args[0]
+		args = args[1:]
+	}
+
+	return wrapCommandOutputError(name, args, stderrTail.String(), waitErr)
+}
+
+// lastBytesWriter keeps the last max bytes written to it.
+type lastBytesWriter struct {
+	max int
+	buf []byte
+}
+
+// newLastBytesWriter returns a writer that retains at most max trailing bytes.
+func newLastBytesWriter(max int) *lastBytesWriter {
+	return &lastBytesWriter{max: max}
+}
+
+// Write appends p, dropping older bytes when the retained tail exceeds max.
+func (w *lastBytesWriter) Write(p []byte) (int, error) {
+	if w.max <= 0 {
+		return len(p), nil
+	}
+
+	if len(p) >= w.max {
+		w.buf = append(w.buf[:0], p[len(p)-w.max:]...)
+		return len(p), nil
+	}
+
+	overflow := len(w.buf) + len(p) - w.max
+	if overflow > 0 {
+		w.buf = w.buf[overflow:]
+	}
+	w.buf = append(w.buf, p...)
+
+	return len(p), nil
+}
+
+// String returns the retained tail.
+func (w *lastBytesWriter) String() string {
+	return string(w.buf)
 }
 
 // logsFollowSince returns an RFC3339Nano timestamp for nerdctl logs --since.

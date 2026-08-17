@@ -23,6 +23,10 @@ func FormatCommandError(output string) string {
 		"not found",
 		"is not a docker command",
 		"permission denied",
+		"error during connect",
+		"driver not connecting",
+		"cannot connect to the docker daemon",
+		"unexpected eof",
 		"error:",
 		"fatal:",
 	}
@@ -167,6 +171,12 @@ func IsTransientCommandError(err error) bool {
 		"broken pipe",
 		"error during connect",
 		"unexpected eof",
+		": eof",
+		"driver not connecting",
+	}
+
+	if strings.TrimSpace(message) == "eof" {
+		return true
 	}
 
 	for _, marker := range transientMarkers {
@@ -201,4 +211,14 @@ func IsTransientCommandError(err error) bool {
 	}
 
 	return false
+}
+
+// wrapCommandOutputError returns FormatCommandError(output) when it is non-empty,
+// otherwise name and args wrapped around err.
+func wrapCommandOutputError(name string, args []string, output string, err error) error {
+	if formatted := FormatCommandError(output); formatted != "" {
+		return fmt.Errorf("%s", formatted)
+	}
+
+	return fmt.Errorf("%s %s: %w", name, strings.Join(args, " "), err)
 }
