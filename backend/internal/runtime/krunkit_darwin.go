@@ -172,7 +172,9 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		return err
 	}
 	// Boot wait is independent of first-run disk download duration.
-	bootCtx, bootCancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Minute)
+	// 10m matches waitForDockerAPI: a dirty guest (Compose + overlay) can need
+	// several minutes of virtio-fs/journal recovery before dockerd answers.
+	bootCtx, bootCancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
 	defer bootCancel()
 	ctx = bootCtx
 	if err := os.MkdirAll(k.dataDir, 0o755); err != nil {
