@@ -12,26 +12,61 @@ var ansiEscapePattern = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
 // Regular expression for extracting the fatal message from nerdctl/shell command output.
 var nerdctlFatalMessagePattern = regexp.MustCompile(`level=fatal msg="([^"]+)"`)
 
+var preferredErrorMarkers = []string{
+	"unknown command",
+	"unknown flag",
+	"not found",
+	"is not a docker command",
+	"permission denied",
+	"error during connect",
+	"driver not connecting",
+	"cannot connect to the docker daemon",
+	"unexpected eof",
+	"error:",
+	"fatal:",
+}
+
 // FormatCommandError extracts a concise human-readable message from nerdctl/shell command output.
 func FormatCommandError(output string) string {
-	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
-	lines := strings.Split(cleaned, "\n")
-
-	preferredMarkers := []string{
-		"unknown command",
-		"unknown flag",
-		"not found",
-		"is not a docker command",
-		"permission denied",
-		"error during connect",
-		"driver not connecting",
-		"cannot connect to the docker daemon",
-		"unexpected eof",
-		"error:",
-		"fatal:",
+	if line := commandErrorMarkerLine(output); line != "" {
+		return line
 	}
 
+	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
+	lines := strings.Split(cleaned, "\n")
 	var lastUseful string
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimSpace(lines[index])
+		if line == "" || isProgressLine(line) {
+			continue
+		}
+		if strings.HasPrefix(line, "time=") || strings.HasPrefix(line, "Usage:") || strings.HasPrefix(line, "Run '") {
+			continue
+		}
+		lastUseful = line
+		break
+	}
+
+	if lastUseful != "" {
+		return lastUseful
+	}
+
+	cleaned = strings.TrimSpace(cleaned)
+	if cleaned == "" {
+		return ""
+	}
+
+	if len(cleaned) > 500 {
+		return cleaned[len(cleaned)-500:]
+	}
+
+	return cleaned
+}
+
+// commandErrorMarkerLine returns the last output line that looks like a real command error.
+func commandErrorMarkerLine(output string) string {
+	cleaned := ansiEscapePattern.ReplaceAllString(output, "")
+	lines := strings.Split(cleaned, "\n")
 	for index := len(lines) - 1; index >= 0; index-- {
 		line := strings.TrimSpace(lines[index])
 		if line == "" || isProgressLine(line) {
@@ -51,31 +86,45 @@ func FormatCommandError(output string) string {
 		}
 
 		lower := strings.ToLower(line)
-		for _, marker := range preferredMarkers {
+		for _, marker := range preferredErrorMarkers {
 			if strings.Contains(lower, marker) {
 				return line
 			}
 		}
-
-		if lastUseful == "" {
-			lastUseful = line
-		}
 	}
 
-	if lastUseful != "" {
-		return lastUseful
-	}
+	return ""
+}
 
-	cleaned = strings.TrimSpace(cleaned)
-	if cleaned == "" {
-		return ""
+// WrapGuestWaitError reports a failed helper wait. Successful command output (for example
+// buildx GC policy lines) is not treated as the failure reason.
+func WrapGuestWaitError(waitErr error, logs []byte) error {
+	if waitErr == nil {
+		return nil
 	}
-
-	if len(cleaned) > 500 {
-		return cleaned[len(cleaned)-500:]
+	if msg := commandErrorMarkerLine(string(logs)); msg != "" {
+		return fmt.Errorf("guest wait: %w: %s", waitErr, msg)
 	}
+	return fmt.Errorf("guest wait: %w", waitErr)
+}
 
-	return cleaned
+// ParseInspectStateLine parses `docker inspect -f '{{.State.Status}} {{.State.ExitCode}}'` output.
+func ParseInspectStateLine(out string) (status, exitCode string, ok bool) {
+	fields := strings.Fields(strings.TrimSpace(out))
+	if len(fields) < 2 {
+		return "", "", false
+	}
+	return strings.ToLower(fields[0]), fields[1], true
+}
+
+// InspectStateExited reports whether a docker inspect status means the container has stopped.
+func InspectStateExited(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "exited", "dead":
+		return true
+	default:
+		return false
+	}
 }
 
 // isProgressLine reports whether a log line is build/pull progress noise rather than an error.

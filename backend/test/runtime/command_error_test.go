@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/enegalan/calf/backend/internal/runtime"
@@ -61,6 +62,43 @@ func TestFormatCommandErrorPrefersConnectErrorAfterContainerLogs(t *testing.T) {
 		if got != testCase.want {
 			t.Fatalf("%s: FormatCommandError() = %q, want %q", testCase.name, got, testCase.want)
 		}
+	}
+}
+
+func TestWrapGuestWaitErrorIgnoresBuildxGCPolicy(t *testing.T) {
+	waitErr := fmt.Errorf("error during connect: Post \"http://sock/v1.52/containers/abc/wait\": write unix ->/sock: write: broken pipe")
+	logs := []byte("Name:          default\nDriver:        docker\nGC Policy rule#0:\n  Max Used Space: 9.313GiB\n  Min Free Space: 7.451GiB\n")
+	got := runtime.WrapGuestWaitError(waitErr, logs)
+	if got == nil {
+		t.Fatal("WrapGuestWaitError() = nil")
+	}
+	if strings.Contains(got.Error(), "Min Free Space") {
+		t.Fatalf("WrapGuestWaitError() = %q, must not treat GC policy as the failure", got)
+	}
+	if !strings.Contains(got.Error(), "broken pipe") {
+		t.Fatalf("WrapGuestWaitError() = %q, want original wait error", got)
+	}
+}
+
+func TestWrapGuestWaitErrorKeepsConnectMarker(t *testing.T) {
+	waitErr := fmt.Errorf("write: broken pipe")
+	logs := []byte("app started\nerror during connect: Get \"http://sock/_ping\": EOF\n")
+	got := runtime.WrapGuestWaitError(waitErr, logs)
+	if got == nil || !strings.Contains(got.Error(), "error during connect") {
+		t.Fatalf("WrapGuestWaitError() = %v, want connect error from logs", got)
+	}
+}
+
+func TestParseInspectStateLine(t *testing.T) {
+	status, code, ok := runtime.ParseInspectStateLine("exited 0\n")
+	if !ok || status != "exited" || code != "0" {
+		t.Fatalf("ParseInspectStateLine() = %q %q %v", status, code, ok)
+	}
+	if _, _, ok := runtime.ParseInspectStateLine("running"); ok {
+		t.Fatal("ParseInspectStateLine(running) ok = true")
+	}
+	if !runtime.InspectStateExited("exited") || runtime.InspectStateExited("running") {
+		t.Fatal("InspectStateExited() mismatch")
 	}
 }
 
