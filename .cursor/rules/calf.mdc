@@ -169,7 +169,7 @@ calf/
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go + plugins_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, virtiofs_guest, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, guest_gated, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, virtiofs_guest, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -323,7 +323,7 @@ Daemon backend: shared state, background workers, and services used by the HTTP 
 - `registry_login.go` — Docker Hub device-flow session manager.
 - `resource_saver.go` — stops the engine after an idle period with no running containers when enabled in config.
 - `resource_snapshot.go` — last containers/images/volumes/networks lists served while Resource Saver holds the engine stopped.
-- `docker_socket_proxy.go` — public `docker.sock`: wake-on-connect listen when the engine is stopped; direct symlink to the guest vsock while running; periodic reclaim after upgrade races.
+- `docker_socket_proxy.go` — public `docker.sock`: wake-on-connect listen; API version clamp; serialized vsock dials via the guest gater; periodic reclaim after upgrade races.
 - `runtime_ready.go` — `EnsureRuntimeRunning` (non-HTTP).
 - `stats_history.go` — in-memory rolling stats samples per container (15m retention).
 - `stats_sampler.go` — background sampler that appends stats for running containers.
@@ -363,7 +363,7 @@ Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
 - `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
-- `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs.
+- `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs. Daemon docker CLI talks through a gated splice so vsock dials stay serialized with the public `docker.sock` proxy.
 - `container_ghosts.go` — detect empty-name corrupt container leftovers and build the guest wipe/restart script used on engine start.
 - `unsupported.go` — Windows stub Runtime until a new backend lands.
 - `guest_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-guest-disk-<arch>.raw.zst`.

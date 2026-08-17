@@ -527,3 +527,156 @@ func TestProxyUnixConnectionForwardsRequestBody(t *testing.T) {
 		t.Fatal("proxy did not finish after body forward")
 	}
 }
+
+// serialTestGater serializes engine dials for proxy tests.
+type serialTestGater struct {
+	engine string
+	mu     sync.Mutex
+	dials  atomic.Int32
+}
+
+func (g *serialTestGater) AcquireEngineConn(ctx context.Context) error {
+	return ctx.Err()
+}
+
+func (g *serialTestGater) ReleaseEngineConn() {}
+
+func (g *serialTestGater) DialEngineSocket(ctx context.Context) (net.Conn, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.dials.Add(1)
+	var d net.Dialer
+	return d.DialContext(ctx, "unix", g.engine)
+}
+
+func TestDockerSocketProxyDialsThroughGater(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "calf-dsp-gater-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	public := filepath.Join(dir, "docker.sock")
+	engine := filepath.Join(dir, "engine.sock")
+
+	ln, err := net.Listen("unix", engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				_, _ = c.Read(buf)
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"))
+			}(conn)
+		}
+	}()
+
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gater := &serialTestGater{engine: engine}
+	proxy := daemon.NewDockerSocketProxyWithGaterForTest(public, engine, life, func(context.Context) error {
+		return nil
+	}, gater)
+	if err := proxy.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer proxy.Stop()
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", public)
+			},
+			DisableKeepAlives: true,
+		},
+	}
+	resp, err := client.Get("http://localhost/_ping")
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || string(body) != "OK" {
+		t.Fatalf("status %d body %q", resp.StatusCode, body)
+	}
+	if gater.dials.Load() < 1 {
+		t.Fatal("gater DialEngineSocket was not used")
+	}
+}
+
+func TestDockerSocketProxyDoesNotDialUntilRequest(t *testing.T) {
+	dir, err := os.MkdirTemp("/tmp", "calf-dsp-idle-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	public := filepath.Join(dir, "docker.sock")
+	engine := filepath.Join(dir, "engine.sock")
+
+	ln, err := net.Listen("unix", engine)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	var accepts atomic.Int32
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepts.Add(1)
+			go func(c net.Conn) {
+				defer c.Close()
+				buf := make([]byte, 4096)
+				_, _ = c.Read(buf)
+				_, _ = c.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK"))
+			}(conn)
+		}
+	}()
+
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proxy := daemon.NewDockerSocketProxyForTest(public, engine, life, func(context.Context) error {
+		return nil
+	})
+	if err := proxy.Start(); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer proxy.Stop()
+
+	var d net.Dialer
+	conn, err := d.Dial("unix", public)
+	if err != nil {
+		t.Fatalf("dial public: %v", err)
+	}
+	defer conn.Close()
+	time.Sleep(300 * time.Millisecond)
+	if n := accepts.Load(); n != 0 {
+		t.Fatalf("engine accepts=%d before HTTP request, want 0", n)
+	}
+	if _, err := conn.Write([]byte("GET /_ping HTTP/1.1\r\nHost: localhost\r\n\r\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	buf := make([]byte, 256)
+	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	n, err := conn.Read(buf)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !bytes.Contains(buf[:n], []byte("OK")) {
+		t.Fatalf("response %q", buf[:n])
+	}
+	if accepts.Load() != 1 {
+		t.Fatalf("engine accepts=%d after request, want 1", accepts.Load())
+	}
+}
