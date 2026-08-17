@@ -32,8 +32,17 @@ type Config struct {
 	NoProxy                 string `yaml:"no_proxy"`
 	VMKeepAlive             bool   `yaml:"vm_keep_alive"`
 	Rootless                bool   `yaml:"rootless"`
-	ResourceSaverEnabled    bool   `yaml:"resource_saver_enabled"`
-	ResourceSaverTimeoutSec int    `yaml:"resource_saver_timeout_sec"`
+	ResourceSaverEnabled    bool     `yaml:"resource_saver_enabled"`
+	ResourceSaverTimeoutSec int      `yaml:"resource_saver_timeout_sec"`
+	ShellCompletions        bool     `yaml:"shell_completions"`
+	DefaultDockerSocket     bool     `yaml:"default_docker_socket"`
+	PrivilegedPorts         bool     `yaml:"privileged_ports"`
+	FileShares              []string `yaml:"file_shares"`
+	HostNetworking          bool     `yaml:"host_networking"`
+	DaemonJSON              string   `yaml:"daemon_json"`
+	DockerSubnet            string   `yaml:"docker_subnet"`
+	BindLocalhostOnly       bool     `yaml:"bind_localhost_only"`
+	EnableAmd64Emulation    bool     `yaml:"enable_amd64_emulation"`
 }
 
 // Default returns the embedded config.yaml values without reading disk.

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -72,6 +73,8 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
       toast.fail(error.message);
     } on TimeoutException {
       toast.fail('Action timed out');
+    } on FileSystemException catch (error) {
+      toast.fail(error.message);
     } on StateError catch (error) {
       toast.fail(error.message);
     } finally {
@@ -99,8 +102,25 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
     );
   }
 
-  /// Opens the support / feedback channel.
+  /// Saves a diagnostics zip, then opens the GitHub issue form.
   Future<void> _getSupport() async {
+    final location = await getSaveLocation(
+      suggestedName: 'calf-diagnostics.zip',
+    );
+    if (location == null || !mounted) {
+      return;
+    }
+    await _runAction(
+      'Saving diagnostics…',
+      () async {
+        final bytes = await widget.apiClient.downloadDiagnostics();
+        await File(location.path).writeAsBytes(bytes);
+      },
+      successMessage: 'Diagnostics saved',
+    );
+    if (!mounted) {
+      return;
+    }
     final opened = await openExternalUrl(calfReportIssueUrl);
     if (!mounted) {
       return;
@@ -248,7 +268,8 @@ class _TroubleshootScreenState extends State<TroubleshootScreen> {
               ),
               _TroubleshootRow(
                 title: 'Support',
-                description: 'Get help with calf.',
+                description:
+                    'Save a diagnostics zip, then open the issue form.',
                 actionLabel: 'Get support',
                 destructive: false,
                 enabled: !_busy,

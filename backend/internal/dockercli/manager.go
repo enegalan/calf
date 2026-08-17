@@ -65,12 +65,21 @@ func (m *Manager) Activate(ctx context.Context) error {
 	return EnsureAndActivate(ctx, socket)
 }
 
+// Deactivate switches the Docker CLI off the calf context when it is currently selected.
+func (m *Manager) Deactivate(ctx context.Context) error {
+	return DeactivateContext(ctx)
+}
+
 // ensure repairs CLI plugins and keeps the calf docker context active while managed mode is on.
 func (m *Manager) ensure(ctx context.Context) {
 	m.repairPlugins()
 
 	if !m.managed() {
 		return
+	}
+
+	for _, warning := range DetectHijack(m.runtime.DockerSocket()) {
+		m.logger.Warn("docker CLI path conflict", "path", warning.Path, "owner", warning.Owner)
 	}
 
 	socket := m.runtime.DockerSocket()

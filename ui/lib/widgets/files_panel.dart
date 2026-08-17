@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import 'package:ui/api/client.dart';
+import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/utils/format.dart';
@@ -11,16 +13,21 @@ import 'package:ui/utils/format.dart';
 typedef LoadDirectoryCallback =
     Future<List<ContainerFileEntry>> Function(String path);
 
+/// Writes file contents at [path] in the container or volume.
+typedef WriteFileCallback = Future<void> Function(String path, String content);
+
 class FilesPanel extends StatefulWidget {
   /// Displays a lazy-loaded directory tree for container files.
   const FilesPanel({
     super.key,
     required this.theme,
     required this.loadDirectory,
+    this.writeFile,
   });
 
   final ThemeData theme;
   final LoadDirectoryCallback loadDirectory;
+  final WriteFileCallback? writeFile;
 
   /// Creates the mutable state for this files panel.
   @override
@@ -94,6 +101,65 @@ class _FilesPanelState extends State<FilesPanel> {
     }
   }
 
+  /// Opens a dialog to overwrite [path] with new contents.
+  Future<void> _editFile(String path) async {
+    final writeFile = widget.writeFile;
+    if (writeFile == null) {
+      return;
+    }
+    final contentController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CalfAlertDialog(
+        title: const Text('Save file'),
+        width: 480,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(path, style: CalfTheme.muted(Theme.of(dialogContext))),
+            const SizedBox(height: 12),
+            TextField(
+              controller: contentController,
+              maxLines: 12,
+              decoration: const InputDecoration(
+                labelText: 'Contents',
+                hintText: 'Overwrites the file',
+                alignLabelWithHint: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    final content = contentController.text;
+    contentController.dispose();
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Saving $path...',
+      done: 'Saved $path',
+      action: () => writeFile(path, content),
+    );
+    if (ok && mounted) {
+      final parent = path.contains('/')
+          ? path.substring(0, path.lastIndexOf('/'))
+          : '/';
+      await _loadDirectory(parent.isEmpty ? '/' : parent);
+    }
+  }
+
   /// Sorts entries with directories first, then alphabetically by name.
   List<ContainerFileEntry> _sortedEntries(List<ContainerFileEntry> entries) {
     final sorted = List<ContainerFileEntry>.from(entries);
@@ -142,6 +208,9 @@ class _FilesPanelState extends State<FilesPanel> {
           depth: depth,
           expanded: expanded,
           onToggle: entry.isDir ? () => _toggleDirectory(entry.path) : null,
+          onEdit: !entry.isDir && widget.writeFile != null
+              ? () => _editFile(entry.path)
+              : null,
         ),
       );
 
@@ -233,6 +302,7 @@ class FilesPanelRow extends StatelessWidget {
     required this.depth,
     required this.expanded,
     required this.onToggle,
+    this.onEdit,
   });
 
   final ThemeData theme;
@@ -240,6 +310,7 @@ class FilesPanelRow extends StatelessWidget {
   final int depth;
   final bool expanded;
   final VoidCallback? onToggle;
+  final VoidCallback? onEdit;
 
   /// Builds one file or directory table row.
   @override
@@ -247,7 +318,7 @@ class FilesPanelRow extends StatelessWidget {
     return HoverListRow(
       theme: theme,
       padding: EdgeInsets.fromLTRB(8 + depth * 18.0, 8, 8, 8),
-      onTap: onToggle,
+      onTap: onToggle ?? onEdit,
       child: Row(
         children: [
           SizedBox(
@@ -304,6 +375,18 @@ class FilesPanelRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (onEdit != null)
+            CalfButton.ghost(
+              width: 28,
+              height: 28,
+              padding: EdgeInsets.zero,
+              onPressed: onEdit,
+              child: Icon(
+                LucideIcons.pencil,
+                size: 14,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
         ],
       ),
     );

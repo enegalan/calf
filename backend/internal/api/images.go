@@ -5,6 +5,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
+	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
@@ -109,7 +110,11 @@ func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	var payload struct {
-		Reference string `json:"reference"`
+		Reference string   `json:"reference"`
+		Name      string   `json:"name"`
+		Ports     []string `json:"ports"`
+		Env       []string `json:"env"`
+		Volumes   []string `json:"volumes"`
 	}
 
 	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
@@ -124,7 +129,13 @@ func (g *Gateway) handleImageRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	containerID, err := g.backend.Runtime.RunImage(r.Context(), payload.Reference)
+	containerID, err := g.backend.Runtime.RunImageWith(r.Context(), runtime.RunImageOptions{
+		Reference: payload.Reference,
+		Name:      payload.Name,
+		Ports:     payload.Ports,
+		Env:       payload.Env,
+		Volumes:   payload.Volumes,
+	})
 	if err != nil {
 		httpkit.WriteRuntimeOrFail(w, err)
 		return

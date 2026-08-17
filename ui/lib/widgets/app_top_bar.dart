@@ -15,6 +15,7 @@ import 'package:ui/updates/update_checker.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 import 'package:ui/widgets/release_notes_markdown.dart';
 import 'package:ui/theme/calf_theme.dart';
 
@@ -724,107 +725,105 @@ class _RegistryLoginDialogState extends State<_RegistryLoginDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AlertDialog(
+    return CalfAlertDialog(
       title: const Text('Sign in to Docker Hub'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Complete sign-in in your browser. This dialog closes when you are done.',
+      width: 420,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Complete sign-in in your browser. This dialog closes when you are done.',
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: theme.colorScheme.primary,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Waiting for browser sign-in...',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Confirmation code',
+            style: theme.textTheme.bodySmall!.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.start.userCode,
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Waiting for browser sign-in...',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Confirmation code',
-              style: theme.textTheme.bodySmall!.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                border: Border.all(color: theme.colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.start.userCode,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        letterSpacing: 2,
-                        fontWeight: FontWeight.w600,
+                ),
+                CalfButton.ghost(
+                  onPressed: _copyCode,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.copy,
+                        size: 14,
+                        color: theme.colorScheme.onSurface,
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      const Text('Copy'),
+                    ],
                   ),
-                  CalfButton.ghost(
-                    onPressed: _copyCode,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.copy,
-                          size: 14,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        const SizedBox(width: 6),
-                        const Text('Copy'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            CalfButton.outline(
-              onPressed: _openLoginPage,
-              width: double.infinity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.externalLink,
-                    size: 14,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text('Open login page'),
-                ],
-              ),
+          ),
+          const SizedBox(height: 12),
+          CalfButton.outline(
+            onPressed: _openLoginPage,
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.externalLink,
+                  size: 14,
+                  color: theme.colorScheme.onSurface,
+                ),
+                const SizedBox(width: 8),
+                const Text('Open login page'),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       actions: [
         CalfButton.ghost(onPressed: _cancel, child: const Text('Cancel')),

@@ -15,9 +15,10 @@ import (
 // (see cli_ops.go); methods with native-specific behavior are defined below.
 type Native struct {
 	cliOps
-	dockerSocket string
-	rootless     bool
-	proxy        ProxyConfig
+	dockerSocket   string
+	rootless       bool
+	proxy          ProxyConfig
+	engineSettings EngineSettings
 }
 
 // NewNative constructs a Runtime that talks directly to host nerdctl/docker.
@@ -31,6 +32,11 @@ func NewNative(_ string, dockerSocket string, _, _, _, _ int, rootless bool, pro
 // DockerSocket returns the path to the Docker-compatible socket.
 func (n *Native) DockerSocket() string {
 	return n.dockerSocket
+}
+
+// ApplyEngineSettings stores overlay fields used by native privileged-port hints.
+func (n *Native) ApplyEngineSettings(settings EngineSettings) {
+	n.engineSettings = settings
 }
 
 // Start verifies the docker socket and container runtime are available.

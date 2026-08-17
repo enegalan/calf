@@ -9,21 +9,26 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
 )
 
 // Status represents the current state of the docker CLI context.
 type Status struct {
-	Available        bool   `json:"available"`
-	CurrentContext   string `json:"current_context"`
-	CalfActive       bool   `json:"calf_active"`
-	CalfExists       bool   `json:"calf_exists"`
-	Managed          bool   `json:"managed"`
-	Socket           string `json:"socket"`
-	BuildxAvailable  bool   `json:"buildx_available"`
-	ComposeAvailable bool   `json:"compose_available"`
-	PluginsHint      string `json:"plugins_hint,omitempty"`
+	Available          bool                 `json:"available"`
+	CurrentContext     string               `json:"current_context"`
+	CalfActive         bool                 `json:"calf_active"`
+	CalfExists         bool                 `json:"calf_exists"`
+	Managed            bool                 `json:"managed"`
+	Socket             string               `json:"socket"`
+	BuildxAvailable    bool                 `json:"buildx_available"`
+	ComposeAvailable   bool                 `json:"compose_available"`
+	PluginsHint        string               `json:"plugins_hint,omitempty"`
+	BuildxVersion      string               `json:"buildx_version,omitempty"`
+	ComposeVersion     string               `json:"compose_version,omitempty"`
+	HijackWarnings     []HijackWarning      `json:"hijack_warnings,omitempty"`
+	DefaultSocket      DefaultSocketStatus  `json:"default_socket"`
 }
 
 // dockerConfig represents the current context of the docker CLI.
@@ -44,6 +49,8 @@ func StatusFor(socket string, managed bool) (Status, error) {
 	status.BuildxAvailable = plugins.BuildxAvailable
 	status.ComposeAvailable = plugins.ComposeAvailable
 	status.PluginsHint = plugins.Hint
+	status.HijackWarnings = DetectHijack(socket)
+	status.DefaultSocket = ProbeDefaultSocket(socket)
 
 	if _, err := exec.LookPath("docker"); err != nil {
 		return status, nil
@@ -51,6 +58,8 @@ func StatusFor(socket string, managed bool) (Status, error) {
 
 	status.Available = true
 	status.CalfActive = status.CurrentContext == constants.DockerContextName
+	status.BuildxVersion = cliPluginVersion("buildx")
+	status.ComposeVersion = cliPluginVersion("compose")
 
 	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
 	defer cancel()
@@ -156,4 +165,42 @@ func EnsureAndActivate(ctx context.Context, socket string) error {
 	}
 
 	return ActivateContext(ctx)
+}
+
+// DeactivateContext switches the Docker CLI from calf back to the default context.
+func DeactivateContext(ctx context.Context) error {
+	if readCurrentContext() != constants.DockerContextName {
+		return nil
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		return nil
+	}
+
+	command := exec.CommandContext(ctx, "docker", "context", "use", "default")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker context use default: %w: %s", err, strings.TrimSpace(string(output)))
+	}
+
+	return nil
+}
+
+// cliPluginVersion returns a short version string for docker buildx or compose.
+func cliPluginVersion(plugin string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", plugin, "version", "--short")
+	output, err := cmd.Output()
+	if err != nil {
+		cmd = exec.CommandContext(ctx, "docker", plugin, "version")
+		output, err = cmd.Output()
+		if err != nil {
+			return ""
+		}
+	}
+	line := strings.TrimSpace(string(output))
+	if idx := strings.IndexByte(line, '\n'); idx >= 0 {
+		line = strings.TrimSpace(line[:idx])
+	}
+	return line
 }

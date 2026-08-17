@@ -170,6 +170,48 @@ class _NetworksScreenState extends State<NetworksScreen>
     }
   }
 
+  /// Prompts for a name and creates a user-defined network.
+  Future<void> _createNetwork() async {
+    final nameController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CalfAlertDialog(
+        title: const Text('Create network'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Name',
+            hintText: 'Network name',
+          ),
+        ),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    final name = nameController.text.trim();
+    nameController.dispose();
+    if (confirmed != true || name.isEmpty || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Creating "$name"...',
+      done: 'Created network "$name"',
+      action: () => widget.apiClient.createNetwork(name),
+    );
+    if (ok && mounted) {
+      await _loadNetworks();
+    }
+  }
+
   /// Builds the widget tree for the current screen state.
   @override
   Widget build(BuildContext context) {
@@ -194,6 +236,10 @@ class _NetworksScreenState extends State<NetworksScreen>
       title: 'Networks',
       searchController: listSearchController,
       loading: listLoading,
+      headerActions: CalfButton(
+        onPressed: _createNetwork,
+        child: const Text('Create'),
+      ),
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No networks match "$listSearchQuery".'

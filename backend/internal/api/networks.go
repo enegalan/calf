@@ -51,3 +51,26 @@ func (g *Gateway) handleNetworkAction() http.HandlerFunc {
 		},
 	})
 }
+
+// handleNetworksCreate serves POST /v1/networks.
+func (g *Gateway) handleNetworksCreate(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), constants.DefaultActionTimeout)
+	defer cancel()
+
+	var payload struct {
+		Name   string `json:"name"`
+		Driver string `json:"driver"`
+		Subnet string `json:"subnet"`
+	}
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
+		return
+	}
+	if !httpkit.RequireNonEmpty(w, "name", payload.Name) {
+		return
+	}
+	if err := g.backend.Runtime.CreateNetwork(ctx, payload.Name, payload.Driver, payload.Subnet); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+	utils.WriteOK(w)
+}

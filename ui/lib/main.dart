@@ -12,8 +12,9 @@ import 'package:ui/api/client.dart';
 import 'package:ui/app_shell.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
-import 'package:ui/platform/tray_status.dart';
 import 'package:ui/theme/calf_theme.dart';
+import 'package:ui/platform/tray_status.dart';
+import 'package:ui/storage/window_preferences.dart';
 
 Process? _daemonProcess;
 bool _daemonShutdown = false;
@@ -261,6 +262,9 @@ Future<void> main() async {
     onQuit: _quitCalfApp,
     onOpenUrl: openExternalUrl,
   );
+  if (supportsTrayStatusIcon && !await WindowPreferences.loadOpenOnLaunch()) {
+    await _hideCalfWindow();
+  }
   if (!_externalDaemon) {
     _startDaemon();
   }

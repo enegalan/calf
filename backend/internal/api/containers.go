@@ -52,9 +52,16 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 		},
 		{
 			Segments: []string{"files"},
-			Method:   http.MethodGet,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
-				g.handleContainerFiles(w, r, parts[0])
+				id := parts[0]
+				httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+					http.MethodGet: func(w http.ResponseWriter, r *http.Request) {
+						g.handleContainerFiles(w, r, id)
+					},
+					http.MethodPut: func(w http.ResponseWriter, r *http.Request) {
+						g.handleContainerFileWrite(w, r, id)
+					},
+				})(w, r)
 			},
 		},
 		{
@@ -90,6 +97,20 @@ func (g *Gateway) handleContainerAction() http.HandlerFunc {
 			Method:   http.MethodPost,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
 				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.StopContainer, false)
+			},
+		},
+		{
+			Segments: []string{"pause"},
+			Method:   http.MethodPost,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.PauseContainer, false)
+			},
+		},
+		{
+			Segments: []string{"resume"},
+			Method:   http.MethodPost,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleContainerLifecycle(w, r, parts[0], g.backend.Runtime.ResumeContainer, true)
 			},
 		},
 		{
@@ -190,6 +211,31 @@ func (g *Gateway) handleContainerFiles(w http.ResponseWriter, r *http.Request, i
 	}
 
 	httpkit.WriteJSON(w, http.StatusOK, files)
+}
+
+// containerFileWriteRequest is the JSON body for PUT /v1/containers/{id}/files.
+type containerFileWriteRequest struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// handleContainerFileWrite serves PUT /v1/containers/{id}/files.
+func (g *Gateway) handleContainerFileWrite(w http.ResponseWriter, r *http.Request, id string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
+	var payload containerFileWriteRequest
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
+		return
+	}
+	if !httpkit.RequireNonEmpty(w, "path", payload.Path) {
+		return
+	}
+	if err := g.backend.Runtime.WriteContainerFile(r.Context(), id, payload.Path, []byte(payload.Content)); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+	utils.WriteOK(w)
 }
 
 // containerExecRequest represents the JSON payload for POST /v1/containers/{id}/exec.

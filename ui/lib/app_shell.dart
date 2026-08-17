@@ -16,6 +16,7 @@ import 'package:ui/screens/images_screen.dart';
 import 'package:ui/screens/networks_screen.dart';
 import 'package:ui/screens/settings_screen.dart';
 import 'package:ui/screens/troubleshoot_screen.dart';
+import 'package:ui/screens/unified_logs_screen.dart';
 import 'package:ui/screens/volumes_screen.dart';
 import 'package:ui/storage/sidebar_preferences.dart';
 import 'package:ui/updates/update_checker.dart';
@@ -396,6 +397,28 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  /// Opens the About dialog with app and Docker CLI plugin versions.
+  Future<void> _openAbout() async {
+    var buildx = '';
+    var compose = '';
+    try {
+      final cfg = await widget.apiClient.fetchConfig();
+      buildx = cfg.dockerBuildxVersion;
+      compose = cfg.dockerComposeVersion;
+    } on ApiException {
+      buildx = '';
+    }
+    if (!mounted) {
+      return;
+    }
+    showAboutCalfDialog(
+      context,
+      appVersion: _appVersion,
+      dockerBuildxVersion: buildx,
+      dockerComposeVersion: compose,
+    );
+  }
+
   /// Checks GitHub for a newer release.
   Future<void> checkForUpdates({required bool force}) async {
     if (_appVersion.isEmpty) {
@@ -658,7 +681,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
     setState(() {
-      _selectedIndex = 4;
+      _selectedIndex = 5;
       _pendingBuildId = id;
       _showSettings = false;
       _showTroubleshoot = false;
@@ -717,6 +740,7 @@ class _AppShellState extends State<AppShell> {
       (label: 'Images', icon: null, svgAsset: buildPlaceholderIconAsset),
       (label: 'Volumes', icon: LucideIcons.hardDrive, svgAsset: null),
       (label: 'Networks', icon: LucideIcons.network, svgAsset: null),
+      (label: 'Logs', icon: LucideIcons.scrollText, svgAsset: null),
       (label: 'Builds', icon: LucideIcons.wrench, svgAsset: null),
     ];
 
@@ -819,7 +843,7 @@ class _AppShellState extends State<AppShell> {
                   ),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.all(24),
+                      padding: EdgeInsets.all(_showSettings ? 0 : 24),
                       child: _showDiskCleanup
                           ? DiskCleanupScreen(
                               apiClient: widget.apiClient,
@@ -870,6 +894,8 @@ class _AppShellState extends State<AppShell> {
                               ),
                               1 => ImagesScreen(
                                 apiClient: widget.apiClient,
+                                onSignIn: () =>
+                                    unawaited(startRegistryBrowserLogin()),
                                 initialImageReference: _pendingImageReference,
                                 onInitialImageConsumed: () {
                                   if (_pendingImageReference == null) {
@@ -915,6 +941,9 @@ class _AppShellState extends State<AppShell> {
                                     setState(() => _pendingNetworkName = null);
                                   });
                                 },
+                              ),
+                              4 => UnifiedLogsScreen(
+                                apiClient: widget.apiClient,
                               ),
                               _ => BuildsScreen(
                                 apiClient: widget.apiClient,
@@ -1006,8 +1035,7 @@ class _AppShellState extends State<AppShell> {
           onStart: () => unawaited(_startEngine()),
           onStop: () => unawaited(_stopEngine()),
           onOpenSettings: openSettings,
-          onOpenAbout: () =>
-              showAboutCalfDialog(context, appVersion: _appVersion),
+          onOpenAbout: () => unawaited(_openAbout()),
           onSignIn: () => unawaited(startRegistryBrowserLogin()),
           onSignOut: () => unawaited(logoutRegistry()),
           onTroubleshoot: openTroubleshoot,
@@ -1054,6 +1082,7 @@ class _AppShellState extends State<AppShell> {
           onOpenRepository: () => openExternalUrl(calfRepositoryUrl),
           onOpenTroubleshoot: openTroubleshoot,
           onQuit: () => unawaited(CalfTrayStatus.quitApp()),
+          onAbout: () => unawaited(_openAbout()),
           child: Scaffold(body: CalfToastLayer(child: shell)),
         ),
       ),

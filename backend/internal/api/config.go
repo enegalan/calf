@@ -4,40 +4,56 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/enegalan/calf/backend/internal/config"
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/daemon"
+	"github.com/enegalan/calf/backend/internal/dockercli"
 	"github.com/enegalan/calf/backend/internal/httpkit"
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
 // configView represents the JSON payload for GET /v1/config.
 type configView struct {
-	PollIntervalMs          int    `json:"poll_interval_ms"`
-	CPUs                    int    `json:"cpus"`
-	MemoryGB                int    `json:"memory_gb"`
-	MemorySwapGB            int    `json:"memory_swap_gb"`
-	DiskGB                  int    `json:"disk_gb"`
-	DiskImage               string `json:"disk_image"`
-	HostCPUs                int    `json:"host_cpus"`
-	HostMemoryGB            int    `json:"host_memory_gb"`
-	HostDiskGB              int    `json:"host_disk_gb"`
-	DockerContextManaged    bool   `json:"docker_context_managed"`
-	DockerContextActive     bool   `json:"docker_context_active"`
-	DockerContextName       string `json:"docker_context_name"`
-	DockerCLIAvailable      bool   `json:"docker_cli_available"`
-	DockerBuildxAvailable   bool   `json:"docker_buildx_available"`
-	DockerComposeAvailable  bool   `json:"docker_compose_available"`
-	DockerPluginsHint       string `json:"docker_plugins_hint,omitempty"`
-	Rootless                bool   `json:"rootless"`
-	HTTPProxy               string `json:"http_proxy"`
-	HTTPSProxy              string `json:"https_proxy"`
-	NoProxy                 string `json:"no_proxy"`
-	ResourceSaverEnabled    bool   `json:"resource_saver_enabled"`
-	ResourceSaverTimeoutSec int    `json:"resource_saver_timeout_sec"`
-	LogLevel                string `json:"log_level"`
+	PollIntervalMs          int                       `json:"poll_interval_ms"`
+	CPUs                    int                       `json:"cpus"`
+	MemoryGB                int                       `json:"memory_gb"`
+	MemorySwapGB            int                       `json:"memory_swap_gb"`
+	DiskGB                  int                       `json:"disk_gb"`
+	DiskImage               string                    `json:"disk_image"`
+	HostCPUs                int                       `json:"host_cpus"`
+	HostMemoryGB            int                       `json:"host_memory_gb"`
+	HostDiskGB              int                       `json:"host_disk_gb"`
+	DockerContextManaged    bool                      `json:"docker_context_managed"`
+	DockerContextActive     bool                      `json:"docker_context_active"`
+	DockerContextName       string                    `json:"docker_context_name"`
+	DockerCLIAvailable      bool                      `json:"docker_cli_available"`
+	DockerBuildxAvailable   bool                      `json:"docker_buildx_available"`
+	DockerComposeAvailable  bool                      `json:"docker_compose_available"`
+	DockerPluginsHint       string                    `json:"docker_plugins_hint,omitempty"`
+	HijackWarnings          []dockercli.HijackWarning `json:"hijack_warnings,omitempty"`
+	DefaultSocketEnabled    bool                      `json:"default_socket_enabled"`
+	DefaultSocketHint       string                    `json:"default_socket_hint,omitempty"`
+	Rootless                bool                      `json:"rootless"`
+	HTTPProxy               string                    `json:"http_proxy"`
+	HTTPSProxy              string                    `json:"https_proxy"`
+	NoProxy                 string                    `json:"no_proxy"`
+	ResourceSaverEnabled    bool                      `json:"resource_saver_enabled"`
+	ResourceSaverTimeoutSec int                       `json:"resource_saver_timeout_sec"`
+	LogLevel                string                    `json:"log_level"`
+	ShellCompletions        bool                      `json:"shell_completions"`
+	DefaultDockerSocket     bool                      `json:"default_docker_socket"`
+	PrivilegedPorts         bool                      `json:"privileged_ports"`
+	FileShares              []string                  `json:"file_shares"`
+	HostNetworking          bool                      `json:"host_networking"`
+	DaemonJSON              string                    `json:"daemon_json"`
+	DockerSubnet            string                    `json:"docker_subnet"`
+	BindLocalhostOnly       bool                      `json:"bind_localhost_only"`
+	EnableAmd64Emulation    bool                      `json:"enable_amd64_emulation"`
+	DockerBuildxVersion     string                    `json:"docker_buildx_version,omitempty"`
+	DockerComposeVersion    string                    `json:"docker_compose_version,omitempty"`
 }
 
 // buildConfigView builds the JSON payload for GET /v1/config including host capacity and Docker CLI status.
@@ -70,6 +86,9 @@ func (g *Gateway) buildConfigView() configView {
 		DockerBuildxAvailable:   cliStatus.BuildxAvailable,
 		DockerComposeAvailable:  cliStatus.ComposeAvailable,
 		DockerPluginsHint:       cliStatus.PluginsHint,
+		HijackWarnings:          cliStatus.HijackWarnings,
+		DefaultSocketEnabled:    cliStatus.DefaultSocket.Enabled,
+		DefaultSocketHint:       cliStatus.DefaultSocket.Hint,
 		Rootless:                cfg.Rootless,
 		HTTPProxy:               cfg.HTTPProxy,
 		HTTPSProxy:              cfg.HTTPSProxy,
@@ -77,6 +96,17 @@ func (g *Gateway) buildConfigView() configView {
 		ResourceSaverEnabled:    cfg.ResourceSaverEnabled,
 		ResourceSaverTimeoutSec: cfg.ResourceSaverTimeoutSec,
 		LogLevel:                cfg.LogLevel,
+		ShellCompletions:        cfg.ShellCompletions,
+		DefaultDockerSocket:     cfg.DefaultDockerSocket,
+		PrivilegedPorts:         cfg.PrivilegedPorts,
+		FileShares:              cfg.FileShares,
+		HostNetworking:          cfg.HostNetworking,
+		DaemonJSON:              cfg.DaemonJSON,
+		DockerSubnet:            cfg.DockerSubnet,
+		BindLocalhostOnly:       cfg.BindLocalhostOnly,
+		EnableAmd64Emulation:    cfg.EnableAmd64Emulation,
+		DockerBuildxVersion:     cliStatus.BuildxVersion,
+		DockerComposeVersion:    cliStatus.ComposeVersion,
 	}
 }
 
@@ -140,6 +170,33 @@ func (g *Gateway) applyConfigUpdate(req config.UpdateRequest) (config.Config, er
 		g.backend.Cfg.LogLevel = normalized
 		config.SetLogLevel(normalized)
 		g.backend.Logger.Info("log level updated", "level", normalized)
+	}
+	if req.ShellCompletions != nil {
+		g.backend.Cfg.ShellCompletions = *req.ShellCompletions
+	}
+	if req.DefaultDockerSocket != nil {
+		g.backend.Cfg.DefaultDockerSocket = *req.DefaultDockerSocket
+	}
+	if req.PrivilegedPorts != nil {
+		g.backend.Cfg.PrivilegedPorts = *req.PrivilegedPorts
+	}
+	if req.FileShares != nil {
+		g.backend.Cfg.FileShares = *req.FileShares
+	}
+	if req.HostNetworking != nil {
+		g.backend.Cfg.HostNetworking = *req.HostNetworking
+	}
+	if req.DaemonJSON != nil {
+		g.backend.Cfg.DaemonJSON = strings.TrimSpace(*req.DaemonJSON)
+	}
+	if req.DockerSubnet != nil {
+		g.backend.Cfg.DockerSubnet = strings.TrimSpace(*req.DockerSubnet)
+	}
+	if req.BindLocalhostOnly != nil {
+		g.backend.Cfg.BindLocalhostOnly = *req.BindLocalhostOnly
+	}
+	if req.EnableAmd64Emulation != nil {
+		g.backend.Cfg.EnableAmd64Emulation = *req.EnableAmd64Emulation
 	}
 
 	if err := config.Save(g.backend.Cfg); err != nil {
@@ -241,7 +298,16 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 		}()
 	}
 
-	if saved.DockerContextManaged {
+	if req.DockerContextManaged != nil && !saved.DockerContextManaged {
+		deactivateCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
+		defer cancel()
+		if err := g.backend.DockerCLI.Deactivate(deactivateCtx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return
+			}
+			g.logger.Warn("failed to deactivate docker context", "error", err)
+		}
+	} else if saved.DockerContextManaged {
 		activateCtx, cancel := context.WithTimeout(g.backend.Lifecycle(), constants.DefaultActionTimeout)
 		defer cancel()
 		if err := g.backend.DockerCLI.Activate(activateCtx); err != nil {
@@ -250,5 +316,53 @@ func (g *Gateway) handleConfigPut(w http.ResponseWriter, r *http.Request) {
 			}
 			g.logger.Warn("failed to activate docker context", "error", err)
 		}
+	}
+
+	if req.ShellCompletions != nil {
+		if saved.ShellCompletions {
+			if err := dockercli.EnsureShellCompletions(); err != nil {
+				g.logger.Warn("failed to write shell completions", "error", err)
+			}
+		} else {
+			if err := dockercli.RemoveShellCompletions(); err != nil {
+				g.logger.Warn("failed to remove shell completions", "error", err)
+			}
+		}
+	}
+	if req.DefaultDockerSocket != nil {
+		if saved.DefaultDockerSocket {
+			if err := dockercli.EnableDefaultSocket(g.backend.Runtime.DockerSocket()); err != nil {
+				g.logger.Warn("failed to enable default docker socket", "error", err)
+			}
+		} else {
+			if err := dockercli.DisableDefaultSocket(g.backend.Runtime.DockerSocket()); err != nil {
+				g.logger.Warn("failed to disable default docker socket", "error", err)
+			}
+		}
+	}
+	if req.PrivilegedPorts != nil && saved.PrivilegedPorts {
+		if exe, err := os.Executable(); err == nil {
+			if err := dockercli.InstallPrivilegedHelper(exe); err != nil {
+				g.logger.Warn("failed to install privileged ports helper", "error", err)
+			}
+		}
+	}
+	g.backend.Runtime.ApplyEngineSettings(engineSettingsFrom(saved))
+}
+
+// engineSettingsFrom copies guest overlay fields from persisted config.
+func engineSettingsFrom(cfg config.Config) runtime.EngineSettings {
+	shares := cfg.FileShares
+	if shares == nil {
+		shares = []string{}
+	}
+	return runtime.EngineSettings{
+		FileShares:           shares,
+		HostNetworking:       cfg.HostNetworking,
+		DaemonJSON:           cfg.DaemonJSON,
+		DockerSubnet:         cfg.DockerSubnet,
+		BindLocalhostOnly:    cfg.BindLocalhostOnly,
+		EnableAmd64Emulation: cfg.EnableAmd64Emulation,
+		PrivilegedPorts:      cfg.PrivilegedPorts,
 	}
 }

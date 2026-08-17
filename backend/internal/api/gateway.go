@@ -80,7 +80,8 @@ func (g *Gateway) Handler() http.Handler {
 	}))
 	mux.HandleFunc("/v1/volumes/", g.handleVolumeAction())
 	mux.HandleFunc("/v1/networks", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
-		http.MethodGet: g.handleNetworksList,
+		http.MethodGet:  g.handleNetworksList,
+		http.MethodPost: g.handleNetworksCreate,
 	}))
 	mux.HandleFunc("/v1/networks/", g.handleNetworkAction())
 	mux.HandleFunc("/v1/builds", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
@@ -111,6 +112,25 @@ func (g *Gateway) Handler() http.Handler {
 	}))
 	mux.HandleFunc("/v1/troubleshoot/factory-reset", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodPost: g.handleTroubleshootFactoryReset,
+	}))
+	mux.HandleFunc("/v1/builders", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleBuildersList,
+	}))
+	mux.HandleFunc("/v1/builders/", g.handleBuilderAction())
+	mux.HandleFunc("/v1/docker-cli/install", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleDockerCLIInstall,
+	}))
+	mux.HandleFunc("/v1/troubleshoot/diagnose", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleTroubleshootDiagnose,
+	}))
+	mux.HandleFunc("/v1/config/disk-image/copy", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodPost: g.handleDiskImageCopy,
+	}))
+	mux.HandleFunc("/v1/hub/repositories", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleHubRepositories,
+	}))
+	mux.HandleFunc("/v1/logs", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+		http.MethodGet: g.handleUnifiedLogs,
 	}))
 	mux.HandleFunc("/v1/system/prune/preview", httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
 		http.MethodGet: g.handlePrunePreview,

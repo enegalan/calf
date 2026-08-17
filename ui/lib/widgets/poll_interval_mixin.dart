@@ -69,7 +69,7 @@ mixin ResourceListPollMixin<T extends StatefulWidget> on State<T> {
 
   /// Marks a non-silent load as in progress.
   void beginListLoad({required bool silent}) {
-    if (!silent) {
+    if (!silent && mounted) {
       setState(() => listLoading = true);
     }
   }

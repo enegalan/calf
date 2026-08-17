@@ -5,9 +5,15 @@ import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/open_url.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/calf_button.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 
 /// Shows the About Calf dialog with version info and links.
-void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
+void showAboutCalfDialog(
+  BuildContext context, {
+  required String appVersion,
+  String dockerBuildxVersion = '',
+  String dockerComposeVersion = '',
+}) {
   final theme = Theme.of(context);
   final logoAsset = theme.brightness == Brightness.dark
       ? 'assets/brand/calf_logo_white.png'
@@ -49,6 +55,22 @@ void showAboutCalfDialog(BuildContext context, {required String appVersion}) {
                   color: dialogTheme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              if (dockerBuildxVersion.isNotEmpty ||
+                  dockerComposeVersion.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  [
+                    if (dockerComposeVersion.isNotEmpty)
+                      'Compose $dockerComposeVersion',
+                    if (dockerBuildxVersion.isNotEmpty)
+                      'Buildx $dockerBuildxVersion',
+                  ].join(' · '),
+                  textAlign: TextAlign.center,
+                  style: dialogTheme.textTheme.bodySmall?.copyWith(
+                    color: dialogTheme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Text(
                 'A lightweight alternative to Docker Desktop.',
@@ -108,7 +130,7 @@ Future<void> _openExternalLink(BuildContext context, String url) async {
   if (!opened && context.mounted) {
     await showDialog<void>(
       context: context,
-      builder: (errorContext) => AlertDialog(
+      builder: (errorContext) => CalfAlertDialog(
         title: const Text('Could not open link'),
         content: const Text(
           'Your system could not open the URL in the browser.',

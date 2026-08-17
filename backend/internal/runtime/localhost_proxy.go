@@ -252,6 +252,9 @@ func containerIsRunning(container Container) bool {
 func localhostPortConflict(port int) PortConflict {
 	process := findLocalhostPortBlocker(port)
 	hint := fmt.Sprintf("localhost:%d is used by %s; stop that process or container so calf can forward the port.", port, process)
+	if port < 1024 {
+		hint = fmt.Sprintf("Port %d needs administrator access. Enable Privileged ports in Settings, or stop %s.", port, process)
+	}
 
 	return PortConflict{
 		Port:    port,
@@ -263,7 +266,10 @@ func localhostPortConflict(port int) PortConflict {
 // HostPortHeldByCalfForwarder reports whether processName is calf's own host forwarder.
 // gvproxy exposes published container ports on *:port; the ::1 localhost proxy is redundant then.
 func HostPortHeldByCalfForwarder(processName string) bool {
-	return strings.EqualFold(strings.TrimSpace(processName), "gvproxy")
+	name := strings.TrimSpace(processName)
+	return strings.EqualFold(name, "gvproxy") ||
+		strings.EqualFold(name, "calf-daemon") ||
+		strings.EqualFold(name, "calf")
 }
 
 // findLocalhostPortBlocker identifies the process listening on a host port via lsof.

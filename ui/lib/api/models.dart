@@ -205,9 +205,14 @@ class ContainerItem {
   final String composeProject;
   final String composeService;
 
+  /// Whether the container is paused.
+  bool get isPaused =>
+      state == 'paused' || status.toLowerCase().contains('(paused)');
+
   /// Whether the container is in a running state.
   bool get isRunning =>
-      state == 'running' || status.toLowerCase().startsWith('up');
+      !isPaused &&
+      (state == 'running' || status.toLowerCase().startsWith('up'));
 
   /// Whether this container belongs to a Compose project.
   bool get isCompose => composeProject.isNotEmpty;
@@ -1643,6 +1648,9 @@ class Config {
     this.dockerBuildxAvailable = false,
     this.dockerComposeAvailable = false,
     this.dockerPluginsHint = '',
+    this.hijackWarnings = const [],
+    this.defaultSocketEnabled = false,
+    this.defaultSocketHint = '',
     this.rootless = false,
     this.httpProxy = '',
     this.httpsProxy = '',
@@ -1650,6 +1658,17 @@ class Config {
     this.resourceSaverEnabled = true,
     this.resourceSaverTimeoutSec = 300,
     this.logLevel = 'info',
+    this.shellCompletions = false,
+    this.defaultDockerSocket = false,
+    this.privilegedPorts = false,
+    this.fileShares = const [],
+    this.hostNetworking = false,
+    this.daemonJSON = '',
+    this.dockerSubnet = '',
+    this.bindLocalhostOnly = false,
+    this.enableAmd64Emulation = false,
+    this.dockerBuildxVersion = '',
+    this.dockerComposeVersion = '',
   });
 
   final int pollIntervalMs;
@@ -1668,6 +1687,9 @@ class Config {
   final bool dockerBuildxAvailable;
   final bool dockerComposeAvailable;
   final String dockerPluginsHint;
+  final List<HijackWarning> hijackWarnings;
+  final bool defaultSocketEnabled;
+  final String defaultSocketHint;
   final bool rootless;
   final String httpProxy;
   final String httpsProxy;
@@ -1675,6 +1697,17 @@ class Config {
   final bool resourceSaverEnabled;
   final int resourceSaverTimeoutSec;
   final String logLevel;
+  final bool shellCompletions;
+  final bool defaultDockerSocket;
+  final bool privilegedPorts;
+  final List<String> fileShares;
+  final bool hostNetworking;
+  final String daemonJSON;
+  final String dockerSubnet;
+  final bool bindLocalhostOnly;
+  final bool enableAmd64Emulation;
+  final String dockerBuildxVersion;
+  final String dockerComposeVersion;
 
   /// Serializes this [Config] to a JSON map.
   Map<String, dynamic> toJson() => {
@@ -1691,6 +1724,15 @@ class Config {
     'resource_saver_enabled': resourceSaverEnabled,
     'resource_saver_timeout_sec': resourceSaverTimeoutSec,
     'log_level': logLevel,
+    'shell_completions': shellCompletions,
+    'default_docker_socket': defaultDockerSocket,
+    'privileged_ports': privilegedPorts,
+    'file_shares': fileShares,
+    'host_networking': hostNetworking,
+    'daemon_json': daemonJSON,
+    'docker_subnet': dockerSubnet,
+    'bind_localhost_only': bindLocalhostOnly,
+    'enable_amd64_emulation': enableAmd64Emulation,
   };
 
   /// Creates a [Config] from a JSON map.
@@ -1715,6 +1757,12 @@ class Config {
       dockerComposeAvailable:
           json['docker_compose_available'] as bool? ?? false,
       dockerPluginsHint: json['docker_plugins_hint'] as String? ?? '',
+      hijackWarnings: (json['hijack_warnings'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(HijackWarning.fromJson)
+          .toList(),
+      defaultSocketEnabled: json['default_socket_enabled'] as bool? ?? false,
+      defaultSocketHint: json['default_socket_hint'] as String? ?? '',
       rootless: json['rootless'] as bool? ?? false,
       httpProxy: json['http_proxy'] as String? ?? '',
       httpsProxy: json['https_proxy'] as String? ?? '',
@@ -1723,6 +1771,20 @@ class Config {
       resourceSaverTimeoutSec:
           (json['resource_saver_timeout_sec'] as num?)?.toInt() ?? 300,
       logLevel: json['log_level'] as String? ?? 'info',
+      shellCompletions: json['shell_completions'] as bool? ?? false,
+      defaultDockerSocket: json['default_docker_socket'] as bool? ?? false,
+      privilegedPorts: json['privileged_ports'] as bool? ?? false,
+      fileShares: (json['file_shares'] as List<dynamic>? ?? [])
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList(),
+      hostNetworking: json['host_networking'] as bool? ?? false,
+      daemonJSON: json['daemon_json'] as String? ?? '',
+      dockerSubnet: json['docker_subnet'] as String? ?? '',
+      bindLocalhostOnly: json['bind_localhost_only'] as bool? ?? false,
+      enableAmd64Emulation: json['enable_amd64_emulation'] as bool? ?? false,
+      dockerBuildxVersion: json['docker_buildx_version'] as String? ?? '',
+      dockerComposeVersion: json['docker_compose_version'] as String? ?? '',
     );
   }
 
@@ -1744,6 +1806,9 @@ class Config {
     bool? dockerBuildxAvailable,
     bool? dockerComposeAvailable,
     String? dockerPluginsHint,
+    List<HijackWarning>? hijackWarnings,
+    bool? defaultSocketEnabled,
+    String? defaultSocketHint,
     bool? rootless,
     String? httpProxy,
     String? httpsProxy,
@@ -1751,6 +1816,17 @@ class Config {
     bool? resourceSaverEnabled,
     int? resourceSaverTimeoutSec,
     String? logLevel,
+    bool? shellCompletions,
+    bool? defaultDockerSocket,
+    bool? privilegedPorts,
+    List<String>? fileShares,
+    bool? hostNetworking,
+    String? daemonJSON,
+    String? dockerSubnet,
+    bool? bindLocalhostOnly,
+    bool? enableAmd64Emulation,
+    String? dockerBuildxVersion,
+    String? dockerComposeVersion,
   }) {
     return Config(
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
@@ -1771,6 +1847,9 @@ class Config {
       dockerComposeAvailable:
           dockerComposeAvailable ?? this.dockerComposeAvailable,
       dockerPluginsHint: dockerPluginsHint ?? this.dockerPluginsHint,
+      hijackWarnings: hijackWarnings ?? this.hijackWarnings,
+      defaultSocketEnabled: defaultSocketEnabled ?? this.defaultSocketEnabled,
+      defaultSocketHint: defaultSocketHint ?? this.defaultSocketHint,
       rootless: rootless ?? this.rootless,
       httpProxy: httpProxy ?? this.httpProxy,
       httpsProxy: httpsProxy ?? this.httpsProxy,
@@ -1779,6 +1858,102 @@ class Config {
       resourceSaverTimeoutSec:
           resourceSaverTimeoutSec ?? this.resourceSaverTimeoutSec,
       logLevel: logLevel ?? this.logLevel,
+      shellCompletions: shellCompletions ?? this.shellCompletions,
+      defaultDockerSocket: defaultDockerSocket ?? this.defaultDockerSocket,
+      privilegedPorts: privilegedPorts ?? this.privilegedPorts,
+      fileShares: fileShares ?? this.fileShares,
+      hostNetworking: hostNetworking ?? this.hostNetworking,
+      daemonJSON: daemonJSON ?? this.daemonJSON,
+      dockerSubnet: dockerSubnet ?? this.dockerSubnet,
+      bindLocalhostOnly: bindLocalhostOnly ?? this.bindLocalhostOnly,
+      enableAmd64Emulation: enableAmd64Emulation ?? this.enableAmd64Emulation,
+      dockerBuildxVersion: dockerBuildxVersion ?? this.dockerBuildxVersion,
+      dockerComposeVersion: dockerComposeVersion ?? this.dockerComposeVersion,
+    );
+  }
+}
+
+/// Warning that another product still owns the default Docker CLI path or socket.
+class HijackWarning {
+  /// Creates a [HijackWarning] instance.
+  const HijackWarning({
+    this.path = '',
+    this.owner = '',
+    this.message = '',
+  });
+
+  final String path;
+  final String owner;
+  final String message;
+
+  /// Creates a [HijackWarning] from a JSON map.
+  factory HijackWarning.fromJson(Map<String, dynamic> json) {
+    return HijackWarning(
+      path: json['path'] as String? ?? '',
+      owner: json['owner'] as String? ?? '',
+      message: json['message'] as String? ?? '',
+    );
+  }
+}
+
+/// A Docker Hub repository listed for the signed-in user.
+class HubRepository {
+  /// Creates a [HubRepository] instance.
+  const HubRepository({
+    required this.name,
+    this.namespace = '',
+    this.description = '',
+    this.starCount = 0,
+    this.pullCount = 0,
+    this.isPrivate = false,
+  });
+
+  final String name;
+  final String namespace;
+  final String description;
+  final int starCount;
+  final int pullCount;
+  final bool isPrivate;
+
+  /// Returns namespace/name for docker pull.
+  String get reference =>
+      namespace.isEmpty ? name : '$namespace/$name';
+
+  /// Creates a [HubRepository] from a JSON map.
+  factory HubRepository.fromJson(Map<String, dynamic> json) {
+    return HubRepository(
+      name: json['name'] as String? ?? '',
+      namespace: json['namespace'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      starCount: (json['star_count'] as num?)?.toInt() ?? 0,
+      pullCount: (json['pull_count'] as num?)?.toInt() ?? 0,
+      isPrivate: json['is_private'] as bool? ?? false,
+    );
+  }
+}
+
+/// One docker buildx builder.
+class BuilderInfo {
+  /// Creates a [BuilderInfo] instance.
+  const BuilderInfo({
+    required this.name,
+    this.driver = '',
+    this.lastActivity = '',
+    this.selected = false,
+  });
+
+  final String name;
+  final String driver;
+  final String lastActivity;
+  final bool selected;
+
+  /// Creates a [BuilderInfo] from a JSON map.
+  factory BuilderInfo.fromJson(Map<String, dynamic> json) {
+    return BuilderInfo(
+      name: json['name'] as String? ?? '',
+      driver: json['driver'] as String? ?? '',
+      lastActivity: json['last_activity'] as String? ?? '',
+      selected: json['selected'] as bool? ?? false,
     );
   }
 }

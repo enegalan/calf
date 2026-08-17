@@ -11,6 +11,7 @@ import 'package:ui/platform/open_url.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
+import 'package:ui/widgets/confirm_dialog.dart';
 
 /// Opens a dialog that shows recent daemon logs for copying and sharing.
 Future<void> showDaemonLogsDialog({
@@ -138,59 +139,53 @@ class _DaemonLogsDialogState extends State<_DaemonLogsDialog> {
     }
     final canCopy = _text.isNotEmpty || (_error != null && _error!.isNotEmpty);
 
-    return AlertDialog(
-      shape: CalfTheme.dialogShape(theme.colorScheme),
+    return CalfAlertDialog(
       title: const Text('Daemon logs'),
-      content: SizedBox(
-        width: 720,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Copy these logs and send them when reporting a problem.',
-              style: CalfTheme.muted(theme),
-            ),
-            const SizedBox(height: 12),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: theme.brightness == Brightness.dark ? 0.55 : 1,
-                ),
-                borderRadius: CalfTheme.radius,
-                border: Border.all(color: theme.colorScheme.outlineVariant),
+      width: 720,
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Copy these logs and send them when reporting a problem.',
+            style: CalfTheme.muted(theme),
+          ),
+          const SizedBox(height: 12),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: theme.brightness == Brightness.dark ? 0.55 : 1,
               ),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minHeight: 160,
-                  maxHeight: 320,
-                ),
-                child: _loading
-                    ? const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : Scrollbar(
+              borderRadius: CalfTheme.radius,
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 160, maxHeight: 320),
+              child: _loading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : Scrollbar(
+                      controller: _scrollController,
+                      child: SingleChildScrollView(
                         controller: _scrollController,
-                        child: SingleChildScrollView(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                          child: SelectableText(
-                            body,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontFamily: CalfFonts.mono,
-                              color: bodyColor,
-                            ),
+                        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                        child: SelectableText(
+                          body,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontFamily: CalfFonts.mono,
+                            color: bodyColor,
                           ),
                         ),
                       ),
-              ),
+                    ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
       actions: [
         if (_path.isNotEmpty)

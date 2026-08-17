@@ -207,6 +207,10 @@ func (o *cliOps) PullImage(ctx context.Context, ref string) error {
 	}
 
 	_, err := o.runLocal(ctx, "nerdctl", "pull", ref)
+	if IsImagePullNotFound(err) {
+		return ErrImageNotFound
+	}
+
 	return err
 }
 

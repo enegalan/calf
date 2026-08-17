@@ -2,8 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:ui/widgets/about_dialog.dart';
-
 /// Whether the current platform supports a native macOS menu bar.
 bool get supportsNativeMacosMenu =>
     !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS;
@@ -38,6 +36,7 @@ class MacosMenuScope extends StatelessWidget {
     required this.onOpenRepository,
     required this.onOpenTroubleshoot,
     required this.onQuit,
+    required this.onAbout,
   });
 
   final Widget child;
@@ -57,12 +56,14 @@ class MacosMenuScope extends StatelessWidget {
   final VoidCallback onOpenRepository;
   final VoidCallback onOpenTroubleshoot;
   final VoidCallback onQuit;
+  final VoidCallback onAbout;
 
   static const _sectionLabels = [
     'Containers',
     'Images',
     'Volumes',
     'Networks',
+    'Logs',
     'Builds',
   ];
 
@@ -71,7 +72,7 @@ class MacosMenuScope extends StatelessWidget {
     final appMenuItems = <PlatformMenuItem>[
       PlatformMenuItem(
         label: 'About calf',
-        onSelected: () => showAboutCalfDialog(context, appVersion: appVersion),
+        onSelected: onAbout,
       ),
       PlatformMenuItemGroup(
         members: [

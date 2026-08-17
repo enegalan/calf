@@ -225,6 +225,59 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
     widget.onBack();
   }
 
+  /// Deletes all files inside the volume after confirmation.
+  Future<void> _emptyVolume() async {
+    final confirmed = await confirmDialog(
+      context,
+      title: 'Empty volume',
+      description:
+          'Delete all files in "${widget.volumeName}"? This cannot be undone.',
+      confirmLabel: 'Empty',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) {
+      return;
+    }
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Emptying "${widget.volumeName}"...',
+      done: 'Emptied volume "${widget.volumeName}"',
+      action: () => widget.apiClient.emptyVolume(widget.volumeName),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    if (ok) {
+      await _loadDetail();
+    }
+  }
+
+  /// Imports volume data from a local file.
+  Future<void> _importVolume() async {
+    final file = await openFile();
+    if (file == null || !mounted) {
+      return;
+    }
+    setState(() => _busy = true);
+    final ok = await runCalfToastAction(
+      pending: 'Importing into "${widget.volumeName}"...',
+      done: 'Imported into "${widget.volumeName}"',
+      action: () => widget.apiClient.importVolume(
+        name: widget.volumeName,
+        source: 'file',
+        filePath: file.path,
+      ),
+    );
+    if (!mounted) {
+      return;
+    }
+    setState(() => _busy = false);
+    if (ok) {
+      await _loadDetail();
+    }
+  }
+
   /// Navigates to or opens the selected quickexport.
   void _openQuickExport() {
     setState(() => _view = _VolumeDetailView.quickExport);
@@ -442,6 +495,18 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
                 ],
               ),
             ),
+            CalfButton.outline(
+              enabled: !_busy,
+              onPressed: _emptyVolume,
+              child: const Text('Empty'),
+            ),
+            const SizedBox(width: 8),
+            CalfButton.outline(
+              enabled: !_busy,
+              onPressed: _importVolume,
+              child: const Text('Import'),
+            ),
+            const SizedBox(width: 8),
             CalfButton.destructive(
               enabled: !_busy,
               width: 36,
@@ -474,6 +539,11 @@ class _VolumeDetailViewState extends State<VolumeDetailView> {
               loadDirectory: (path) => widget.apiClient.fetchVolumeFiles(
                 widget.volumeName,
                 path: path,
+              ),
+              writeFile: (path, content) => widget.apiClient.writeVolumeFile(
+                widget.volumeName,
+                path,
+                content,
               ),
             ),
             _VolumeDetailTab.containersInUse => _ContainersInUseTab(

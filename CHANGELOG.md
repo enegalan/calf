@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Docker CLI** — Settings can install the CLI, write shell completions, and optionally expose the default Docker socket and privileged published ports. `calf status|start|stop|restart|logs|diagnose` work from a terminal.
+- **File shares and SSH** — extra folders can be shared into the engine; containers can use the host SSH agent. `gateway.docker.internal` resolves next to `host.docker.internal`.
+- **Engine settings** — daemon.json overlay, Docker subnet, host networking, bind published ports to localhost, and amd64 emulation.
+- **Containers and images** — pause and resume, run an image with name/ports/env/volumes, pull by name, and list Docker Hub repositories when signed in.
+- **Volumes and networks** — create from the list; empty or import a volume; save files in the file browser.
+- **Logs** — a Logs screen shows live output from running containers.
+- **Support** — Troubleshoot saves a diagnostics zip. Settings can copy the disk image while the engine is stopped. Open window on launch is a setting. About shows Compose and Buildx versions.
+- **Windows** — Linux containers run through WSL 2.
+
+### Changed
+
+- Copy `docker run` from a container's inspect view.
+- Dialogs use a smaller title and tighter layout.
+- **Settings** — Settings uses a sidebar of categories (General, Resources, Docker Engine, Builders, Software updates, Advanced). Each option has a title and a short explanation.
+- **Logs** — search and select containers to filter live output.
+
+### Fixed
+
+- **Dialogs** — an invalid field no longer disappears when the pointer hovers over it.
+- **Pull image** — empty names and missing images show an error in the pull dialog instead of a generic failure.
+- **Hub** — if you are not signed in, Hub starts Sign in instead of asking you to sign in with a toast.
+- **Build detail** — opening a build no longer times out while calf fills in Docker history.
+- **Docker CLI** — turning off “Use calf for Docker CLI” switches docker back to the default context and stops path-conflict warnings.
+
 ## [1.0.23] - 2026-08-17
 
 ### Fixed

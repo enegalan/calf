@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -178,6 +179,31 @@ func WrapPushError(ref string, err error) error {
 	}
 
 	return fmt.Errorf("%s. Sign in to Docker Hub from Settings (browser login), then push again", message)
+}
+
+// IsImagePullNotFound reports whether err indicates a missing or unknown pull target.
+func IsImagePullNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrImageNotFound) {
+		return true
+	}
+
+	message := strings.ToLower(err.Error())
+	if strings.Contains(message, "command not found") {
+		return false
+	}
+
+	return strings.Contains(message, "repository does not exist") ||
+		strings.Contains(message, "manifest unknown") ||
+		strings.Contains(message, "no such image") ||
+		strings.Contains(message, "name unknown") ||
+		(strings.Contains(message, "not found") &&
+			(strings.Contains(message, "manifest") ||
+				strings.Contains(message, "pull") ||
+				strings.Contains(message, "image") ||
+				strings.Contains(message, "resolve reference")))
 }
 
 // IsContainerNotFoundError reports whether err indicates a missing container ID.

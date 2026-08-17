@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
@@ -32,6 +33,42 @@ func (s *Core) VolumeExportStore() (*volumeexport.Store, error) {
 // SubscribeLogs multiplexes container log lines to a subscriber channel.
 func (s *Core) SubscribeLogs(containerID string) (<-chan string, func()) {
 	return s.logBroadcaster.subscribe(s.Runtime, containerID)
+}
+
+// SubscribeAllLogs fans in log lines from every currently running container.
+func (s *Core) SubscribeAllLogs(ctx context.Context) (<-chan string, func(), error) {
+	containers, err := s.ListContainers(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	out := make(chan string, 256)
+	unsubs := make([]func(), 0)
+	for _, container := range containers {
+		state := strings.ToLower(container.State)
+		if state != "running" && state != "paused" {
+			continue
+		}
+		lines, unsub := s.SubscribeLogs(container.ID)
+		unsubs = append(unsubs, unsub)
+		name := container.Name
+		if name == "" {
+			name = container.ID
+		}
+		go func(prefix string, ch <-chan string) {
+			for line := range ch {
+				select {
+				case out <- prefix + " | " + line:
+				default:
+				}
+			}
+		}(name, lines)
+	}
+	cancel := func() {
+		for _, unsub := range unsubs {
+			unsub()
+		}
+	}
+	return out, cancel, nil
 }
 
 // ExecuteVolumeExport runs a volume export through the runtime and persists the resulting export record.

@@ -63,6 +63,8 @@ type Guest struct {
 	dialMu    sync.Mutex
 	gatedSock string
 	gatedLn   net.Listener
+
+	engineSettings EngineSettings
 }
 
 // NewGuest constructs shared guest helpers for the macOS krunkit runtime.
@@ -564,19 +566,24 @@ if [ -z "$GW" ]; then
   exit 1
 fi
 if grep -qE "address=/host\\.docker\\.internal/${GW}$" /etc/dnsmasq.d/calf-host.conf 2>/dev/null \
-  && grep -qE "^${GW}[[:space:]]+host\\.docker\\.internal$" /etc/hosts 2>/dev/null; then
+  && grep -qE "address=/gateway\\.docker\\.internal/${GW}$" /etc/dnsmasq.d/calf-host.conf 2>/dev/null \
+  && grep -qE "^${GW}[[:space:]]+host\\.docker\\.internal[[:space:]]+gateway\\.docker\\.internal$" /etc/hosts 2>/dev/null; then
   exit 0
 fi
-if grep -qE '[[:space:]]host\.docker\.internal$' /etc/hosts 2>/dev/null; then
-  sed -i -E '/[[:space:]]host\.docker\.internal$/d' /etc/hosts
+if grep -qE '[[:space:]]host\.docker\.internal' /etc/hosts 2>/dev/null; then
+  sed -i -E '/[[:space:]]host\.docker\.internal/d' /etc/hosts
 fi
-echo "$GW host.docker.internal" >> /etc/hosts
+if grep -qE '[[:space:]]gateway\.docker\.internal' /etc/hosts 2>/dev/null; then
+  sed -i -E '/[[:space:]]gateway\.docker\.internal/d' /etc/hosts
+fi
+echo "$GW host.docker.internal gateway.docker.internal" >> /etc/hosts
 if [ -d /etc/dnsmasq.d ]; then
   printf '%s\n' \
     'bind-interfaces' \
     'interface=docker0' \
     'except-interface=lo' \
     "address=/host.docker.internal/${GW}" \
+    "address=/gateway.docker.internal/${GW}" \
     'no-resolv' \
     'server=1.1.1.1' \
     'server=8.8.8.8' \
@@ -844,6 +851,140 @@ func (v *Guest) ApplyProxy(ctx context.Context, proxy ProxyConfig) error {
 		return err
 	}
 	return applyProxyInVM(ctx, v.guestCommandRunner, proxy)
+}
+
+// ApplyEngineSettings stores guest overlay settings and applies daemon.json / binfmt when running.
+func (v *Guest) ApplyEngineSettings(settings EngineSettings) {
+	v.mu.Lock()
+	v.engineSettings = settings
+	running := v.started.Load()
+	v.mu.Unlock()
+	if !running {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), constants.DefaultActionTimeout)
+	defer cancel()
+	v.applyGuestEngineOverlay(ctx)
+}
+
+// engineSettingsCopy returns a snapshot of stored guest overlay settings.
+func (v *Guest) engineSettingsCopy() EngineSettings {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	settings := v.engineSettings
+	if settings.FileShares == nil {
+		settings.FileShares = []string{}
+	}
+	return settings
+}
+
+// applyGuestEngineOverlay writes daemon.json, extra shares, SSH agent, gateway DNS, and binfmt.
+func (v *Guest) applyGuestEngineOverlay(ctx context.Context) {
+	settings := v.engineSettingsCopy()
+	v.ensureHostDockerInternal(ctx)
+	v.ensureGuestSSHAgent(ctx)
+	v.ensureExtraFileShares(ctx, settings.FileShares)
+	v.ensureGuestDaemonJSON(ctx, settings)
+	v.ensureAmd64Emulation(ctx, settings.EnableAmd64Emulation)
+}
+
+// ensureGuestDaemonJSON merges the user overlay into /etc/docker/daemon.json.
+func (v *Guest) ensureGuestDaemonJSON(ctx context.Context, settings EngineSettings) {
+	merged, err := MergeDaemonJSON(settings.DaemonJSON, settings.DockerSubnet)
+	if err != nil {
+		slog.Default().Warn("daemon.json overlay invalid (non-fatal)", "error", err)
+		return
+	}
+	script := "mkdir -p /etc/docker && cat > /etc/docker/daemon.json <<'CALF_DAEMON_JSON'\n" + merged + "CALF_DAEMON_JSON\n"
+	if _, err := v.runGuestRoot(ctx, script); err != nil {
+		slog.Default().Warn("write daemon.json failed (non-fatal)", "error", err)
+	}
+}
+
+// ensureAmd64Emulation enables or disables qemu-user binfmt for amd64 images.
+func (v *Guest) ensureAmd64Emulation(ctx context.Context, enable bool) {
+	if enable {
+		script := `if command -v update-binfmts >/dev/null 2>&1; then
+  update-binfmts --enable qemu-x86_64 >/dev/null 2>&1 || true
+else
+  docker run --rm --privileged multiarch/qemu-user-static --reset -p yes >/dev/null 2>&1 || true
+fi`
+		if _, err := v.runGuestRoot(ctx, script); err != nil {
+			slog.Default().Warn("amd64 emulation enable failed (non-fatal)", "error", err)
+		}
+		return
+	}
+	script := `update-binfmts --disable qemu-x86_64 >/dev/null 2>&1 || true`
+	if _, err := v.runGuestRoot(ctx, script); err != nil {
+		slog.Default().Warn("amd64 emulation disable failed (non-fatal)", "error", err)
+	}
+}
+
+// ensureExtraFileShares mounts extra virtiofs tags inside the guest.
+func (v *Guest) ensureExtraFileShares(ctx context.Context, shares []string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	script := ExtraShareGuestScript(ExtraFileShareSpecs(home, shares))
+	if script == "" {
+		return
+	}
+	if _, err := v.runGuestRoot(ctx, script); err != nil {
+		slog.Default().Warn("extra file shares mount failed (non-fatal)", "error", err)
+	}
+}
+
+// sshAuthVsockPort is the krunkit vsock port used to splice the host SSH agent.
+const sshAuthVsockPort = 5309
+
+// sshAuthHostSockPath is the host unix socket krunkit connects for SSH agent forwarding.
+func (v *Guest) sshAuthHostSockPath() string {
+	return filepath.Join(v.dataDir, "ssh-auth.sock")
+}
+
+// ensureGuestSSHAgent installs socat on /run/host-services/ssh-auth.sock when the host agent is present.
+func (v *Guest) ensureGuestSSHAgent(ctx context.Context) {
+	if strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK")) == "" {
+		return
+	}
+	script := `
+set -e
+mkdir -p /run/host-services
+if command -v socat >/dev/null 2>&1; then
+  :
+else
+  exit 0
+fi
+if [ -S /run/host-services/ssh-auth.sock ]; then
+  exit 0
+fi
+socat UNIX-LISTEN:/run/host-services/ssh-auth.sock,fork,mode=777 VSOCK-CONNECT:2:` + strconv.Itoa(sshAuthVsockPort) + ` >/dev/null 2>&1 &
+`
+	if _, err := v.runGuestRoot(ctx, script); err != nil {
+		slog.Default().Warn("ssh agent forward setup failed (non-fatal)", "error", err)
+	}
+}
+
+// PauseContainer freezes a running container and drops the list cache.
+func (v *Guest) PauseContainer(ctx context.Context, id string) error {
+	err := v.cliOps.PauseContainer(ctx, id)
+	v.invalidateContainersCache()
+	return err
+}
+
+// ResumeContainer unpauses a container and drops the list cache.
+func (v *Guest) ResumeContainer(ctx context.Context, id string) error {
+	err := v.cliOps.ResumeContainer(ctx, id)
+	v.invalidateContainersCache()
+	return err
+}
+
+// RunImageWith starts a container with options and drops the list cache.
+func (v *Guest) RunImageWith(ctx context.Context, opts RunImageOptions) (string, error) {
+	id, err := v.cliOps.RunImageWith(ctx, opts)
+	v.invalidateContainersCache()
+	return id, err
 }
 
 // ListVolumeFiles lists directory entries inside a volume at path. Unlike Native, it runs

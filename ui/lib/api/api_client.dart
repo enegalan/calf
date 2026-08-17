@@ -125,6 +125,90 @@ class ApiClient implements CalfClient {
     return PruneResult.fromJson(json);
   }
 
+  /// Installs the Docker CLI via Homebrew into calf's bin directory.
+  @override
+  Future<void> installDockerCli() async {
+    await _postEmpty(
+      '/v1/docker-cli/install',
+      timeout: CalfDefaults.imageActionTimeout,
+    );
+  }
+
+  /// Lists docker buildx builders.
+  @override
+  Future<List<BuilderInfo>> fetchBuilders() async {
+    try {
+      final response = await httpClient
+          .get(Uri.parse('$baseUrl/v1/builders'))
+          .timeout(CalfDefaults.resourceListTimeout);
+      return _decodeList(response, BuilderInfo.fromJson);
+    } on TimeoutException {
+      throw ApiException('Request timed out');
+    }
+  }
+
+  /// Selects the current docker buildx builder.
+  @override
+  Future<void> useBuilder(String name) async {
+    await _postEmpty('/v1/builders/${Uri.encodeComponent(name)}/use');
+  }
+
+  /// Removes a docker buildx builder.
+  @override
+  Future<void> removeBuilder(String name) async {
+    await _delete('/v1/builders/${Uri.encodeComponent(name)}');
+  }
+
+  /// Downloads a diagnostics zip as bytes.
+  @override
+  Future<List<int>> downloadDiagnostics() async {
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/troubleshoot/diagnose'))
+        .timeout(CalfDefaults.troubleshootActionTimeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+    return response.bodyBytes;
+  }
+
+  /// Copies the VM disk image to [path] while the engine is stopped.
+  @override
+  Future<void> copyDiskImage(String path) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/config/disk-image/copy'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'path': path}),
+        )
+        .timeout(CalfDefaults.troubleshootActionTimeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  /// Lists Docker Hub repositories for the signed-in user.
+  @override
+  Future<List<HubRepository>> fetchHubRepositories() async {
+    final response = await httpClient
+        .get(Uri.parse('$baseUrl/v1/hub/repositories'))
+        .timeout(CalfDefaults.resourceListTimeout);
+    return _decodeList(response, HubRepository.fromJson);
+  }
+
+  /// WebSocket URI for unified running-container logs.
+  @override
+  Uri unifiedLogsWebSocketUri() {
+    final uri = Uri.parse(baseUrl);
+    final scheme = uri.scheme == 'https' ? 'wss' : 'ws';
+    return uri.replace(scheme: scheme, path: '/v1/logs');
+  }
+
   /// Fetches the list of containers.
   @override
   Future<List<ContainerItem>> fetchContainers() async {
@@ -201,6 +285,28 @@ class ApiClient implements CalfClient {
         .get(uri)
         .timeout(CalfDefaults.volumeActionTimeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
+  }
+
+  /// Writes a file inside a volume.
+  @override
+  Future<void> writeVolumeFile(
+    String name,
+    String path,
+    String content,
+  ) async {
+    final response = await httpClient
+        .put(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/files'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'path': path, 'content': content}),
+        )
+        .timeout(CalfDefaults.volumeActionTimeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
   }
 
   /// createVolumeExport.
@@ -427,7 +533,7 @@ class ApiClient implements CalfClient {
     );
   }
 
-  /// fetchBuildDetail.
+  /// Fetches the list of builds, optionally filtered by image tag.
   @override
   Future<List<BuildItem>> fetchBuilds({String? tag}) async {
     final uri = Uri.parse('$baseUrl/v1/builds').replace(
@@ -442,21 +548,30 @@ class ApiClient implements CalfClient {
   /// Fetches full details for a build.
   @override
   Future<BuildDetail> fetchBuildDetail(String id) async {
-    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}');
+    final json = await _getJson(
+      '/v1/builds/${Uri.encodeComponent(id)}',
+      timeout: CalfDefaults.resourceListTimeout,
+    );
     return BuildDetail.fromJson(json);
   }
 
   /// Fetches the Dockerfile source for a build.
   @override
   Future<BuildSource> fetchBuildSource(String id) async {
-    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}/source');
+    final json = await _getJson(
+      '/v1/builds/${Uri.encodeComponent(id)}/source',
+      timeout: CalfDefaults.resourceListTimeout,
+    );
     return BuildSource.fromJson(json);
   }
 
   /// Fetches build logs and step breakdown.
   @override
   Future<BuildLogs> fetchBuildLogs(String id) async {
-    final json = await _getJson('/v1/builds/${Uri.encodeComponent(id)}/logs');
+    final json = await _getJson(
+      '/v1/builds/${Uri.encodeComponent(id)}/logs',
+      timeout: CalfDefaults.resourceListTimeout,
+    );
     return BuildLogs.fromJson(json);
   }
 
@@ -687,6 +802,21 @@ class ApiClient implements CalfClient {
     );
   }
 
+  /// Pauses a running container.
+  @override
+  Future<void> pauseContainer(String id) async {
+    await _postEmpty('/v1/containers/$id/pause');
+  }
+
+  /// Resumes a paused container.
+  @override
+  Future<void> resumeContainer(String id) async {
+    await _postEmpty(
+      '/v1/containers/$id/resume',
+      timeout: CalfDefaults.runtimeActionTimeout,
+    );
+  }
+
   /// Fetches raw inspect JSON for a container.
   @override
   Future<String> fetchContainerInspect(String id, {String? section}) async {
@@ -725,6 +855,28 @@ class ApiClient implements CalfClient {
     ).replace(queryParameters: {'path': path});
     final response = await httpClient.get(uri).timeout(timeout);
     return _decodeList(response, ContainerFileEntry.fromJson);
+  }
+
+  /// Writes a file inside a container.
+  @override
+  Future<void> writeContainerFile(
+    String id,
+    String path,
+    String content,
+  ) async {
+    final response = await httpClient
+        .put(
+          Uri.parse('$baseUrl/v1/containers/$id/files'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({'path': path, 'content': content}),
+        )
+        .timeout(timeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
   }
 
   /// Runs a one-shot command inside a container.
@@ -806,12 +958,24 @@ class ApiClient implements CalfClient {
 
   /// Creates and starts a container from an image reference.
   @override
-  Future<String> runImage(String reference) async {
+  Future<String> runImage(
+    String reference, {
+    String name = '',
+    List<String> ports = const [],
+    List<String> env = const [],
+    List<String> volumes = const [],
+  }) async {
     final response = await httpClient
         .post(
           Uri.parse('$baseUrl/v1/images/run'),
           headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode({'reference': reference}),
+          body: jsonEncode({
+            'reference': reference,
+            'name': name,
+            'ports': ports,
+            'env': env,
+            'volumes': volumes,
+          }),
         )
         .timeout(CalfDefaults.imageActionTimeout);
 
@@ -851,6 +1015,42 @@ class ApiClient implements CalfClient {
     }
   }
 
+  /// Deletes all files inside a volume.
+  @override
+  Future<void> emptyVolume(String name) async {
+    await _postEmpty(
+      '/v1/volumes/${Uri.encodeComponent(name)}/empty',
+      timeout: CalfDefaults.volumeActionTimeout,
+    );
+  }
+
+  /// Restores volume data from a file, image, or registry.
+  @override
+  Future<void> importVolume({
+    required String name,
+    required String source,
+    String filePath = '',
+    String imageRef = '',
+  }) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/volumes/${Uri.encodeComponent(name)}/import'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'source': source,
+            'file_path': filePath,
+            'image_ref': imageRef,
+          }),
+        )
+        .timeout(CalfDefaults.volumeExportTimeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
   /// Clones an existing volume to a new name.
   @override
   Future<void> cloneVolume(String source, String name) async {
@@ -880,6 +1080,32 @@ class ApiClient implements CalfClient {
   @override
   Future<void> removeNetwork(String name) async {
     await _delete('/v1/networks/${Uri.encodeComponent(name)}');
+  }
+
+  /// Creates a user-defined network.
+  @override
+  Future<void> createNetwork(
+    String name, {
+    String driver = '',
+    String subnet = '',
+  }) async {
+    final response = await httpClient
+        .post(
+          Uri.parse('$baseUrl/v1/networks'),
+          headers: const {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'name': name,
+            'driver': driver,
+            'subnet': subnet,
+          }),
+        )
+        .timeout(timeout);
+    if (response.statusCode != 200) {
+      throw ApiException(
+        _errorMessage(response),
+        statusCode: response.statusCode,
+      );
+    }
   }
 
   /// Triggers a new image build.

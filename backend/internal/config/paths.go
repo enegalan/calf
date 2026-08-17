@@ -44,6 +44,27 @@ func MountsSubdir(name string) (string, error) {
 	return root, nil
 }
 
+// BinDir returns ~/.config/calf/bin for optional Docker CLI installs.
+func BinDir() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "bin"), nil
+}
+
+// CompletionsDir returns ~/.config/calf/completions for docker shell completion files.
+func CompletionsDir() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "completions"), nil
+}
+
+// DefaultSystemDockerSocket is the classic Docker CLI socket path on Unix.
+const DefaultSystemDockerSocket = "/var/run/docker.sock"
+
 // DefaultDockerSocketPath returns ~/.config/calf/docker.sock.
 func DefaultDockerSocketPath() string {
 	dir, err := ConfigDir()

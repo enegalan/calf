@@ -89,16 +89,13 @@ func (g *Gateway) handleBuildAction() http.HandlerFunc {
 		},
 	}, map[string]httpkit.PartsHandler{
 		http.MethodGet: func(w http.ResponseWriter, r *http.Request, parts []string) {
-			r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
-			defer cancel()
-
 			build, ok := g.backend.GetBuild(parts[0])
 			if !ok {
 				httpkit.WriteError(w, http.StatusNotFound, "build not found")
 				return
 			}
 
-			build = g.backend.EnrichHistoryBuildIfNeeded(r.Context(), build)
+			g.backend.ScheduleHistoryEnrichment(build)
 			httpkit.WriteJSON(w, http.StatusOK, build)
 		},
 	})

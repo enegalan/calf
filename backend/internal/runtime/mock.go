@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/enegalan/calf/backend/internal/constants"
@@ -980,6 +981,161 @@ func (m *Mock) SystemDiskUsage(_ context.Context) (SystemDiskUsage, error) {
 		return SystemDiskUsage{}, ErrRuntimeNotRunning
 	}
 	return m.systemDiskUsageLocked(), nil
+}
+
+// ApplyEngineSettings is a no-op for the mock runtime.
+func (m *Mock) ApplyEngineSettings(_ EngineSettings) {}
+
+// PauseContainer marks a mock container as paused.
+func (m *Mock) PauseContainer(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	for i, container := range m.Containers {
+		if container.ID == id || container.Name == id {
+			m.Containers[i].State = "paused"
+			m.Containers[i].Status = "Paused"
+			return nil
+		}
+	}
+	return fmt.Errorf("container not found")
+}
+
+// ResumeContainer marks a paused mock container as running.
+func (m *Mock) ResumeContainer(_ context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	for i, container := range m.Containers {
+		if container.ID == id || container.Name == id {
+			m.Containers[i].State = "running"
+			m.Containers[i].Status = "Up 1 second"
+			return nil
+		}
+	}
+	return fmt.Errorf("container not found")
+}
+
+// RunImageWith starts a mock container from opts.Reference.
+func (m *Mock) RunImageWith(ctx context.Context, opts RunImageOptions) (string, error) {
+	return m.RunImage(ctx, opts.Reference)
+}
+
+// EmptyVolume is a no-op for mock volumes that exist.
+func (m *Mock) EmptyVolume(_ context.Context, name string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	for _, volume := range m.Volumes {
+		if volume.Name == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("volume not found")
+}
+
+// ImportVolume is a no-op for mock volumes that exist or are created.
+func (m *Mock) ImportVolume(_ context.Context, opts VolumeImportOptions) error {
+	if strings.TrimSpace(opts.Name) == "" {
+		return fmt.Errorf("volume name is required")
+	}
+	return m.CreateVolume(context.Background(), opts.Name)
+}
+
+// CreateNetwork adds a mock user-defined network.
+func (m *Mock) CreateNetwork(_ context.Context, name, driver, subnet string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("network name is required")
+	}
+	if driver == "" {
+		driver = "bridge"
+	}
+	m.Networks = append(m.Networks, Network{ID: name, Name: name, Driver: driver, Scope: "local", Subnet: subnet})
+	return nil
+}
+
+// WriteContainerFile accepts a mock file write for a known container.
+func (m *Mock) WriteContainerFile(_ context.Context, id, path string, _ []byte) error {
+	if !isValidContainerPath(path) {
+		return fmt.Errorf("invalid path")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	for _, container := range m.Containers {
+		if container.ID == id || container.Name == id {
+			return nil
+		}
+	}
+	return fmt.Errorf("container not found")
+}
+
+// WriteVolumeFile accepts a mock file write for a known volume.
+func (m *Mock) WriteVolumeFile(_ context.Context, name, path string, _ []byte) error {
+	if !isValidContainerPath(path) {
+		return fmt.Errorf("invalid path")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	for _, volume := range m.Volumes {
+		if volume.Name == name {
+			return nil
+		}
+	}
+	return fmt.Errorf("volume not found")
+}
+
+// ListBuilders returns a single mock buildx builder.
+func (m *Mock) ListBuilders(_ context.Context) ([]BuilderInfo, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return nil, ErrRuntimeNotRunning
+	}
+	return []BuilderInfo{{Name: "default", Driver: "docker", Selected: true}}, nil
+}
+
+// UseBuilder accepts any mock builder name.
+func (m *Mock) UseBuilder(_ context.Context, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("builder name is required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	return nil
+}
+
+// RemoveBuilder is a no-op for the mock runtime.
+func (m *Mock) RemoveBuilder(_ context.Context, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("builder name is required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.StatusValue.State != State(constants.RuntimeStateRunning) {
+		return ErrRuntimeNotRunning
+	}
+	return nil
 }
 
 // systemDiskUsageLocked builds mock df rows; caller must hold m.mu.

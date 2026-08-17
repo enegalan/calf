@@ -163,6 +163,54 @@ type Runtime interface {
 	PrunePreview(ctx context.Context) (PrunePreview, error)
 	Prune(ctx context.Context, opts PruneOptions) (PruneResult, error)
 	SystemDiskUsage(ctx context.Context) (SystemDiskUsage, error)
+	ApplyEngineSettings(settings EngineSettings)
+	PauseContainer(ctx context.Context, id string) error
+	ResumeContainer(ctx context.Context, id string) error
+	RunImageWith(ctx context.Context, opts RunImageOptions) (string, error)
+	EmptyVolume(ctx context.Context, name string) error
+	ImportVolume(ctx context.Context, opts VolumeImportOptions) error
+	CreateNetwork(ctx context.Context, name, driver, subnet string) error
+	WriteContainerFile(ctx context.Context, id, path string, content []byte) error
+	WriteVolumeFile(ctx context.Context, name, path string, content []byte) error
+	ListBuilders(ctx context.Context) ([]BuilderInfo, error)
+	UseBuilder(ctx context.Context, name string) error
+	RemoveBuilder(ctx context.Context, name string) error
+}
+
+// EngineSettings is guest/engine overlay applied from calf config.
+type EngineSettings struct {
+	FileShares           []string
+	HostNetworking       bool
+	DaemonJSON           string
+	DockerSubnet         string
+	BindLocalhostOnly    bool
+	EnableAmd64Emulation bool
+	PrivilegedPorts      bool
+}
+
+// RunImageOptions are optional docker run flags used by the GUI Run dialog.
+type RunImageOptions struct {
+	Reference string
+	Name      string
+	Ports     []string
+	Env       []string
+	Volumes   []string
+}
+
+// VolumeImportOptions describe restoring volume data from a file, image, or registry.
+type VolumeImportOptions struct {
+	Name     string
+	Source   string
+	FilePath string
+	ImageRef string
+}
+
+// BuilderInfo is one docker buildx builder.
+type BuilderInfo struct {
+	Name         string `json:"name"`
+	Driver       string `json:"driver"`
+	LastActivity string `json:"last_activity,omitempty"`
+	Selected     bool   `json:"selected"`
 }
 
 // New returns the platform-appropriate Runtime implementation.
@@ -173,6 +221,10 @@ func New(vmName string, dockerSocket string, cpus int, memoryGB int, memorySwapG
 
 	if goruntime.GOOS == "darwin" {
 		return newDarwinRuntime(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, diskImage, apiListenPort, vmKeepAlive, proxy)
+	}
+
+	if goruntime.GOOS == "windows" {
+		return NewWSL(vmName, dockerSocket, cpus, memoryGB, memorySwapGB, diskGB, rootless, proxy)
 	}
 
 	return NewWindowsUnsupported(dockerSocket)

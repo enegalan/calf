@@ -60,6 +60,13 @@ abstract final class CalfTheme {
           : const Color(0xFFE2E8F0),
       error: isLight ? const Color(0xFFEF4444) : const Color(0xFFF87171),
       onError: Colors.white,
+      // M3 error hover paints outline/label with onErrorContainer; default is onError (white).
+      errorContainer: isLight
+          ? const Color(0xFFFEE2E2)
+          : const Color(0xFF7F1D1D),
+      onErrorContainer: isLight
+          ? const Color(0xFF991B1B)
+          : const Color(0xFFFECACA),
       surface: isLight ? const Color(0xFFFFFFFF) : const Color(0xFF020817),
       onSurface: isLight ? const Color(0xFF020817) : const Color(0xFFF8FAFC),
       surfaceContainerHighest: isLight
@@ -95,7 +102,28 @@ abstract final class CalfTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colorScheme.surface,
+        surfaceTintColor: const Color(0x00000000),
+        elevation: 0,
+        shadowColor: const Color(0x00000000),
         shape: dialogShape(colorScheme),
+        alignment: Alignment.center,
+        titleTextStyle: TextStyle(
+          fontFamily: CalfFonts.sans,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: colorScheme.onSurface,
+          height: 1.25,
+        ),
+        contentTextStyle: TextStyle(
+          fontFamily: CalfFonts.sans,
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: colorScheme.onSurfaceVariant,
+          height: 1.45,
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        barrierColor: const Color(0x52000000),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: colorScheme.surface,

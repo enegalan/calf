@@ -16,6 +16,9 @@ var ErrNetworkNotFound = errors.New("network not found")
 // ErrContainerNotFound is returned when a container ID does not exist in the engine.
 var ErrContainerNotFound = errors.New("container not found")
 
+// ErrImageNotFound is returned when a pull target does not exist in the registry.
+var ErrImageNotFound = errors.New("image not found")
+
 // ErrContainerNotRunning is returned when an operation requires a running container.
 var ErrContainerNotRunning = errors.New("container is not running")
 

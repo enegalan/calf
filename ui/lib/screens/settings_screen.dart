@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -7,13 +9,40 @@ import 'package:ui/api/client.dart';
 import 'package:ui/constants/calf_constants.dart';
 import 'package:ui/platform/launch_at_login.dart';
 import 'package:ui/platform/open_url.dart';
+import 'package:ui/storage/window_preferences.dart';
 import 'package:ui/theme/calf_theme.dart';
 import 'package:ui/updates/update_info.dart';
 import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/volume_export_form.dart';
 
-/// Settings screen: resource limits, proxy, migration, theme, updates, and debug.
+/// Settings categories matching Docker Desktop's sidebar.
+enum _SettingsTab {
+  general,
+  resources,
+  engine,
+  builders,
+  updates,
+  advanced,
+}
+
+/// One sidebar row in Settings.
+class _SettingsNavItem {
+  /// Creates a [_SettingsNavItem].
+  const _SettingsNavItem({
+    required this.tab,
+    required this.label,
+    required this.icon,
+    required this.keywords,
+  });
+
+  final _SettingsTab tab;
+  final String label;
+  final IconData icon;
+  final List<String> keywords;
+}
+
+/// Settings screen with a Docker Desktop-style sidebar and described options.
 class SettingsScreen extends StatefulWidget {
   /// Creates a [SettingsScreen] instance.
   const SettingsScreen({
@@ -58,7 +87,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _httpProxyController = TextEditingController();
   final _httpsProxyController = TextEditingController();
   final _noProxyInputController = TextEditingController();
+  final _daemonJsonController = TextEditingController();
+  final _fileSharesController = TextEditingController();
+  final _dockerSubnetController = TextEditingController();
   List<String> _noProxyEntries = [];
+  List<BuilderInfo> _builders = [];
   String? _httpProxyError;
   String? _httpsProxyError;
   bool _migrating = false;
@@ -70,8 +103,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _launchAtLoginLoading = true;
   bool _launchAtLoginSaving = false;
   String? _launchAtLoginError;
+  bool _openWindowOnLaunch = true;
+  bool _openWindowSaving = false;
   UpdateCheckResult? _updateCheckResult;
   bool _updateChecking = false;
+  _SettingsTab _tab = _SettingsTab.general;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  static const _navItems = [
+    _SettingsNavItem(
+      tab: _SettingsTab.general,
+      label: 'General',
+      icon: LucideIcons.slidersHorizontal,
+      keywords: [
+        'start',
+        'login',
+        'window',
+        'theme',
+        'light',
+        'dark',
+        'cli',
+        'completions',
+        'rosetta',
+        'amd64',
+        'emulation',
+        'migration',
+      ],
+    ),
+    _SettingsNavItem(
+      tab: _SettingsTab.resources,
+      label: 'Resources',
+      icon: LucideIcons.cpu,
+      keywords: [
+        'cpu',
+        'memory',
+        'ram',
+        'swap',
+        'disk',
+        'file shares',
+        'proxy',
+        'network',
+        'subnet',
+        'resource saver',
+        'host networking',
+        'localhost',
+      ],
+    ),
+    _SettingsNavItem(
+      tab: _SettingsTab.engine,
+      label: 'Docker Engine',
+      icon: LucideIcons.container,
+      keywords: ['daemon', 'json', 'engine', 'dockerd'],
+    ),
+    _SettingsNavItem(
+      tab: _SettingsTab.builders,
+      label: 'Builders',
+      icon: LucideIcons.hammer,
+      keywords: ['buildx', 'builder', 'build'],
+    ),
+    _SettingsNavItem(
+      tab: _SettingsTab.updates,
+      label: 'Software updates',
+      icon: LucideIcons.download,
+      keywords: ['update', 'version', 'release'],
+    ),
+    _SettingsNavItem(
+      tab: _SettingsTab.advanced,
+      label: 'Advanced',
+      icon: LucideIcons.shield,
+      keywords: ['socket', 'privileged', 'ports', 'debug', 'password'],
+    ),
+  ];
 
   /// Whether any settings differ from the saved config.
   bool get _dirty =>
@@ -85,7 +188,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _httpsProxyController.text.trim() != _config!.httpsProxy ||
           _noProxyEntries.join(',') != _config!.noProxy ||
           _draftResourceSaverEnabled != _config!.resourceSaverEnabled ||
-          _draftResourceSaverTimeoutSec != _config!.resourceSaverTimeoutSec);
+          _draftResourceSaverTimeoutSec != _config!.resourceSaverTimeoutSec ||
+          _daemonJsonController.text.trim() != _config!.daemonJSON ||
+          _fileSharesController.text.trim() != _config!.fileShares.join(', ') ||
+          _dockerSubnetController.text.trim() != _config!.dockerSubnet);
 
   /// Releases resources when the widget is removed.
   @override
@@ -94,6 +200,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _httpProxyController.dispose();
     _httpsProxyController.dispose();
     _noProxyInputController.dispose();
+    _daemonJsonController.dispose();
+    _fileSharesController.dispose();
+    _dockerSubnetController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -104,6 +214,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _updateCheckResult = widget.initialUpdateCheckResult;
     loadConfig();
     loadLaunchAtLogin();
+    WindowPreferences.loadOpenOnLaunch().then((value) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _openWindowOnLaunch = value);
+    });
   }
 
   /// Syncs local state when the parent widget configuration changes.
@@ -163,6 +279,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _diskImageController.text = config.diskImage;
         _httpProxyController.text = config.httpProxy;
         _httpsProxyController.text = config.httpsProxy;
+        _daemonJsonController.text = config.daemonJSON;
+        _fileSharesController.text = config.fileShares.join(', ');
+        _dockerSubnetController.text = config.dockerSubnet;
         _noProxyEntries = config.noProxy
             .split(',')
             .map((e) => e.trim())
@@ -173,9 +292,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _dockerContextManaged = config.dockerContextManaged;
         _configLoading = false;
       });
+      unawaited(_loadBuilders());
     } catch (error) {
       if (!mounted) return;
       setState(() => _configLoading = false);
+      showCalfErrorSnackBar(context, error);
+    }
+  }
+
+  /// Loads docker buildx builders when the engine is running.
+  Future<void> _loadBuilders() async {
+    try {
+      final builders = await widget.apiClient.fetchBuilders();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _builders = builders);
+    } on ApiException {
+      if (mounted) {
+        setState(() => _builders = []);
+      }
+    }
+  }
+
+  /// Copies the VM disk image to a user-chosen path. The engine must be stopped.
+  Future<void> _copyDiskImage() async {
+    final location = await getSaveLocation(suggestedName: 'calf-disk.raw');
+    if (location == null || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Copying disk image...',
+      done: 'Disk image copied',
+      action: () => widget.apiClient.copyDiskImage(location.path),
+    );
+    if (!ok && mounted) {
+      return;
+    }
+  }
+
+  /// PUTs a boolean config field and refreshes the view.
+  Future<void> _patchBool(Config Function(Config current) update) async {
+    final current = _config;
+    if (current == null) {
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final updated = await widget.apiClient.updateConfig(update(current));
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _config = updated;
+        _saving = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _saving = false);
       showCalfErrorSnackBar(context, error);
     }
   }
@@ -200,6 +376,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           noProxy: _noProxyEntries.join(','),
           resourceSaverEnabled: _draftResourceSaverEnabled,
           resourceSaverTimeoutSec: _draftResourceSaverTimeoutSec,
+          daemonJSON: _daemonJsonController.text.trim(),
+          dockerSubnet: _dockerSubnetController.text.trim(),
+          fileShares: _fileSharesController.text
+              .split(',')
+              .map((part) => part.trim())
+              .where((part) => part.isNotEmpty)
+              .toList(),
         ),
       );
       if (!mounted) return;
@@ -214,6 +397,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _diskImageController.text = updated.diskImage;
         _httpProxyController.text = updated.httpProxy;
         _httpsProxyController.text = updated.httpsProxy;
+        _daemonJsonController.text = updated.daemonJSON;
+        _fileSharesController.text = updated.fileShares.join(', ');
+        _dockerSubnetController.text = updated.dockerSubnet;
         _noProxyEntries = updated.noProxy
             .split(',')
             .map((e) => e.trim())
@@ -431,19 +617,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  /// Sidebar categories matching the current search query.
+  List<_SettingsNavItem> get _visibleNav {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return _navItems;
+    }
+    return _navItems.where((item) {
+      if (item.label.toLowerCase().contains(query)) {
+        return true;
+      }
+      return item.keywords.any((keyword) => keyword.contains(query));
+    }).toList();
+  }
+
   /// Builds the widget tree.
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final canApply =
+        _dirty &&
+        !_saving &&
+        _httpProxyError == null &&
+        _httpsProxyError == null;
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 12, 12),
+          child: Row(
             children: [
               Expanded(
-                child: Text('Settings', style: theme.textTheme.headlineSmall),
+                child: Text(
+                  'Settings',
+                  style: theme.textTheme.titleLarge!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
               if (widget.onClose != null)
                 Tooltip(
@@ -457,277 +668,837 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
-          _settingRow(
-            'Use calf for Docker CLI',
-            Switch(
-              value: _dockerContextManaged,
-              onChanged: _dockerContextSaving ? null : setDockerContextManaged,
-            ),
-          ),
-          if (_config != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _config!.dockerContextActive
-                  ? 'Active context: calf'
-                  : _config!.dockerContextName.isEmpty
-                  ? 'Docker CLI context not set to calf'
-                  : 'Active context: ${_config!.dockerContextName}',
-              style: CalfTheme.muted(theme),
-            ),
-            if (_config!.dockerPluginsHint.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                _config!.dockerPluginsHint,
-                style: theme.textTheme.bodyMedium!.copyWith(
-                  color: theme.colorScheme.error,
+        ),
+        Divider(height: 1, color: theme.colorScheme.outlineVariant),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(width: 228, child: _sidebar(theme)),
+              VerticalDivider(
+                width: 1,
+                color: theme.colorScheme.outlineVariant,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: _configLoading
+                          ? Center(
+                              child: Text(
+                                'Loading settings...',
+                                style: CalfTheme.muted(theme),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(28, 20, 28, 28),
+                              child: _pageForTab(theme),
+                            ),
+                    ),
+                    Divider(
+                      height: 1,
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(28, 12, 28, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (widget.onClose != null)
+                            CalfButton.outline(
+                              onPressed: widget.onClose,
+                              child: const Text('Close'),
+                            ),
+                          const SizedBox(width: 8),
+                          CalfButton(
+                            onPressed: canApply ? applyConfig : null,
+                            enabled: canApply,
+                            child: Text(_saving ? 'Saving...' : 'Apply'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
-          ],
-          const SizedBox(height: 16),
-          _settingRow(
-            'Open at login',
-            Switch(
-              value: _launchAtLoginEnabled ?? false,
-              onChanged: _launchAtLoginLoading || _launchAtLoginSaving
-                  ? null
-                  : setLaunchAtLoginEnabled,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the Settings category sidebar with search.
+  Widget _sidebar(ThemeData theme) {
+    final visible = _visibleNav;
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search settings',
+                isDense: true,
+                prefixIcon: Icon(
+                  LucideIcons.search,
+                  size: 16,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              onChanged: _onSearchChanged,
             ),
           ),
-          if (_launchAtLoginError != null) ...[
-            const SizedBox(height: 8),
-            Text(
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+              children: [
+                for (final item in visible) _navTile(theme, item),
+                if (visible.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'No matching settings',
+                      style: CalfTheme.muted(theme),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Filters the sidebar and jumps to the first matching category.
+  void _onSearchChanged(String value) {
+    setState(() {
+      _searchQuery = value;
+      final visible = _visibleNav;
+      if (visible.isNotEmpty &&
+          !visible.any((item) => item.tab == _tab)) {
+        _tab = visible.first.tab;
+      }
+    });
+  }
+
+  /// Builds one sidebar category row.
+  Widget _navTile(ThemeData theme, _SettingsNavItem item) {
+    final selected = item.tab == _tab;
+    final color = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        animationDuration: CalfTheme.materialAnimationDuration,
+        color: selected
+            ? theme.colorScheme.secondaryContainer
+            : Colors.transparent,
+        borderRadius: CalfTheme.radius,
+        child: InkWell(
+          borderRadius: CalfTheme.radius,
+          onTap: () => setState(() => _tab = item.tab),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(
+              children: [
+                Icon(item.icon, size: 16, color: color),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: theme.textTheme.bodyMedium!.copyWith(
+                      color: color,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Returns the content pane for the selected category.
+  Widget _pageForTab(ThemeData theme) {
+    return switch (_tab) {
+      _SettingsTab.general => _generalPage(theme),
+      _SettingsTab.resources => _resourcesPage(theme),
+      _SettingsTab.engine => _enginePage(theme),
+      _SettingsTab.builders => _buildersPage(theme),
+      _SettingsTab.updates => _updatesPage(theme),
+      _SettingsTab.advanced => _advancedPage(theme),
+    };
+  }
+
+  /// Builds the General pane: startup, theme, CLI, completions, emulation.
+  Widget _generalPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'General'),
+        _option(
+          title: 'Start calf when you sign in to your computer',
+          description:
+              'Automatically start calf when you sign in to your machine.',
+          value: _launchAtLoginEnabled ?? false,
+          onChanged: _launchAtLoginLoading || _launchAtLoginSaving
+              ? null
+              : setLaunchAtLoginEnabled,
+        ),
+        if (_launchAtLoginError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
               _launchAtLoginError!,
+              style: theme.textTheme.bodyMedium!.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+        _option(
+          title: 'Open the dashboard when calf starts',
+          description: 'Automatically open the window when starting calf.',
+          value: _openWindowOnLaunch,
+          onChanged: _openWindowSaving
+              ? null
+              : (value) async {
+                  setState(() {
+                    _openWindowOnLaunch = value;
+                    _openWindowSaving = true;
+                  });
+                  await WindowPreferences.saveOpenOnLaunch(value);
+                  if (mounted) {
+                    setState(() => _openWindowSaving = false);
+                  }
+                },
+        ),
+        _groupLabel(theme, 'Choose theme for calf'),
+        RadioGroup<ThemeMode>(
+          groupValue: widget.themeMode,
+          onChanged: (mode) {
+            if (mode != null) {
+              widget.onThemeModeChanged?.call(mode);
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _radioOption(title: 'Light', value: ThemeMode.light),
+              _radioOption(title: 'Dark', value: ThemeMode.dark),
+              _radioOption(
+                title: 'Use system settings',
+                value: ThemeMode.system,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        _option(
+          title: 'Use calf for Docker CLI',
+          description:
+              'Points the docker CLI at calf so docker and docker compose work in a terminal.',
+          value: _dockerContextManaged,
+          onChanged: _dockerContextSaving ? null : setDockerContextManaged,
+        ),
+        if (_config != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 40, bottom: 8),
+            child: Text(
+              _config!.dockerContextActive
+                  ? 'Active context: calf'
+                  : _config!.dockerContextName.isEmpty
+                  ? 'Docker CLI context is not set to calf'
+                  : 'Active context: ${_config!.dockerContextName}',
+              style: CalfTheme.muted(theme),
+            ),
+          ),
+          if (!_config!.dockerCliAvailable ||
+              _config!.dockerPluginsHint.isNotEmpty) ...[
+            if (_config!.dockerPluginsHint.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 40, bottom: 8),
+                child: Text(
+                  _config!.dockerPluginsHint,
+                  style: theme.textTheme.bodyMedium!.copyWith(
+                    color: theme.colorScheme.error,
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(left: 40, bottom: 16),
+              child: CalfButton.outline(
+                onPressed: _saving
+                    ? null
+                    : () async {
+                        final ok = await runCalfToastAction(
+                          pending: 'Installing Docker CLI...',
+                          done: 'Docker CLI installed',
+                          action: widget.apiClient.installDockerCli,
+                        );
+                        if (ok && mounted) {
+                          await loadConfig();
+                        }
+                      },
+                child: const Text('Install Docker CLI'),
+              ),
+            ),
+          ],
+          for (final warning in _config!.hijackWarnings)
+            Padding(
+              padding: const EdgeInsets.only(left: 40, bottom: 8),
+              child: Text(warning.message, style: CalfTheme.muted(theme)),
+            ),
+        ],
+        _option(
+          title: 'Configure shell completions',
+          description:
+              'Edits your shell configuration so Tab completes docker commands, flags, and objects.',
+          value: _config?.shellCompletions ?? false,
+          onChanged: _saving
+              ? null
+              : (value) => _patchBool(
+                  (cfg) => cfg.copyWith(shellCompletions: value),
+                ),
+        ),
+        if (theme.platform == TargetPlatform.macOS)
+          _option(
+            title:
+                'Use Rosetta for x86_64/amd64 emulation on Apple Silicon',
+            description:
+                'Accelerate x86/AMD64 binary emulation on Apple Silicon.',
+            value: _config?.enableAmd64Emulation ?? false,
+            onChanged: _saving
+                ? null
+                : (value) => _patchBool(
+                    (cfg) => cfg.copyWith(enableAmd64Emulation: value),
+                  ),
+          )
+        else
+          _option(
+            title: 'Enable amd64 emulation',
+            description:
+                'Run images built for x86_64/amd64 on this machine.',
+            value: _config?.enableAmd64Emulation ?? false,
+            onChanged: _saving
+                ? null
+                : (value) => _patchBool(
+                    (cfg) => cfg.copyWith(enableAmd64Emulation: value),
+                  ),
+          ),
+        const SizedBox(height: 12),
+        _groupLabel(theme, 'Import from Docker Desktop'),
+        Text(
+          'Import settings, images, volumes, containers and build history from Docker Desktop.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        CalfButton(
+          onPressed: _migrating ? null : startDockerDesktopMigration,
+          enabled: !_migrating,
+          child: Text(
+            _migrating ? 'Migrating...' : 'Migrate from Docker Desktop',
+          ),
+        ),
+        if (_migrationStatus != null) ...[
+          const SizedBox(height: 16),
+          LinearProgressIndicator(value: _migrationStatus!.progress / 100),
+          const SizedBox(height: 8),
+          Text(_migrationStatus!.message, style: theme.textTheme.titleMedium),
+          if (_migrationStatus!.error != null &&
+              _migrationStatus!.error!.isNotEmpty)
+            Text(
+              _migrationStatus!.error!,
               style: theme.textTheme.titleMedium!.copyWith(
                 color: theme.colorScheme.error,
               ),
             ),
-          ],
-          const SizedBox(height: 16),
-          _settingRow(
-            'Debug',
-            Switch(
-              value: _config?.logLevel == 'debug',
-              onChanged: _config == null || _debugSaving
-                  ? null
-                  : setDebugEnabled,
+          if (_migrationStatus!.phase == 'completed') ...[
+            const SizedBox(height: 8),
+            Text(
+              'Images: ${_migrationStatus!.summary.imagesOK}/${_migrationStatus!.summary.imagesTotal} · '
+              'Volumes: ${_migrationStatus!.summary.volumesOK}/${_migrationStatus!.summary.volumesTotal} · '
+              'Containers: ${_migrationStatus!.summary.containersOK}/${_migrationStatus!.summary.containersTotal} · '
+              'Builds: ${_migrationStatus!.summary.buildsOK}/${_migrationStatus!.summary.buildsTotal}',
+              style: CalfTheme.muted(theme),
             ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  /// Builds the Resources pane: CPU, memory, disk, shares, network, proxy.
+  Widget _resourcesPage(ThemeData theme) {
+    if (_config == null) {
+      return Text('Loading config...', style: CalfTheme.muted(theme));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'Resources'),
+        _sliderRow(
+          'CPU limit',
+          _draftCpus,
+          1,
+          _config!.hostCPUs.toDouble(),
+          (value) => setState(() => _draftCpus = value),
+          trailing: Text('${_draftCpus.toInt()} CPUs'),
+        ),
+        const SizedBox(height: 20),
+        _sliderRow(
+          'Memory limit',
+          _draftMemory,
+          1,
+          _config!.hostMemoryGB.toDouble(),
+          (value) => setState(() => _draftMemory = value),
+          trailing: Text('${_draftMemory.toInt()} GB'),
+        ),
+        const SizedBox(height: 20),
+        _sliderRow(
+          'Swap',
+          _draftSwap,
+          0,
+          _config!.hostMemoryGB.toDouble(),
+          (value) => setState(() => _draftSwap = value),
+          trailing: Text('${_draftSwap.toInt()} GB'),
+        ),
+        const SizedBox(height: 20),
+        _sliderRow(
+          'Disk usage limit',
+          _draftDisk,
+          1,
+          _config!.hostDiskGB.toDouble(),
+          (value) => setState(() => _draftDisk = value),
+          trailing: Text('${_draftDisk.toInt()} GB'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Limit the amount of disk space the engine can use, including overheads. '
+          'calf will allocate and free space on demand, but will not exceed this limit.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 20),
+        _diskImageField(theme),
+        const SizedBox(height: 8),
+        CalfButton.outline(
+          onPressed: _saving ? null : _copyDiskImage,
+          child: const Text('Copy disk image'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Copies the VM disk while the engine is stopped.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 28),
+        _groupLabel(theme, 'File sharing'),
+        Text(
+          'Share extra folders with Linux containers. Your home directory is already shared. '
+          'Add paths outside home if a bind mount is denied at runtime.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _fileSharesController,
+          enabled: !_saving,
+          decoration: const InputDecoration(
+            hintText: '/tmp, /Volumes',
           ),
-          const SizedBox(height: 8),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Comma-separated paths. Apply, then restart the engine.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 28),
+        _groupLabel(theme, 'Network'),
+        _option(
+          title: 'Enable host networking',
+          description:
+              'Lets containers use the host network stack. Restart the engine after changing this.',
+          value: _config?.hostNetworking ?? false,
+          onChanged: _saving
+              ? null
+              : (value) => _patchBool(
+                  (cfg) => cfg.copyWith(hostNetworking: value),
+                ),
+        ),
+        _option(
+          title: 'Bind published ports to localhost',
+          description:
+              'Published ports listen on 127.0.0.1 instead of all interfaces.',
+          value: _config?.bindLocalhostOnly ?? false,
+          onChanged: _saving
+              ? null
+              : (value) => _patchBool(
+                  (cfg) => cfg.copyWith(bindLocalhostOnly: value),
+                ),
+        ),
+        Text('Docker subnet', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        TextField(
+          controller: _dockerSubnetController,
+          enabled: !_saving,
+          decoration: const InputDecoration(hintText: '192.168.65.0/24'),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 28),
+        _resourceSaverSection(theme),
+        const SizedBox(height: 28),
+        _groupLabel(theme, 'Proxies'),
+        Text(
+          'HTTP and HTTPS proxy settings for image pulls inside the engine.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        _proxyField(
+          label: 'HTTP proxy',
+          controller: _httpProxyController,
+          placeholder: 'http://proxy.example.com:8080',
+          icon: LucideIcons.globe,
+          theme: theme,
+          error: _httpProxyError,
+          onChanged: _validateHttpProxy,
+        ),
+        const SizedBox(height: 12),
+        _proxyField(
+          label: 'HTTPS proxy',
+          controller: _httpsProxyController,
+          placeholder: 'http://proxy.example.com:8080',
+          icon: LucideIcons.lock,
+          theme: theme,
+          error: _httpsProxyError,
+          onChanged: _validateHttpsProxy,
+        ),
+        const SizedBox(height: 12),
+        _noProxySection(theme),
+      ],
+    );
+  }
+
+  /// Builds the Docker Engine pane: daemon.json editor.
+  Widget _enginePage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'Docker Engine'),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: CalfColors.warning.withValues(alpha: 0.16),
+            borderRadius: CalfTheme.radius,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                LucideIcons.triangleAlert,
+                size: 16,
+                color: CalfColors.warning,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'This can prevent the engine from starting. Reset your daemon settings if it hangs.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Configure the Docker daemon by typing a JSON Docker daemon configuration file.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _daemonJsonController,
+          enabled: !_saving,
+          maxLines: 16,
+          style: const TextStyle(
+            fontFamily: CalfFonts.mono,
+            fontSize: 13,
+          ),
+          decoration: InputDecoration(
+            hintText: '{\n  "debug": true\n}',
+            alignLabelWithHint: true,
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Merged with calf defaults on the next engine start. Select Apply to save.',
+          style: CalfTheme.muted(theme),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the Builders pane: selected builder and the rest.
+  Widget _buildersPage(ThemeData theme) {
+    final selected = _builders.where((b) => b.selected).toList();
+    final available = _builders.where((b) => !b.selected).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'Builders'),
+        _groupLabel(theme, 'Selected builder'),
+        Text(
+          'The default builder used when you start a build.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        if (selected.isEmpty)
           Text(
-            'Shows a bug button in the top bar so you can copy daemon logs when something goes wrong.',
+            'Start the engine to inspect builders.',
             style: CalfTheme.muted(theme),
+          )
+        else
+          for (final builder in selected) _builderCard(theme, builder),
+        const SizedBox(height: 24),
+        _groupLabel(theme, 'Available builders'),
+        Text(
+          'Inspect and manage your builders.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        if (available.isEmpty && selected.isNotEmpty)
+          Text('No other builders.', style: CalfTheme.muted(theme)),
+        for (final builder in available) ...[
+          _builderCard(theme, builder),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+
+  /// Builds one builder card with use and remove actions.
+  Widget _builderCard(ThemeData theme, BuilderInfo builder) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+        borderRadius: CalfTheme.radius,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  builder.name,
+                  style: theme.textTheme.titleMedium!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (builder.selected)
+                Text(
+                  'Current',
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 16),
-          _sectionHeader('Theme', theme),
-          const SizedBox(height: 12),
-          _themeModePicker(theme),
-          const SizedBox(height: 24),
-          _sectionHeader('Updates', theme),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           Text(
-            widget.appVersion.isEmpty
-                ? 'Loading version...'
-                : 'Current version: ${widget.appVersion}',
+            [
+              if (builder.driver.isNotEmpty) builder.driver,
+              if (builder.lastActivity.isNotEmpty) builder.lastActivity,
+            ].join(' · '),
             style: CalfTheme.muted(theme),
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              CalfButton(
-                onPressed: _updateChecking || widget.appVersion.isEmpty
+              if (!builder.selected)
+                CalfButton.outline(
+                  onPressed: _saving
+                      ? null
+                      : () async {
+                          final ok = await runCalfToastAction(
+                            pending: 'Using ${builder.name}...',
+                            done: 'Using ${builder.name}',
+                            action: () =>
+                                widget.apiClient.useBuilder(builder.name),
+                          );
+                          if (ok && mounted) {
+                            await _loadBuilders();
+                          }
+                        },
+                  child: const Text('Use'),
+                ),
+              if (!builder.selected) const SizedBox(width: 8),
+              CalfButton.outline(
+                onPressed: _saving
                     ? null
-                    : checkForUpdates,
-                enabled: !_updateChecking && widget.appVersion.isNotEmpty,
-                child: Text(
-                  _updateChecking ? 'Checking...' : 'Check for updates',
-                ),
-              ),
-              if (_updateCheckResult?.hasUpdate == true &&
-                  _updateCheckResult!.latest != null) ...[
-                const SizedBox(width: 12),
-                CalfButton(
-                  onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
-                  child: Text(
-                    'Download ${_updateCheckResult!.latest!.version}',
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (_updateCheckResult != null) ...[
-            const SizedBox(height: 12),
-            if (_updateCheckResult!.error != null)
-              Text(
-                _updateCheckResult!.error!,
-                style: theme.textTheme.titleMedium!.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              )
-            else if (_updateCheckResult!.hasUpdate &&
-                _updateCheckResult!.latest != null) ...[
-              Text(
-                'Version ${_updateCheckResult!.latest!.version} is available.',
-                style: theme.textTheme.titleMedium,
-              ),
-            ] else
-              Text('You are up to date.', style: CalfTheme.muted(theme)),
-          ],
-          const SizedBox(height: 24),
-          _sectionHeader('Migration', theme),
-          const SizedBox(height: 12),
-          Text(
-            'Import settings, images, volumes, containers and build history from Docker Desktop.',
-            style: CalfTheme.muted(theme),
-          ),
-          const SizedBox(height: 12),
-          CalfButton(
-            onPressed: _migrating ? null : startDockerDesktopMigration,
-            enabled: !_migrating,
-            child: Text(
-              _migrating ? 'Migrating...' : 'Migrate from Docker Desktop',
-            ),
-          ),
-          if (_migrationStatus != null) ...[
-            const SizedBox(height: 16),
-            LinearProgressIndicator(value: _migrationStatus!.progress / 100),
-            const SizedBox(height: 8),
-            Text(_migrationStatus!.message, style: theme.textTheme.titleMedium),
-            if (_migrationStatus!.error != null &&
-                _migrationStatus!.error!.isNotEmpty)
-              Text(
-                _migrationStatus!.error!,
-                style: theme.textTheme.titleMedium!.copyWith(
-                  color: theme.colorScheme.error,
-                ),
-              ),
-            if (_migrationStatus!.phase == 'completed') ...[
-              const SizedBox(height: 8),
-              Text(
-                'Images: ${_migrationStatus!.summary.imagesOK}/${_migrationStatus!.summary.imagesTotal} · '
-                'Volumes: ${_migrationStatus!.summary.volumesOK}/${_migrationStatus!.summary.volumesTotal} · '
-                'Containers: ${_migrationStatus!.summary.containersOK}/${_migrationStatus!.summary.containersTotal} · '
-                'Builds: ${_migrationStatus!.summary.buildsOK}/${_migrationStatus!.summary.buildsTotal}',
-                style: CalfTheme.muted(theme),
+                    : () async {
+                        final ok = await runCalfToastAction(
+                          pending: 'Removing ${builder.name}...',
+                          done: 'Removed ${builder.name}',
+                          action: () =>
+                              widget.apiClient.removeBuilder(builder.name),
+                        );
+                        if (ok && mounted) {
+                          await _loadBuilders();
+                        }
+                      },
+                child: const Text('Remove'),
               ),
             ],
-          ],
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Proxy'),
-                      if (_config != null &&
-                          (_config!.httpProxy.isNotEmpty ||
-                              _config!.httpsProxy.isNotEmpty ||
-                              _config!.noProxy.isNotEmpty))
-                        const Padding(
-                          padding: EdgeInsets.only(left: 8),
-                          child: Chip(
-                            label: Text('Configured'),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'HTTP and HTTPS proxy settings for image pulls inside the VM.',
-                  ),
-                  const SizedBox(height: 12),
-                  _proxyField(
-                    label: 'HTTP proxy',
-                    controller: _httpProxyController,
-                    placeholder: 'http://proxy.example.com:8080',
-                    icon: LucideIcons.globe,
-                    theme: theme,
-                    error: _httpProxyError,
-                    onChanged: _validateHttpProxy,
-                  ),
-                  const SizedBox(height: 12),
-                  _proxyField(
-                    label: 'HTTPS proxy',
-                    controller: _httpsProxyController,
-                    placeholder: 'http://proxy.example.com:8080',
-                    icon: LucideIcons.lock,
-                    theme: theme,
-                    error: _httpsProxyError,
-                    onChanged: _validateHttpsProxy,
-                  ),
-                  const SizedBox(height: 12),
-                  _noProxySection(theme),
-                ],
-              ),
-            ),
           ),
-          const SizedBox(height: 24),
-          _sectionHeader('System', theme),
-          const SizedBox(height: 12),
-          if (_configLoading)
-            Text('Loading config...', style: CalfTheme.muted(theme))
-          else if (_config != null) ...[
-            _sliderRow(
-              'Memory limit',
-              _draftMemory,
-              1,
-              _config!.hostMemoryGB.toDouble(),
-              (value) => setState(() => _draftMemory = value),
-              trailing: Text('${_draftMemory.toInt()} GB'),
-            ),
-            const SizedBox(height: 16),
-            _sliderRow(
-              'Memory swap',
-              _draftSwap,
-              0,
-              _config!.hostMemoryGB.toDouble(),
-              (value) => setState(() => _draftSwap = value),
-              trailing: Text('${_draftSwap.toInt()} GB'),
-            ),
-            const SizedBox(height: 16),
-            _sliderRow(
-              'CPU limit',
-              _draftCpus,
-              1,
-              _config!.hostCPUs.toDouble(),
-              (value) => setState(() => _draftCpus = value),
-              trailing: Text('${_draftCpus.toInt()} cores'),
-            ),
-            const SizedBox(height: 16),
-            _sliderRow(
-              'Disk image size',
-              _draftDisk,
-              1,
-              _config!.hostDiskGB.toDouble(),
-              (value) => setState(() => _draftDisk = value),
-              trailing: Text('${_draftDisk.toInt()} GB'),
-            ),
-            const SizedBox(height: 16),
-            _diskImageField(theme),
-            const SizedBox(height: 24),
-            _resourceSaverSection(theme),
-            const SizedBox(height: 24),
-            CalfButton(
-              onPressed:
-                  _dirty &&
-                      !_saving &&
-                      _httpProxyError == null &&
-                      _httpsProxyError == null
-                  ? applyConfig
-                  : null,
-              enabled:
-                  _dirty && _httpProxyError == null && _httpsProxyError == null,
-              child: Text(_saving ? 'Saving...' : 'Apply'),
-            ),
-          ],
         ],
       ),
+    );
+  }
+
+  /// Builds the Software updates pane.
+  Widget _updatesPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'Software updates'),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.7),
+            borderRadius: CalfTheme.radius,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                LucideIcons.info,
+                size: 16,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'To check for updates, select Check for updates.',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        _groupLabel(theme, 'Software updates preferences'),
+        Text(
+          widget.appVersion.isEmpty
+              ? 'Loading version...'
+              : 'Current version: ${widget.appVersion}',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            CalfButton(
+              onPressed: _updateChecking || widget.appVersion.isEmpty
+                  ? null
+                  : checkForUpdates,
+              enabled: !_updateChecking && widget.appVersion.isNotEmpty,
+              child: Text(
+                _updateChecking ? 'Checking...' : 'Check for updates',
+              ),
+            ),
+            if (_updateCheckResult?.hasUpdate == true &&
+                _updateCheckResult!.latest != null) ...[
+              const SizedBox(width: 12),
+              CalfButton(
+                onPressed: () => downloadUpdate(_updateCheckResult!.latest!),
+                child: Text(
+                  'Download ${_updateCheckResult!.latest!.version}',
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (_updateCheckResult != null) ...[
+          const SizedBox(height: 12),
+          if (_updateCheckResult!.error != null)
+            Text(
+              _updateCheckResult!.error!,
+              style: theme.textTheme.titleMedium!.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            )
+          else if (_updateCheckResult!.hasUpdate &&
+              _updateCheckResult!.latest != null)
+            Text(
+              'Version ${_updateCheckResult!.latest!.version} is available.',
+              style: theme.textTheme.titleMedium,
+            )
+          else
+            Text('You are up to date.', style: CalfTheme.muted(theme)),
+        ],
+      ],
+    );
+  }
+
+  /// Builds the Advanced pane: default socket, privileged ports, debug.
+  Widget _advancedPage(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _pageTitle(theme, 'Advanced'),
+        Text(
+          'These settings are intended for environments with extra security or compatibility needs. Changing them can limit how some tools talk to calf.',
+          style: CalfTheme.muted(theme),
+        ),
+        const SizedBox(height: 20),
+        _option(
+          title: 'Allow the default Docker socket to be used (requires password)',
+          description:
+              'Creates /var/run/docker.sock which some third-party clients may use to communicate with calf.',
+          value: _config?.defaultDockerSocket ?? false,
+          onChanged: _saving
+              ? null
+              : (value) => _patchBool(
+                  (cfg) => cfg.copyWith(defaultDockerSocket: value),
+                ),
+        ),
+        if ((_config?.defaultSocketHint ?? '').isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 40, bottom: 12),
+            child: Text(
+              _config!.defaultSocketHint,
+              style: CalfTheme.muted(theme),
+            ),
+          ),
+        _option(
+          title: 'Allow privileged port mapping (requires password)',
+          description:
+              'Starts the privileged helper which binds published ports between 1 and 1024.',
+          value: _config?.privilegedPorts ?? false,
+          onChanged: _saving
+              ? null
+              : (value) => _patchBool(
+                  (cfg) => cfg.copyWith(privilegedPorts: value),
+                ),
+        ),
+        _option(
+          title: 'Debug',
+          description:
+              'Shows a bug button in the top bar so you can copy daemon logs when something goes wrong.',
+          value: _config?.logLevel == 'debug',
+          onChanged: _config == null || _debugSaving ? null : setDebugEnabled,
+        ),
+      ],
     );
   }
 
@@ -740,28 +1511,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Resource Saver',
-          style: theme.textTheme.titleMedium!.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        _groupLabel(theme, 'Resource Saver'),
+        _option(
+          title: 'Enable Resource Saver',
+          description:
+              'Reduces CPU and memory utilization when no containers are running. '
+              'Exit from Resource Saver mode happens automatically when containers are started.',
+          value: _draftResourceSaverEnabled,
+          onChanged: (value) =>
+              setState(() => _draftResourceSaverEnabled = value),
         ),
-        const SizedBox(height: 12),
-        _settingRow(
-          'Enable Resource Saver',
-          Switch(
-            value: _draftResourceSaverEnabled,
-            onChanged: (value) =>
-                setState(() => _draftResourceSaverEnabled = value),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Reduces CPU and memory utilization when no containers are running. '
-          'Exit from Resource Saver mode happens automatically when containers are started.',
-          style: CalfTheme.muted(theme),
-        ),
-        const SizedBox(height: 8),
         Text(
           'Use the slider to set the duration of time between no containers '
           'running and calf entering Resource Saver mode.',
@@ -778,7 +1537,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Slider(
                   value: timeoutIndex.toDouble(),
                   min: 0,
-                  max: (CalfResourceSaver.timeoutSeconds.length - 1).toDouble(),
+                  max: (CalfResourceSaver.timeoutSeconds.length - 1)
+                      .toDouble(),
                   divisions: CalfResourceSaver.timeoutSeconds.length - 1,
                   label: CalfResourceSaver.labelForSeconds(
                     CalfResourceSaver.timeoutSeconds[timeoutIndex],
@@ -817,202 +1577,102 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Builds the Light / Dark / System theme picker with preview cards.
-  Widget _themeModePicker(ThemeData theme) {
-    return Row(
-      children: [
-        Expanded(
-          child: _themeModeCard(
-            theme: theme,
-            mode: ThemeMode.light,
-            label: 'Light',
-            icon: LucideIcons.sun,
-          ),
+  /// Builds a large pane heading.
+  Widget _pageTitle(ThemeData theme, String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Text(
+        title,
+        style: theme.textTheme.headlineSmall!.copyWith(
+          fontWeight: FontWeight.w600,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _themeModeCard(
-            theme: theme,
-            mode: ThemeMode.dark,
-            label: 'Dark',
-            icon: LucideIcons.moon,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _themeModeCard(
-            theme: theme,
-            mode: ThemeMode.system,
-            label: 'System',
-            icon: LucideIcons.monitor,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
-  /// Builds one selectable theme preview card.
-  Widget _themeModeCard({
-    required ThemeData theme,
-    required ThemeMode mode,
-    required String label,
-    required IconData icon,
+  /// Builds a bold group heading inside a pane.
+  Widget _groupLabel(ThemeData theme, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        label,
+        style: theme.textTheme.titleMedium!.copyWith(
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  /// Builds a checkbox option with a title and muted description.
+  Widget _option({
+    required String title,
+    required String description,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
   }) {
-    final selected = widget.themeMode == mode;
-    final enabled = widget.onThemeModeChanged != null;
-    final borderColor = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.outlineVariant;
-    final labelColor = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurface;
-
-    return Material(
-      animationDuration: CalfTheme.materialAnimationDuration,
-      color: selected
-          ? theme.colorScheme.secondaryContainer.withValues(alpha: 0.45)
-          : theme.colorScheme.surface,
-      borderRadius: CalfTheme.radius,
-      child: InkWell(
-        onTap: enabled ? () => widget.onThemeModeChanged!(mode) : null,
-        borderRadius: CalfTheme.radius,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-          decoration: BoxDecoration(
-            borderRadius: CalfTheme.radius,
-            border: Border.all(color: borderColor, width: 2),
-          ),
-          child: Column(
-            children: [
-              _themePreview(mode),
-              const SizedBox(height: 10),
-              Icon(icon, size: 16, color: labelColor),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: theme.textTheme.bodySmall!.copyWith(
-                  color: labelColor,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Draws a miniature window preview for [mode].
-  Widget _themePreview(ThemeMode mode) {
-    const lightBg = Color(0xFFF8FAFC);
-    const lightPanel = Color(0xFFFFFFFF);
-    const lightLine = Color(0xFFE2E8F0);
-    const darkBg = Color(0xFF020817);
-    const darkPanel = Color(0xFF1E293B);
-    const darkLine = Color(0xFF334155);
-    const accent = CalfColors.primary;
-
-    Widget half({
-      required Color background,
-      required Color panel,
-      required Color line,
-    }) {
-      return ColoredBox(
-        color: background,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(6, 5, 6, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      color: accent,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Container(
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: line,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Expanded(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: panel,
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: line),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final preview = switch (mode) {
-      ThemeMode.light => half(
-        background: lightBg,
-        panel: lightPanel,
-        line: lightLine,
-      ),
-      ThemeMode.dark => half(
-        background: darkBg,
-        panel: darkPanel,
-        line: darkLine,
-      ),
-      ThemeMode.system => Row(
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: half(
-              background: lightBg,
-              panel: lightPanel,
-              line: lightLine,
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Checkbox(
+              value: value,
+              visualDensity: VisualDensity.compact,
+              onChanged: onChanged == null
+                  ? null
+                  : (checked) => onChanged(checked ?? false),
             ),
           ),
+          const SizedBox(width: 4),
           Expanded(
-            child: half(background: darkBg, panel: darkPanel, line: darkLine),
+            child: InkWell(
+              onTap: onChanged == null ? null : () => onChanged(!value),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: theme.textTheme.bodyLarge),
+                    const SizedBox(height: 2),
+                    Text(description, style: CalfTheme.muted(theme)),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
-    };
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: SizedBox(height: 56, width: double.infinity, child: preview),
     );
   }
 
-  /// Builds a settings section header label.
-  Widget _sectionHeader(String label, ThemeData theme) {
-    return Text(
-      label,
-      style: theme.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600),
-    );
-  }
-
-  /// Builds a label-control row for a settings toggle.
-  Widget _settingRow(String label, Widget control) {
-    return Row(
-      children: [
-        Flexible(
-          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        ),
-        const SizedBox(width: 16),
-        control,
-      ],
+  /// Builds a theme radio row. Must sit under a [RadioGroup].
+  Widget _radioOption({
+    required String title,
+    required ThemeMode value,
+  }) {
+    final theme = Theme.of(context);
+    final enabled = widget.onThemeModeChanged != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Radio<ThemeMode>(
+            value: value,
+            enabled: enabled,
+            visualDensity: VisualDensity.compact,
+          ),
+          InkWell(
+            onTap: enabled ? () => widget.onThemeModeChanged!(value) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(title, style: theme.textTheme.bodyLarge),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

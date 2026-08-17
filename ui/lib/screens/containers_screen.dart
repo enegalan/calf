@@ -610,6 +610,30 @@ class _ContainersScreenState extends State<ContainersScreen>
                         lockIds: [id],
                       );
                     },
+                    onPause: (id) {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      final name = match?.displayName ?? id;
+                      return _runAction(
+                        () => widget.apiClient.pauseContainer(id),
+                        pending: 'Pausing "$name"...',
+                        done: 'Paused "$name"',
+                        lockIds: [id],
+                      );
+                    },
+                    onResume: (id) {
+                      final match = group.value
+                          .where((c) => c.id == id)
+                          .firstOrNull;
+                      final name = match?.displayName ?? id;
+                      return _runAction(
+                        () => widget.apiClient.resumeContainer(id),
+                        pending: 'Resuming "$name"...',
+                        done: 'Resumed "$name"',
+                        lockIds: [id],
+                      );
+                    },
                     onRemove: (id) async {
                       final match = group.value
                           .where((c) => c.id == id)
@@ -655,6 +679,18 @@ class _ContainersScreenState extends State<ContainersScreen>
                       done: 'Stopped "${container.displayName}"',
                       lockIds: [container.id],
                     ),
+                    onPause: () => _runAction(
+                      () => widget.apiClient.pauseContainer(container.id),
+                      pending: 'Pausing "${container.displayName}"...',
+                      done: 'Paused "${container.displayName}"',
+                      lockIds: [container.id],
+                    ),
+                    onResume: () => _runAction(
+                      () => widget.apiClient.resumeContainer(container.id),
+                      pending: 'Resuming "${container.displayName}"...',
+                      done: 'Resumed "${container.displayName}"',
+                      lockIds: [container.id],
+                    ),
                     onRemove: () => _confirmRemoveContainer(container),
                     onOpen: () => _openContainer(container),
                     onOpenImage: () => _openImage(container),
@@ -688,6 +724,8 @@ class _ComposeGroupTile extends StatelessWidget {
     required this.onOpenGroup,
     required this.onStart,
     required this.onStop,
+    required this.onPause,
+    required this.onResume,
     required this.onRemove,
     required this.onStartAll,
     required this.onStopAll,
@@ -707,6 +745,8 @@ class _ComposeGroupTile extends StatelessWidget {
   final VoidCallback onOpenGroup;
   final Future<void> Function(String id) onStart;
   final Future<void> Function(String id) onStop;
+  final Future<void> Function(String id) onPause;
+  final Future<void> Function(String id) onResume;
   final Future<void> Function(String id) onRemove;
   final Future<void> Function() onStartAll;
   final Future<void> Function() onStopAll;
@@ -807,6 +847,8 @@ class _ComposeGroupTile extends StatelessWidget {
               locked: lockedIds.contains(container.id),
               onStart: () => onStart(container.id),
               onStop: () => onStop(container.id),
+              onPause: () => onPause(container.id),
+              onResume: () => onResume(container.id),
               onRemove: () => onRemove(container.id),
               onOpen: () => onOpen(container),
               onOpenImage: () => onOpenImage(container),
@@ -825,6 +867,8 @@ class _ContainerTile extends StatelessWidget {
     required this.selected,
     required this.onStart,
     required this.onStop,
+    required this.onPause,
+    required this.onResume,
     required this.onRemove,
     required this.onOpen,
     required this.onOpenImage,
@@ -840,6 +884,8 @@ class _ContainerTile extends StatelessWidget {
   final bool locked;
   final Future<void> Function() onStart;
   final Future<void> Function() onStop;
+  final Future<void> Function() onPause;
+  final Future<void> Function() onResume;
   final Future<void> Function() onRemove;
   final VoidCallback onOpen;
   final VoidCallback onOpenImage;
@@ -891,6 +937,20 @@ class _ContainerTile extends StatelessWidget {
               ),
             ),
           ),
+          if (container.isPaused)
+            _ActionIcon(
+              icon: LucideIcons.play,
+              tooltip: 'Resume',
+              enabled: !locked,
+              onPressed: onResume,
+            )
+          else if (container.isRunning)
+            _ActionIcon(
+              icon: LucideIcons.pause,
+              tooltip: 'Pause',
+              enabled: !locked,
+              onPressed: onPause,
+            ),
           if (container.isRunning)
             _ActionIcon(
               icon: LucideIcons.square,
@@ -898,7 +958,7 @@ class _ContainerTile extends StatelessWidget {
               enabled: !locked,
               onPressed: onStop,
             )
-          else
+          else if (!container.isPaused)
             _ActionIcon(
               icon: LucideIcons.play,
               tooltip: 'Start',
@@ -979,7 +1039,9 @@ class _ContainerStatusIcon extends StatelessWidget {
       iconColor: theme.colorScheme.onSurfaceVariant,
       fillColor: _containerStatusColor(container, theme),
       theme: theme,
-      tooltip: container.isRunning
+      tooltip: container.isPaused
+          ? 'Paused'
+          : container.isRunning
           ? 'Running'
           : container.state == 'created'
           ? 'Created'
@@ -1032,6 +1094,9 @@ class _StatusDotIcon extends StatelessWidget {
 
 /// Returns the status color for the given container.
 Color? _containerStatusColor(ContainerItem container, ThemeData theme) {
+  if (container.isPaused) {
+    return CalfColors.warning;
+  }
   if (container.isRunning) {
     return CalfColors.success;
   }

@@ -14,7 +14,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 | Extensions marketplace                 | Not a priority       |
 | Docker Scout / AI / Cloud              | Out of scope         |
 | Advanced BuildKit (SBOM, attestations) | Phase 4+             |
-| Windows support                        | UI/installers ship; container engine pending (krunkit is macOS-only) |
+| Windows support                        | Linux containers via WSL 2; Windows containers later |
 
 ## Target architecture
 
@@ -35,7 +35,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 └────────────────────────┬─────────────────────────────────┘
                          │
 ┌────────────────────────▼─────────────────────────────────┐
-│  krunkit+virtiofs (macOS); native (Linux)                  │
+│  krunkit+virtiofs (macOS); native (Linux); WSL 2 (Windows) │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Install and manage `containerd` + `nerdctl` inside the VM
 - [x] Automatic VM start/stop with the daemon
 - [x] Linux: native runtime without a VM
-- [x] Windows: Lima VM runtime (v0.7.0)
+- [x] Windows: WSL 2 Linux engine (Linux containers; Windows containers later)
 
 ### 1.2 Docker CLI compatibility
 
@@ -146,7 +146,7 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 - [x] Homebrew cask (`brew install --cask enegalan/calf-homebrew/calf`)
 - [x] Daemon embedded in app bundle, spawned by Flutter app on launch, killed on close
 - [x] In-app update check and download links (GitHub Releases; auto-install pending signing)
-- [x] Windows `.exe` installer (v0.8.0; Lima VM runtime, same as macOS)
+- [x] Windows `.exe` installer (v0.8.0); engine is WSL 2 Linux containers, not Lima
 - [x] Linux `.deb` / `.rpm` / `.AppImage` installers (v0.8.0)
 - [x] Auto-start on sign-in in to computer (optional)
 
@@ -202,6 +202,71 @@ Be a **valid** Docker Desktop replacement for local development: same CLI (`dock
 
 **Exit criteria:** published cold-start number approaches (or beats) OrbStack under the same procedure as Docker Desktop; full table competitiveness documented in `BENCHMARKS.md`.
 
+---
+
+## Phase 6 — CLI drop-in
+
+**Goal:** `docker` / `docker compose` keep working after uninstalling Docker Desktop.
+
+- [x] Detect and optionally install the Docker CLI (Homebrew or calf bin)
+- [x] Shell completions toggle
+- [x] Optional `/var/run/docker.sock` helper and privileged published ports
+- [x] Host `calf` commands (`status`, `start`, `stop`, `restart`, `logs`, `diagnose`)
+- [x] Warn when another product owns the default Docker socket or CLI path
+
+---
+
+## Phase 7 — Guest engine / network / shares (macOS)
+
+- [x] Extra file shares (virtiofs; restart the engine after changing the list)
+- [x] SSH agent via vsock (`SSH_AUTH_SOCK` in containers)
+- [x] `gateway.docker.internal` next to `host.docker.internal`
+- [x] `daemon.json` overlay, Docker subnet, bind published ports to localhost
+- [x] Host networking for `--net=host` containers
+- [x] amd64 emulation toggle (binfmt)
+- [x] Buildx builder list in Settings
+
+---
+
+## Phase 8 — Dashboard
+
+- [x] Pause/resume, run image with options, pull by name, Hub repositories
+- [x] Create volume/network; empty/import volume; save files in the file browser
+- [x] Copy `docker run` from inspect; unified Logs screen
+
+---
+
+## Phase 9 — Platform polish
+
+- [x] Diagnostics zip from Troubleshoot and `calf diagnose`
+- [x] Copy disk image while the engine is stopped
+- [x] Open window on launch
+- [x] About shows Compose and Buildx versions
+- [ ] Auto-install updates (blocked on Apple signing)
+
+---
+
+## Phase 10 — Windows engine (WSL 2)
+
+- [x] Linux containers via a calf WSL distro (`wsl -d calf`)
+- [ ] WSL integration for extra distros
+- [ ] Windows containers toggle
+- [ ] GPU-PV (NVIDIA)
+
+---
+
+## Later / on demand (Phase 11)
+
+Not in the current product. Build only if still demanded:
+
+- Synchronized file shares
+- VMM picker / gRPC-FUSE fallback (calf stays krunkit-only on macOS)
+- UDP kernel networking toggle
+- PAC / system proxy / NTLM
+- Volume export to S3/Azure/GCS
+- Build traces (Jaeger/OTLP), SBOM attestations, multi-arch `--load` of a full index
+- Docker Debug toolbox
+- Host Dashboard terminal
 
 ---
 

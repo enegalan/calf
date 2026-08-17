@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/enegalan/calf/backend/internal/constants"
+	"github.com/enegalan/calf/backend/internal/dockercli"
 )
 
 // Krunkit is the macOS container engine: libkrun/krunkit + gvproxy networking.
@@ -255,10 +256,17 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		"--device", netDevice,
 		"--device", "virtio-fs,sharedDir=" + mounts + ",mountTag=calf-mounts,permissionSemantics=simplified",
 		"--device", "virtio-fs,sharedDir=" + home + ",mountTag=calf-home,permissionSemantics=simplified",
-		"--device", "virtio-vsock,port=2375,socketURL=" + k.engineSocket + ",connect",
+	}
+	for _, share := range ExtraFileShareSpecs(home, k.engineSettingsCopy().FileShares) {
+		args = append(args, "--device", "virtio-fs,sharedDir="+share.HostPath+",mountTag="+share.Tag+",permissionSemantics=simplified")
+	}
+	k.startHostSSHAgentProxy()
+	args = append(args,
+		"--device", "virtio-vsock,port=2375,socketURL="+k.engineSocket+",connect",
+		"--device", "virtio-vsock,port="+strconv.Itoa(sshAuthVsockPort)+",socketURL="+k.sshAuthHostSockPath()+",connect",
 		"--pidfile", k.krunkitPidPath(),
 		"--krun-log-level", "2",
-	}
+	)
 	cmd := exec.Command(krunkitBin, args...)
 	if libDir := libkrunDirFor(krunkitBin); libDir != "" {
 		cmd.Env = append(os.Environ(), "DYLD_LIBRARY_PATH="+libDir)
@@ -294,7 +302,7 @@ func (k *Krunkit) Start(ctx context.Context) error {
 		go func() {
 			setupCtx, cancel := context.WithTimeout(lifeCtx, constants.DefaultActionTimeout)
 			defer cancel()
-			k.ensureHostDockerInternal(setupCtx)
+			k.applyGuestEngineOverlay(setupCtx)
 		}()
 	}
 	if k.proxy != (ProxyConfig{}) {
@@ -433,6 +441,11 @@ func (k *Krunkit) watchPortProxies(ctx context.Context) {
 			return
 		}
 		ports := publishedTCPPorts(containers)
+		if k.engineSettingsCopy().HostNetworking {
+			for port := range k.hostNetworkListenPorts(ctx, containers) {
+				ports[port] = struct{}{}
+			}
+		}
 		k.syncGvproxyForwards(ctx, ports)
 	}
 	syncOnce()
@@ -476,6 +489,15 @@ func (k *Krunkit) syncGvproxyForwards(ctx context.Context, ports map[int]struct{
 	}
 	for port := range ports {
 		if _, ok := k.forwardedPorts[port]; ok {
+			continue
+		}
+		if port < 1024 && k.engineSettingsCopy().PrivilegedPorts {
+			if err := dockercli.RequestPrivilegedForward(port, net.JoinHostPort(guestIP, strconv.Itoa(port))); err != nil {
+				slog.Default().Warn("privileged port helper failed", "port", port, "error", err)
+				continue
+			}
+			slog.Default().Info("privileged port exposed", "port", port, "guest", guestIP)
+			k.forwardedPorts[port] = struct{}{}
 			continue
 		}
 		if err := k.gvproxyExpose(ctx, client, port, guestIP); err != nil {
@@ -556,8 +578,12 @@ func localForwardPort(local string) (int, bool) {
 
 // gvproxyExpose asks gvproxy to listen on host :port and forward to guestIP:port.
 func (k *Krunkit) gvproxyExpose(ctx context.Context, client *http.Client, port int, guestIP string) error {
+	local := fmt.Sprintf(":%d", port)
+	if k.engineSettingsCopy().BindLocalhostOnly {
+		local = net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	}
 	body, err := json.Marshal(gvproxyForward{
-		Local:  fmt.Sprintf(":%d", port),
+		Local:  local,
 		Remote: net.JoinHostPort(guestIP, strconv.Itoa(port)),
 	})
 	if err != nil {
@@ -887,4 +913,92 @@ func killPidfile(path string) {
 	_ = syscall.Kill(pid, syscall.SIGTERM)
 	time.Sleep(150 * time.Millisecond)
 	_ = syscall.Kill(pid, syscall.SIGKILL)
+}
+
+// startHostSSHAgentProxy listens on the krunkit vsock unix socket and splices to SSH_AUTH_SOCK.
+func (k *Krunkit) startHostSSHAgentProxy() {
+	agent := strings.TrimSpace(os.Getenv("SSH_AUTH_SOCK"))
+	if agent == "" {
+		return
+	}
+	path := k.sshAuthHostSockPath()
+	_ = os.Remove(path)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		slog.Default().Warn("ssh agent host listen failed (non-fatal)", "error", err)
+		return
+	}
+	go func() {
+		defer ln.Close()
+		for {
+			client, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				defer c.Close()
+				remote, err := net.Dial("unix", agent)
+				if err != nil {
+					return
+				}
+				defer remote.Close()
+				done := make(chan struct{}, 2)
+				go func() { _, _ = io.Copy(remote, c); done <- struct{}{} }()
+				go func() { _, _ = io.Copy(c, remote); done <- struct{}{} }()
+				<-done
+			}(client)
+		}
+	}()
+}
+
+// hostNetworkListenPorts returns guest-host TCP listen ports for containers using --net=host.
+func (k *Krunkit) hostNetworkListenPorts(ctx context.Context, containers []Container) map[int]struct{} {
+	ports := make(map[int]struct{})
+	skip := map[int]struct{}{22: {}, 53: {}, 2375: {}, 2376: {}}
+	for _, container := range containers {
+		if !containerIsRunning(container) {
+			continue
+		}
+		inspect, err := k.InspectContainer(ctx, container.ID)
+		if err != nil {
+			continue
+		}
+		var row struct {
+			HostConfig struct {
+				NetworkMode string `json:"NetworkMode"`
+			} `json:"HostConfig"`
+			State struct {
+				Pid int `json:"Pid"`
+			} `json:"State"`
+		}
+		if json.Unmarshal(inspect, &row) != nil {
+			continue
+		}
+		if row.HostConfig.NetworkMode != "host" || row.State.Pid < 1 {
+			continue
+		}
+		output, err := k.runGuestRoot(ctx, fmt.Sprintf("nsenter -t %d -n ss -H -lnt 2>/dev/null || true", row.State.Pid))
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(output), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) < 4 {
+				continue
+			}
+			_, portStr, splitErr := net.SplitHostPort(fields[3])
+			if splitErr != nil {
+				continue
+			}
+			port, convErr := strconv.Atoi(portStr)
+			if convErr != nil || port < 1 {
+				continue
+			}
+			if _, ok := skip[port]; ok {
+				continue
+			}
+			ports[port] = struct{}{}
+		}
+	}
+	return ports
 }

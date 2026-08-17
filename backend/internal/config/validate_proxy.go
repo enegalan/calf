@@ -22,9 +22,18 @@ type UpdateRequest struct {
 	HTTPProxy               *string `json:"http_proxy,omitempty"`
 	HTTPSProxy              *string `json:"https_proxy,omitempty"`
 	NoProxy                 *string `json:"no_proxy,omitempty"`
-	ResourceSaverEnabled    *bool   `json:"resource_saver_enabled,omitempty"`
-	ResourceSaverTimeoutSec *int    `json:"resource_saver_timeout_sec,omitempty"`
-	LogLevel                *string `json:"log_level,omitempty"`
+	ResourceSaverEnabled    *bool     `json:"resource_saver_enabled,omitempty"`
+	ResourceSaverTimeoutSec *int      `json:"resource_saver_timeout_sec,omitempty"`
+	LogLevel                *string   `json:"log_level,omitempty"`
+	ShellCompletions        *bool     `json:"shell_completions,omitempty"`
+	DefaultDockerSocket     *bool     `json:"default_docker_socket,omitempty"`
+	PrivilegedPorts         *bool     `json:"privileged_ports,omitempty"`
+	FileShares              *[]string `json:"file_shares,omitempty"`
+	HostNetworking          *bool     `json:"host_networking,omitempty"`
+	DaemonJSON              *string   `json:"daemon_json,omitempty"`
+	DockerSubnet            *string   `json:"docker_subnet,omitempty"`
+	BindLocalhostOnly       *bool     `json:"bind_localhost_only,omitempty"`
+	EnableAmd64Emulation    *bool     `json:"enable_amd64_emulation,omitempty"`
 }
 
 // ProxyUpdateChanged reports whether the request changes stored HTTP proxy values.
@@ -105,7 +114,7 @@ func ValidateProxyUpdate(req UpdateRequest) error {
 	if req.HTTPProxy != nil {
 		v := strings.TrimSpace(*req.HTTPProxy)
 		if v != "" {
-			if err := validateProxyURL(v, "http"); err != nil {
+			if err := validateProxyURL(v, "http", "socks5"); err != nil {
 				return fmt.Errorf("http_proxy: %w", err)
 			}
 		}
@@ -113,7 +122,7 @@ func ValidateProxyUpdate(req UpdateRequest) error {
 	if req.HTTPSProxy != nil {
 		v := strings.TrimSpace(*req.HTTPSProxy)
 		if v != "" {
-			if err := validateProxyURL(v, "http", "https"); err != nil {
+			if err := validateProxyURL(v, "http", "https", "socks5"); err != nil {
 				return fmt.Errorf("https_proxy: %w", err)
 			}
 		}

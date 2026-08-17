@@ -32,6 +32,9 @@ abstract class CalfClient {
     String path = '/',
   });
 
+  /// Writes a file inside a volume.
+  Future<void> writeVolumeFile(String name, String path, String content);
+
   /// Fetches containers that mount the given volume.
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name);
 
@@ -108,6 +111,12 @@ abstract class CalfClient {
   /// Restarts a container.
   Future<void> restartContainer(String id);
 
+  /// Pauses a running container.
+  Future<void> pauseContainer(String id);
+
+  /// Resumes a paused container.
+  Future<void> resumeContainer(String id);
+
   /// Fetches raw inspect JSON for a container.
   Future<String> fetchContainerInspect(String id, {String? section});
 
@@ -119,6 +128,9 @@ abstract class CalfClient {
     String id, {
     String path = '/',
   });
+
+  /// Writes a file inside a container.
+  Future<void> writeContainerFile(String id, String path, String content);
 
   /// Runs a one-shot command inside a container.
   Future<ContainerExecResult> execContainer(String id, String command);
@@ -133,13 +145,30 @@ abstract class CalfClient {
   Future<void> pushImage(String reference);
 
   /// Creates and starts a container from an image reference.
-  Future<String> runImage(String reference);
+  Future<String> runImage(
+    String reference, {
+    String name = '',
+    List<String> ports = const [],
+    List<String> env = const [],
+    List<String> volumes = const [],
+  });
 
   /// Removes an image.
   Future<void> removeImage(String reference);
 
   /// Creates a new volume.
   Future<void> createVolume(String name);
+
+  /// Deletes all files inside a volume.
+  Future<void> emptyVolume(String name);
+
+  /// Restores volume data from a file, image, or registry.
+  Future<void> importVolume({
+    required String name,
+    required String source,
+    String filePath = '',
+    String imageRef = '',
+  });
 
   /// Clones an existing volume to a new name.
   Future<void> cloneVolume(String source, String name);
@@ -149,6 +178,9 @@ abstract class CalfClient {
 
   /// Removes a network.
   Future<void> removeNetwork(String name);
+
+  /// Creates a user-defined network.
+  Future<void> createNetwork(String name, {String driver = '', String subnet = ''});
 
   /// Triggers a new image build.
   Future<BuildItem> runBuild({
@@ -235,4 +267,28 @@ abstract class CalfClient {
     bool networks = true,
     bool buildCache = true,
   });
+
+  /// Installs the Docker CLI via Homebrew into calf's bin directory.
+  Future<void> installDockerCli();
+
+  /// Lists docker buildx builders.
+  Future<List<BuilderInfo>> fetchBuilders();
+
+  /// Selects the current docker buildx builder.
+  Future<void> useBuilder(String name);
+
+  /// Removes a docker buildx builder.
+  Future<void> removeBuilder(String name);
+
+  /// Downloads a diagnostics zip as bytes.
+  Future<List<int>> downloadDiagnostics();
+
+  /// Copies the VM disk image to [path] while the engine is stopped.
+  Future<void> copyDiskImage(String path);
+
+  /// Lists Docker Hub repositories for the signed-in user.
+  Future<List<HubRepository>> fetchHubRepositories();
+
+  /// WebSocket URI for unified running-container logs.
+  Uri unifiedLogsWebSocketUri();
 }

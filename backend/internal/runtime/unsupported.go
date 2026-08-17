@@ -212,3 +212,47 @@ func (u *Unsupported) Prune(context.Context, PruneOptions) (PruneResult, error) 
 func (u *Unsupported) SystemDiskUsage(context.Context) (SystemDiskUsage, error) {
 	return SystemDiskUsage{}, u.err()
 }
+
+// ApplyEngineSettings is a no-op for the unsupported runtime.
+func (u *Unsupported) ApplyEngineSettings(EngineSettings) {}
+
+// PauseContainer returns an error because the engine is unsupported.
+func (u *Unsupported) PauseContainer(context.Context, string) error { return u.err() }
+
+// ResumeContainer returns an error because the engine is unsupported.
+func (u *Unsupported) ResumeContainer(context.Context, string) error { return u.err() }
+
+// RunImageWith returns an error because the engine is unsupported.
+func (u *Unsupported) RunImageWith(context.Context, RunImageOptions) (string, error) {
+	return "", u.err()
+}
+
+// EmptyVolume returns an error because the engine is unsupported.
+func (u *Unsupported) EmptyVolume(context.Context, string) error { return u.err() }
+
+// ImportVolume returns an error because the engine is unsupported.
+func (u *Unsupported) ImportVolume(context.Context, VolumeImportOptions) error { return u.err() }
+
+// CreateNetwork returns an error because the engine is unsupported.
+func (u *Unsupported) CreateNetwork(context.Context, string, string, string) error { return u.err() }
+
+// WriteContainerFile returns an error because the engine is unsupported.
+func (u *Unsupported) WriteContainerFile(context.Context, string, string, []byte) error {
+	return u.err()
+}
+
+// WriteVolumeFile returns an error because the engine is unsupported.
+func (u *Unsupported) WriteVolumeFile(context.Context, string, string, []byte) error {
+	return u.err()
+}
+
+// ListBuilders returns an error because the engine is unsupported.
+func (u *Unsupported) ListBuilders(context.Context) ([]BuilderInfo, error) {
+	return nil, u.err()
+}
+
+// UseBuilder returns an error because the engine is unsupported.
+func (u *Unsupported) UseBuilder(context.Context, string) error { return u.err() }
+
+// RemoveBuilder returns an error because the engine is unsupported.
+func (u *Unsupported) RemoveBuilder(context.Context, string) error { return u.err() }

@@ -125,6 +125,32 @@ func TestKeepLastListLiveOnSuccess(t *testing.T) {
 	}
 }
 
+func TestIsImagePullNotFound(t *testing.T) {
+	cases := []struct {
+		message  string
+		expected bool
+	}{
+		{"Error response from daemon: manifest for nginx:nope not found: manifest unknown", true},
+		{"pull access denied for foo, repository does not exist or may require 'docker login'", true},
+		{"no such image: foo:latest", true},
+		{"failed to resolve reference \"docker.io/library/foo:latest\": not found", true},
+		{"nerdctl: command not found", false},
+		{"connection refused", false},
+		{"image not found", true},
+	}
+
+	for _, testCase := range cases {
+		err := fmt.Errorf("%s", testCase.message)
+		if got := runtime.IsImagePullNotFound(err); got != testCase.expected {
+			t.Fatalf("IsImagePullNotFound(%q) = %v, want %v", testCase.message, got, testCase.expected)
+		}
+	}
+
+	if !runtime.IsImagePullNotFound(runtime.ErrImageNotFound) {
+		t.Fatal("expected ErrImageNotFound to match")
+	}
+}
+
 func TestKeepLastListErrorWithoutCache(t *testing.T) {
 	wantErr := fmt.Errorf("error during connect")
 	got, err := runtime.KeepLastList([]string(nil), nil, wantErr)

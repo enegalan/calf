@@ -1410,6 +1410,50 @@ func TestConfigPutProxyChangeAppliesProxy(t *testing.T) {
 	t.Fatalf("expected ApplyProxy once, got %d", mock.ApplyProxyCalls())
 }
 
+func TestImagesPullEmptyReference(t *testing.T) {
+	server := newTestServer(t)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/images", "application/json", strings.NewReader(`{"reference":"  "}`))
+	if err != nil {
+		t.Fatalf("POST /v1/images error: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", response.StatusCode)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error: %v", err)
+	}
+	if !strings.Contains(string(body), "reference is required") {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestImagesPullNotFound(t *testing.T) {
+	mock := runtime.NewMock()
+	mock.ImageErr = runtime.ErrImageNotFound
+	server := newTestServerWithMock(t, mock)
+	defer server.Close()
+
+	response, err := http.Post(server.URL+"/v1/images", "application/json", strings.NewReader(`{"reference":"nope:latest"}`))
+	if err != nil {
+		t.Fatalf("POST /v1/images error: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", response.StatusCode)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error: %v", err)
+	}
+	if !strings.Contains(string(body), "image not found") {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 func TestConfigPutLogLevelInvalid(t *testing.T) {
 	server := newTestServer(t)
 	defer server.Close()

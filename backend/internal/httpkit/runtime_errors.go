@@ -19,6 +19,11 @@ func WriteRuntimeError(w http.ResponseWriter, err error) bool {
 		return true
 	}
 
+	if runtime.IsImagePullNotFound(err) {
+		WriteError(w, http.StatusNotFound, "image not found")
+		return true
+	}
+
 	if errors.Is(err, runtime.ErrContainerNotFound) {
 		WriteError(w, http.StatusNotFound, "container not found")
 		return true

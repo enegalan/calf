@@ -6,7 +6,7 @@ This file provides guidance to AI assistants when working with code in this repo
 
 **calf** is a lightweight, open-source alternative to Docker Desktop. It consists of:
 
-- A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **krunkit** guest on macOS, or talking directly to the host runtime on Linux (Windows engine pending).
+- A **Go daemon** (`backend/`) that manages containers through `containerd` + `nerdctl`, running inside a **krunkit** guest on macOS, talking directly to the host runtime on Linux, or through **WSL 2** on Windows (Linux containers).
 - A **native Flutter GUI** (`ui/`) that drives the daemon over a local REST + WebSocket API.
 
 The Go daemon binary is embedded inside the Flutter `.app` bundle (`Contents/MacOS/calf-daemon`). When the app launches, it spawns the daemon as a subprocess and kills it on close. No separate installation or terminal setup required.
@@ -51,7 +51,9 @@ Non-goals (see `ROADMAP.md`): no built-in Kubernetes, no extensions marketplace,
 calf/
 ├── backend/                                Go daemon
 │   ├── cmd/calf/
-│   │   └── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover (cross-platform: lsof/Unix, netstat/Windows)
+│   │   ├── main.go                          Entrypoint: config/logger/runtime/server wiring, signal handling, PID file, stale-port takeover (cross-platform: lsof/Unix, netstat/Windows)
+│   │   ├── cli.go                           Host CLI: status, start, stop, restart, logs, diagnose
+│   │   └── helper.go                        Privileged helper for /var/run/docker.sock and ports <1024
 │   ├── internal/
 │   │   ├── api/
 │   │   │   ├── gateway.go                     HTTP Gateway: route registration, Run/Shutdown
@@ -73,7 +75,11 @@ calf/
 │   │   │   ├── registry.go                    Registry HTTP handlers
 │   │   │   ├── registry_login.go              Docker Hub login HTTP handlers
 │   │   │   ├── troubleshoot.go                Purge and factory-reset HTTP handlers
-│   │   │   └── prune.go                       System prune preview and execute HTTP handlers
+│   │   │   ├── prune.go                       System prune preview and execute HTTP handlers
+│   │   │   ├── builders.go                    Buildx builder list/use/remove HTTP handlers
+│   │   │   ├── diagnose.go                    Diagnostics zip HTTP handler
+│   │   │   ├── hub.go                         Docker Hub repository list HTTP handler
+│   │   │   └── unified_logs.go                Fan-in container logs WebSocket handler
 │   │   ├── httpkit/
 │   │   │   ├── response.go                    JSON response and logged-error helpers
 │   │   │   ├── json.go                        Request JSON decode helpers
@@ -111,15 +117,19 @@ calf/
 │   │   │   ├── logger.go                       slog.TextHandler to stdout + log file, runtime level
 │   │   │   └── log_file.go                     Rotating daemon log file and tail reader
 │   │   ├── runtime/
-│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Krunkit (darwin) / Unsupported (windows)
+│   │   │   ├── runtime.go                     Runtime interface (~30 methods) + shared types; runtime.New picks Native / Krunkit (darwin) / WSL (windows)
 │   │   │   ├── select_darwin.go               Darwin runtime: always krunkit
 │   │   │   ├── krunkit_darwin.go              macOS krunkit + gvproxy runtime
 │   │   │   ├── process_resources_darwin.go    Host CPU/RAM probe for status bar (proc_info, ps fallback)
 │   │   │   ├── select_other.go                Non-darwin stub for selection helper
 │   │   │   ├── cli_ops.go                      Shared container/image/volume/network/registry ops embedded by Native and Guest
+│   │   │   ├── ops_extra.go                    Pause/resume, run-with-options, volume empty/import, file write, builders
 │   │   │   ├── native.go                       Native runtime: talks directly to host nerdctl/docker.sock (Linux)
 │   │   │   ├── guest_darwin.go                 Shared guest disk/EFI/vsock helpers (embedded by Krunkit)
 │   │   │   ├── docker_http_proxy.go            Docker API unix splice: clamp version, Connection: close, hijack
+│   │   │   ├── file_shares.go                  Extra virtiofs share specs and guest mount script
+│   │   │   ├── daemon_json.go                  Merge user daemon.json overlay with baked buildkit/DNS
+│   │   │   ├── wsl.go                          Windows WSL 2 Linux engine runtime
 │   │   │   ├── container_ghosts.go             Detect/wipe corrupt empty-name docker leftovers on macOS guest
 │   │   │   ├── guest_disk_fetch_darwin.go       First-run GitHub disk download + zstd extract
 │   │   │   ├── nerdctl.go                      Shared nerdctl output parsing, compose project inference, log filtering
@@ -166,7 +176,7 @@ calf/
 │   │   ├── daemon/                             stats_history + docker_socket_proxy tests
 │   │   ├── dockercli/context_test.go + plugins_test.go
 │   │   ├── dockerhub/device_test.go
-│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, guest_gated, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, virtiofs_guest, volume_detail tests
+│   │   ├── runtime/                            build_enrich, build_parser, buildx, command_error, container_ghosts, container_mounts, engine_settings, guest_gated, image_history, localhost_proxy, nerdctl, network, prune, registry, rootless, virtiofs_guest, volume_detail tests
 │   │   └── volumeexport/                       name_pattern, schedule_timing tests
 │   ├── version/version.go                     Single Version constant
 │   └── go.mod / go.sum                        Module github.com/enegalan/calf/backend, Go 1.22.1
@@ -193,7 +203,8 @@ calf/
 │   │   │   ├── container_groups.dart            Persists expanded/collapsed container groups
 │   │   │   ├── logs_viewer_preferences.dart     Persists timestamp/wrap-lines toggles; LogViewerPreferencesMixin
 │   │   │   ├── sidebar_preferences.dart         Persists sidebar expanded/collapsed state
-│   │   │   └── update_preferences.dart          Persists update-check cache and What's New notes
+│   │   │   ├── update_preferences.dart          Persists update-check cache and What's New notes
+│   │   │   └── window_preferences.dart          Open-window-on-launch preference
 │   │   ├── updates/
 │   │   │   ├── update_checker.dart              GitHub Releases check + platform asset selection
 │   │   │   ├── update_dialog.dart               Update-available dialog
@@ -207,12 +218,13 @@ calf/
 │   │   │   ├── builds_screen.dart              Build list and polling
 │   │   │   ├── build_detail_screen.dart        Build detail tabs
 │   │   │   ├── networks_screen.dart            Network list and detail screens
+│   │   │   ├── unified_logs_screen.dart        Fan-in live logs from running containers
 │   │   │   ├── volume_detail_screen.dart        Stored-data / containers-in-use / exports tabs
 │   │   │   ├── volume_quick_export_screen.dart  Quick export destination picker
 │   │   │   ├── volume_schedule_export_screen.dart  Schedule export configuration
 │   │   │   ├── disk_cleanup_screen.dart            Clean unused data (prune preview + execute)
 │   │   │   ├── troubleshoot_screen.dart            Restart, support, clean unused data, purge, factory reset, uninstall
-│   │   │   └── settings_screen.dart                SettingsScreen (resources, proxy, migration, theme, updates, debug)
+│   │   │   └── settings_screen.dart                SettingsScreen (Desktop-style sidebar: General, Resources, Docker Engine, Builders, Software updates, Advanced)
 │   │   └── widgets/
 │   │       ├── about_dialog.dart               Branded About calf dialog
 │   │       ├── app_top_bar.dart                Registry auth UI
@@ -265,7 +277,7 @@ calf/
 ## Backend File Reference (`backend/`)
 
 ### `cmd/calf/main.go`
-Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts.
+Entrypoint. Loads config, builds the logger, constructs the `runtime.Runtime` and `api.Server`, handles `SIGINT`/`SIGTERM` via `signal.NotifyContext`, manages a PID file at `~/.config/calf/calf.pid`, and has `ensurePort` logic that terminates a stale previous `calf` process holding the listen port before starting. The runtime starts asynchronously in a goroutine (failure is non-fatal at startup); shutdown stops both the HTTP server and the runtime with timeouts. `cli.go` handles host commands (`status`, `start`, `stop`, `restart`, `logs`, `diagnose`). `helper.go` is the optional privileged helper for `/var/run/docker.sock` and published ports below 1024.
 
 ### `internal/config/`
 - `config.go` — defines the `Config` struct (`listen_addr`, `log_level`, `vm_name`, `docker_socket`, `poll_interval_ms`, `cpus`, `memory_gb`, `memory_swap_gb`, `disk_gb`, `disk_image`, `http_proxy`, `https_proxy`, `no_proxy`). Loads/saves as YAML at `~/.config/calf/config.yaml`, with defaults embedded via `//go:embed config.yaml` and a `withDefaults` backfill step.
@@ -284,6 +296,10 @@ HTTP handlers only. Each file maps REST/WebSocket routes to `daemon.Core` and wr
 - `builds.go`, `containers.go`, `exec.go`, `images.go`, `logs.go`, `volumes.go`, `volume_exports.go`, `volume_export_schedules.go`, `networks.go`, `migrate.go`, `registry.go`, `registry_login.go` — resource HTTP handlers.
 - `troubleshoot.go` — `POST /v1/troubleshoot/purge` and `POST /v1/troubleshoot/factory-reset`.
 - `prune.go` — `GET /v1/system/prune/preview`, `POST /v1/system/prune`, and `GET /v1/system/df`.
+- `builders.go` — `GET /v1/builders`, `POST /v1/builders/{name}/use`, `DELETE /v1/builders/{name}`.
+- `diagnose.go` — `GET /v1/troubleshoot/diagnose` diagnostics zip.
+- `hub.go` — `GET /v1/hub/repositories`.
+- `unified_logs.go` — `GET /v1/logs` WebSocket fan-in of running container logs.
 
 ### `internal/httpkit/`
 Shared HTTP utilities used by `api` handlers (not route handlers themselves).
@@ -354,16 +370,20 @@ Docker Desktop → calf migration engine.
 Docker Hub OAuth2 device-code flow client. Polls for a token, decodes JWT claims for the username, and generates a PAT used as the nerdctl registry login password.
 
 ### `internal/runtime/` (core abstraction)
-- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle including `ForceStop`/`ResourceUsage`, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `ResourceUsage`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWindowsUnsupported` on Windows.
+- `runtime.go` — defines the `Runtime` interface (~30 methods: lifecycle including `ForceStop`/`ResourceUsage`, containers, images, volumes, builds, logs, exec, stats, registry) and shared JSON-tagged (snake_case) types (`Status`, `ResourceUsage`, `Container`, `Image`, `Volume`, `Build`, ...). `runtime.New(...)` selects `NewNative` on Linux, `NewKrunkit` on darwin, and `NewWSL` on Windows.
 - `select_darwin.go` / `select_other.go` — Darwin always returns `NewKrunkit` (non-Darwin stub).
 - `krunkit_darwin.go` — macOS krunkit + gvproxy runtime (guest disk/vsock under `~/.config/calf/guest/`; virtiofs for `~/.config/calf/mounts` and `$HOME`; DAX remount `dax=inode` by default; calf-home remounted with calf-mounts on every engine start).
 - `process_resources_darwin.go` — host CPU/RAM for the status bar via Darwin `proc_info` (with `/bin/ps` fallback).
 - `cli_ops.go` — `cliOps`: the container/image/volume/network/registry operations that are identical between `Native` and `Guest` (a `requireRunning`/`emptyIfStopped` guard around a shared `nerdctl.go`-style helper called through a runtime-specific command runner). `Native` and `Guest` embed it and wire up `status`/`runLocal`/`runLocalWithStdin` in their constructors; operations that differ between the two runtimes stay defined directly on `Native`/`Guest`.
+- `ops_extra.go` — pause/resume, parameterized run, volume empty/import, network create, file write, and buildx builder list/use/remove shared by Native and Guest.
 - `native.go` — `Native` runtime: talks directly to a host `nerdctl`/`docker.sock` on Linux, with optional rootless user-socket preference.
 - `guest_darwin.go` — shared guest disk/EFI/vsock helpers embedded by `Krunkit`. Disk under `~/.config/calf/guest/`; release assets `calf-guest-disk-*`; `$HOME` bind mounts via `calf-home` virtiofs. Daemon docker CLI talks through a gated listener that reads HTTP before dialing vsock (same as the public proxy). Status skips vsock ping once the engine is marked running.
 - `docker_http_proxy.go` — shared Docker API unix forwarder: clamp client API version, force Connection: close on plain HTTP, bidirectional splice for hijacked streams.
+- `file_shares.go` — extra virtiofs share specs; skips paths already under `$HOME`.
+- `daemon_json.go` — merge user daemon.json overlay while keeping baked buildkit and DNS.
+- `wsl.go` — Windows WSL 2 Linux-containers runtime (`wsl -d calf -- docker`); Resource Saver stops dockerd inside the distro.
 - `container_ghosts.go` — detect empty-name corrupt container leftovers and build the guest wipe/restart script used on engine start.
-- `unsupported.go` — Windows stub Runtime until a new backend lands.
+- `unsupported.go` — stub Runtime for platforms that are not Linux, Darwin, or Windows.
 - `guest_disk_fetch_darwin.go` — first-run GitHub Release download + pure-Go zstd extract for `calf-guest-disk-<arch>.raw.zst`.
 - `nerdctl.go` — shared low-level helpers: JSON-line parsing of `nerdctl ps/images/volume ls/history` output, compose project/service inference, log-line noise filtering, log streaming plumbing.
 - `buildx.go` — Docker Buildx bootstrap and `buildx build --load` argument construction for guest/native builds; covered by `backend/test/runtime/buildx_test.go`.
@@ -416,6 +436,7 @@ Material 3 light/dark `ThemeData` builders (`CalfTheme.light` / `CalfTheme.dark`
 ### `storage/`
 Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s application-support dir as fallback).
 - `calf_ui_storage.dart` — shared file read/write helper.
+- `window_preferences.dart` — persists whether the main window opens on launch.
 - `container_groups.dart` — persists expanded/collapsed UI groups.
 - `logs_viewer_preferences.dart` — persists show-timestamp/wrap-lines toggles; exposes a `LogViewerPreferencesMixin` for screens to mix in.
 - `sidebar_preferences.dart` — persists sidebar expanded/collapsed state.
@@ -427,20 +448,21 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `update_info.dart` — update check result models.
 
 ### `screens/`
-- `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`.
+- `containers_screen.dart` — list + search/filter/group-by-compose, polling via `Timer`; pause/resume.
 - `container_detail_screen.dart` — tabs for logs/inspect/mounts/exec/files/stats, using `fl_chart` and `xterm`.
 - `compose_group_detail_screen.dart` — mixed-color log view per compose project.
-- `images_screen.dart` — image list, detail, polling.
-- `volumes_screen.dart` — volume list with polling.
+- `images_screen.dart` — image list, detail, pull-by-name, Hub repositories, run-with-options.
+- `volumes_screen.dart` — volume list with polling and create.
 - `builds_screen.dart` — build list with polling.
 - `build_detail_screen.dart` — build detail tabs (info, source, logs, history).
-- `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options).
-- `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs.
+- `networks_screen.dart` — Network list (name + subnet) and detail (driver, scope, gateway, options); create from the list.
+- `unified_logs_screen.dart` — live fan-in of running container logs with per-container filters.
+- `volume_detail_screen.dart` — stored-data / containers-in-use / exports tabs; empty and import.
 - `volume_quick_export_screen.dart` — quick export destination picker (local file, image, registry).
 - `volume_schedule_export_screen.dart` — schedule export configuration (daily/weekly/monthly).
 - `disk_cleanup_screen.dart` — clean unused data: category preview, checkboxes, and prune execute.
-- `troubleshoot_screen.dart` — restart, support, clean unused data, purge engine data, factory reset, and uninstall.
-- `settings_screen.dart` — `SettingsScreen`: resource limits (CPU/memory/swap/disk sliders bounded by host capacity from `/v1/config`), disk image location, Docker CLI context toggle, open-at-login, debug logging, theme mode picker, update check/download, Docker Desktop migration trigger + polling, and HTTP/HTTPS/no-proxy configuration.
+- `troubleshoot_screen.dart` — restart, support (diagnostics zip), clean unused data, purge engine data, factory reset, and uninstall.
+- `settings_screen.dart` — `SettingsScreen`: Desktop-style sidebar (General, Resources, Docker Engine, Builders, Software updates, Advanced) for resource limits, disk image copy, Docker CLI, file shares, daemon.json, builders, open-at-login, open-window-on-launch, debug logging, theme, updates, migration, and HTTP/HTTPS/no-proxy.
 
 ### `widgets/`
 - `about_dialog.dart` — branded About calf dialog (logo, version, highlights, links).
@@ -451,7 +473,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `calf_button.dart` — themed button with named constructors for variants (default / `.outline` / `.ghost` / `.destructive`); `CalfButtonGroup` joins icon actions into a segmented strip.
 - `calf_popup_menu.dart` — bordered overflow menus via `showCalfMenu`, `CalfPopupMenuButton` (three-dot trigger), and `CalfPopupMenuRow`.
 - `calf_snack_bar.dart` — `CalfToastLayer` + `showCalfSnackBar` / progress toasts (info, success, error, in-progress).
-- `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef.
+- `files_panel.dart` — lazy-loaded directory tree using a `LoadDirectoryCallback` typedef; optional file save via `WriteFileCallback`.
 - `global_search_dialog.dart` — ⌘K / Ctrl+K command palette to search and open resources.
 - `hover_list_row.dart` — hover-state row wrapper.
 - `logs_panel.dart` — log viewer, supporting multi-container color-coded "mixed" log blocks for compose groups.
@@ -459,7 +481,7 @@ Simple JSON files under `~/.config/calf/ui/<name>.json` (via `path_provider`'s a
 - `detail_breadcrumb.dart`, `calf_tab_bar.dart` — shared detail view chrome.
 - `poll_interval_mixin.dart` — shared list-screen polling lifecycle (`PollIntervalMixin`) plus in-flight / silent-failure load helpers (`ResourceListPollMixin`).
 - `resource_list_scaffold.dart`, `running_filter_switch.dart` — list screen layout helpers.
-- `confirm_dialog.dart` — confirm dialog helper.
+- `confirm_dialog.dart` — shared dialog chrome (`CalfAlertDialog`) and confirm helper.
 - `status_dot.dart`, `host_port_links.dart`, `build_row_icons.dart`, `volume_export_form.dart` — status indicator, published-port / hover text links, build dependency/result row icons, and volume export shared UI (including name-pattern field and registry notice).
 
 ### `utils/`

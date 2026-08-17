@@ -6,6 +6,7 @@ import (
 
 	"github.com/enegalan/calf/backend/internal/constants"
 	"github.com/enegalan/calf/backend/internal/httpkit"
+	"github.com/enegalan/calf/backend/internal/runtime"
 	"github.com/enegalan/calf/backend/internal/utils"
 )
 
@@ -49,9 +50,16 @@ func (g *Gateway) handleVolumeAction() http.HandlerFunc {
 	return httpkit.ServeRoutes("/v1/volumes/", "volume not found", []httpkit.Route{
 		{
 			Segments: []string{"files"},
-			Method:   http.MethodGet,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
-				g.handleVolumeFiles(w, r, parts[0])
+				name := parts[0]
+				httpkit.ServeMethods(map[string]func(http.ResponseWriter, *http.Request){
+					http.MethodGet: func(w http.ResponseWriter, r *http.Request) {
+						g.handleVolumeFiles(w, r, name)
+					},
+					http.MethodPut: func(w http.ResponseWriter, r *http.Request) {
+						g.handleVolumeFileWrite(w, r, name)
+					},
+				})(w, r)
 			},
 		},
 		{
@@ -59,6 +67,20 @@ func (g *Gateway) handleVolumeAction() http.HandlerFunc {
 			Method:   http.MethodGet,
 			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
 				g.handleVolumeContainers(w, r, parts[0])
+			},
+		},
+		{
+			Segments: []string{"empty"},
+			Method:   http.MethodPost,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleVolumeEmpty(w, r, parts[0])
+			},
+		},
+		{
+			Segments: []string{"import"},
+			Method:   http.MethodPost,
+			Handler: func(w http.ResponseWriter, r *http.Request, parts []string) {
+				g.handleVolumeImport(w, r, parts[0])
 			},
 		},
 		{
@@ -204,4 +226,63 @@ func (g *Gateway) handleVolumeClone(w http.ResponseWriter, r *http.Request, name
 		"status": "ok",
 		"name":   payload.Name,
 	})
+}
+
+// handleVolumeEmpty serves POST /v1/volumes/{name}/empty.
+func (g *Gateway) handleVolumeEmpty(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
+	if err := g.backend.Runtime.EmptyVolume(r.Context(), name); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+	utils.WriteOK(w)
+}
+
+// handleVolumeImport serves POST /v1/volumes/{name}/import.
+func (g *Gateway) handleVolumeImport(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.ImageActionTimeout)
+	defer cancel()
+
+	var payload struct {
+		Source   string `json:"source"`
+		FilePath string `json:"file_path"`
+		ImageRef string `json:"image_ref"`
+	}
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
+		return
+	}
+	if err := g.backend.Runtime.ImportVolume(r.Context(), runtime.VolumeImportOptions{
+		Name:     name,
+		Source:   payload.Source,
+		FilePath: payload.FilePath,
+		ImageRef: payload.ImageRef,
+	}); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+	utils.WriteOK(w)
+}
+
+// handleVolumeFileWrite serves PUT /v1/volumes/{name}/files.
+func (g *Gateway) handleVolumeFileWrite(w http.ResponseWriter, r *http.Request, name string) {
+	r, cancel := httpkit.WithTimeout(r, constants.DefaultActionTimeout)
+	defer cancel()
+
+	var payload struct {
+		Path    string `json:"path"`
+		Content string `json:"content"`
+	}
+	if !httpkit.JSONDecodeOrFail(w, r, &payload) {
+		return
+	}
+	if !httpkit.RequireNonEmpty(w, "path", payload.Path) {
+		return
+	}
+	if err := g.backend.Runtime.WriteVolumeFile(r.Context(), name, payload.Path, []byte(payload.Content)); err != nil {
+		httpkit.WriteRuntimeOrFail(w, err)
+		return
+	}
+	utils.WriteOK(w)
 }

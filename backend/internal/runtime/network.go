@@ -205,6 +205,30 @@ func inspectNetwork(ctx context.Context, run commandRunner, name string) (Networ
 	}, nil
 }
 
+// createNetwork creates a user-defined Docker network.
+func createNetwork(ctx context.Context, run commandRunner, name, driver, subnet string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("network name is required")
+	}
+	if IsPseudoNetwork(name) {
+		return fmt.Errorf("built-in network %q cannot be created", name)
+	}
+	args := []string{"network", "create"}
+	if driver = strings.TrimSpace(driver); driver != "" {
+		args = append(args, "--driver", driver)
+	}
+	if subnet = strings.TrimSpace(subnet); subnet != "" {
+		args = append(args, "--subnet", subnet)
+	}
+	args = append(args, name)
+	_, err := run(ctx, "nerdctl", args...)
+	if err != nil {
+		_, err = run(ctx, "docker", args...)
+	}
+	return err
+}
+
 // removeNetwork deletes a user-defined network via nerdctl, falling back to docker.
 func removeNetwork(ctx context.Context, run commandRunner, name string) error {
 	if IsPseudoNetwork(name) {

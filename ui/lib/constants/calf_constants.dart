@@ -38,6 +38,7 @@ abstract final class CalfStorageFiles {
   static const String containerGroups = 'container_groups.json';
   static const String logsViewer = 'logs_viewer.json';
   static const String updates = 'updates.json';
+  static const String window = 'window.json';
 }
 
 abstract final class CalfGitHub {

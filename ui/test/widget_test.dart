@@ -105,7 +105,14 @@ class FakeCalfClient implements CalfClient {
       mode: '-rw-------',
       modified: '7 months ago',
     ),
-  ];
+      ];
+
+  @override
+  Future<void> writeVolumeFile(
+    String name,
+    String path,
+    String content,
+  ) async {}
 
   @override
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async =>
@@ -250,6 +257,12 @@ class FakeCalfClient implements CalfClient {
   Future<void> restartContainer(String id) async {}
 
   @override
+  Future<void> pauseContainer(String id) async {}
+
+  @override
+  Future<void> resumeContainer(String id) async {}
+
+  @override
   Future<String> fetchContainerInspect(String id, {String? section}) async =>
       '{"Id":"$id"}';
 
@@ -262,6 +275,13 @@ class FakeCalfClient implements CalfClient {
     String id, {
     String path = '/',
   }) async => const [];
+
+  @override
+  Future<void> writeContainerFile(
+    String id,
+    String path,
+    String content,
+  ) async {}
 
   @override
   Future<ContainerExecResult> execContainer(String id, String command) async =>
@@ -285,13 +305,30 @@ class FakeCalfClient implements CalfClient {
   Future<void> pushImage(String reference) async {}
 
   @override
-  Future<String> runImage(String reference) async => 'mock-container-id';
+  Future<String> runImage(
+    String reference, {
+    String name = '',
+    List<String> ports = const [],
+    List<String> env = const [],
+    List<String> volumes = const [],
+  }) async => 'mock-container-id';
 
   @override
   Future<void> removeImage(String reference) async {}
 
   @override
   Future<void> createVolume(String name) async {}
+
+  @override
+  Future<void> emptyVolume(String name) async {}
+
+  @override
+  Future<void> importVolume({
+    required String name,
+    required String source,
+    String filePath = '',
+    String imageRef = '',
+  }) async {}
 
   @override
   Future<void> cloneVolume(String source, String name) async {}
@@ -301,6 +338,13 @@ class FakeCalfClient implements CalfClient {
 
   @override
   Future<void> removeNetwork(String name) async {}
+
+  @override
+  Future<void> createNetwork(
+    String name, {
+    String driver = '',
+    String subnet = '',
+  }) async {}
 
   @override
   Future<BuildItem> runBuild({
@@ -458,6 +502,30 @@ class FakeCalfClient implements CalfClient {
     bool networks = true,
     bool buildCache = true,
   }) async => const PruneResult();
+
+  @override
+  Future<void> installDockerCli() async {}
+
+  @override
+  Future<List<BuilderInfo>> fetchBuilders() async => const [];
+
+  @override
+  Future<void> useBuilder(String name) async {}
+
+  @override
+  Future<void> removeBuilder(String name) async {}
+
+  @override
+  Future<List<int>> downloadDiagnostics() async => const [];
+
+  @override
+  Future<void> copyDiskImage(String path) async {}
+
+  @override
+  Future<List<HubRepository>> fetchHubRepositories() async => const [];
+
+  @override
+  Uri unifiedLogsWebSocketUri() => Uri.parse('ws://127.0.0.1:8765/v1/logs');
 }
 
 class _LoggedInCalfClient extends FakeCalfClient {
@@ -718,6 +786,13 @@ class _ErrorCalfClient implements CalfClient {
   }) async => const [];
 
   @override
+  Future<void> writeVolumeFile(
+    String name,
+    String path,
+    String content,
+  ) async {}
+
+  @override
   Future<List<VolumeContainerUsage>> fetchVolumeContainers(String name) async =>
       const [];
 
@@ -833,6 +908,12 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> restartContainer(String id) async {}
 
   @override
+  Future<void> pauseContainer(String id) async {}
+
+  @override
+  Future<void> resumeContainer(String id) async {}
+
+  @override
   Future<String> fetchContainerInspect(String id, {String? section}) async =>
       '{"Id":"$id"}';
 
@@ -845,6 +926,13 @@ class _ErrorCalfClient implements CalfClient {
     String id, {
     String path = '/',
   }) async => const [];
+
+  @override
+  Future<void> writeContainerFile(
+    String id,
+    String path,
+    String content,
+  ) async {}
 
   @override
   Future<ContainerExecResult> execContainer(String id, String command) async =>
@@ -868,13 +956,30 @@ class _ErrorCalfClient implements CalfClient {
   Future<void> pushImage(String reference) async {}
 
   @override
-  Future<String> runImage(String reference) async => 'mock-container-id';
+  Future<String> runImage(
+    String reference, {
+    String name = '',
+    List<String> ports = const [],
+    List<String> env = const [],
+    List<String> volumes = const [],
+  }) async => 'mock-container-id';
 
   @override
   Future<void> removeImage(String reference) async {}
 
   @override
   Future<void> createVolume(String name) async {}
+
+  @override
+  Future<void> emptyVolume(String name) async {}
+
+  @override
+  Future<void> importVolume({
+    required String name,
+    required String source,
+    String filePath = '',
+    String imageRef = '',
+  }) async {}
 
   @override
   Future<void> cloneVolume(String source, String name) async {}
@@ -884,6 +989,13 @@ class _ErrorCalfClient implements CalfClient {
 
   @override
   Future<void> removeNetwork(String name) async {}
+
+  @override
+  Future<void> createNetwork(
+    String name, {
+    String driver = '',
+    String subnet = '',
+  }) async {}
 
   @override
   Future<BuildItem> runBuild({
@@ -1024,4 +1136,28 @@ class _ErrorCalfClient implements CalfClient {
     bool networks = true,
     bool buildCache = true,
   }) async => const PruneResult();
+
+  @override
+  Future<void> installDockerCli() async {}
+
+  @override
+  Future<List<BuilderInfo>> fetchBuilders() async => const [];
+
+  @override
+  Future<void> useBuilder(String name) async {}
+
+  @override
+  Future<void> removeBuilder(String name) async {}
+
+  @override
+  Future<List<int>> downloadDiagnostics() async => const [];
+
+  @override
+  Future<void> copyDiskImage(String path) async {}
+
+  @override
+  Future<List<HubRepository>> fetchHubRepositories() async => const [];
+
+  @override
+  Uri unifiedLogsWebSocketUri() => Uri.parse('ws://127.0.0.1:8765/v1/logs');
 }

@@ -8,6 +8,7 @@ import 'package:ui/widgets/calf_button.dart';
 import 'package:ui/widgets/calf_popup_menu.dart';
 import 'package:ui/widgets/calf_snack_bar.dart';
 import 'package:ui/widgets/confirm_dialog.dart';
+import 'package:ui/widgets/error_text.dart';
 import 'package:ui/widgets/hover_list_row.dart';
 import 'package:ui/widgets/poll_interval_mixin.dart';
 import 'package:ui/widgets/resource_list_scaffold.dart';
@@ -20,11 +21,15 @@ class ImagesScreen extends StatefulWidget {
     required this.apiClient,
     this.initialImageReference,
     this.onInitialImageConsumed,
+    this.onSignIn,
   });
 
   final CalfClient apiClient;
   final String? initialImageReference;
   final VoidCallback? onInitialImageConsumed;
+
+  /// Starts Docker Hub sign-in when Hub is opened while signed out.
+  final VoidCallback? onSignIn;
 
   /// Creates the mutable state for [ImagesScreen].
   @override
@@ -232,8 +237,199 @@ class _ImagesScreenState extends State<ImagesScreen>
 
   /// Runs the given async action and refreshes the list on success.
   Future<void> _runImage(ImageItem image) async {
-    await widget.apiClient.runImage(image.reference);
+    final nameController = TextEditingController();
+    final portsController = TextEditingController();
+    final envController = TextEditingController();
+    final volumesController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CalfAlertDialog(
+        title: const Text('Run image'),
+        width: 420,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              image.reference,
+              style: CalfTheme.muted(Theme.of(dialogContext)),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                hintText: 'optional',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: portsController,
+              decoration: const InputDecoration(
+                labelText: 'Ports',
+                hintText: '8080:80, 443:443',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: envController,
+              decoration: const InputDecoration(
+                labelText: 'Environment',
+                hintText: 'KEY=value',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: volumesController,
+              decoration: const InputDecoration(
+                labelText: 'Volumes',
+                hintText: 'name:/path',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Run'),
+          ),
+        ],
+      ),
+    );
+    List<String> splitCsv(String raw) => raw
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final name = nameController.text.trim();
+    final ports = splitCsv(portsController.text);
+    final env = splitCsv(envController.text);
+    final volumes = splitCsv(volumesController.text);
+    nameController.dispose();
+    portsController.dispose();
+    envController.dispose();
+    volumesController.dispose();
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Starting ${image.reference}...',
+      done: 'Started ${image.reference}',
+      action: () => widget.apiClient.runImage(
+        image.reference,
+        name: name,
+        ports: ports,
+        env: env,
+        volumes: volumes,
+      ),
+    );
+    if (ok && mounted) {
+      await _loadImages();
+    }
+  }
+
+  /// Prompts for an image reference and pulls it.
+  Future<void> _pullByName() async {
+    final pulled = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _PullImageDialog(apiClient: widget.apiClient),
+    );
+    if (pulled != true || !mounted) {
+      return;
+    }
     await _loadImages();
+  }
+
+  /// Lists Docker Hub repositories for the signed-in user and pulls one.
+  Future<void> _openHubRepos() async {
+    if (widget.onSignIn != null) {
+      try {
+        final status = await widget.apiClient.fetchRegistryStatus();
+        if (!mounted) {
+          return;
+        }
+        if (!status.loggedIn) {
+          widget.onSignIn!();
+          return;
+        }
+      } catch (error) {
+        if (!mounted) {
+          return;
+        }
+        showCalfErrorSnackBar(context, error);
+        return;
+      }
+    }
+
+    final toast = showCalfProgressToast('Loading Hub repositories...');
+    List<HubRepository> repos;
+    try {
+      repos = await widget.apiClient.fetchHubRepositories();
+      toast.complete('Hub repositories loaded');
+    } catch (error) {
+      if (error is ApiException &&
+          error.statusCode == 401 &&
+          widget.onSignIn != null) {
+        toast.dismiss();
+        widget.onSignIn!();
+        return;
+      }
+      toast.fail(formatAsyncError(error));
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    if (repos.isEmpty) {
+      showCalfSnackBar(context, 'No Hub repositories found');
+      return;
+    }
+    final selected = await showDialog<HubRepository>(
+      context: context,
+      builder: (dialogContext) => CalfAlertDialog(
+        title: const Text('Docker Hub'),
+        width: 420,
+        content: SizedBox(
+          height: 360,
+          child: ListView.builder(
+            itemCount: repos.length,
+            itemBuilder: (context, index) {
+              final repo = repos[index];
+              return ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(repo.reference),
+                subtitle: repo.description.isEmpty
+                    ? null
+                    : Text(repo.description),
+                onTap: () => Navigator.of(dialogContext).pop(repo),
+              );
+            },
+          ),
+        ),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Pulling ${selected.reference}...',
+      done: 'Pulled ${selected.reference}',
+      action: () => widget.apiClient.pullImage(selected.reference),
+    );
+    if (ok && mounted) {
+      await _loadImages();
+    }
   }
 
   /// Pulls the image from its registry via the API.
@@ -299,6 +495,16 @@ class _ImagesScreenState extends State<ImagesScreen>
       title: 'Images',
       searchController: listSearchController,
       loading: listLoading,
+      headerActions: Row(
+        children: [
+          CalfButton.outline(onPressed: _pullByName, child: const Text('Pull')),
+          const SizedBox(width: 8),
+          CalfButton.outline(
+            onPressed: _openHubRepos,
+            child: const Text('Hub'),
+          ),
+        ],
+      ),
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No images match "$listSearchQuery".'
@@ -531,6 +737,7 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
                   ),
                   child: const Text('Run'),
                 ),
+                const SizedBox(width: 8),
                 CalfButton.outline(
                   key: _menuButtonKey,
                   enabled: !_busy,
@@ -642,6 +849,95 @@ class _ImageDetailViewState extends State<_ImageDetailView> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Pull-image dialog that validates the reference and shows pull errors in place.
+class _PullImageDialog extends StatefulWidget {
+  /// Creates a pull-image dialog backed by [apiClient].
+  const _PullImageDialog({required this.apiClient});
+
+  final CalfClient apiClient;
+
+  /// Creates the mutable state for [_PullImageDialog].
+  @override
+  State<_PullImageDialog> createState() => _PullImageDialogState();
+}
+
+class _PullImageDialogState extends State<_PullImageDialog> {
+  final TextEditingController _controller = TextEditingController();
+  String? _error;
+  bool _pulling = false;
+
+  /// Releases the reference field controller.
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Pulls the typed reference, or shows an in-dialog error.
+  Future<void> _submit() async {
+    if (_pulling) {
+      return;
+    }
+
+    final reference = _controller.text.trim();
+    if (reference.isEmpty) {
+      setState(() => _error = 'Enter an image name');
+      return;
+    }
+
+    setState(() {
+      _error = null;
+      _pulling = true;
+    });
+
+    try {
+      await widget.apiClient.pullImage(reference);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _pulling = false;
+        _error = formatAsyncError(error);
+      });
+    }
+  }
+
+  /// Builds the pull-image dialog.
+  @override
+  Widget build(BuildContext context) {
+    return CalfAlertDialog(
+      title: const Text('Pull image'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        enabled: !_pulling,
+        onSubmitted: (_) => unawaited(_submit()),
+        decoration: InputDecoration(
+          labelText: 'Reference',
+          hintText: 'nginx:latest',
+          errorText: _error,
+        ),
+      ),
+      actions: [
+        CalfButton.outline(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        CalfButton(
+          enabled: !_pulling,
+          onPressed: _submit,
+          child: Text(_pulling ? 'Pulling...' : 'Pull'),
+        ),
+      ],
     );
   }
 }

@@ -187,30 +187,24 @@ class _VolumesScreenState extends State<VolumesScreen>
     setState(() => _lockedNames.add(volume.name));
     try {
       final nameController = TextEditingController(text: '${volume.name}-copy');
-      final theme = Theme.of(context);
 
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => CalfAlertDialog(
           title: const Text('Clone volume'),
           content: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Create a copy of "${volume.name}".'),
-              const SizedBox(height: 16),
-              Text(
-                'Volume name',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-
-              /// Creates a [_VolumesScreenState] widget.
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(hintText: 'Volume name'),
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  hintText: 'Volume name',
+                ),
               ),
             ],
           ),
@@ -281,6 +275,48 @@ class _VolumesScreenState extends State<VolumesScreen>
     }
   }
 
+  /// Prompts for a name and creates a volume.
+  Future<void> _createVolume() async {
+    final nameController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CalfAlertDialog(
+        title: const Text('Create volume'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Name',
+            hintText: 'Volume name',
+          ),
+        ),
+        actions: [
+          CalfButton.outline(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          CalfButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    final name = nameController.text.trim();
+    nameController.dispose();
+    if (confirmed != true || name.isEmpty || !mounted) {
+      return;
+    }
+    final ok = await runCalfToastAction(
+      pending: 'Creating "$name"...',
+      done: 'Created volume "$name"',
+      action: () => widget.apiClient.createVolume(name),
+    );
+    if (ok && mounted) {
+      await _loadVolumes();
+    }
+  }
+
   /// Builds the volume list or the selected volume detail view.
   @override
   Widget build(BuildContext context) {
@@ -307,6 +343,10 @@ class _VolumesScreenState extends State<VolumesScreen>
       title: 'Volumes',
       searchController: listSearchController,
       loading: listLoading,
+      headerActions: CalfButton(
+        onPressed: _createVolume,
+        child: const Text('Create'),
+      ),
       empty: filtered.isEmpty,
       emptyMessage: listSearchQuery.isNotEmpty
           ? 'No volumes match "$listSearchQuery".'

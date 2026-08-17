@@ -479,6 +479,37 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                     CalfButtonGroup(
                       actions: [
                         CalfGroupAction(
+                          icon: LucideIcons.pause,
+                          tooltip: 'Pause',
+                          enabled: !widget.locked && _container.isRunning,
+                          onPressed: () => _runAction(
+                            () =>
+                                widget.apiClient.pauseContainer(_container.id),
+                            pending: 'Pausing "${_container.displayName}"...',
+                            done: 'Paused "${_container.displayName}"',
+                          ),
+                        ),
+                        CalfGroupAction(
+                          icon: LucideIcons.play,
+                          tooltip: _container.isPaused ? 'Resume' : 'Start',
+                          enabled: !widget.locked && !_container.isRunning,
+                          onPressed: () => _runAction(
+                            () => _container.isPaused
+                                ? widget.apiClient.resumeContainer(
+                                    _container.id,
+                                  )
+                                : widget.apiClient.startContainer(
+                                    _container.id,
+                                  ),
+                            pending: _container.isPaused
+                                ? 'Resuming "${_container.displayName}"...'
+                                : 'Starting "${_container.displayName}"...',
+                            done: _container.isPaused
+                                ? 'Resumed "${_container.displayName}"'
+                                : 'Started "${_container.displayName}"',
+                          ),
+                        ),
+                        CalfGroupAction(
                           icon: LucideIcons.square,
                           tooltip: 'Stop',
                           enabled: !widget.locked && _container.isRunning,
@@ -486,17 +517,6 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
                             () => widget.apiClient.stopContainer(_container.id),
                             pending: 'Stopping "${_container.displayName}"...',
                             done: 'Stopped "${_container.displayName}"',
-                          ),
-                        ),
-                        CalfGroupAction(
-                          icon: LucideIcons.play,
-                          tooltip: 'Start',
-                          enabled: !widget.locked && !_container.isRunning,
-                          onPressed: () => _runAction(
-                            () =>
-                                widget.apiClient.startContainer(_container.id),
-                            pending: 'Starting "${_container.displayName}"...',
-                            done: 'Started "${_container.displayName}"',
                           ),
                         ),
                         CalfGroupAction(
@@ -609,6 +629,8 @@ class _ContainerDetailViewState extends State<ContainerDetailView> {
           theme: theme,
           loadDirectory: (path) =>
               widget.apiClient.fetchContainerFiles(_container.id, path: path),
+          writeFile: (path, content) =>
+              widget.apiClient.writeContainerFile(_container.id, path, content),
         );
       case _ContainerDetailTab.stats:
         return _StatsTab(
@@ -673,7 +695,21 @@ class _InspectTab extends StatelessWidget {
       children: [
         Row(
           children: [
-            /// Creates a [_InspectTab] widget.
+            CalfButton.outline(
+              onPressed: inspect == null
+                  ? null
+                  : () async {
+                      final command = dockerRunCommandFromInspect(inspect!);
+                      if (command.isEmpty) {
+                        return;
+                      }
+                      await Clipboard.setData(ClipboardData(text: command));
+                      if (context.mounted) {
+                        showCalfSnackBar(context, 'Copied docker run');
+                      }
+                    },
+              child: const Text('Copy docker run'),
+            ),
             const Spacer(),
             Text('Raw JSON', style: theme.textTheme.bodySmall),
 
@@ -1008,7 +1044,7 @@ class _MountRow extends StatelessWidget {
     if (!opened && context.mounted) {
       await showDialog<void>(
         context: context,
-        builder: (errorContext) => AlertDialog(
+        builder: (errorContext) => CalfAlertDialog(
           title: const Text('Could not open path'),
           content: Text('Your system could not open:\n${mount.source}'),
           actions: [
@@ -1747,6 +1783,9 @@ TerminalTheme _terminalThemeFor(ThemeData theme) {
 
 /// Returns the status color for the given container.
 Color _containerIconColor(ContainerItem container, ThemeData theme) {
+  if (container.isPaused) {
+    return CalfColors.warning;
+  }
   if (container.isRunning) {
     return CalfColors.success;
   }
@@ -1754,8 +1793,87 @@ Color _containerIconColor(ContainerItem container, ThemeData theme) {
   if (state == 'created' || state == 'restarting') {
     return CalfColors.warning;
   }
-  if (container.status.toLowerCase().contains('restarting')) {
+  if (container.status.toLowerCase().contains('restarting') ||
+      container.isPaused) {
     return CalfColors.warning;
   }
   return theme.colorScheme.onSurfaceVariant;
+}
+
+/// Builds a `docker run` command from container inspect JSON.
+String dockerRunCommandFromInspect(Map<String, dynamic> inspect) {
+  final parts = <String>['docker', 'run', '-d'];
+  final name = (inspect['Name'] as String? ?? '').replaceFirst('/', '');
+  if (name.isNotEmpty) {
+    parts.addAll(['--name', _dockerRunQuote(name)]);
+  }
+  final hostConfig = inspect['HostConfig'];
+  if (hostConfig is Map<String, dynamic>) {
+    final network = hostConfig['NetworkMode'] as String? ?? '';
+    if (network.isNotEmpty && network != 'default' && network != 'bridge') {
+      parts.addAll(['--network', _dockerRunQuote(network)]);
+    }
+    final binds = hostConfig['Binds'];
+    if (binds is List) {
+      for (final bind in binds) {
+        if (bind is String && bind.isNotEmpty) {
+          parts.addAll(['-v', _dockerRunQuote(bind)]);
+        }
+      }
+    }
+    final portBindings = hostConfig['PortBindings'];
+    if (portBindings is Map) {
+      for (final entry in portBindings.entries) {
+        final containerPort = entry.key.toString();
+        final mappings = entry.value;
+        if (mappings is! List) {
+          continue;
+        }
+        for (final mapping in mappings) {
+          if (mapping is! Map) {
+            continue;
+          }
+          final hostIp = mapping['HostIp']?.toString() ?? '';
+          final hostPort = mapping['HostPort']?.toString() ?? '';
+          if (hostPort.isEmpty) {
+            continue;
+          }
+          final left = hostIp.isNotEmpty ? '$hostIp:$hostPort' : hostPort;
+          parts.addAll(['-p', _dockerRunQuote('$left:$containerPort')]);
+        }
+      }
+    }
+  }
+  final config = inspect['Config'];
+  if (config is Map<String, dynamic>) {
+    final env = config['Env'];
+    if (env is List) {
+      for (final item in env) {
+        if (item is String && item.isNotEmpty) {
+          parts.addAll(['-e', _dockerRunQuote(item)]);
+        }
+      }
+    }
+    final image = config['Image'] as String? ?? '';
+    if (image.isNotEmpty) {
+      parts.add(_dockerRunQuote(image));
+    }
+    final cmd = config['Cmd'];
+    if (cmd is List) {
+      for (final item in cmd) {
+        if (item is String && item.isNotEmpty) {
+          parts.add(_dockerRunQuote(item));
+        }
+      }
+    }
+  }
+  return parts.join(' ');
+}
+
+/// Quotes a docker run token when it contains whitespace or shell metacharacters.
+String _dockerRunQuote(String value) {
+  if (!value.contains(RegExp(r'''[\s"$\\']'''))) {
+    return value;
+  }
+  return "'${value.replaceAll("'", "'\\''")}'";
 }

@@ -22,8 +22,14 @@ import (
 	"github.com/enegalan/calf/backend/internal/runtime"
 )
 
-// main delegates to run and maps its exit code to the process status.
+// main delegates host CLI subcommands, otherwise runs the daemon.
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "status", "start", "stop", "restart", "logs", "diagnose", "helper":
+			os.Exit(runHostCLI(os.Args[1:]))
+		}
+	}
 	os.Exit(run())
 }
 
@@ -56,6 +62,15 @@ func run() int {
 			NoProxy:    cfg.NoProxy,
 		},
 	)
+	rt.ApplyEngineSettings(runtime.EngineSettings{
+		FileShares:           cfg.FileShares,
+		HostNetworking:       cfg.HostNetworking,
+		DaemonJSON:           cfg.DaemonJSON,
+		DockerSubnet:         cfg.DockerSubnet,
+		BindLocalhostOnly:    cfg.BindLocalhostOnly,
+		EnableAmd64Emulation: cfg.EnableAmd64Emulation,
+		PrivilegedPorts:      cfg.PrivilegedPorts,
+	})
 	gateway := api.New(cfg, logger, rt).WithMiddleware(
 		middleware.CORS(),
 		middleware.Recovery(logger),
@@ -300,6 +315,10 @@ func ensurePath() string {
 	}
 
 	needed := false
+	calfBin, binErr := config.BinDir()
+	if binErr == nil && !inPath(calfBin, existing) {
+		existing = calfBin + ":" + existing
+	}
 	for _, dir := range []string{"/opt/homebrew/bin", "/usr/local/bin"} {
 		for _, bin := range []string{"krunkit", "gvproxy", "docker"} {
 			if _, err := os.Stat(filepath.Join(dir, bin)); err == nil && !inPath(dir, existing) {

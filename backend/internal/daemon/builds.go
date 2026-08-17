@@ -183,20 +183,54 @@ func (s *Core) AddMigratedBuild(build runtime.Build) {
 	_ = s.persistBuildsLocked()
 }
 
-// enrichHistoryBuildIfNeeded fills missing build fields from buildkit history and persists changes when found.
-func (s *Core) EnrichHistoryBuildIfNeeded(ctx context.Context, build runtime.Build) runtime.Build {
+// historyBuildNeedsEnrichment reports whether a history-linked build is still missing fields
+// that docker/buildx can fill. An unresolvable context alone is not enough: CLI-imported
+// builds never get a host path, and retrying inspect on every GET would block the UI.
+func (s *Core) historyBuildNeedsEnrichment(build runtime.Build) bool {
 	if build.HistoryRef == "" {
-		return build
+		return false
+	}
+	if strings.TrimSpace(build.Context) == "" {
+		return true
+	}
+	if isTerminalBuildStatus(build.Status) && build.RawLog == "" && len(build.Steps) == 0 {
+		return true
+	}
+	if runtime.IsResolvableBuildContext(build.Context) {
+		if len(build.Dependencies) == 0 || dependenciesNeedDigest(build.Dependencies) {
+			return true
+		}
+		if len(build.Tags) == 0 {
+			return true
+		}
+	}
+	if len(build.Results) == 0 && !s.skipHistoryArtifacts(build.HistoryRef) {
+		return true
+	}
+	return false
+}
+
+// ScheduleHistoryEnrichment fills missing buildkit fields in the background so GET /v1/builds/{id} stays fast.
+func (s *Core) ScheduleHistoryEnrichment(build runtime.Build) {
+	if !s.historyBuildNeedsEnrichment(build) {
+		return
+	}
+	if _, loaded := s.historyEnrichInflight.LoadOrStore(build.ID, struct{}{}); loaded {
+		return
 	}
 
-	needsEnrichment := !runtime.IsResolvableBuildContext(build.Context) ||
-		(build.RawLog == "" && len(build.Steps) == 0) ||
-		len(build.Dependencies) == 0 ||
-		dependenciesNeedDigest(build.Dependencies) ||
-		len(build.Results) == 0 ||
-		len(build.Tags) == 0
+	go func() {
+		defer s.historyEnrichInflight.Delete(build.ID)
 
-	if !needsEnrichment {
+		ctx, cancel := context.WithTimeout(s.Lifecycle(), constants.DefaultActionTimeout)
+		defer cancel()
+		s.EnrichHistoryBuildIfNeeded(ctx, build)
+	}()
+}
+
+// EnrichHistoryBuildIfNeeded fills missing build fields from buildkit history and persists changes when found.
+func (s *Core) EnrichHistoryBuildIfNeeded(ctx context.Context, build runtime.Build) runtime.Build {
+	if !s.historyBuildNeedsEnrichment(build) {
 		return build
 	}
 
